@@ -1,0 +1,156 @@
+.med-section {
+    background-color: #ffffff;
+    padding: 30px 100px;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.med-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 60px;
+}
+
+/* ================= LEFT SIDE ================= */
+
+.med-left {
+    flex: 1;
+}
+
+.med-top-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.med-label {
+    color: #08B36A;
+    font-size: 24px;
+    font-weight: 500;
+}
+
+.med-arrow {
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    color: #08B36A;
+}
+
+.med-heading {
+    font-size: 50px;
+    font-weight: 700;
+    color: #2c2f33;
+    margin-bottom: 30px;
+}
+
+.med-description {
+    border-left: 4px solid #08B36A;
+    padding-left: 20px;
+    margin-bottom: 30px;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.med-description p {
+    color: #444;
+    line-height: 1.8;
+    font-size: 16px;
+    font-weight: 400;
+}
+
+/* Scrollbar */
+.med-description::-webkit-scrollbar {
+    width: 6px;
+}
+
+.med-description::-webkit-scrollbar-thumb {
+    background: #08B36A;
+    border-radius: 10px;
+}
+
+.med-btn {
+    background-color: #08B36A;
+    color: white;
+    padding: 14px 32px;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: 0.3s;
+    text-decoration: none;
+}
+
+.med-btn:hover {
+    background-color: #248a59;
+}
+
+/* ================= RIGHT SIDE ================= */
+
+.med-right {
+    flex: 1;
+}
+
+.med-carousel {
+    width: 100%;
+    height: 420px;
+    overflow: hidden;
+}
+
+.med-carousel-track {
+    display: flex;
+    transition: transform 0.8s ease-in-out;
+}
+
+.med-image {
+    width: 100%;
+    height: 280px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 1024px) {
+    .med-section {
+        padding: 60px 40px;
+    }
+
+    .med-heading {
+        font-size: 48px;
+    }
+
+    .med-image {
+        height: 350px;
+    }
+}
+
+@media (max-width: 768px) {
+
+    .med-container {
+        flex-direction: column;
+        gap: 40px;
+    }
+
+    .med-left {
+        text-align: left;
+    }
+
+    .med-top-row {
+        justify-content: left;
+    }
+
+    .med-heading {
+        font-size: 34px;
+    }
+
+    .med-description {
+        max-height: 130px;
+        text-align: left;
+    }
+
+    .med-image {
+        height: 280px;
+    }
+}

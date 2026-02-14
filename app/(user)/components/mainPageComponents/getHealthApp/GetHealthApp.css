@@ -1,0 +1,173 @@
+.health-app {
+    background: #283240;
+    padding: 80px 0;
+    color: #fff;
+}
+
+.health-container {
+    width: 90%;
+    max-width: 1200px;
+    margin: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 50px;
+}
+
+/* Left Side */
+.health-left {
+    flex: 1;
+}
+
+.health-left h4 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 20px;
+}
+
+.health-left h1 {
+    font-size: 40px;
+    font-weight: 700;
+    margin-bottom: 25px;
+}
+
+.health-left p {
+    font-size: 16px;
+    line-height: 1.7;
+    margin-bottom: 40px;
+    max-width: 500px;
+}
+
+/* Buttons */
+.app-buttons {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.playstore-btn,
+.appstore-btn {
+    background: #000;
+    color: #fff;
+    border: none;
+    padding: 15px 25px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    cursor: pointer;
+    transition: 0.3s ease;
+    border: 2px solid white;
+    text-decoration: none;
+}
+
+.playstore-btn:hover,
+.appstore-btn:hover {
+    transform: translateY(-5px);
+    background: #1e1e1e;
+}
+
+.playstore-btn span,
+.appstore-btn span {
+    font-size: 12px;
+    display: block;
+}
+
+.playstore-btn strong,
+.appstore-btn strong {
+    font-size: 18px;
+}
+
+.icon {
+    font-size: 28px;
+}
+
+/* Right Side */
+.health-right {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    height: 400px;
+    position: relative;
+}
+
+/* Image Columns */
+.image-column {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Image Styling */
+.image-column img {
+    height: 360px;
+    width: 270px;
+    object-fit: cover;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+}
+
+/* Floating Animations */
+.column-one img {
+    animation: floatDown 3s ease-in-out infinite alternate;
+}
+
+.column-two img {
+    animation: floatUp 3s ease-in-out infinite alternate;
+}
+
+/* Small movement DOWN */
+@keyframes floatDown {
+    0% {
+        transform: translateY(-10px);
+    }
+    100% {
+        transform: translateY(10px);
+    }
+}
+
+/* Small movement UP */
+@keyframes floatUp {
+    0% {
+        transform: translateY(10px);
+    }
+    100% {
+        transform: translateY(-10px);
+    }
+}
+
+
+
+/* Responsive */
+@media (max-width: 992px) {
+    .health-container {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .health-left h1 {
+        font-size: 40px;
+    }
+
+    .health-left p {
+        margin: auto;
+    }
+
+    .health-right {
+        margin-top: 50px;
+    }
+
+    .screen-two {
+        position: relative;
+        right: 0;
+        top: 0;
+        margin-top: -50px;
+    }
+    .app-buttons{
+        justify-content: center;
+    }
+    .image-column img{
+        width: 200px;
+    }
+}

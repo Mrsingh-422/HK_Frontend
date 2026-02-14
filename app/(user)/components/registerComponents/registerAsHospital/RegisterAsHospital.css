@@ -1,0 +1,208 @@
+.service-wrapper {
+    width: 100%;
+    min-height: 100vh;
+    background: #ffffff;
+    padding: 40px 60px;
+    box-sizing: border-box;
+}
+
+/* TOP CONTAINER */
+.service-container {
+    display: flex;
+    justify-content: space-between;
+    gap: 80px;
+}
+
+/* LEFT IMAGE */
+.service-left img {
+    width: 350px;
+    max-width: 600px;
+    height: 400px;
+    object-fit: cover;
+}
+
+/* RIGHT FORM */
+.service-right {
+    flex: 1;
+}
+
+.service-right h1 {
+    font-size: 40px;
+    font-weight: 600;
+    margin-bottom: 25px;
+}
+
+.service-form input,
+.service-form select {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1.5px solid #08B36A;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    font-size: 14px;
+    outline: none;
+}
+
+.service-form input:focus,
+.service-form select:focus {
+    border-color: #08B36A;
+}
+
+/* Small text */
+.small-text {
+    font-size: 12px;
+    color: #777;
+    margin-top: -8px;
+    margin-bottom: 15px;
+}
+
+/* Terms */
+.terms {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 14px;
+    margin-bottom: 18px;
+}
+
+/* Register button */
+.register-btn {
+    background: #08B36A;
+    color: white;
+    border: none;
+    padding: 10px 22px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.register-btn:hover {
+    background: #05965a;
+}
+
+.login-text {
+    margin-top: 15px;
+    font-size: 14px;
+}
+
+.login-text span {
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+/* BOTTOM SECTION */
+.bottom-section {
+    margin-top: 80px;
+}
+
+.service-info h2 {
+    font-size: 28px;
+    margin-bottom: 15px;
+}
+
+.service-info p {
+    font-size: 16px;
+    line-height: 1.7;
+    color: #333;
+    max-width: 900px;
+}
+
+/* ================================= */
+/* 📱 MOBILE DEVICES (≤768px) */
+/* ================================= */
+@media (max-width: 768px) {
+
+    .service-wrapper {
+        padding: 20px;
+    }
+
+    .service-container {
+        flex-direction: column;
+        gap: 30px;
+    }
+
+    .service-left {
+        text-align: center;
+    }
+
+    .service-left img {
+        width: 100%;
+        height: 250px;
+        max-width: 100%;
+    }
+
+    .service-right h1 {
+        font-size: 26px;
+        text-align: center;
+    }
+
+    .register-btn {
+        width: 100%;
+    }
+
+    .terms {
+        align-items: flex-start;
+    }
+
+    .bottom-section {
+        margin-top: 40px;
+    }
+
+    .service-info h2 {
+        font-size: 22px;
+    }
+
+    .service-info p {
+        font-size: 14px;
+        max-width: 100%;
+    }
+}
+
+
+/* ================================= */
+/* 📲 TABLET DEVICES (769px–1024px) */
+/* ================================= */
+@media (min-width: 769px) and (max-width: 1024px) {
+
+    .service-wrapper {
+        padding: 30px 40px;
+    }
+
+    .service-container {
+        flex-direction: column;
+        gap: 50px;
+    }
+
+    .service-left {
+        text-align: center;
+    }
+
+    .service-left img {
+        width: 100%;
+        height: 320px;
+        max-width: 500px;
+    }
+
+    .service-right h1 {
+        font-size: 32px;
+        text-align: center;
+    }
+
+    .register-btn {
+        width: 200px;
+    }
+
+    .bottom-section {
+        margin-top: 60px;
+    }
+
+    .service-info h2 {
+        font-size: 24px;
+    }
+
+    .service-info p {
+        font-size: 15px;
+    }
+}

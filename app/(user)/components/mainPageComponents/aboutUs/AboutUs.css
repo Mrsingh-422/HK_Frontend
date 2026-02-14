@@ -1,0 +1,259 @@
+.au-section {
+    background-color: #ffffff;
+    padding: 80px 100px;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.au-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 80px;
+}
+
+/* ================= LEFT SIDE ================= */
+
+.au-image-area {
+    position: relative;
+    flex: 1;
+    display: flex;
+    justify-content: center;
+}
+
+.au-carousel {
+    width: 420px;
+    height: 420px;
+    overflow: hidden;
+    border-radius: 50%;
+    border-top-right-radius: 0px;
+    position: relative;
+    z-index: 2;
+}
+
+.au-carousel-track {
+    display: flex;
+    transition: transform 0.8s ease-in-out;
+}
+
+.au-main-image {
+    width: 420px;
+    height: 420px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.au-dots {
+    position: absolute;
+    top: 40px;
+    left: 40px;
+    width: 160px;
+    height: 160px;
+    background-image: radial-gradient(#08B36A 2px, transparent 2px);
+    background-size: 14px 14px;
+    z-index: 1;
+}
+
+/* ================= RIGHT SIDE ================= */
+
+.au-content-area {
+    flex: 1;
+}
+
+.au-top-label {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.au-small-title {
+    color: #08B36A;
+    font-weight: 600;
+    font-size: 24px;
+}
+
+.au-small-arrow {
+    color: #08B36A;
+    font-size: 22px;
+}
+
+.au-heading {
+    font-size: 50px;
+    font-weight: 700;
+    color: #222;
+    margin-bottom: 30px;
+    line-height: 1.2;
+}
+
+/* ================= TABS ================= */
+
+.au-tabs {
+    display: flex;
+    gap: 30px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.au-tab {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+    cursor: pointer;
+    position: relative;
+}
+
+.active-tab {
+    color: #08B36A;
+}
+
+.active-tab::after {
+    content: "";
+    position: absolute;
+    bottom: -6px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background-color: #08B36A;
+}
+
+/* ================= DESCRIPTION ================= */
+
+.au-description {
+    border-right: 4px solid #e0e0e0;
+    padding-right: 20px;
+    margin-bottom: 30px;
+    max-width: 520px;
+}
+
+.au-description p {
+    color: #555;
+    line-height: 1.8;
+    font-size: 16px;
+}
+
+/* ================= MORE LINK ================= */
+
+.au-more-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.au-more-arrow {
+    color: #08B36A;
+    font-size: 18px;
+}
+
+.au-more-text {
+    color: #08B36A;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+
+/* ===================================================== */
+/* ================= TABLET RESPONSIVE ================= */
+/* ===================================================== */
+
+@media (max-width: 1024px) {
+
+    .au-section {
+        padding: 60px 40px;
+    }
+
+    .au-container {
+        flex-direction: column;
+        gap: 50px;
+        text-align: center;
+    }
+
+    .au-content-area {
+        order: 1;
+    }
+
+    .au-image-area {
+        order: 2;
+    }
+
+    .au-heading {
+        font-size: 40px;
+    }
+
+    .au-description {
+        border-right: none;
+        border-bottom: 4px solid #e0e0e0;
+        padding-right: 0;
+        padding-bottom: 20px;
+        margin: 0 auto 30px auto;
+    }
+
+    .au-carousel {
+        width: 360px;
+        height: 360px;
+    }
+
+    .au-main-image {
+        width: 360px;
+        height: 360px;
+    }
+
+    .au-dots {
+        top: 20px;
+        left: 20px;
+    }
+
+    .au-tabs {
+        justify-content: center;
+    }
+}
+
+
+/* ===================================================== */
+/* ================= MOBILE RESPONSIVE ================= */
+/* ===================================================== */
+
+@media (max-width: 600px) {
+
+    .au-section {
+        padding: 50px 20px;
+        text-align: left;
+    }
+
+    .au-heading {
+        font-size: 30px;
+        text-align: left;
+    }
+
+    .au-small-title {
+        font-size: 16px;
+    }
+
+    .au-tab {
+        font-size: 15px;
+    }
+
+    .au-description p {
+        font-size: 14px;
+    }
+
+    .au-carousel {
+        width: 280px;
+        height: 280px;
+    }
+
+    .au-main-image {
+        width: 280px;
+        height: 280px;
+    }
+
+    .au-dots {
+        width: 100px;
+        height: 100px;
+        top: 10px;
+        left: 10px;
+    }
+
+    .au-tabs {
+        gap: 15px;
+    }
+}

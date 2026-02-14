@@ -1,0 +1,245 @@
+/* ===============================
+   DESKTOP DEFAULT
+================================= */
+
+.oi-section {
+    background-color: #ffffff;
+    padding: 80px 100px;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.oi-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 60px;
+}
+
+/* LEFT SIDE */
+
+.oi-left {
+    flex: 1;
+}
+
+.oi-label-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.oi-label-text {
+    color: #08B36A;
+    font-weight: 600;
+    font-size: 24px;
+}
+
+.oi-label-arrow {
+    color: #08B36A;
+    font-size: 22px;
+}
+
+.oi-title {
+    font-size: 50px;
+    font-weight: 700;
+    color: #222;
+    margin-bottom: 30px;
+    line-height: 1.2;
+}
+
+.oi-description-box {
+    border-left: 4px solid #08B36A;
+    padding-left: 20px;
+    margin-bottom: 35px;
+    max-width: 550px;
+    max-height: 140px;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+/* Scrollbar */
+.oi-description-box::-webkit-scrollbar {
+    width: 6px;
+}
+
+.oi-description-box::-webkit-scrollbar-thumb {
+    background: #08B36A;
+    border-radius: 10px;
+}
+
+.oi-description-box p {
+    color: #555;
+    line-height: 1.7;
+    font-size: 16px;
+}
+
+.oi-cta-button {
+    background-color: #08B36A;
+    color: white;
+    padding: 14px 30px;
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-block;
+    transition: 0.3s;
+}
+
+.oi-cta-button:hover {
+    background-color: #248a59;
+}
+
+/* RIGHT SIDE */
+
+.oi-right {
+    flex: 1;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+.oi-shape-bg {
+    position: absolute;
+    width: 85%;
+    height: 85%;
+    background-color: #08B36A;
+    right: 0;
+    top: 0;
+    clip-path: polygon(20% 0%, 100% 0%, 100% 100%, 0% 100%);
+    z-index: 1;
+}
+
+.oi-carousel {
+    width: 100%;
+    height: 400px;
+    overflow: hidden;
+    position: relative;
+    z-index: 2;
+}
+
+.oi-carousel-track {
+    display: flex;
+    transition: transform 0.8s ease-in-out;
+}
+
+.oi-image {
+    width: 100%;
+    height: 400px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+/* ===============================
+   TABLET RESPONSIVE (≤ 1024px)
+================================= */
+
+@media (max-width: 1024px) {
+
+    .oi-section {
+        padding: 60px 40px;
+    }
+
+    .oi-wrapper {
+        gap: 40px;
+    }
+
+    .oi-title {
+        font-size: 38px;
+    }
+
+    .oi-carousel {
+        height: 320px;
+    }
+
+    .oi-image {
+        height: 320px;
+    }
+}
+
+/* ===============================
+   MOBILE RESPONSIVE (≤ 768px)
+================================= */
+
+@media (max-width: 768px) {
+
+    .oi-section {
+        padding: 50px 20px;
+    }
+
+    .oi-wrapper {
+        flex-direction: column;
+        gap: 40px;
+    }
+
+    /* TEXT ON TOP */
+    .oi-left {
+        width: 100%;
+        text-align: left;
+    }
+
+    .oi-label-row {
+        justify-content: left;
+    }
+
+    .oi-title {
+        font-size: 28px;
+    }
+
+    .oi-description-box {
+        max-width: 100%;
+        max-height: 120px;
+        text-align: left;
+        margin: 0 auto 25px auto;
+    }
+
+    .oi-cta-button {
+        padding: 12px 24px;
+        font-size: 14px;
+    }
+
+    /* IMAGE AT BOTTOM */
+    .oi-right {
+        width: 100%;
+    }
+
+    .oi-shape-bg {
+        width: 100%;
+        height: 100%;
+        clip-path: none;
+        /* simpler shape for mobile */
+    }
+
+    .oi-carousel {
+        height: 250px;
+    }
+
+    .oi-image {
+        height: 250px;
+    }
+}
+
+/* ===============================
+   SMALL MOBILE (≤ 480px)
+================================= */
+
+@media (max-width: 480px) {
+
+    .oi-title {
+        font-size: 22px;
+        text-align: left;
+    }
+
+    .oi-label-text {
+        font-size: 16px;
+        text-align: left;
+    }
+
+    .oi-carousel {
+        height: 200px;
+    }
+
+    .oi-image {
+        height: 200px;
+    }
+}

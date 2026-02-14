@@ -1,0 +1,123 @@
+/* Main Wrapper */
+.snav-wrapper {
+    width: 100%;
+    background-color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 17px 40px;
+    font-family: Arial, sans-serif;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+/* Left Section */
+.snav-left {
+    display: flex;
+    align-items: center;
+}
+
+.snav-logo {
+    height: 80px;
+    object-fit: contain;
+}
+
+/* Menu Section */
+.snav-menu {
+    display: flex;
+    align-items: center;
+    gap: 25px;
+    transition: all 0.3s ease-in-out;
+}
+
+/* Links */
+.snav-link {
+    text-decoration: none;
+    color: #111;
+    font-size: 15px;
+    font-weight: 600;
+    transition: color 0.3s ease;
+}
+
+.snav-link:hover {
+    color: #08B36A;
+}
+
+/* Hamburger */
+.snav-hamburger {
+    display: none;
+    font-size: 26px;
+    cursor: pointer;
+}
+
+/* Active Link */
+.snav-active {
+    color: #08B36A !important;
+    position: relative;
+}
+
+.snav-active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -5px;
+    width: 100%;
+    height: 2px;
+    background-color: #08B36A;
+}
+
+/* ------------------------ */
+/* Tablet */
+/* ------------------------ */
+
+@media (max-width: 992px) {
+    .snav-wrapper {
+        padding: 15px 30px;
+    }
+
+    .snav-menu {
+        gap: 20px;
+        z-index: 10;
+    }
+
+    .snav-link {
+        font-size: 16px;
+    }
+}
+
+/* ------------------------ */
+/* Mobile */
+/* ------------------------ */
+
+@media (max-width: 768px) {
+    .snav-hamburger {
+        display: block;
+    }
+
+    .snav-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        background-color: #ffffff;
+        padding: 20px 30px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 20px;
+        display: none;
+        box-shadow: 0 5px 10px rgba(0, 0, 0, 0.08);
+    }
+
+    .snav-menu.active {
+        display: flex;
+    }
+
+    .snav-link {
+        font-size: 16px;
+    }
+
+    .snav-logo {
+        height: 50px;
+    }
+}

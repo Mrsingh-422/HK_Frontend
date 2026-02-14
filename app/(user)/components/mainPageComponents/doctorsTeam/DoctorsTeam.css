@@ -1,0 +1,146 @@
+.doctors-section {
+    padding: 60px 40px;
+    background: #ffffff;
+    text-align: center;
+    overflow: hidden;
+}
+
+.doctors-top-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.doctors-label {
+    color: #08b36a;
+    font-size: 24px;
+    font-weight: 500;
+}
+
+.doctors-arrow {
+    font-size: 22px;
+    cursor: pointer;
+    color: #08b36a;
+}
+
+.section-header h2 {
+    font-size: 50px;
+    margin-bottom: 40px;
+    color: #333;
+}
+
+/* ===== Carousel ===== */
+
+.carousel-wrapper {
+    overflow: hidden;
+    position: relative;
+}
+
+.carousel-track {
+    display: flex;
+    gap: 30px;
+    animation: scroll 25s linear infinite;
+}
+
+.carousel-wrapper:hover .carousel-track {
+    animation-play-state: paused;
+}
+
+.doctor-card {
+    width: 270px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    flex-shrink: 0;
+    transition: transform 0.3s ease;
+}
+
+.doctor-card:hover {
+    transform: translateY(-5px);
+}
+
+/* Image */
+
+.doctor-image-wrapper {
+    position: relative;
+    width: 100%;
+    height: 200px;
+    overflow: hidden;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+.doctor-image {
+    object-fit: cover;
+}
+
+/* Content */
+
+.card-content {
+    padding: 20px;
+}
+
+.card-content h4 {
+    color: #08b36a;
+    margin-bottom: 10px;
+}
+
+.card-content p {
+    color: #555;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* Footer */
+
+.card-footer {
+    border-top: 1px solid #eaeaea;
+    padding: 15px;
+    display: flex;
+    justify-content: center;
+    gap: 25px;
+    font-size: 18px;
+    color: #333;
+}
+
+.card-footer svg {
+    cursor: pointer;
+    transition: 0.3s ease;
+}
+
+.card-footer svg:hover {
+    color: #08b36a;
+    transform: scale(1.2);
+}
+
+/* Infinite Scroll Animation */
+
+@keyframes scroll {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(-50%);
+    }
+}
+
+/* Responsive */
+
+@media (max-width: 992px) {
+    .section-header h2 {
+        font-size: 32px;
+    }
+
+    .doctor-card {
+        width: 240px;
+    }
+}
+
+@media (max-width: 600px) {
+    .doctor-card {
+        width: 200px;
+    }
+}
