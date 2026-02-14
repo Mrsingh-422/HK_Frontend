@@ -55,17 +55,11 @@ const DashboardTopNavbar = ({ heading }) => {
 
     useEffect(() => {
         function handleClickOutside(event) {
-            if (
-                profileRef.current &&
-                !profileRef.current.contains(event.target)
-            ) {
+            if (profileRef.current && !profileRef.current.contains(event.target)) {
                 setOpenProfile(false);
             }
 
-            if (
-                notificationRef.current &&
-                !notificationRef.current.contains(event.target)
-            ) {
+            if (notificationRef.current && !notificationRef.current.contains(event.target)) {
                 setOpenNotifications(false);
             }
         }
