@@ -11,8 +11,7 @@ import {
     FaStore,
     FaTruck,
     FaChevronDown,
-    FaChevronRight,
-    FaBars
+    FaChevronRight
 } from "react-icons/fa";
 
 import "./Sidebar.css";
@@ -20,14 +19,9 @@ import "./Sidebar.css";
 export default function Sidebar() {
     const pathname = usePathname();
     const [openMenu, setOpenMenu] = useState(null);
-    const [collapsed, setCollapsed] = useState(false);
 
     const toggleMenu = (menu) => {
         setOpenMenu(openMenu === menu ? null : menu);
-    };
-
-    const toggleSidebar = () => {
-        setCollapsed(!collapsed);
     };
 
     useEffect(() => {
@@ -41,22 +35,15 @@ export default function Sidebar() {
     const isParentActive = (route) => pathname.startsWith(route);
 
     return (
-        <div className={`sidebar ${collapsed ? "collapsed" : ""}`}>
-
-            {/* Toggle Button */}
-            <div className="toggle-btn" onClick={toggleSidebar}>
-                <FaBars />
-            </div>
+        <div className="sidebar">
 
             {/* Logo */}
             <div className="logo-section">
-                {!collapsed && (
-                    <img
-                        src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1742900654_Health_Kangaroo-1_1.png"
-                        alt="Logo"
-                        className="logo-in-admin"
-                    />
-                )}
+                <img
+                    src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1742900654_Health_Kangaroo-1_1.png"
+                    alt="Logo"
+                    className="logo-in-admin"
+                />
             </div>
 
             <div className="menu">
@@ -67,7 +54,7 @@ export default function Sidebar() {
                     className={`menu-item ${isActive("/admin") ? "active" : ""}`}
                 >
                     <FaTachometerAlt className="icon" />
-                    {!collapsed && <span>Dashboard</span>}
+                    <span>Dashboard</span>
                 </Link>
 
                 {/* Admin Earning */}
@@ -76,7 +63,7 @@ export default function Sidebar() {
                     className={`menu-item ${isActive("/admin/earning") ? "active" : ""}`}
                 >
                     <FaMoneyBill className="icon" />
-                    {!collapsed && <span>Admin Earning</span>}
+                    <span>Admin Earning</span>
                 </Link>
 
                 {/* Sub Admin */}
@@ -85,15 +72,15 @@ export default function Sidebar() {
                     onClick={() => toggleMenu("subadmin")}
                 >
                     <FaUser className="icon" />
-                    {!collapsed && <span>Sub Admin</span>}
-                    {!collapsed && (
+                    <span>Sub Admin</span>
+                    {
                         openMenu === "subadmin"
                             ? <FaChevronDown className="arrow" />
                             : <FaChevronRight className="arrow" />
-                    )}
+                    }
                 </div>
 
-                {openMenu === "subadmin" && !collapsed && (
+                {openMenu === "subadmin" && (
                     <div className="submenu">
                         <Link
                             href="/admin/subadmin/managesubadmins"
@@ -116,15 +103,15 @@ export default function Sidebar() {
                     onClick={() => toggleMenu("users")}
                 >
                     <FaUsers className="icon" />
-                    {!collapsed && <span>Users</span>}
-                    {!collapsed && (
+                    <span>Users</span>
+                    {
                         openMenu === "users"
                             ? <FaChevronDown className="arrow" />
                             : <FaChevronRight className="arrow" />
-                    )}
+                    }
                 </div>
 
-                {openMenu === "users" && !collapsed && (
+                {openMenu === "users" && (
                     <div className="submenu">
                         <Link
                             href="/admin/users/manage"
@@ -141,15 +128,15 @@ export default function Sidebar() {
                     onClick={() => toggleMenu("vendors")}
                 >
                     <FaStore className="icon" />
-                    {!collapsed && <span>Vendors</span>}
-                    {!collapsed && (
+                    <span>Vendors</span>
+                    {
                         openMenu === "vendors"
                             ? <FaChevronDown className="arrow" />
                             : <FaChevronRight className="arrow" />
-                    )}
+                    }
                 </div>
 
-                {openMenu === "vendors" && !collapsed && (
+                {openMenu === "vendors" && (
                     <div className="submenu">
                         <Link
                             href="/admin/vendors/pharmacy"
@@ -178,15 +165,15 @@ export default function Sidebar() {
                     onClick={() => toggleMenu("drivers")}
                 >
                     <FaTruck className="icon" />
-                    {!collapsed && <span>Drivers</span>}
-                    {!collapsed && (
+                    <span>Drivers</span>
+                    {
                         openMenu === "drivers"
                             ? <FaChevronDown className="arrow" />
                             : <FaChevronRight className="arrow" />
-                    )}
+                    }
                 </div>
 
-                {openMenu === "drivers" && !collapsed && (
+                {openMenu === "drivers" && (
                     <div className="submenu">
                         <Link
                             href="/admin/drivers/pharmacy"
@@ -196,6 +183,7 @@ export default function Sidebar() {
                         </Link>
                     </div>
                 )}
+
             </div>
         </div>
     );

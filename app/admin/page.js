@@ -1,8 +1,12 @@
 import React from 'react'
+import DashboardTopNavbar from './components/topNavbar/DashboardTopNavbar'
 
 function page() {
   return (
-    <div>Admin Page</div>
+    <>
+      <DashboardTopNavbar heading="Dashboard" />
+      <div>Admin Page</div>
+    </>
   )
 }
 

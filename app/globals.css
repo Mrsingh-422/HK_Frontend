@@ -1,48 +1,77 @@
+/* ============================= */
+/* Global Reset */
+/* ============================= */
+
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
+/* ============================= */
+/* Hide Scrollbar Everywhere */
+/* ============================= */
+
+/* Chrome, Safari, Edge */
+::-webkit-scrollbar {
+    width: 0px;
+    height: 0px;
+}
+
+/* Firefox */
+* {
+    scrollbar-width: none;
+}
+
+/* IE & Old Edge */
+body {
+    -ms-overflow-style: none;
+}
+
+
+/* ============================= */
 /* ===== Admin Layout ===== */
+/* ============================= */
 
 .admin-layout {
     display: flex;
     height: 100vh;
     width: 100%;
     overflow: hidden;
+    /* prevent double scroll */
 }
 
+/* ============================= */
 /* Sidebar Container */
+/* ============================= */
+
 .admin-sidebar {
-    /* width: 260px; */
-    /* min-width: 260px; */
     height: 100vh;
     background: #f8f9fb;
     border-right: 1px solid #e5e5e5;
     overflow-y: auto;
-
-    /* Hide scrollbar */
-    scrollbar-width: none;
-    /* Firefox */
 }
 
-.admin-sidebar::-webkit-scrollbar {
-    display: none;
-    /* Chrome, Safari */
-}
-
+/* ============================= */
 /* Main Wrapper */
+/* ============================= */
+
 .admin-main-wrapper {
     flex: 1;
     display: flex;
     flex-direction: column;
-    background: #ffffff;
+    background: #f3f3f3;
+    padding: 10px 25px;
+    overflow: hidden;
+    /* prevent double scroll */
 }
 
+/* ============================= */
 /* Content Area */
+/* ============================= */
+
 .admin-content-area {
     flex: 1;
-    padding: 30px;
     overflow-y: auto;
+    /* scrolling works */
 }
