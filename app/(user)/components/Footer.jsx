@@ -14,8 +14,11 @@ import {
     FaPaperPlane,
 } from "react-icons/fa";
 import Link from "next/link";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
 function Footer() {
+
+    const {openModel} = useGlobalContext()
     const [email, setEmail] = useState("");
     return (
         <footer className="footer">
@@ -117,7 +120,8 @@ function Footer() {
                             </button>
                         </form>
                     </div>
-                    <div className="login-box"                    >
+                    <div className="login-box" 
+                    onClick={() => openModel("login")}                   >
                         <p>Login for Police Station and Fire Station</p>
                         <p className="green-btn">
                             Police Station and Fire Station

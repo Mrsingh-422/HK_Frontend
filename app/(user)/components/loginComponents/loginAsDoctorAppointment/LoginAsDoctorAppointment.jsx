@@ -1,8 +1,11 @@
 "use client";
 import React, { useState } from "react";
 import "./LoginAsDoctorAppointment.css";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
-function LoginAsDoctorAppointment({ onClose, openModal }) {
+function LoginAsDoctorAppointment() {
+
+  const { openModal, closeModal } = useGlobalContext()
 
   // ✅ State for form fields
   const [mobile, setMobile] = useState("");
@@ -80,7 +83,7 @@ function LoginAsDoctorAppointment({ onClose, openModal }) {
           <p className="register-text">
             Don't have an account <span
               onClick={() => {
-                onClose();
+                closeModal
                 openModal("register");
               }}>Register?</span>
           </p>

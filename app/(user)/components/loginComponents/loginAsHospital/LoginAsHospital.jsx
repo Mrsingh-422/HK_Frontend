@@ -1,8 +1,11 @@
 "use client";
 import React, { useState } from "react";
 import "./LoginAsHospital.css";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
-function LoginAsHospital({ onClose, openModal }) {
+function LoginAsHospital() {
+
+  const { openModal, closeModal } = useGlobalContext()
 
   // ✅ State for form inputs
   const [mobile, setMobile] = useState("");
@@ -17,7 +20,7 @@ function LoginAsHospital({ onClose, openModal }) {
       mobile,
       password,
       remember,
-      role: "hospital"
+      // role: "hospital"
     };
 
     console.log("Hospital Login Data:", hospitalLoginData);
@@ -80,7 +83,7 @@ function LoginAsHospital({ onClose, openModal }) {
           <p className="register-text">
             Don't have an account <span
               onClick={() => {
-                onClose();
+                closeModal
                 openModal("register");
               }}>Register?</span>
           </p>

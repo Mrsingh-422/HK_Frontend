@@ -1,21 +1,18 @@
 "use client";
 import React, { useState } from "react";
-import "./MainLogin.css";
-
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
-import LoginAsUser from "./loginAsUser/LoginAsUser";
-import LoginAsServiceProvider from "./loginAsServiceProvider/LoginAsServiceProvider";
-import LoginAsHospital from "./loginAsHospital/LoginAsHospital";
-import LoginAsDoctor from "./loginAsDoctor/LoginAsDoctor";
-import LoginAsDoctorAppointment from "./loginAsDoctorAppointment/LoginAsDoctorAppointment";
+import LoginAsUser from "../loginComponents/loginAsUser/LoginAsUser";
+import LoginAsHospital from "../loginComponents/loginAsHospital/LoginAsHospital";
+import LoginAsDoctor from "../loginComponents/loginAsDoctor/LoginAsDoctor";
+import LoginAsServiceProvider from "../loginComponents/loginAsServiceProvider/LoginAsServiceProvider";
+import LoginAsDoctorAppointment from "../loginComponents/loginAsDoctorAppointment/LoginAsDoctorAppointment";
 
 function MainLogin() {
     const [activeTab, setActiveTab] = useState("user");
 
-    // ✅ Get modal functions from global context
-    const { closeModal, openModal } = useGlobalContext();
-    // alert(closeModal)
+    // ✅ Get modal controls from global context
+    const { closeModal } = useGlobalContext();
 
     const renderContent = () => {
         switch (activeTab) {
@@ -40,9 +37,7 @@ function MainLogin() {
                 <span>Login As</span>
 
                 {/* CLOSE BUTTON */}
-                <span className="close-btn" onClick={closeModal}>
-                    ✖
-                </span>
+                <span onClick={closeModal}>✖</span>
             </div>
 
             <div className="login-tabs">
@@ -85,7 +80,6 @@ function MainLogin() {
             <div className="login-body">
                 {renderContent()}
             </div>
-
         </div>
     );
 }

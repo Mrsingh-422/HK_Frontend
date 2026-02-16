@@ -2,8 +2,9 @@
 import React, { useState } from "react";
 import "./LoginAsUser.css";
 import { useAuth } from "@/app/context/AuthContext";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
-function LoginAsUser({ onClose, openModal }) {
+function LoginAsUser() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
@@ -11,6 +12,8 @@ function LoginAsUser({ onClose, openModal }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const { openModal, closeModal } = useGlobalContext()
 
   const { loginAsUser } = useAuth();
 
@@ -40,7 +43,7 @@ function LoginAsUser({ onClose, openModal }) {
       setSuccess("Login successful! Redirecting...");
 
       setTimeout(() => {
-        onClose();
+        closeModal
       }, 1500);
 
     } catch (err) {
@@ -111,7 +114,7 @@ function LoginAsUser({ onClose, openModal }) {
             Don't have an account{" "}
             <span
               onClick={() => {
-                onClose();
+                closeModal
                 openModal("register");
               }}
             >

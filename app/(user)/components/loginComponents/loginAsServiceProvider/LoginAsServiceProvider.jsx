@@ -1,8 +1,11 @@
 "use client";
 import React, { useState } from "react";
 import "./LoginAsServiceProvider.css";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
-function LoginAsServiceProvider({ onClose, openModal }) {
+function LoginAsServiceProvider() {
+
+  const { openModal, closeModal } = useGlobalContext()
 
   // ✅ State for form inputs
   const [mobile, setMobile] = useState("");
@@ -80,7 +83,7 @@ function LoginAsServiceProvider({ onClose, openModal }) {
           <p className="register-text">
             Don't have an account <span
               onClick={() => {
-                onClose();
+                closeModal
                 openModal("register");
               }}>Register?</span>
           </p>

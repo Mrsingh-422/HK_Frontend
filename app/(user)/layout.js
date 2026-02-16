@@ -2,6 +2,7 @@ import { AuthProvider } from "../context/AuthContext";
 import { GlobalProvider } from "../context/GlobalContext";
 import "../globals.css";
 import Footer from "./components/Footer";
+import GlobalModal from "./components/GlobalModal";
 import TopNavbar from "./components/TopNavbar";
 
 export const metadata = {
@@ -18,6 +19,7 @@ export default function RootLayout({ children }) {
             <TopNavbar />
             {children}
             <Footer />
+            <GlobalModal />
           </GlobalProvider>
         </AuthProvider>
       </body>

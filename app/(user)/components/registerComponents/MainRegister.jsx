@@ -6,17 +6,23 @@ import UserRegister from "./userRegister/UserRegister";
 import RegisterAsDoctorAppointment from "./regesterAsDoctorAppointment/RegisterAsDoctorAppointment";
 import RegisterAsServiceProvider from "./registerAsServiceProvider/RegisterAsServiceProvider";
 import RegisterAsHospital from "./registerAsHospital/RegisterAsHospital";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
-function MainRegister({ onClose, openModal }) {
+function MainRegister() {
     const [activeTab, setActiveTab] = useState("user");
+
+    const { closeModal, openModel } = useGlobalContext()
 
     const renderContent = () => {
         switch (activeTab) {
-            case "user": return <UserRegister onClose={onClose} openModal={openModal} />;
-            case "hospital": return <RegisterAsHospital onClose={onClose} openModal={openModal} />;
-            // case "doctor": return <LoginAsDoctor onClose={onClose} openModal={openModal} />;
-            case "provider": return <RegisterAsServiceProvider onClose={onClose} openModal={openModal} />;
-            case "appointment": return <RegisterAsDoctorAppointment onClose={onClose} openModal={openModal} />;
+            case "user":
+                return <UserRegister />;
+            case "hospital":
+                return <RegisterAsHospital />;
+            case "provider":
+                return <RegisterAsServiceProvider />;
+            case "appointment":
+                return <RegisterAsDoctorAppointment />;
             default: return null;
         }
     };
@@ -27,7 +33,7 @@ function MainRegister({ onClose, openModal }) {
                 <span>Registration Option</span>
 
                 {/* CLOSE BUTTON */}
-                <span onClick={onClose}>✖</span>
+                <span onClick={closeModal}>✖</span>
             </div>
 
             <div className="login-tabs">
@@ -46,10 +52,6 @@ function MainRegister({ onClose, openModal }) {
                 <button className={activeTab === "hospital" ? "tab active" : "tab"} onClick={() => setActiveTab("hospital")}>
                     Register as Hospital
                 </button>
-
-                {/* <button className={activeTab === "doctor" ? "tab active" : "tab"} onClick={() => setActiveTab("doctor")}>
-                    Login As Hospital Doctor
-                </button> */}
 
             </div>
 

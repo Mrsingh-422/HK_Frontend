@@ -3,9 +3,11 @@ import React, { useState } from "react";
 import "./RegisterAsDoctorAppointment.css";
 import { useAuth } from "@/app/context/AuthContext";
 import { useRouter } from "next/navigation";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
-function RegisterAsDoctorAppointment({ onClose, openModal }) {
+function RegisterAsDoctorAppointment() {
   const { registerAsDoctorAppointment, loading } = useAuth();
+  const { closeModal, openModal } = useGlobalContext();
   const router = useRouter();
 
   const [formData, setFormData] = useState({
@@ -162,7 +164,7 @@ function RegisterAsDoctorAppointment({ onClose, openModal }) {
               Already have an account?{" "}
               <span
                 onClick={() => {
-                  onClose();
+                  closeModal
                   openModal("login");
                 }}
               >

@@ -3,9 +3,12 @@ import React, { useState } from "react";
 import "./UserRegister.css";
 import { useAuth } from "@/app/context/AuthContext";
 import { useRouter } from "next/navigation";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
-function UserRegister({ onClose, openModal }) {
+function UserRegister() {
   const { registerAsUser, loading } = useAuth();
+  const { closeModal, openModal } = useGlobalContext();
+
   const router = useRouter();
 
   const [formData, setFormData] = useState({
@@ -62,8 +65,8 @@ function UserRegister({ onClose, openModal }) {
         termsAccepted: false,
       });
 
-      router.push("/");
-      // onClose()
+      // router.push("/");
+      closeModal
       // openModal('login')
     } catch (err) {
       setError(err?.message || err);
@@ -128,7 +131,7 @@ function UserRegister({ onClose, openModal }) {
             Already have an account?{" "}
             <span
               onClick={() => {
-                onClose();
+                closeModal
                 openModal("login");
               }}
             >

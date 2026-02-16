@@ -3,9 +3,11 @@ import React, { useState } from "react";
 import "./RegisterAsServiceProvider.css";
 import { useAuth } from "@/app/context/AuthContext";
 import { useRouter } from "next/navigation";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
-function RegisterAsServiceProvider({ onClose, openModal }) {
+function RegisterAsServiceProvider() {
   const { registerAsServiceProvider, loading } = useAuth();
+  const { closeModal, openModal } = useGlobalContext();
   const router = useRouter()
 
   const [formData, setFormData] = useState({
@@ -171,7 +173,7 @@ function RegisterAsServiceProvider({ onClose, openModal }) {
               Already have an account?{" "}
               <span
                 onClick={() => {
-                  onClose();
+                  closeModal
                   openModal("login");
                 }}
               >

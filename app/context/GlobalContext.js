@@ -7,15 +7,32 @@ const GlobalContext = createContext();
 export const GlobalProvider = ({ children }) => {
     const [user, setUser] = useState("Mudabir");
     const [loading, setLoading] = useState(true);
-    const [globalData, setGlobalData] = useState({});
 
+    // ✅ ADD MODAL STATE
+    const [modalType, setModalType] = useState(null);
+
+    const openModal = (type) => {
+        setModalType(type);
+    };
+
+    const closeModal = () => {
+        setModalType(null);
+    };
 
     return (
-        <GlobalContext.Provider value={{ user, setUser, loading, globalData }}>
+        <GlobalContext.Provider
+            value={{
+                user,
+                setUser,
+                loading,
+                modalType,
+                openModal,
+                closeModal
+            }}
+        >
             {children}
         </GlobalContext.Provider>
     );
 };
 
-// Custom hook for easier usage
 export const useGlobalContext = () => useContext(GlobalContext);

@@ -7,26 +7,28 @@ import { FaMapMarkerAlt, FaShoppingCart, FaTag } from "react-icons/fa";
 import MainLogin from "./loginComponents/MainLogin";
 import MainRegister from "./registerComponents/MainRegister";
 import { useAuth } from "@/app/context/AuthContext";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
 export default function TopNavbar() {
   const [modalType, setModalType] = useState(null); // login | register | null
 
   const { user } = useAuth()
+  const {openModal} = useGlobalContext()
 
-  const openModal = (type) => {
-    switch (type) {
-      case "login":
-        setModalType("login");
-        break;
-      case "register":
-        setModalType("register");
-        break;
-      case "policeandfire":
-        setModalType("policeandfore")
-      default:
-        setModalType(null);
-    }
-  };
+  // const openModal = (type) => {
+  //   switch (type) {
+  //     case "login":
+  //       setModalType("login");
+  //       break;
+  //     case "register":
+  //       setModalType("register");
+  //       break;
+  //     case "policeandfire":
+  //       setModalType("policeandfire")
+  //     default:
+  //       setModalType(null);
+  //   }
+  // };
 
   return (
     <>
