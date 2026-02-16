@@ -1,7 +1,12 @@
+"use client";
 import React, { useState } from "react";
 import "./RegisterAsDoctorAppointment.css";
+import { useAuth } from "@/app/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 function RegisterAsDoctorAppointment({ onClose, openModal }) {
+  const { registerAsDoctorAppointment, loading } = useAuth();
+  const router = useRouter();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -16,6 +21,9 @@ function RegisterAsDoctorAppointment({ onClose, openModal }) {
     termsAccepted: false,
   });
 
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
@@ -25,15 +33,70 @@ function RegisterAsDoctorAppointment({ onClose, openModal }) {
     }));
   };
 
+  const validateForm = () => {
+    if (
+      !formData.name ||
+      !formData.email ||
+      !formData.phone ||
+      !formData.address ||
+      !formData.qualification ||
+      !formData.specialist ||
+      !formData.licenseNumber ||
+      !formData.councilNumber ||
+      !formData.password
+    ) {
+      return "All fields are required.";
+    }
+
+    if (formData.password.length < 6) {
+      return "Password must be at least 6 characters.";
+    }
+
+    if (!formData.termsAccepted) {
+      return "You must accept terms & conditions.";
+    }
+
+    return null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    alert("Doctor registration successful! Please wait for admin approval.");
+    setError("");
+    setSuccess("");
+
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    try {
+      await registerAsDoctorAppointment(formData);
+      setSuccess("Doctor registration successful! Please wait for admin approval.");
+
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        address: "",
+        qualification: "",
+        specialist: "",
+        licenseNumber: "",
+        councilNumber: "",
+        password: "",
+        termsAccepted: false,
+      });
+
+      // Optional redirect
+      router.push("/");
+    } catch (err) {
+      setError(err?.message || err);
+    }
   };
 
   return (
     <div className="doctor-register-wrapper">
       <div className="doctor-register-container">
-
         <div className="doctor-register-left">
           <img
             src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602508doctor3.jpg"
@@ -44,23 +107,25 @@ function RegisterAsDoctorAppointment({ onClose, openModal }) {
         <div className="doctor-register-right">
           <h1>Get Started</h1>
 
-          <form className="doctor-form" onSubmit={handleSubmit}>
+          {error && <div className="error-msg">{error}</div>}
+          {success && <div className="success-msg">{success}</div>}
 
-            <input type="text" placeholder="Enter your name" name="name" onChange={handleChange} />
+          <form className="doctor-form" onSubmit={handleSubmit}>
+            <input type="text" placeholder="Enter your name" name="name" value={formData.name} onChange={handleChange} />
 
             <div className="email-verify-group">
-              <input type="email" placeholder="Enter your email" name="email" onChange={handleChange} />
+              <input type="email" placeholder="Enter your email" name="email" value={formData.email} onChange={handleChange} />
               <button type="button" className="verify-btn">Verify</button>
             </div>
 
-            <input type="text" placeholder="Enter your phone number" name="phone" onChange={handleChange} />
+            <input type="text" placeholder="Enter your phone number" name="phone" value={formData.phone} onChange={handleChange} />
             <p className="field-description">
               We'll never share your Phone with anyone else.
             </p>
 
-            <input type="text" placeholder="Enter your Address" name="address" onChange={handleChange} />
+            <input type="text" placeholder="Enter your Address" name="address" value={formData.address} onChange={handleChange} />
 
-            <select name="qualification" onChange={handleChange}>
+            <select name="qualification" value={formData.qualification} onChange={handleChange}>
               <option value="">Select qualification</option>
               <option>MBBS</option>
               <option>MD</option>
@@ -69,7 +134,7 @@ function RegisterAsDoctorAppointment({ onClose, openModal }) {
               <option>BHMS</option>
             </select>
 
-            <select name="specialist" onChange={handleChange}>
+            <select name="specialist" value={formData.specialist} onChange={handleChange}>
               <option value="">Specialist</option>
               <option>Cardiologist</option>
               <option>Dermatologist</option>
@@ -78,33 +143,32 @@ function RegisterAsDoctorAppointment({ onClose, openModal }) {
               <option>Neurologist</option>
             </select>
 
-            <input type="text" placeholder="Enter your License Number" name="licenseNumber" onChange={handleChange} />
-            <input type="text" placeholder="Enter your Council Number" name="councilNumber" onChange={handleChange} />
-            <input type="password" placeholder="Enter your password" name="password" onChange={handleChange} />
+            <input type="text" placeholder="Enter your License Number" name="licenseNumber" value={formData.licenseNumber} onChange={handleChange} />
+            <input type="text" placeholder="Enter your Council Number" name="councilNumber" value={formData.councilNumber} onChange={handleChange} />
+            <input type="password" placeholder="Enter your password" name="password" value={formData.password} onChange={handleChange} />
 
             <div className="checkbox-group">
-              <input type="checkbox" id="terms" name="termsAccepted" onChange={handleChange} />
-              <label htmlFor="terms">
+              <input type="checkbox" name="termsAccepted" checked={formData.termsAccepted} onChange={handleChange} />
+              <label>
                 Allow All Terms & Conditions on this site
               </label>
             </div>
 
-            <button className="register-btn" type="submit">
-              Register →
+            <button className="register-btn" type="submit" disabled={loading}>
+              {loading ? "Registering..." : "Register →"}
             </button>
 
             <p className="login-text">
-              You have all Register{" "}
+              Already have an account?{" "}
               <span
                 onClick={() => {
                   onClose();
                   openModal("login");
                 }}
               >
-                Login?
+                Login
               </span>
             </p>
-
           </form>
         </div>
       </div>

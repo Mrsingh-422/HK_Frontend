@@ -12,6 +12,7 @@ import {
     FaSignOutAlt
 } from "react-icons/fa";
 import Link from "next/link";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
 const DashboardTopNavbar = ({ heading }) => {
     const [openProfile, setOpenProfile] = useState(false);
@@ -19,6 +20,8 @@ const DashboardTopNavbar = ({ heading }) => {
 
     const profileRef = useRef(null);
     const notificationRef = useRef(null);
+
+    const { user } = useGlobalContext()
 
     const notifications = [
         {
@@ -73,7 +76,7 @@ const DashboardTopNavbar = ({ heading }) => {
     return (
         <div className="dashboard-top-navbar">
             <div className="top-center">
-                <p className="welcome-text">Welcome Dr. Parveen</p>
+                <p className="welcome-text">Welcome {user}</p>
             </div>
 
             <div className="top-navbar">

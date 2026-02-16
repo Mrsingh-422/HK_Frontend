@@ -1,7 +1,12 @@
+"use client";
 import React, { useState } from "react";
 import "./RegisterAsServiceProvider.css";
+import { useAuth } from "@/app/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 function RegisterAsServiceProvider({ onClose, openModal }) {
+  const { registerAsServiceProvider, loading } = useAuth();
+  const router = useRouter()
 
   const [formData, setFormData] = useState({
     name: "",
@@ -13,6 +18,9 @@ function RegisterAsServiceProvider({ onClose, openModal }) {
     termsAccepted: false,
   });
 
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
@@ -22,42 +30,93 @@ function RegisterAsServiceProvider({ onClose, openModal }) {
     }));
   };
 
+  const validateForm = () => {
+    if (
+      !formData.name ||
+      !formData.phone ||
+      !formData.location ||
+      !formData.password
+    ) {
+      return "All fields are required.";
+    }
+
+    if (formData.password.length < 6) {
+      return "Password must be at least 6 characters.";
+    }
+
+    if (!formData.termsAccepted) {
+      return "You must accept terms & conditions.";
+    }
+
+    return null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    alert("Service Provider Registered Successfully!");
+    setError("");
+    setSuccess("");
+
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    try {
+      await registerAsServiceProvider(formData);
+
+      setSuccess("Service Provider Registered Successfully!");
+
+      setFormData({
+        name: "",
+        gender: "Male",
+        category: "Nursing",
+        phone: "",
+        location: "",
+        password: "",
+        termsAccepted: false,
+      });
+
+      router.push("/")
+
+    } catch (err) {
+      setError(err?.message || err);
+    }
   };
 
   return (
     <div className="service-wrapper">
       <div className="service-container">
-
         <div className="service-left">
           <img
             src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602393service.png"
-            alt="Pharmacy Illustration"
+            alt="Service Illustration"
           />
         </div>
 
         <div className="service-right">
           <h1>Get Started</h1>
 
-          <form className="service-form" onSubmit={handleSubmit}>
+          {error && <div className="error-msg">{error}</div>}
+          {success && <div className="success-msg">{success}</div>}
 
+          <form className="service-form" onSubmit={handleSubmit}>
             <input
               type="text"
               placeholder="Enter your name"
               name="name"
+              value={formData.name}
               onChange={handleChange}
             />
 
-            <select name="gender" onChange={handleChange}>
+            <select name="gender" value={formData.gender} onChange={handleChange}>
               <option>Male</option>
               <option>Female</option>
               <option>Other</option>
             </select>
 
-            <label className="category-label">select Category</label>
-            <select name="category" onChange={handleChange}>
+            <label className="category-label">Select Category</label>
+            <select name="category" value={formData.category} onChange={handleChange}>
               <option>Nursing</option>
               <option>Pharmacy</option>
               <option>Phlebotomist / Lab</option>
@@ -67,6 +126,7 @@ function RegisterAsServiceProvider({ onClose, openModal }) {
               type="text"
               placeholder="Enter your phone number"
               name="phone"
+              value={formData.phone}
               onChange={handleChange}
             />
 
@@ -78,6 +138,7 @@ function RegisterAsServiceProvider({ onClose, openModal }) {
               type="text"
               placeholder="Enter your location"
               name="location"
+              value={formData.location}
               onChange={handleChange}
             />
 
@@ -85,6 +146,7 @@ function RegisterAsServiceProvider({ onClose, openModal }) {
               type="password"
               placeholder="Enter your password"
               name="password"
+              value={formData.password}
               onChange={handleChange}
             />
 
@@ -93,6 +155,7 @@ function RegisterAsServiceProvider({ onClose, openModal }) {
                 type="checkbox"
                 id="terms"
                 name="termsAccepted"
+                checked={formData.termsAccepted}
                 onChange={handleChange}
               />
               <label htmlFor="terms">
@@ -100,28 +163,26 @@ function RegisterAsServiceProvider({ onClose, openModal }) {
               </label>
             </div>
 
-            <button className="register-btn" type="submit">
-              Register →
+            <button className="register-btn" type="submit" disabled={loading}>
+              {loading ? "Registering..." : "Register →"}
             </button>
 
             <p className="login-text">
-              You have all Register{" "}
+              Already have an account?{" "}
               <span
                 onClick={() => {
                   onClose();
                   openModal("login");
                 }}
               >
-                Login?
+                Login
               </span>
             </p>
-
           </form>
         </div>
       </div>
 
       <div className="bottom-section">
-
         <div className="service-info">
           <h2>Nursing</h2>
           <p>
@@ -143,7 +204,6 @@ function RegisterAsServiceProvider({ onClose, openModal }) {
             Offer home sample collection and diagnostic services.
           </p>
         </div>
-
       </div>
     </div>
   );

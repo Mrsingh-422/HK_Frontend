@@ -1,16 +1,16 @@
 .register-wrapper {
-    background: #ffffff;
-    width: 100%;
-    min-height: 100vh;
-    padding: 40px 60px;
+  background: #ffffff;
+  width: 100%;
+  min-height: 100vh;
+  padding: 40px 60px;
 }
 
 /* MAIN BOX */
 .register-container {
-    background: #ffffff;
-    display: flex;
-    justify-content: space-between;
-    gap: 80px;
+  background: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  gap: 80px;
 }
 
 /* LEFT IMAGE */
@@ -26,82 +26,82 @@
 }
 
 .register-right h1 {
-    font-size: 36px;
-    font-weight: 600;
-    margin-bottom: 25px;
+  font-size: 36px;
+  font-weight: 600;
+  margin-bottom: 25px;
 }
 
 .register-right input {
-    width: 100%;
-    padding: 12px 15px;
-    border: 1px solid #08B36A;
-    border-radius: 4px;
-    margin-bottom: 12px;
-    outline: none;
-    font-size: 14px;
+  width: 100%;
+  padding: 12px 15px;
+  border: 1px solid #08B36A;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  outline: none;
+  font-size: 14px;
 }
 
 .small-text {
-    font-size: 12px;
-    color: #888;
-    margin-bottom: 12px;
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 12px;
 }
 
 .terms {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    font-size: 14px;
-    margin-bottom: 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  margin-bottom: 18px;
 }
 
 .terms input {
-    margin-top: 3px;
+  margin-top: 3px;
 }
 
 .register-btn {
-    background: #08B36A;
-    color: white;
-    border: none;
-    padding: 10px 22px;
-    border-radius: 4px;
-    font-size: 14px;
-    cursor: pointer;
-    font-weight: 500;
+  background: #08B36A;
+  color: white;
+  border: none;
+  padding: 10px 22px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  font-weight: 500;
 }
 
 .register-btn:hover {
-    background: #2fa06f;
+  background: #2fa06f;
 }
 
 .login-text {
-    margin-top: 15px;
-    font-size: 14px;
+  margin-top: 15px;
+  font-size: 14px;
 }
 
 .login-text span {
-    font-weight: 600;
-    cursor: pointer;
-    text-decoration: underline;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 /* BOTTOM USER SECTION */
 .user-info {
-    margin-top: 80px;
-    max-width: 900px;
+  margin-top: 80px;
+  max-width: 900px;
 }
 
 .user-info h2 {
-    font-size: 28px;
-    font-weight: 600;
-    margin-bottom: 20px;
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 20px;
 }
 
 .user-point {
-    font-size: 16px;
-    line-height: 1.7;
-    color: #333;
-    margin-bottom: 18px;
+  font-size: 16px;
+  line-height: 1.7;
+  color: #333;
+  margin-bottom: 18px;
 }
 
 /* ================================= */
@@ -206,4 +206,28 @@
   .user-point {
     font-size: 15px;
   }
+}
+
+/* ================================= */
+/* ✅ ERROR & SUCCESS MESSAGES */
+/* ================================= */
+
+.error-msg {
+  background-color: #fdecea;
+  color: #d32f2f;
+  border: 1px solid #f5c6cb;
+  padding: 10px 14px;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-bottom: 15px;
+}
+
+.success-msg {
+  background-color: #e6f9f0;
+  color: #08B36A;
+  border: 1px solid #b7ebd3;
+  padding: 10px 14px;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-bottom: 15px;
 }

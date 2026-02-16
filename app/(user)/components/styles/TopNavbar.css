@@ -24,19 +24,21 @@
 }
 
 /* CENTER */
-.tnav-center {
+.tnavv-center {
   flex: 1;
   display: flex;
   justify-content: center;
 }
 
-.tnav-search-input {
+.tnavv-search-input {
   width: 60%;
   padding: 8px 15px;
   border-radius: 6px;
   border: none;
   outline: none;
   font-size: 14px;
+  background-color: #fff;
+  color: black;
 }
 
 /* RIGHT */
@@ -125,7 +127,7 @@
 /* -------------------- */
 
 @media (max-width: 992px) {
-  .tnav-search-input {
+  .tnavv-search-input {
     width: 80%;
   }
 
@@ -155,12 +157,12 @@
     justify-content: center;
   }
 
-  .tnav-center {
+  .tnavv-center {
     order: 3;
     width: 100%;
   }
 
-  .tnav-search-input {
+  .tnavv-search-input {
     width: 100%;
   }
 

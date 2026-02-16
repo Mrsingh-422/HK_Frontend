@@ -1,3 +1,5 @@
+import { AuthProvider } from "../context/AuthContext";
+import { GlobalProvider } from "../context/GlobalContext";
 import "../globals.css";
 import Footer from "./components/Footer";
 import TopNavbar from "./components/TopNavbar";
@@ -11,9 +13,13 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <TopNavbar/>
-        {children}
-        <Footer />
+        <AuthProvider >
+          <GlobalProvider>
+            <TopNavbar />
+            {children}
+            <Footer />
+          </GlobalProvider>
+        </AuthProvider>
       </body>
     </html>
   );

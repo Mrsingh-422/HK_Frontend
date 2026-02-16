@@ -6,9 +6,12 @@ import "../components/styles/TopNavbar.css";
 import { FaMapMarkerAlt, FaShoppingCart, FaTag } from "react-icons/fa";
 import MainLogin from "./loginComponents/MainLogin";
 import MainRegister from "./registerComponents/MainRegister";
+import { useAuth } from "@/app/context/AuthContext";
 
 export default function TopNavbar() {
   const [modalType, setModalType] = useState(null); // login | register | null
+
+  const { user } = useAuth()
 
   const openModal = (type) => {
     switch (type) {
@@ -29,15 +32,15 @@ export default function TopNavbar() {
       <div className="tnav-wrapper">
         <div className="tnav-left">
           <FaMapMarkerAlt className="tnav-icon" />
-          <span className="tnav-location-text">Select Your Location</span>
+          <span className="tnav-location-text">aksj</span>
         </div>
 
-        <div className="tnav-center">
+        <div className="tnavv-center">
           <input
             suppressHydrationWarning
             type="search"
             placeholder="Search your own things..."
-            className="tnav-search-input"
+            className="tnavv-search-input"
           />
         </div>
 
