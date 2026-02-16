@@ -95,7 +95,7 @@ function Footer() {
                         below.
                     </p>
 
-                    {/* <div className="subscribe-box">
+                    <div className="subscribe-box">
                         <form
                             onSubmit={(e) => {
                                 e.preventDefault();
@@ -116,12 +116,12 @@ function Footer() {
                                 <FaPaperPlane />
                             </button>
                         </form>
-                    </div> */}
-                    <div className="login-box">
+                    </div>
+                    <div className="login-box"                    >
                         <p>Login for Police Station and Fire Station</p>
-                        <Link href="/" className="green-btn">
+                        <p className="green-btn">
                             Police Station and Fire Station
-                        </Link>
+                        </p>
                     </div>
                 </div>
             </div>

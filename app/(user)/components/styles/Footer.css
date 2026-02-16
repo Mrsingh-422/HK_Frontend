@@ -65,6 +65,7 @@ hr {
 
 .s.social-icons {
     display: flex;
+    flex-direction: row;
     gap: 14px;
 }
 
@@ -180,6 +181,7 @@ hr {
     cursor: pointer;
     border-radius: 4px;
     text-decoration: none;
+    text-align: center;
 }
 
 /* Bottom */
@@ -300,7 +302,7 @@ hr {
 
     .subscribe-box button {
         width: 10%;
-        padding:0px 12px;
+        padding: 0px 12px;
     }
 
     .green-btn {

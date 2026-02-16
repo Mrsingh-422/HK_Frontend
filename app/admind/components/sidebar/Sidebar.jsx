@@ -50,8 +50,8 @@ export default function Sidebar() {
 
                 {/* Dashboard */}
                 <Link
-                    href="/admin"
-                    className={`menu-item ${isActive("/admin") ? "active" : ""}`}
+                    href="/admind"
+                    className={`menu-item ${isActive("/admind") ? "active" : ""}`}
                 >
                     <FaTachometerAlt className="icon" />
                     <span>Dashboard</span>
@@ -59,8 +59,8 @@ export default function Sidebar() {
 
                 {/* Admin Earning */}
                 <Link
-                    href="/admin/earning"
-                    className={`menu-item ${isActive("/admin/earning") ? "active" : ""}`}
+                    href="/admind/earning"
+                    className={`menu-item ${isActive("/admind/earning") ? "active" : ""}`}
                 >
                     <FaMoneyBill className="icon" />
                     <span>Admin Earning</span>
@@ -68,7 +68,7 @@ export default function Sidebar() {
 
                 {/* Sub Admin */}
                 <div
-                    className={`menu-item dropdown ${isParentActive("/admin/subadmin") ? "active" : ""}`}
+                    className={`menu-item dropdown ${isParentActive("/admind/subadmin") ? "active" : ""}`}
                     onClick={() => toggleMenu("subadmin")}
                 >
                     <FaUser className="icon" />
@@ -83,14 +83,14 @@ export default function Sidebar() {
                 {openMenu === "subadmin" && (
                     <div className="submenu">
                         <Link
-                            href="/admin/subadmin/managesubadmins"
-                            className={isActive("/admin/subadmin/managesubadmins") ? "sub-active" : ""}
+                            href="/admind/subadmin/managesubadmins"
+                            className={isActive("/admind/subadmin/managesubadmins") ? "sub-active" : ""}
                         >
                             Manage Subadmin
                         </Link>
                         <Link
-                            href="/admin/subadmin/managesubadminrole"
-                            className={isActive("/admin/subadmin/managesubadminrole") ? "sub-active" : ""}
+                            href="/admind/subadmin/managesubadminrole"
+                            className={isActive("/admind/subadmin/managesubadminrole") ? "sub-active" : ""}
                         >
                             Manage Role
                         </Link>
@@ -99,7 +99,7 @@ export default function Sidebar() {
 
                 {/* Users */}
                 <div
-                    className={`menu-item dropdown ${isParentActive("/admin/users") ? "active" : ""}`}
+                    className={`menu-item dropdown ${isParentActive("/admind/users") ? "active" : ""}`}
                     onClick={() => toggleMenu("users")}
                 >
                     <FaUsers className="icon" />
@@ -114,8 +114,8 @@ export default function Sidebar() {
                 {openMenu === "users" && (
                     <div className="submenu">
                         <Link
-                            href="/admin/users/manage"
-                            className={isActive("/admin/users/manage") ? "sub-active" : ""}
+                            href="/admind/users/manage"
+                            className={isActive("/admind/users/manage") ? "sub-active" : ""}
                         >
                             Manage Users
                         </Link>

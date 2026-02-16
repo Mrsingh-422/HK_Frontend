@@ -21,6 +21,8 @@ export default function TopNavbar() {
       case "register":
         setModalType("register");
         break;
+      case "policeandfire":
+        setModalType("policeandfore")
       default:
         setModalType(null);
     }
