@@ -1,25 +1,54 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./RegisterAsDoctorAppointment.css";
 import { useAuth } from "@/app/context/AuthContext";
-import { useRouter } from "next/navigation";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
 function RegisterAsDoctorAppointment() {
   const { registerAsDoctorAppointment, loading } = useAuth();
   const { closeModal, openModal } = useGlobalContext();
-  const router = useRouter();
+
+  const [qualifications, setQualifications] = useState([]);
+  const [specialists, setSpecialists] = useState([]);
+
+  const fetchDoctorMetaData = async () => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          qualifications: ["MBBS", "MD", "MS", "BAMS", "BHMS"],
+          specialists: [
+            "Cardiologist",
+            "Dermatologist",
+            "Orthopedic",
+            "Pediatrician",
+            "Neurologist",
+          ],
+        });
+      }, 800); // simulate network delay
+    });
+  };
+
+  // ✅ Call dummy fetch on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      const data = await fetchDoctorMetaData();
+      setQualifications(data.qualifications);
+      setSpecialists(data.specialists);
+    };
+
+    loadData();
+  }, []);
 
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
+    password: "",
     address: "",
     qualification: "",
-    specialist: "",
+    speciality: "",
     licenseNumber: "",
     councilNumber: "",
-    password: "",
     termsAccepted: false,
   });
 
@@ -42,7 +71,7 @@ function RegisterAsDoctorAppointment() {
       !formData.phone ||
       !formData.address ||
       !formData.qualification ||
-      !formData.specialist ||
+      !formData.speciality ||
       !formData.licenseNumber ||
       !formData.councilNumber ||
       !formData.password
@@ -73,8 +102,9 @@ function RegisterAsDoctorAppointment() {
     }
 
     try {
-      await registerAsDoctorAppointment(formData);
+      console.log(formData);
       setSuccess("Doctor registration successful! Please wait for admin approval.");
+      closeModal
 
       setFormData({
         name: "",
@@ -82,15 +112,14 @@ function RegisterAsDoctorAppointment() {
         phone: "",
         address: "",
         qualification: "",
-        specialist: "",
+        speciality: "",
         licenseNumber: "",
         councilNumber: "",
         password: "",
         termsAccepted: false,
       });
 
-      // Optional redirect
-      router.push("/");
+      // router.push("/");
     } catch (err) {
       setError(err?.message || err);
     }
@@ -113,50 +142,109 @@ function RegisterAsDoctorAppointment() {
           {success && <div className="success-msg">{success}</div>}
 
           <form className="doctor-form" onSubmit={handleSubmit}>
-            <input type="text" placeholder="Enter your name" name="name" value={formData.name} onChange={handleChange} />
+            <input
+              type="text"
+              placeholder="Enter your name"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+            />
 
             <div className="email-verify-group">
-              <input type="email" placeholder="Enter your email" name="email" value={formData.email} onChange={handleChange} />
-              <button type="button" className="verify-btn">Verify</button>
+              <input
+                type="email"
+                placeholder="Enter your email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+              />
+              <button type="button" className="verify-btn">
+                Verify
+              </button>
             </div>
 
-            <input type="text" placeholder="Enter your phone number" name="phone" value={formData.phone} onChange={handleChange} />
+            <input
+              type="text"
+              placeholder="Enter your phone number"
+              name="phone"
+              value={formData.phone}
+              onChange={handleChange}
+            />
             <p className="field-description">
               We'll never share your Phone with anyone else.
             </p>
 
-            <input type="text" placeholder="Enter your Address" name="address" value={formData.address} onChange={handleChange} />
+            <input
+              type="text"
+              placeholder="Enter your Address"
+              name="address"
+              value={formData.address}
+              onChange={handleChange}
+            />
 
-            <select name="qualification" value={formData.qualification} onChange={handleChange}>
+            <select
+              name="qualification"
+              value={formData.qualification}
+              onChange={handleChange}
+            >
               <option value="">Select qualification</option>
-              <option>MBBS</option>
-              <option>MD</option>
-              <option>MS</option>
-              <option>BAMS</option>
-              <option>BHMS</option>
+              {qualifications.map((qual, index) => (
+                <option key={index} value={qual}>
+                  {qual}
+                </option>
+              ))}
             </select>
 
-            <select name="specialist" value={formData.specialist} onChange={handleChange}>
+            <select
+              name="speciality"
+              value={formData.speciality}
+              onChange={handleChange}
+            >
               <option value="">Specialist</option>
-              <option>Cardiologist</option>
-              <option>Dermatologist</option>
-              <option>Orthopedic</option>
-              <option>Pediatrician</option>
-              <option>Neurologist</option>
+              {specialists.map((spec, index) => (
+                <option key={index} value={spec}>
+                  {spec}
+                </option>
+              ))}
             </select>
 
-            <input type="text" placeholder="Enter your License Number" name="licenseNumber" value={formData.licenseNumber} onChange={handleChange} />
-            <input type="text" placeholder="Enter your Council Number" name="councilNumber" value={formData.councilNumber} onChange={handleChange} />
-            <input type="password" placeholder="Enter your password" name="password" value={formData.password} onChange={handleChange} />
+            <input
+              type="text"
+              placeholder="Enter your License Number"
+              name="licenseNumber"
+              value={formData.licenseNumber}
+              onChange={handleChange}
+            />
+            <input
+              type="text"
+              placeholder="Enter your Council Number"
+              name="councilNumber"
+              value={formData.councilNumber}
+              onChange={handleChange}
+            />
+            <input
+              type="password"
+              placeholder="Enter your password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+            />
 
             <div className="checkbox-group">
-              <input type="checkbox" name="termsAccepted" checked={formData.termsAccepted} onChange={handleChange} />
-              <label>
-                Allow All Terms & Conditions on this site
-              </label>
+              <input
+                type="checkbox"
+                name="termsAccepted"
+                checked={formData.termsAccepted}
+                onChange={handleChange}
+              />
+              <label>Allow All Terms & Conditions on this site</label>
             </div>
 
-            <button className="register-btn" type="submit" disabled={loading}>
+            <button
+              className="register-btn"
+              type="submit"
+              disabled={loading}
+            >
               {loading ? "Registering..." : "Register →"}
             </button>
 
@@ -164,7 +252,7 @@ function RegisterAsDoctorAppointment() {
               Already have an account?{" "}
               <span
                 onClick={() => {
-                  closeModal
+                  closeModal;
                   openModal("login");
                 }}
               >

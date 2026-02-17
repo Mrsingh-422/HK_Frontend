@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Country, State, City } from "country-state-city";
 
 function AddNewSubadmin() {
@@ -18,6 +18,15 @@ function AddNewSubadmin() {
     });
 
     const [preview, setPreview] = useState(null);
+    const [roles, setRoles] = useState(["Manager", "Editor", "Testing", "Support"]);
+
+    // Example: Fetch roles from backend
+    useEffect(() => {
+        // Replace with your API call
+        // fetch("/api/roles")
+        //   .then((res) => res.json())
+        //   .then((data) => setRoles(data));
+    }, []);
 
     const countries = Country.getAllCountries();
     const states = State.getStatesOfCountry(formData.country);
@@ -56,6 +65,7 @@ function AddNewSubadmin() {
                             type="text"
                             name="name"
                             required
+                            placeholder="Enter full name"
                             onChange={handleChange}
                             className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
                         />
@@ -68,6 +78,7 @@ function AddNewSubadmin() {
                             type="email"
                             name="email"
                             required
+                            placeholder="Enter email address"
                             onChange={handleChange}
                             className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
                         />
@@ -80,6 +91,7 @@ function AddNewSubadmin() {
                             type="password"
                             name="password"
                             required
+                            placeholder="Enter password"
                             onChange={handleChange}
                             className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
                         />
@@ -92,6 +104,7 @@ function AddNewSubadmin() {
                             type="text"
                             name="phone"
                             required
+                            placeholder="Enter phone number"
                             onChange={handleChange}
                             className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
                         />
@@ -107,10 +120,11 @@ function AddNewSubadmin() {
                             className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
                         >
                             <option value="">Select Role</option>
-                            <option value="Manager">Manager</option>
-                            <option value="Editor">Editor</option>
-                            <option value="Testing">Testing</option>
-                            <option value="Support">Support</option>
+                            {roles.map((role) => (
+                                <option key={role} value={role}>
+                                    {role}
+                                </option>
+                            ))}
                         </select>
                     </div>
 
@@ -189,6 +203,7 @@ function AddNewSubadmin() {
                             type="text"
                             name="address"
                             required
+                            placeholder="Enter address"
                             onChange={handleChange}
                             className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
                         />
