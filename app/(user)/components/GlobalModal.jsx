@@ -9,7 +9,7 @@ import MainRegister from "./registerComponents/MainRegister";
 export default function GlobalModal() {
     const { modalType, closeModal } = useGlobalContext();
 
-    // ✅ Prevent background scroll when modal opens
+    // 🔒 Prevent background scroll
     useEffect(() => {
         if (modalType) {
             document.body.style.overflow = "hidden";
@@ -22,24 +22,55 @@ export default function GlobalModal() {
         };
     }, [modalType]);
 
+    // ⌨️ Close on ESC key
+    useEffect(() => {
+        const handleEsc = (e) => {
+            if (e.key === "Escape") {
+                closeModal();
+            }
+        };
+
+        if (modalType) {
+            window.addEventListener("keydown", handleEsc);
+        }
+
+        return () => {
+            window.removeEventListener("keydown", handleEsc);
+        };
+    }, [modalType, closeModal]);
+
     if (!modalType) return null;
 
     return (
-        <div className="fixed inset-0 z-[999999] flex items-center justify-center">
+        <div className="fixed inset-0 z-[999999] flex items-end sm:items-center justify-center px-3 sm:px-6">
 
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200"
                 onClick={closeModal}
             />
 
-            {/* Modal Content */}
-            <div className="relative z-10 w-[80%] max-h-[90vh] bg-white rounded-xl shadow-2xl overflow-y-auto p-6 animate-[fadeIn_0.2s_ease-in-out]">
-
+            {/* Modal */}
+            <div
+                className="
+                relative z-10
+                w-full
+                sm:w-[90%]
+                md:w-[75%]
+                lg:w-[90%]
+                xl:w-[80%]
+                // max-h-[95vh]
+                bg-white
+                rounded-t-2xl sm:rounded-xl
+                shadow-2xl
+                overflow-y-auto
+                p-4 sm:p-6 md:p-0
+                animate-[fadeIn_0.2s_ease-in-out]
+                "
+            >
                 {modalType === "login" && <MainLogin />}
                 {modalType === "register" && <MainRegister />}
                 {modalType === "policeandfire" && <MainLoginPolice />}
-
             </div>
         </div>
     );

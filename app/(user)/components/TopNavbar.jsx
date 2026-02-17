@@ -11,24 +11,7 @@ import { useGlobalContext } from "@/app/context/GlobalContext";
 
 export default function TopNavbar() {
   const [modalType, setModalType] = useState(null); // login | register | null
-
-  const { user } = useAuth()
-  const {openModal} = useGlobalContext()
-
-  // const openModal = (type) => {
-  //   switch (type) {
-  //     case "login":
-  //       setModalType("login");
-  //       break;
-  //     case "register":
-  //       setModalType("register");
-  //       break;
-  //     case "policeandfire":
-  //       setModalType("policeandfire")
-  //     default:
-  //       setModalType(null);
-  //   }
-  // };
+  const { openModal } = useGlobalContext()
 
   return (
     <>

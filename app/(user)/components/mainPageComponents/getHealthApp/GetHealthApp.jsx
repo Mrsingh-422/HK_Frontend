@@ -41,14 +41,14 @@ function GetHealthApp() {
                 <div className="health-right">
                     <div className="image-column column-one">
                         <img
-                            src="https://static.vecteezy.com/system/resources/thumbnails/026/375/249/small/ai-generative-portrait-of-confident-male-doctor-in-white-coat-and-stethoscope-standing-with-arms-crossed-and-looking-at-camera-photo.jpg"
+                            src="./phone_one.png"
                             alt="Doctor"
                         />
                     </div>
 
                     <div className="image-column column-two">
                         <img
-                            src="https://static.vecteezy.com/system/resources/thumbnails/026/375/249/small/ai-generative-portrait-of-confident-male-doctor-in-white-coat-and-stethoscope-standing-with-arms-crossed-and-looking-at-camera-photo.jpg"
+                            src="https://healthkangaroo.com/home/img/phone_one-22.png"
                             alt="Doctor"
                         />
                     </div>

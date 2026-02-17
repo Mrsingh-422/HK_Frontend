@@ -7,6 +7,10 @@ import LoginAsHospital from "../loginComponents/loginAsHospital/LoginAsHospital"
 import LoginAsDoctor from "../loginComponents/loginAsDoctor/LoginAsDoctor";
 import LoginAsServiceProvider from "../loginComponents/loginAsServiceProvider/LoginAsServiceProvider";
 import LoginAsDoctorAppointment from "../loginComponents/loginAsDoctorAppointment/LoginAsDoctorAppointment";
+import PoliceStationHead from "./policeStationHead/PoliceStationHead";
+import LoginAsPoliceStation from "./policeStation/LoginAsPoliceStation";
+import LoginAsFireHead from "./fireStationHead/LoginAsFireHead";
+import LoginAsFireStation from "./fireStation/LoginAsFireStation";
 
 function MainLogin() {
     const [activeTab, setActiveTab] = useState("user");
@@ -17,15 +21,13 @@ function MainLogin() {
     const renderContent = () => {
         switch (activeTab) {
             case "user":
-                return <LoginAsUser />;
-            case "hospital":
-                return <LoginAsHospital />;
-            case "doctor":
-                return <LoginAsDoctor />;
-            case "provider":
-                return <LoginAsServiceProvider />;
-            case "appointment":
-                return <LoginAsDoctorAppointment />;
+                return <PoliceStationHead />;
+            case "policeStation":
+                return <LoginAsPoliceStation />;
+            case "fireHead":
+                return <LoginAsFireHead />;
+            case "fireStation":
+                return <LoginAsFireStation />;
             default:
                 return null;
         }
@@ -45,36 +47,30 @@ function MainLogin() {
                     className={activeTab === "user" ? "tab active" : "tab"}
                     onClick={() => setActiveTab("user")}
                 >
-                    Login As User
+                    Login As Police Station Headquarter
                 </button>
 
                 <button
-                    className={activeTab === "provider" ? "tab active" : "tab"}
-                    onClick={() => setActiveTab("provider")}
+                    className={activeTab === "policeStation" ? "tab active" : "tab"}
+                    onClick={() => setActiveTab("policeStation")}
                 >
-                    Login As Service Provider
+                    Login As Police Station
                 </button>
 
                 <button
-                    className={activeTab === "hospital" ? "tab active" : "tab"}
-                    onClick={() => setActiveTab("hospital")}
+                    className={activeTab === "fireHead" ? "tab active" : "tab"}
+                    onClick={() => setActiveTab("fireHead")}
                 >
-                    Login As Hospital
+                    Login As Fire Station Headquarter
                 </button>
 
                 <button
-                    className={activeTab === "doctor" ? "tab active" : "tab"}
-                    onClick={() => setActiveTab("doctor")}
+                    className={activeTab === "fireStation" ? "tab active" : "tab"}
+                    onClick={() => setActiveTab("fireStation")}
                 >
-                    Login As Hospital Doctor
+                    Login As Fire Station
                 </button>
 
-                <button
-                    className={activeTab === "appointment" ? "tab active" : "tab"}
-                    onClick={() => setActiveTab("appointment")}
-                >
-                    Login As Doctor Appointment
-                </button>
             </div>
 
             <div className="login-body">

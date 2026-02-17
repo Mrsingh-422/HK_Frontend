@@ -18,7 +18,7 @@ import { useGlobalContext } from "@/app/context/GlobalContext";
 
 function Footer() {
 
-    const {openModel} = useGlobalContext()
+    const { openModal } = useGlobalContext()
     const [email, setEmail] = useState("");
     return (
         <footer className="footer">
@@ -120,8 +120,8 @@ function Footer() {
                             </button>
                         </form>
                     </div>
-                    <div className="login-box" 
-                    onClick={() => openModel("login")}                   >
+                    <div className="login-box"
+                        onClick={() => openModal("policeandfire")}                  >
                         <p>Login for Police Station and Fire Station</p>
                         <p className="green-btn">
                             Police Station and Fire Station

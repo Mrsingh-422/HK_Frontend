@@ -126,6 +126,7 @@ function LoginAsUser() {
 
       <div className="user-description">
         <h3>User</h3>
+        <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Dolore maiores, in aliquam cum nulla laudantium voluptatum maxime numquam ipsum molestias porro totam. Eius ducimus harum, sint perspiciatis vel delectus quam.</p>
       </div>
     </div>
   );

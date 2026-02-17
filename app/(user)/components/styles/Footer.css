@@ -68,6 +68,9 @@ hr {
     flex-direction: row;
     gap: 14px;
 }
+.social-icons{
+    display: flex;
+}
 
 .social-icons svg {
     color: #fff;
