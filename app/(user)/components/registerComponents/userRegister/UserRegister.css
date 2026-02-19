@@ -37,9 +37,8 @@
   border: 1px solid #08B36A;
   border-radius: 4px;
   margin-bottom: 12px;
-  outline: none;
-  font-size: 14px;
 }
+
 
 .small-text {
   font-size: 12px;
@@ -103,6 +102,33 @@
   color: #333;
   margin-bottom: 18px;
 }
+
+/* ================= LOCATION ROW ================= */
+
+.location-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.location-row select {
+  flex: 1;
+  padding: 12px 15px;
+  border: 1px solid #08B36A;
+  border-radius: 4px;
+  font-size: 14px;
+  outline: none;
+  background: white;
+  cursor: pointer;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .location-row {
+    flex-direction: column;
+  }
+}
+
 
 /* ================================= */
 /* 📱 MOBILE DEVICES (≤ 768px) */

@@ -104,7 +104,7 @@ function RegisterAsDoctorAppointment() {
     try {
       console.log(formData);
       setSuccess("Doctor registration successful! Please wait for admin approval.");
-      closeModal
+      // closeModal()
 
       setFormData({
         name: "",

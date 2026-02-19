@@ -1,24 +1,70 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./UserRegister.css";
 import { useAuth } from "@/app/context/AuthContext";
-import { useRouter } from "next/navigation";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
 function UserRegister() {
   const { registerAsUser, loading } = useAuth();
   const { closeModal, openModal } = useGlobalContext();
 
-  const router = useRouter();
+  const [countries, setCountries] = useState([]);
+  const [states, setStates] = useState([]);
+  const [cities, setCities] = useState([]);
 
   const [formData, setFormData] = useState({
+    name: "",
+    email: "",
     phone: "",
+    country: "",
+    state: "",
+    city: "",
     password: "",
+    confirmPassword: "",
     termsAccepted: false,
   });
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // ================= FETCH DATA =================
+
+  useEffect(() => {
+    fetchCountries();
+  }, []);
+
+  const fetchCountries = async () => {
+    try {
+      const res = await fetch("/api/countries"); // your backend API
+      const data = await res.json();
+      setCountries(data);
+    } catch (err) {
+      console.error("Failed to load countries");
+    }
+  };
+
+  const fetchStates = async (countryId) => {
+    try {
+      const res = await fetch(`/api/states?country=${countryId}`);
+      const data = await res.json();
+      setStates(data);
+      setCities([]);
+    } catch (err) {
+      console.error("Failed to load states");
+    }
+  };
+
+  const fetchCities = async (stateId) => {
+    try {
+      const res = await fetch(`/api/cities?state=${stateId}`);
+      const data = await res.json();
+      setCities(data);
+    } catch (err) {
+      console.error("Failed to load cities");
+    }
+  };
+
+  // ================= HANDLE CHANGE =================
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -27,23 +73,60 @@ function UserRegister() {
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
+
+    if (name === "country") {
+      fetchStates(value);
+    }
+
+    if (name === "state") {
+      fetchCities(value);
+    }
   };
 
+  // ================= VALIDATION =================
+
   const validateForm = () => {
-    if (!formData.phone || !formData.password) {
+    const {
+      name,
+      email,
+      phone,
+      country,
+      state,
+      city,
+      password,
+      confirmPassword,
+      termsAccepted,
+    } = formData;
+
+    if (
+      !name ||
+      !email ||
+      !phone ||
+      !country ||
+      !state ||
+      !city ||
+      !password ||
+      !confirmPassword
+    ) {
       return "All fields are required";
     }
 
-    if (formData.password.length < 6) {
+    if (password.length < 6) {
       return "Password must be at least 6 characters";
     }
 
-    if (!formData.termsAccepted) {
+    if (password !== confirmPassword) {
+      return "Passwords do not match";
+    }
+
+    if (!termsAccepted) {
       return "You must accept terms & conditions";
     }
 
     return null;
   };
+
+  // ================= SUBMIT =================
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -59,32 +142,26 @@ function UserRegister() {
     try {
       await registerAsUser(formData);
       setSuccess("Registration successful!");
-      setFormData({
-        phone: "",
-        password: "",
-        termsAccepted: false,
-      });
 
-      // router.push("/");
-      closeModal
-      // openModal('login')
+      closeModal();
     } catch (err) {
-      setError(err?.message || err);
+      setError(err?.message || "Something went wrong");
     }
   };
 
   return (
     <div className="register-wrapper">
       <div className="register-container">
-        {/* LEFT SIDE */}
+
+        {/* LEFT */}
         <div className="register-left">
           <img
             src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602351user-login.png"
-            alt="Register Illustration"
+            alt="Register"
           />
         </div>
 
-        {/* RIGHT SIDE */}
+        {/* RIGHT */}
         <div className="register-right">
           <h1>Get Started</h1>
 
@@ -92,23 +169,90 @@ function UserRegister() {
           {success && <p className="success-msg">{success}</p>}
 
           <form onSubmit={handleSubmit}>
+
             <input
               type="text"
-              placeholder="Enter your mobile number"
+              placeholder="Full Name"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+            />
+
+            <input
+              type="email"
+              placeholder="Email Address"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+            />
+
+            <input
+              type="text"
+              placeholder="Mobile Number"
               name="phone"
               value={formData.phone}
               onChange={handleChange}
             />
 
-            <p className="small-text">
-              We'll never share your phone with anyone else.
-            </p>
+            {/* LOCATION ROW */}
+            <div className="location-row">
+
+              <select
+                name="country"
+                value={formData.country}
+                onChange={handleChange}
+              >
+                <option value="">Country</option>
+                {countries.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                name="state"
+                value={formData.state}
+                onChange={handleChange}
+                disabled={!formData.country}
+              >
+                <option value="">State</option>
+                {states.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                name="city"
+                value={formData.city}
+                onChange={handleChange}
+                disabled={!formData.state}
+              >
+                <option value="">City</option>
+                {cities.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+
+            </div>
 
             <input
               type="password"
               placeholder="Password"
               name="password"
               value={formData.password}
+              onChange={handleChange}
+            />
+
+            <input
+              type="password"
+              placeholder="Confirm Password"
+              name="confirmPassword"
+              value={formData.confirmPassword}
               onChange={handleChange}
             />
 
@@ -131,26 +275,13 @@ function UserRegister() {
             Already have an account?{" "}
             <span
               onClick={() => {
-                closeModal
+                closeModal();
                 openModal("login");
               }}
             >
               Login
             </span>
           </p>
-        </div>
-      </div>
-
-      {/* INFO SECTION */}
-      <div className="user-info">
-        <h2>User Benefits</h2>
-
-        <div className="user-point">
-          ✓ Secure & fast registration
-        </div>
-
-        <div className="user-point">
-          ✓ Access your dashboard instantly
         </div>
       </div>
     </div>

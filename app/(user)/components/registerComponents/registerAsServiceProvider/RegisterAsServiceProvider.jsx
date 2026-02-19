@@ -12,8 +12,8 @@ function RegisterAsServiceProvider() {
 
   const [formData, setFormData] = useState({
     name: "",
-    gender: "Male",
-    category: "Nursing",
+    gender: "",
+    category: "",
     phone: "",
     location: "",
     password: "",
@@ -71,8 +71,8 @@ function RegisterAsServiceProvider() {
 
       setFormData({
         name: "",
-        gender: "Male",
-        category: "Nursing",
+        gender: "",
+        category: "",
         phone: "",
         location: "",
         password: "",
@@ -112,16 +112,18 @@ function RegisterAsServiceProvider() {
             />
 
             <select name="gender" value={formData.gender} onChange={handleChange}>
-              <option>Male</option>
-              <option>Female</option>
-              <option>Other</option>
+              <option value=''>Select</option>
+              <option value='Male'>Male</option>
+              <option value='Female'>Female</option>
+              <option value='Other'>Other</option>
             </select>
 
             <label className="category-label">Select Category</label>
             <select name="category" value={formData.category} onChange={handleChange}>
-              <option>Nursing</option>
-              <option>Pharmacy</option>
-              <option>Phlebotomist / Lab</option>
+              <option value=''>Select</option>
+              <option value='Nursing'>Nursing</option>
+              <option value='Pharmacy'>Pharmacy</option>
+              <option value='Lab'>Phlebotomist / Lab</option>
             </select>
 
             <input
