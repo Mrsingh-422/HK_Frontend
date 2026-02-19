@@ -3,37 +3,33 @@ import React, { useEffect, useState } from "react";
 import "./RegisterAsDoctorAppointment.css";
 import { useAuth } from "@/app/context/AuthContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import { useUserContext } from "@/app/context/UserContext";
 
 function RegisterAsDoctorAppointment() {
   const { registerAsDoctorAppointment, loading } = useAuth();
   const { closeModal, openModal } = useGlobalContext();
 
+  // ✅ GET FROM USER CONTEXT
+  const {
+    getDoctorSpecializations,
+    getDoctorQualifications,
+  } = useUserContext();
+
   const [qualifications, setQualifications] = useState([]);
   const [specialists, setSpecialists] = useState([]);
 
-  const fetchDoctorMetaData = async () => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          qualifications: ["MBBS", "MD", "MS", "BAMS", "BHMS"],
-          specialists: [
-            "Cardiologist",
-            "Dermatologist",
-            "Orthopedic",
-            "Pediatrician",
-            "Neurologist",
-          ],
-        });
-      }, 800); // simulate network delay
-    });
-  };
-
-  // ✅ Call dummy fetch on component mount
+  // ✅ LOAD FROM BACKEND INSTEAD OF DUMMY
   useEffect(() => {
     const loadData = async () => {
-      const data = await fetchDoctorMetaData();
-      setQualifications(data.qualifications);
-      setSpecialists(data.specialists);
+      try {
+        const quals = await getDoctorQualifications();
+        const specs = await getDoctorSpecializations();
+
+        setQualifications(quals || []);
+        setSpecialists(specs || []);
+      } catch (error) {
+        console.error("Failed to load doctor metadata", error);
+      }
     };
 
     loadData();
@@ -103,8 +99,10 @@ function RegisterAsDoctorAppointment() {
 
     try {
       console.log(formData);
-      setSuccess("Doctor registration successful! Please wait for admin approval.");
-      // closeModal()
+
+      setSuccess(
+        "Doctor registration successful! Please wait for admin approval."
+      );
 
       setFormData({
         name: "",
@@ -118,8 +116,6 @@ function RegisterAsDoctorAppointment() {
         password: "",
         termsAccepted: false,
       });
-
-      // router.push("/");
     } catch (err) {
       setError(err?.message || err);
     }
@@ -188,9 +184,9 @@ function RegisterAsDoctorAppointment() {
               onChange={handleChange}
             >
               <option value="">Select qualification</option>
-              {qualifications.map((qual, index) => (
-                <option key={index} value={qual}>
-                  {qual}
+              {qualifications.map((qual) => (
+                <option key={qual.id} value={qual.id}>
+                  {qual.name}
                 </option>
               ))}
             </select>
@@ -201,9 +197,9 @@ function RegisterAsDoctorAppointment() {
               onChange={handleChange}
             >
               <option value="">Specialist</option>
-              {specialists.map((spec, index) => (
-                <option key={index} value={spec}>
-                  {spec}
+              {specialists.map((spec) => (
+                <option key={spec.id} value={spec.id}>
+                  {spec.name}
                 </option>
               ))}
             </select>

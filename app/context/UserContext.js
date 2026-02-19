@@ -10,6 +10,8 @@ export const UserProvider = ({ children }) => {
 
     const [username, setUsername] = useState("Khanday");
     const [loading, setLoading] = useState(false);
+    const [allSpecializations, setAllSpecializations] = useState([])
+    const [allQualifications, setAllQualifications] = useState([])
 
     // ===============================
     // GET ALL COUNTRIES
@@ -77,6 +79,46 @@ export const UserProvider = ({ children }) => {
         }
     };
 
+    const getDoctorSpecializations = async () => {
+        try {
+            setLoading(true);
+
+            const response = await axios.get(
+                `${API_URL}/admin/doctor-data/specializations`
+            );
+            console.log(response.data.data)
+            setAllSpecializations(response.data.data)
+            return response.data.data; // return only array
+
+        } catch (error) {
+            const message =
+                error.response?.data?.message || "Failed to fetch countries";
+            return Promise.reject(message);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    const getDoctorQualifications = async () => {
+        try {
+            setLoading(true);
+
+            const response = await axios.get(
+                `${API_URL}/admin/doctor-data/qualifications`
+            );
+            console.log(response.data.data)
+            setAllQualifications(response.data.data)
+            return response.data.data; // return only array
+
+        } catch (error) {
+            const message =
+                error.response?.data?.message || "Failed to fetch countries";
+            return Promise.reject(message);
+        } finally {
+            setLoading(false);
+        }
+    }
+
     return (
         <UserContext.Provider
             value={{
@@ -84,7 +126,11 @@ export const UserProvider = ({ children }) => {
                 getAllCountries,
                 getStatesByCountry,
                 getCitiesByState,
-                loading
+                loading,
+                getDoctorSpecializations,
+                getDoctorQualifications,
+                allSpecializations,
+                allQualifications,
             }}
         >
             {children}
