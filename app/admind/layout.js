@@ -1,5 +1,6 @@
 import { AuthProvider } from "../context/AuthContext";
 import { GlobalProvider } from "../context/GlobalContext";
+import { UserProvider } from "../context/UserContext";
 import "../globals.css";
 import Sidebar from "./components/sidebar/Sidebar";
 
@@ -12,21 +13,23 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <AuthProvider>
-          <GlobalProvider>
-            <div className="admin-layout">
-              <aside className="admin-sidebar">
-                <Sidebar />
-              </aside>
+        <UserProvider>
+          <AuthProvider>
+            <GlobalProvider>
+              <div className="admin-layout">
+                <aside className="admin-sidebar">
+                  <Sidebar />
+                </aside>
 
-              <div className="admin-main-wrapper">
-                <main className="admin-content-area">
-                  {children}
-                </main>
+                <div className="admin-main-wrapper">
+                  <main className="admin-content-area">
+                    {children}
+                  </main>
+                </div>
               </div>
-            </div>
-          </GlobalProvider>
-        </AuthProvider>
+            </GlobalProvider>
+          </AuthProvider>
+        </UserProvider>
       </body>
     </html>
   );

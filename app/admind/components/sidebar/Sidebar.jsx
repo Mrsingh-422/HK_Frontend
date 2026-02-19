@@ -114,8 +114,8 @@ export default function Sidebar() {
                 {openMenu === "users" && (
                     <div className="submenu">
                         <Link
-                            href="/admind/users/manage"
-                            className={isActive("/admind/users/manage") ? "sub-active" : ""}
+                            href="/admind/users/manageusers"
+                            className={isActive("/admind/users/manageusers") ? "sub-active" : ""}
                         >
                             Manage Users
                         </Link>

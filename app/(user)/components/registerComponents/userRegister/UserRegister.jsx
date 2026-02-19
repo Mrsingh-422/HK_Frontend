@@ -3,10 +3,16 @@ import React, { useState, useEffect } from "react";
 import "./UserRegister.css";
 import { useAuth } from "@/app/context/AuthContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import { useUserContext } from "@/app/context/UserContext";
 
 function UserRegister() {
   const { registerAsUser, loading } = useAuth();
   const { closeModal, openModal } = useGlobalContext();
+  const {
+    getAllCountries,
+    getStatesByCountry,
+    getCitiesByState,
+  } = useUserContext();
 
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
@@ -30,24 +36,22 @@ function UserRegister() {
   // ================= FETCH DATA =================
 
   useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        const data = await getAllCountries();
+        setCountries(data || []);
+      } catch (err) {
+        console.error("Failed to load countries");
+      }
+    };
+
     fetchCountries();
   }, []);
 
-  const fetchCountries = async () => {
-    try {
-      const res = await fetch("/api/countries"); // your backend API
-      const data = await res.json();
-      setCountries(data);
-    } catch (err) {
-      console.error("Failed to load countries");
-    }
-  };
-
   const fetchStates = async (countryId) => {
     try {
-      const res = await fetch(`/api/states?country=${countryId}`);
-      const data = await res.json();
-      setStates(data);
+      const data = await getStatesByCountry(countryId);
+      setStates(data || []);
       setCities([]);
     } catch (err) {
       console.error("Failed to load states");
@@ -56,9 +60,8 @@ function UserRegister() {
 
   const fetchCities = async (stateId) => {
     try {
-      const res = await fetch(`/api/cities?state=${stateId}`);
-      const data = await res.json();
-      setCities(data);
+      const data = await getCitiesByState(stateId);
+      setCities(data || []);
     } catch (err) {
       console.error("Failed to load cities");
     }
@@ -142,7 +145,6 @@ function UserRegister() {
     try {
       await registerAsUser(formData);
       setSuccess("Registration successful!");
-
       closeModal();
     } catch (err) {
       setError(err?.message || "Something went wrong");

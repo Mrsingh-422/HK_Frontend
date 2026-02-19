@@ -1,9 +1,16 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Country, State, City } from "country-state-city";
+import { useUserContext } from "@/app/context/UserContext";
 
 function AddNewSubadmin() {
+    const {
+        username,
+        getAllCountries,
+        getStatesByCountry,
+        getCitiesByState
+    } = useUserContext();
+
     const [formData, setFormData] = useState({
         name: "",
         email: "",
@@ -20,17 +27,54 @@ function AddNewSubadmin() {
     const [preview, setPreview] = useState(null);
     const [roles, setRoles] = useState(["Manager", "Editor", "Testing", "Support"]);
 
-    // Example: Fetch roles from backend
+    const [countries, setCountries] = useState([]);
+    const [states, setStates] = useState([]);
+    const [cities, setCities] = useState([]);
+
+    // Fetch Countries on Mount
     useEffect(() => {
-        // Replace with your API call
-        // fetch("/api/roles")
-        //   .then((res) => res.json())
-        //   .then((data) => setRoles(data));
+        const fetchCountries = async () => {
+            try {
+                const data = await getAllCountries();
+                setCountries(data || []);
+            } catch (error) {
+                console.log(error);
+            }
+        };
+        fetchCountries();
     }, []);
 
-    const countries = Country.getAllCountries();
-    const states = State.getStatesOfCountry(formData.country);
-    const cities = City.getCitiesOfState(formData.country, formData.state);
+    // Fetch States when Country changes
+    useEffect(() => {
+        if (!formData.country) return;
+
+        const fetchStates = async () => {
+            try {
+                const data = await getStatesByCountry(formData.country);
+                setStates(data || []);
+            } catch (error) {
+                console.log(error);
+            }
+        };
+
+        fetchStates();
+    }, [formData.country]);
+
+    // Fetch Cities when State changes
+    useEffect(() => {
+        if (!formData.state) return;
+
+        const fetchCities = async () => {
+            try {
+                const data = await getCitiesByState(formData.state);
+                setCities(data || []);
+            } catch (error) {
+                console.log(error);
+            }
+        };
+
+        fetchCities();
+    }, [formData.state]);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -53,7 +97,7 @@ function AddNewSubadmin() {
             <div className="bg-white w-full max-w-4xl rounded-2xl shadow-lg p-8">
 
                 <h2 className="text-2xl font-semibold text-gray-700 mb-6">
-                    Add New Subadmin
+                    Add New Subadmin {username}
                 </h2>
 
                 <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -141,13 +185,15 @@ function AddNewSubadmin() {
                                     state: "",
                                     city: "",
                                 });
+                                setStates([]);
+                                setCities([]);
                             }}
                             required
                             className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
                         >
                             <option value="">Select Country</option>
                             {countries.map((country) => (
-                                <option key={country.isoCode} value={country.isoCode}>
+                                <option key={country.id} value={country.id}>
                                     {country.name}
                                 </option>
                             ))}
@@ -169,7 +215,7 @@ function AddNewSubadmin() {
                         >
                             <option value="">Select State</option>
                             {states.map((state) => (
-                                <option key={state.isoCode} value={state.isoCode}>
+                                <option key={state.id} value={state.id}>
                                     {state.name}
                                 </option>
                             ))}
@@ -189,7 +235,7 @@ function AddNewSubadmin() {
                         >
                             <option value="">Select City</option>
                             {cities.map((city) => (
-                                <option key={city.name} value={city.name}>
+                                <option key={city.id} value={city.id}>
                                     {city.name}
                                 </option>
                             ))}
@@ -232,7 +278,7 @@ function AddNewSubadmin() {
                     <div className="md:col-span-2">
                         <button
                             type="submit"
-                            className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-lg shadow-md transition"
+                            className="w-full bg-[#08B36A] hover:bg-[#08b369d6] text-white py-3 rounded-lg shadow-md transition"
                         >
                             Add Subadmin
                         </button>

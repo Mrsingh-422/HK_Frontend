@@ -1,5 +1,4 @@
 "use client";
-
 import { createContext, useContext, useState } from "react";
 
 const GlobalContext = createContext();
@@ -7,17 +6,14 @@ const GlobalContext = createContext();
 export const GlobalProvider = ({ children }) => {
     const [user, setUser] = useState("Mudabir");
     const [loading, setLoading] = useState(true);
-
-    // ✅ ADD MODAL STATE
     const [modalType, setModalType] = useState(null);
-
     const openModal = (type) => {
         setModalType(type);
     };
-
     const closeModal = () => {
         setModalType(null);
     };
+
 
     return (
         <GlobalContext.Provider
