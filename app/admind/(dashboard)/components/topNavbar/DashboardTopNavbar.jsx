@@ -13,10 +13,15 @@ import {
 } from "react-icons/fa";
 import Link from "next/link";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import { useAuth } from "@/app/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 const DashboardTopNavbar = ({ heading }) => {
     const [openProfile, setOpenProfile] = useState(false);
     const [openNotifications, setOpenNotifications] = useState(false);
+    const router = useRouter()
+
+    const { logout } = useAuth()
 
     const profileRef = useRef(null);
     const notificationRef = useRef(null);
@@ -171,7 +176,14 @@ const DashboardTopNavbar = ({ heading }) => {
 
                                 <div className="dropdown-divider"></div>
 
-                                <button className="dropdown-item logout-btn">
+                                <button className="dropdown-item logout-btn"
+                                    onClick={
+                                        () => {
+                                            logout();
+                                            router.push('/admind/login');
+                                        }
+                                    }
+                                >
                                     <FaSignOutAlt className="dropdown-icon" />
                                     <span>Logout</span>
                                 </button>
@@ -181,8 +193,8 @@ const DashboardTopNavbar = ({ heading }) => {
                     </div>
 
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

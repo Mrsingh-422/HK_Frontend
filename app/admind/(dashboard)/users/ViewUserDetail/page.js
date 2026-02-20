@@ -1,8 +1,8 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import DashboardTopNavbar from "../../components/topNavbar/DashboardTopNavbar";
 import { useRouter } from "next/navigation";
+import DashboardTopNavbar from "../../components/topNavbar/DashboardTopNavbar";
 
 export default function ViewUserDetail() {
     const searchParams = useSearchParams();

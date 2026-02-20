@@ -8,16 +8,26 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
+    const [admin, setAdmin] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const token = localStorage.getItem("token");
         const storedUser = localStorage.getItem("user");
-        if (token && storedUser) {
-            setUser(JSON.parse(storedUser));
+        const storedAdmin = localStorage.getItem("admin");
+
+        if (token) {
+            if (storedUser) {
+                setUser(JSON.parse(storedUser));
+            }
+            if (storedAdmin) {
+                setAdmin(JSON.parse(storedAdmin));
+            }
         }
+
         setLoading(false);
     }, []);
+
 
     const registerAsUser = async (userData) => {
         try {
@@ -88,12 +98,45 @@ export const AuthProvider = ({ children }) => {
         }
     }
 
+    const loginAsAdmin = async (userData) => {
+        try {
+            setLoading(true);
+            const response = await axios.post(
+                `${API_URL}/api/auth/admin/login`,
+                userData
+            );
+
+            const { token, admin } = response.data;
+            console.log("This is token and admin")
+            console.log(token, admin)
+            console.log("This is admin role")
+            console.log(admin.role)
+
+            setAdmin(admin);
+            localStorage.setItem("token", token);
+            localStorage.setItem("admin", JSON.stringify(admin));
+
+            return response.data;
+        } catch (error) {
+            const message =
+                error.response?.data?.message || "Login failed";
+            return Promise.reject(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
     const loginAsUser = async (userData) => {
         try {
             setLoading(true);
             const response = await axios.post(`${API_URL}/api/auth/user/login`, userData);
             const { token, user } = response.data;
-            localStorage.setItem("token", token)
+
+            // SAVE BOTH TO LOCAL STORAGE
+            localStorage.setItem("token", token);
+            localStorage.setItem("user", JSON.stringify(user));
+
             setUser(user);
             return response.data;
         } catch (error) {
@@ -143,13 +186,17 @@ export const AuthProvider = ({ children }) => {
 
     const logout = () => {
         localStorage.removeItem("token");
+        localStorage.removeItem("admin");
         localStorage.removeItem("user");
+        setAdmin(null);
         setUser(null);
     };
+
 
     return (
         <AuthContext.Provider value={{
             user,
+            admin,
             loading,
             logout,
             registerAsUser,
@@ -159,6 +206,8 @@ export const AuthProvider = ({ children }) => {
             loginAsUser,
             loginAsDoctorAppointment,
             loginAsServiceProvider,
+            loginAsAdmin,
+            logout
         }}>
             {children}
         </AuthContext.Provider>

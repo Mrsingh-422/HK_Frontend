@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
-import DashboardTopNavbar from "../../components/topNavbar/DashboardTopNavbar";
 import { FaEdit, FaTrash, FaSearch } from "react-icons/fa";
 import AddNewSubadmin from "./components/AddNewSubadmin";
 import EditSubadmin from "./components/EditSubadmin";
+import DashboardTopNavbar from "../../components/topNavbar/DashboardTopNavbar";
 
 const initialSubadminsData = [
   {

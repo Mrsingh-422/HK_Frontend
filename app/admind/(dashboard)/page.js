@@ -8,7 +8,7 @@ export default function Page() {
   return (
     <>
       <DashboardTopNavbar heading="Dashboard" />
-      <Orders />      
+      <Orders />
     </>
   );
 }
