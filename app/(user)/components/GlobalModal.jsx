@@ -5,6 +5,7 @@ import { useGlobalContext } from "@/app/context/GlobalContext";
 import MainLogin from "./loginComponents/MainLogin";
 import MainLoginPolice from "./policeAndFireLogin/MainLoginPolice";
 import MainRegister from "./registerComponents/MainRegister";
+import ForgotPassword from "./ForgotPassword";
 
 export default function GlobalModal() {
     const { modalType, closeModal } = useGlobalContext();
@@ -54,11 +55,8 @@ export default function GlobalModal() {
             <div
                 className="
                 relative z-10
-                w-full
-                sm:w-[90%]
-                md:w-[75%]
-                lg:w-[90%]
-                xl:w-[80%]
+                w-fit
+        max-w-[95vw]
                 // max-h-[95vh]
                 bg-white
                 rounded-t-2xl sm:rounded-xl
@@ -67,10 +65,13 @@ export default function GlobalModal() {
                 p-4 sm:p-6 md:p-0
                 animate-[fadeIn_0.2s_ease-in-out]
                 "
+
+
             >
                 {modalType === "login" && <MainLogin />}
                 {modalType === "register" && <MainRegister />}
                 {modalType === "policeandfire" && <MainLoginPolice />}
+                {modalType === "forgotPassword" && <ForgotPassword />}
             </div>
         </div>
     );

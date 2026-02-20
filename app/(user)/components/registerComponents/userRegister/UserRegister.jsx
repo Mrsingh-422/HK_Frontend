@@ -129,7 +129,7 @@ function UserRegister() {
     return null;
   };
 
-  // ================= SUBMIT =================
+  // ================= SUBMIT (FIXED HERE ONLY) =================
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -143,7 +143,29 @@ function UserRegister() {
     }
 
     try {
-      await registerAsUser(formData);
+      // 🔥 Convert IDs to Names BEFORE sending to backend
+
+      const selectedCountry = countries.find(
+        (c) => c.id == formData.country
+      );
+
+      const selectedState = states.find(
+        (s) => s.id == formData.state
+      );
+
+      const selectedCity = cities.find(
+        (c) => c.id == formData.city
+      );
+
+      const finalData = {
+        ...formData,
+        country: selectedCountry?.name || "",
+        state: selectedState?.name || "",
+        city: selectedCity?.name || "",
+      };
+
+      await registerAsUser(finalData);
+
       setSuccess("Registration successful!");
       closeModal();
     } catch (err) {
@@ -155,7 +177,6 @@ function UserRegister() {
     <div className="register-wrapper">
       <div className="register-container">
 
-        {/* LEFT */}
         <div className="register-left">
           <img
             src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602351user-login.png"
@@ -163,7 +184,6 @@ function UserRegister() {
           />
         </div>
 
-        {/* RIGHT */}
         <div className="register-right">
           <h1>Get Started</h1>
 
@@ -196,7 +216,6 @@ function UserRegister() {
               onChange={handleChange}
             />
 
-            {/* LOCATION ROW */}
             <div className="location-row">
 
               <select
@@ -274,7 +293,7 @@ function UserRegister() {
           </form>
 
           <p className="login-text">
-            Already have an account?{" "}
+            Already have an account{" "}
             <span
               onClick={() => {
                 closeModal();

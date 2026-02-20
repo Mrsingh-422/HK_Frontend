@@ -101,7 +101,9 @@ function LoginAsUser() {
               Remember Password
             </label>
 
-            <span className="forgot">Forget Password?</span>
+            <span className="forgot" 
+            onClick={()=> openModal("forgotPassword")}
+            >Forget Password?</span>
           </div>
 
           <button

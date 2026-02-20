@@ -34,7 +34,10 @@ export const AuthProvider = ({ children }) => {
             setLoading(true);
             const response = await axios.post(`${API_URL}/api/auth/user/register`, userData);
             const { token, user } = response.data;
-            alert(response.data.token);
+
+            // SAVE BOTH TO LOCAL STORAGE
+            localStorage.setItem("token", token);
+            localStorage.setItem("user", JSON.stringify(user));
             setUser(user);
             return response.data;
         } catch (error) {
@@ -179,6 +182,34 @@ export const AuthProvider = ({ children }) => {
     };
 
 
+    // 1️⃣ SEND OTP
+    const forgotPassword = async (email) => {
+        const res = await axios.post(
+            `${API_URL}/api/auth/user/forgot-password`,
+            { email }
+        );
+        return res.data;
+    };
+
+    // 2️⃣ VERIFY OTP
+    const verifyOtp = async (email, otp) => {
+        const res = await axios.post(
+            `${API_URL}/api/auth/user/verify-otp`,
+            { email, otp }
+        );
+        return res.data;
+    };
+
+    // 3️⃣ RESET PASSWORD
+    const resetPassword = async (email, newPassword, confirmPassword) => {
+        const res = await axios.post(
+            `${API_URL}/api/auth/user/reset-password`,
+            { email, newPassword, confirmPassword }
+        );
+        return res.data;
+    };
+
+
     const logout = () => {
         localStorage.removeItem("token");
         localStorage.removeItem("admin");
@@ -202,6 +233,9 @@ export const AuthProvider = ({ children }) => {
             loginAsDoctorAppointment,
             loginAsServiceProvider,
             loginAsAdmin,
+            forgotPassword,
+            verifyOtp,
+            resetPassword,
             logout
         }}>
             {children}
