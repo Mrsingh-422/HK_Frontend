@@ -5,7 +5,7 @@ import { useAuth } from "@/app/context/AuthContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
 function LoginAsUser() {
-  const [phone, setPhone] = useState("");
+  const [identifier, setIdentifier] = useState(""); // phone OR email
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
 
@@ -13,8 +13,7 @@ function LoginAsUser() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const { openModal, closeModal } = useGlobalContext()
-
+  const { openModal, closeModal } = useGlobalContext();
   const { loginAsUser } = useAuth();
 
   const handleSubmit = async (e) => {
@@ -22,33 +21,36 @@ function LoginAsUser() {
     setError("");
     setSuccess("");
 
-    if (!phone || !password) {
-      setError("Please enter phone number and password.");
+    if (!identifier || !password) {
+      setError("Please enter phone/email and password.");
       return;
     }
 
     try {
       setLoading(true);
 
+      // Check if input is email
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
+
       const userLoginData = {
-        phone,
         password,
         remember,
-        // role: "user",
+        ...(isEmail
+          ? { email: identifier }
+          : { phone: identifier }),
       };
 
       const res = await loginAsUser(userLoginData);
 
-      // If login success
       setSuccess("Login successful! Redirecting...");
 
       setTimeout(() => {
-        closeModal
+        closeModal(); // ✅ fixed
       }, 1500);
 
     } catch (err) {
       setError(
-        err?.response?.data?.message || "Invalid phone or password."
+        err?.response?.data?.message || "Invalid phone/email or password."
       );
     } finally {
       setLoading(false);
@@ -77,9 +79,9 @@ function LoginAsUser() {
 
           <input
             type="text"
-            placeholder="Enter your phone number"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Enter your phone number or email"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
           />
 
           <input
@@ -114,7 +116,7 @@ function LoginAsUser() {
             Don't have an account{" "}
             <span
               onClick={() => {
-                closeModal
+                closeModal(); // ✅ fixed
                 openModal("register");
               }}
             >
@@ -126,7 +128,9 @@ function LoginAsUser() {
 
       <div className="user-description">
         <h3>User</h3>
-        <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Dolore maiores, in aliquam cum nulla laudantium voluptatum maxime numquam ipsum molestias porro totam. Eius ducimus harum, sint perspiciatis vel delectus quam.</p>
+        <p>
+          Lorem ipsum dolor sit amet consectetur adipisicing elit. Dolore maiores, in aliquam cum nulla laudantium voluptatum maxime numquam ipsum molestias porro totam. Eius ducimus harum, sint perspiciatis vel delectus quam.
+        </p>
       </div>
     </div>
   );

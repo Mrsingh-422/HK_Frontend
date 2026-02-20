@@ -107,11 +107,6 @@ export const AuthProvider = ({ children }) => {
             );
 
             const { token, admin } = response.data;
-            console.log("This is token and admin")
-            console.log(token, admin)
-            console.log("This is admin role")
-            console.log(admin.role)
-
             setAdmin(admin);
             localStorage.setItem("token", token);
             localStorage.setItem("admin", JSON.stringify(admin));
