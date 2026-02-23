@@ -24,14 +24,23 @@ export default function Page() {
         { id: 12, name: "", email: "user8@gmail.com", number: "9872826836", active: true },
     ]);
 
+    const [search, setSearch] = useState("");
+
+    // ✅ FILTER LOGIC
+    const filteredUsers = users.filter((user) =>
+        user.name.toLowerCase().includes(search.toLowerCase()) ||
+        user.email.toLowerCase().includes(search.toLowerCase()) ||
+        user.number.includes(search)
+    );
+
     // ✅ PAGINATION STATE
     const [currentPage, setCurrentPage] = useState(1);
     const usersPerPage = 10;
 
     const indexOfLastUser = currentPage * usersPerPage;
     const indexOfFirstUser = indexOfLastUser - usersPerPage;
-    const currentUsers = users.slice(indexOfFirstUser, indexOfLastUser);
-    const totalPages = Math.ceil(users.length / usersPerPage);
+    const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
+    const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
 
     const toggleStatus = (id) => {
         setUsers((prev) =>
@@ -61,6 +70,11 @@ export default function Page() {
                             <input
                                 type="text"
                                 placeholder="Search records"
+                                value={search}
+                                onChange={(e) => {
+                                    setSearch(e.target.value);
+                                    setCurrentPage(1);
+                                }}
                                 className="border-b outline-none px-2 py-1"
                             />
                         </div>
@@ -83,76 +97,84 @@ export default function Page() {
                             </thead>
 
                             <tbody>
-                                {currentUsers.map((user, index) => (
-                                    <tr
-                                        key={user.id}
-                                        className="border-t hover:bg-gray-50 transition"
-                                    >
-                                        <td className="px-4 py-3">
-                                            {indexOfFirstUser + index + 1}
-                                        </td>
-                                        <td className="px-4 py-3">{user.name || "—"}</td>
-                                        <td className="px-4 py-3 text-gray-600">
-                                            {user.email}
-                                        </td>
-                                        <td className="px-4 py-3">{user.number}</td>
+                                {currentUsers.length > 0 ? (
+                                    currentUsers.map((user, index) => (
+                                        <tr
+                                            key={user.id}
+                                            className="border-t hover:bg-gray-50 transition"
+                                        >
+                                            <td className="px-4 py-3">
+                                                {indexOfFirstUser + index + 1}
+                                            </td>
+                                            <td className="px-4 py-3">{user.name || "—"}</td>
+                                            <td className="px-4 py-3 text-gray-600">
+                                                {user.email}
+                                            </td>
+                                            <td className="px-4 py-3">{user.number}</td>
 
-                                        <td className="px-4 py-3">
-                                            <div className="w-12 h-12 bg-gray-200 rounded-md flex items-center justify-center">
-                                                📷
-                                            </div>
-                                        </td>
+                                            <td className="px-4 py-3">
+                                                <div className="w-12 h-12 bg-gray-200 rounded-md flex items-center justify-center">
+                                                    📷
+                                                </div>
+                                            </td>
 
-                                        <td className="px-5 py-2">
-                                            <div
-                                                onClick={() => toggleStatus(user.id)}
-                                                className={`w-9 h-5 flex items-center rounded-full p-1 cursor-pointer transition ${user.active
-                                                    ? "bg-green-500"
-                                                    : "bg-red-500"
-                                                    }`}
-                                            >
+                                            <td className="px-5 py-2">
                                                 <div
-                                                    className={`bg-white w-3 h-3 rounded-full shadow-md transform transition ${user.active
-                                                        ? "translate-x-4"
-                                                        : ""
+                                                    onClick={() => toggleStatus(user.id)}
+                                                    className={`w-9 h-5 flex items-center rounded-full p-1 cursor-pointer transition ${user.active
+                                                            ? "bg-green-500"
+                                                            : "bg-red-500"
                                                         }`}
+                                                >
+                                                    <div
+                                                        className={`bg-white w-3 h-3 rounded-full shadow-md transform transition ${user.active
+                                                                ? "translate-x-4"
+                                                                : ""
+                                                            }`}
+                                                    />
+                                                </div>
+                                            </td>
+
+                                            <td className="px-4 py-3">
+                                                <div className="relative inline-block">
+                                                    <select className="border rounded px-3 py-1 text-sm appearance-none pr-8">
+                                                        <option>---View Orders---</option>
+                                                        <option>Pharmacy</option>
+                                                        <option>Lab</option>
+                                                        <option>Nurse</option>
+                                                        <option>Doctor</option>
+                                                        <option>Hospital Booking</option>
+                                                        <option>Ambulance Booking</option>
+                                                    </select>
+                                                    <IoChevronDown className="absolute right-2 top-2 text-gray-500 pointer-events-none" />
+                                                </div>
+                                            </td>
+
+                                            <td className="px-4 py-3 text-gray-600">
+                                                2025-03-06 <br />
+                                                14:34:37
+                                            </td>
+
+                                            <td className="px-4 py-3 text-center">
+                                                <FaEye
+                                                    onClick={() => handleView(user)}
+                                                    className="text-orange-500 cursor-pointer text-2xl hover:scale-110 transition"
                                                 />
-                                            </div>
-                                        </td>
-
-                                        <td className="px-4 py-3">
-                                            <div className="relative inline-block">
-                                                <select className="border rounded px-3 py-1 text-sm appearance-none pr-8">
-                                                    <option>---View Orders---</option>
-                                                    <option>Pharmacy</option>
-                                                    <option>Lab</option>
-                                                    <option>Nurse</option>
-                                                    <option>Doctor</option>
-                                                    <option>Hospital Booking</option>
-                                                    <option>Ambulance Booking</option>
-                                                </select>
-                                                <IoChevronDown className="absolute right-2 top-2 text-gray-500 pointer-events-none" />
-                                            </div>
-                                        </td>
-
-                                        <td className="px-4 py-3 text-gray-600">
-                                            2025-03-06 <br />
-                                            14:34:37
-                                        </td>
-
-                                        <td className="px-4 py-3 text-center">
-                                            <FaEye
-                                                onClick={() => handleView(user)}
-                                                className="text-orange-500 cursor-pointer text-2xl hover:scale-110 transition"
-                                            />
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="9" className="text-center py-6 text-gray-500">
+                                            No users found.
                                         </td>
                                     </tr>
-                                ))}
+                                )}
                             </tbody>
                         </table>
                     </div>
 
-                    {/* ✅ GREEN PAGINATION (Same Style) */}
+                    {/* ✅ GREEN PAGINATION */}
                     {totalPages > 1 && (
                         <div className="flex justify-center items-center gap-2 py-6">
                             {Array.from({ length: totalPages }, (_, i) => (
@@ -160,8 +182,8 @@ export default function Page() {
                                     key={i}
                                     onClick={() => setCurrentPage(i + 1)}
                                     className={`px-4 py-2 rounded-md text-sm font-medium transition ${currentPage === i + 1
-                                        ? "bg-[#08B36A] text-white"
-                                        : "bg-emerald-100 hover:bg-[#08b369d6]"
+                                            ? "bg-[#08B36A] text-white"
+                                            : "bg-emerald-100 hover:bg-[#08b369d6]"
                                         }`}
                                 >
                                     {i + 1}

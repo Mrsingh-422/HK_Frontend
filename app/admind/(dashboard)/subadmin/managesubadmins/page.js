@@ -314,11 +314,10 @@ export default function Page() {
                   <button
                     key={i}
                     onClick={() => setCurrentPage(i + 1)}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition ${
-                      currentPage === i + 1
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition ${currentPage === i + 1
                         ? "bg-[#08B36A]  text-white"
                         : "bg-emerald-100 hover:bg-[#08b369d6]"
-                    }`}
+                      }`}
                   >
                     {i + 1}
                   </button>
