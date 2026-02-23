@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/app/context/AuthContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
@@ -15,12 +15,34 @@ function ForgotPassword() {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState("");
 
+    // ✅ Timer State
+    const [timer, setTimer] = useState(0);
+
+    // ✅ Countdown Effect
+    useEffect(() => {
+        let interval;
+
+        if (timer > 0) {
+            interval = setInterval(() => {
+                setTimer((prev) => prev - 1);
+            }, 1000);
+        }
+
+        return () => clearInterval(interval);
+    }, [timer]);
+
     const handleSendOtp = async () => {
+        if (timer > 0) return; // Prevent multiple clicks
+
         try {
             setLoading(true);
             const res = await forgotPassword(email);
             setMessage(res.message);
             setStep(2);
+
+            // ✅ Start 60 second timer
+            setTimer(60);
+
         } catch (err) {
             setMessage(err?.response?.data?.message);
         } finally {
@@ -42,7 +64,6 @@ function ForgotPassword() {
     };
 
     const handleReset = async () => {
-        // ✅ Password length validation
         if (newPassword.length < 6) {
             setMessage("Password must be at least 6 characters long");
             return;
@@ -62,6 +83,7 @@ function ForgotPassword() {
                 closeModal();
                 openModal("login");
             }, 1500);
+
         } catch (err) {
             setMessage(err?.response?.data?.message);
         } finally {
@@ -69,11 +91,17 @@ function ForgotPassword() {
         }
     };
 
+    // ✅ Format Timer (MM:SS)
+    const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+    };
+
     return (
         <div className="flex items-center justify-center p-4">
             <div className="relative w-[380px] bg-white shadow-2xl rounded-2xl p-7 border border-gray-100">
 
-                {/* ❌ Close Button */}
                 <button
                     onClick={closeModal}
                     className="absolute top-3 right-3 font-extrabold text-green-700 hover:text-green-600 transition text-lg cursor-pointer"
@@ -81,7 +109,6 @@ function ForgotPassword() {
                     ✕
                 </button>
 
-                {/* Title */}
                 <h2 className="text-xl font-semibold text-center text-gray-800 mb-1">
                     Reset Password
                 </h2>
@@ -92,7 +119,6 @@ function ForgotPassword() {
                     {step === 3 && "Create your new password"}
                 </p>
 
-                {/* Message */}
                 {message && (
                     <div className="mb-4 text-xs text-center text-green-700 bg-green-50 border border-green-100 py-2 px-3 rounded-lg">
                         {message}
@@ -112,10 +138,14 @@ function ForgotPassword() {
 
                         <button
                             onClick={handleSendOtp}
-                            disabled={loading}
+                            disabled={loading || timer > 0}
                             className="w-full bg-[#08B36A] text-white py-2.5 text-sm rounded-lg font-medium hover:bg-green-700 transition duration-200 disabled:opacity-60"
                         >
-                            {loading ? "Sending..." : "Send OTP"}
+                            {loading
+                                ? "Sending..."
+                                : timer > 0
+                                    ? `Resend in ${formatTime(timer)}`
+                                    : "Send OTP"}
                         </button>
                     </div>
                 )}
@@ -137,6 +167,17 @@ function ForgotPassword() {
                             className="w-full bg-[#08B36A] text-white py-2.5 text-sm rounded-lg font-medium hover:bg-green-700 transition duration-200 disabled:opacity-60"
                         >
                             {loading ? "Verifying..." : "Verify OTP"}
+                        </button>
+
+                        {/* 🔥 Resend Button (Optional inside Step 2) */}
+                        <button
+                            onClick={handleSendOtp}
+                            disabled={loading || timer > 0}
+                            className="w-full text-sm text-[#08B36A] hover:underline disabled:opacity-50"
+                        >
+                            {timer > 0
+                                ? `Resend OTP in ${formatTime(timer)}`
+                                : "Resend OTP"}
                         </button>
                     </div>
                 )}
@@ -169,6 +210,7 @@ function ForgotPassword() {
                         </button>
                     </div>
                 )}
+
             </div>
         </div>
     );
