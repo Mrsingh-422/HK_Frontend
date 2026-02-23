@@ -63,6 +63,12 @@
   margin-bottom: 18px;
 }
 
+#terms {
+  margin-top: 3px;
+  width: 15px;
+  height: 15px;
+}
+
 .register-btn {
   background: #08B36A;
   color: white;
