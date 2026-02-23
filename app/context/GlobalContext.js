@@ -7,6 +7,13 @@ export const GlobalProvider = ({ children }) => {
     const [user, setUser] = useState("Mudabir");
     const [loading, setLoading] = useState(true);
     const [modalType, setModalType] = useState(null);
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+
+    const toggleSidebar = () => {
+        setSidebarOpen(prev => !prev);
+    };
+
+
     const openModal = (type) => {
         setModalType(type);
     };
@@ -23,7 +30,9 @@ export const GlobalProvider = ({ children }) => {
                 loading,
                 modalType,
                 openModal,
-                closeModal
+                closeModal,
+                sidebarOpen,
+                toggleSidebar
             }}
         >
             {children}

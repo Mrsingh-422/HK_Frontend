@@ -98,3 +98,54 @@
         transform: translateY(0);
     }
 }
+
+.sidebar {
+    width: 260px;
+    transition: all 0.3s ease;
+}
+
+.sidebar.collapsed {
+    width: 80px;
+}
+
+.sidebar.collapsed .menu-item span,
+.sidebar.collapsed .submenu {
+    display: none;
+}
+
+.sidebar.collapsed .arrow {
+    display: none;
+}
+
+.sidebar.collapsed .logo-in-admin {
+    width: 40px;
+}
+
+.sidebar {
+    width: 260px;
+    transition: width 0.3s ease;
+    overflow: hidden;
+}
+
+.sidebar.collapsed {
+    width: 80px;
+}
+
+/* Hide text smoothly */
+.sidebar.collapsed .menu-item span,
+.sidebar.collapsed .submenu {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.sidebar.open .menu-item span,
+.sidebar.open .submenu {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.2s ease 0.1s;
+}
+
+/* Hide arrows when collapsed */
+.sidebar.collapsed .arrow {
+    display: none;
+}

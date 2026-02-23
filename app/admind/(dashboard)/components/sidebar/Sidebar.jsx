@@ -15,10 +15,14 @@ import {
 } from "react-icons/fa";
 
 import "./Sidebar.css";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
 export default function Sidebar() {
     const pathname = usePathname();
     const [openMenu, setOpenMenu] = useState(null);
+    const [isHovering, setIsHovering] = useState(false);
+
+    const { sidebarOpen, toggleSidebar } = useGlobalContext();
 
     const toggleMenu = (menu) => {
         setOpenMenu(openMenu === menu ? null : menu);
@@ -35,7 +39,11 @@ export default function Sidebar() {
     const isParentActive = (route) => pathname.startsWith(route);
 
     return (
-        <div className="sidebar">
+        <div
+            className={`sidebar ${(sidebarOpen || isHovering) ? "open" : "collapsed"}`}
+            onMouseEnter={() => setIsHovering(true)}
+            onMouseLeave={() => setIsHovering(false)}
+        >
 
             {/* Logo */}
             <div className="logo-section">

@@ -26,7 +26,7 @@ const DashboardTopNavbar = ({ heading }) => {
     const profileRef = useRef(null);
     const notificationRef = useRef(null);
 
-    const { user } = useGlobalContext()
+    const { user, toggleSidebar } = useGlobalContext()
 
     const notifications = [
         {
@@ -88,7 +88,7 @@ const DashboardTopNavbar = ({ heading }) => {
 
                 {/* LEFT */}
                 <div className="top-left">
-                    <div className="menu-circle">
+                    <div className="menu-circle" onClick={toggleSidebar}>
                         <FaEllipsisV className="menu-icon" />
                     </div>
                     <h2 className="page-heading">{heading}</h2>
