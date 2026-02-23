@@ -107,6 +107,7 @@ function ForgotPassword() {
                             placeholder="Email address"
                             className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#08B36A] focus:border-transparent transition"
                             onChange={(e) => setEmail(e.target.value)}
+                            required
                         />
 
                         <button
@@ -127,6 +128,7 @@ function ForgotPassword() {
                             placeholder="Enter OTP"
                             className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#08B36A] focus:border-transparent transition"
                             onChange={(e) => setOtp(e.target.value)}
+                            required
                         />
 
                         <button
@@ -147,6 +149,7 @@ function ForgotPassword() {
                             placeholder="New Password"
                             className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#08B36A] focus:border-transparent transition"
                             onChange={(e) => setNewPassword(e.target.value)}
+                            required
                         />
 
                         <input
@@ -154,6 +157,7 @@ function ForgotPassword() {
                             placeholder="Confirm Password"
                             className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#08B36A] focus:border-transparent transition"
                             onChange={(e) => setConfirmPassword(e.target.value)}
+                            required
                         />
 
                         <button
