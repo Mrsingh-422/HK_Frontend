@@ -18,7 +18,20 @@ export default function Page() {
         { id: 6, name: "Hardeep", email: "hs2681966@gmail.com", number: "9306160236", active: true },
         { id: 7, name: "Nitish", email: "nitishuser@yopmail.com", number: "8219353441", active: true },
         { id: 8, name: "", email: "user8@gmail.com", number: "9872826836", active: true },
+        { id: 9, name: "", email: "user5@gmail.com", number: "7412589630", active: false },
+        { id: 10, name: "Hardeep", email: "hs2681966@gmail.com", number: "9306160236", active: true },
+        { id: 11, name: "Nitish", email: "nitishuser@yopmail.com", number: "8219353441", active: true },
+        { id: 12, name: "", email: "user8@gmail.com", number: "9872826836", active: true },
     ]);
+
+    // ✅ PAGINATION STATE
+    const [currentPage, setCurrentPage] = useState(1);
+    const usersPerPage = 10;
+
+    const indexOfLastUser = currentPage * usersPerPage;
+    const indexOfFirstUser = indexOfLastUser - usersPerPage;
+    const currentUsers = users.slice(indexOfFirstUser, indexOfLastUser);
+    const totalPages = Math.ceil(users.length / usersPerPage);
 
     const toggleStatus = (id) => {
         setUsers((prev) =>
@@ -70,12 +83,14 @@ export default function Page() {
                             </thead>
 
                             <tbody>
-                                {users.map((user, index) => (
+                                {currentUsers.map((user, index) => (
                                     <tr
                                         key={user.id}
                                         className="border-t hover:bg-gray-50 transition"
                                     >
-                                        <td className="px-4 py-3">{index + 1}</td>
+                                        <td className="px-4 py-3">
+                                            {indexOfFirstUser + index + 1}
+                                        </td>
                                         <td className="px-4 py-3">{user.name || "—"}</td>
                                         <td className="px-4 py-3 text-gray-600">
                                             {user.email}
@@ -136,6 +151,24 @@ export default function Page() {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* ✅ GREEN PAGINATION (Same Style) */}
+                    {totalPages > 1 && (
+                        <div className="flex justify-center items-center gap-2 py-6">
+                            {Array.from({ length: totalPages }, (_, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => setCurrentPage(i + 1)}
+                                    className={`px-4 py-2 rounded-md text-sm font-medium transition ${currentPage === i + 1
+                                        ? "bg-[#08B36A] text-white"
+                                        : "bg-emerald-100 hover:bg-[#08b369d6]"
+                                        }`}
+                                >
+                                    {i + 1}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </>
