@@ -1,13 +1,19 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/app/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import { useUserContext } from "@/app/context/UserContext";
 
 function RegisterAsHospital() {
   const { registerAsHospital, loading } = useAuth();
   const { closeModal, openModal } = useGlobalContext();
+  const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
   const router = useRouter();
+
+  const [countries, setCountries] = useState([]);
+  const [states, setStates] = useState([]);
+  const [cities, setCities] = useState([]);
 
   const [formData, setFormData] = useState({
     registerAs: "",
@@ -15,6 +21,9 @@ function RegisterAsHospital() {
     email: "",
     phone: "",
     licenseNumber: "",
+    country: "",
+    state: "",
+    city: "",
     password: "",
     termsAccepted: false,
   });
@@ -22,21 +31,70 @@ function RegisterAsHospital() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // ================= FETCH COUNTRIES =================
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        const data = await getAllCountries();
+        setCountries(data || []);
+      } catch {
+        console.error("Failed to load countries");
+      }
+    };
+    fetchCountries();
+  }, []);
+
+  // ================= FETCH STATES =================
+  const fetchStates = async (countryId) => {
+    try {
+      const data = await getStatesByCountry(countryId);
+      setStates(data || []);
+      setCities([]);
+    } catch {
+      console.error("Failed to load states");
+    }
+  };
+
+  // ================= FETCH CITIES =================
+  const fetchCities = async (stateId) => {
+    try {
+      const data = await getCitiesByState(stateId);
+      setCities(data || []);
+    } catch {
+      console.error("Failed to load cities");
+    }
+  };
+
+  // ================= HANDLE CHANGE =================
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
+
+    if (name === "country") {
+      fetchStates(value);
+      setFormData((prev) => ({ ...prev, state: "", city: "" }));
+    }
+    if (name === "state") {
+      fetchCities(value);
+      setFormData((prev) => ({ ...prev, city: "" }));
+    }
   };
 
+  // ================= VALIDATION =================
   const validateForm = () => {
     if (
       !formData.registerAs ||
       !formData.hospitalName ||
       !formData.email ||
       !formData.phone ||
-      !formData.licenseNumber ||
+      // !formData.licenseNumber ||
+      !formData.country ||
+      // !formData.state ||
+      // !formData.city ||
       !formData.password
     ) {
       return "All fields are required.";
@@ -53,6 +111,7 @@ function RegisterAsHospital() {
     return null;
   };
 
+  // ================= SUBMIT =================
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -65,13 +124,31 @@ function RegisterAsHospital() {
     }
 
     try {
-      await registerAsHospital(formData);
-
-      setSuccess(
-        "Hospital Registered Successfully! Please wait for admin approval."
+      const selectedCountry = countries.find(
+        (c) => c.id == formData.country
+      );
+      const selectedState = states.find(
+        (s) => s.id == formData.state
+      );
+      const selectedCity = cities.find(
+        (c) => c.id == formData.city
       );
 
-      router.push("/");
+      const finalData = {
+        ...formData,
+        country: selectedCountry?.name || "",
+        state: selectedState?.name || "",
+        city: selectedCity?.name || "",
+      };
+
+      // await registerAsHospital(finalData);
+      router.push("/hospital");
+
+      setSuccess(
+        "Hospital Registered Successfully! Please complete your documentation."
+      );
+
+      // router.push("/");
     } catch (err) {
       setError(err?.message || err);
     }
@@ -117,9 +194,9 @@ function RegisterAsHospital() {
               className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             >
               <option value="">Register As</option>
-              <option>Government Hospital</option>
-              <option>Private Hospital</option>
-              <option>Charity Hospital</option>
+              <option value="GovernmentHospital">Government Hospital</option>
+              <option value="PrivateHospital">Private Hospital</option>
+              <option value="CharityHospital">Charity Hospital</option>
             </select>
 
             <input
@@ -153,14 +230,52 @@ function RegisterAsHospital() {
               We'll never share your phone with anyone else.
             </p>
 
-            <input
-              type="text"
-              placeholder="Enter your license number"
-              name="licenseNumber"
-              value={formData.licenseNumber}
-              onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
-            />
+            {/* LOCATION ROW - Same as UserRegister */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <select
+                name="country"
+                value={formData.country}
+                onChange={handleChange}
+                className="border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
+              >
+                <option value="">Country</option>
+                {countries.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                name="state"
+                value={formData.state}
+                onChange={handleChange}
+                disabled={!formData.country}
+                className="border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A] disabled:bg-gray-100"
+              >
+                <option value="">State</option>
+                {states.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                name="city"
+                value={formData.city}
+                onChange={handleChange}
+                disabled={!formData.state}
+                className="border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A] disabled:bg-gray-100"
+              >
+                <option value="">City</option>
+                {cities.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <input
               type="password"

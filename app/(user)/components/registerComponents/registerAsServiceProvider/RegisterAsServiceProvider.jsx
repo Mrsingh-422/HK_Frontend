@@ -231,8 +231,8 @@ function RegisterAsServiceProvider() {
       </div>
 
       {/* BOTTOM INFO SECTION */}
-      <div className="max-w-6xl mx-auto mt-16 grid md:grid-cols-3 gap-8 text-center">
-        <div className="p-6 border border-gray-200 shadow-sm">
+      <div className="max-w-6xl mx-auto mt-16 gap-8">
+        <div className="p-6 ">
           <h2 className="text-xl font-semibold text-gray-800 mb-3">
             Nursing
           </h2>
@@ -242,7 +242,7 @@ function RegisterAsServiceProvider() {
           </p>
         </div>
 
-        <div className="p-6 border border-gray-200 shadow-sm">
+        <div className="p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-3">
             Pharmacy
           </h2>
@@ -251,7 +251,7 @@ function RegisterAsServiceProvider() {
           </p>
         </div>
 
-        <div className="p-6 border border-gray-200 shadow-sm">
+        <div className="p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-3">
             Lab / Phlebotomist
           </h2>
