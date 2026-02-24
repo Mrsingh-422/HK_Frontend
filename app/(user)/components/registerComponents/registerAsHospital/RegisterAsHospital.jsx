@@ -16,15 +16,15 @@ function RegisterAsHospital() {
   const [cities, setCities] = useState([]);
 
   const [formData, setFormData] = useState({
-    registerAs: "",
-    hospitalName: "",
+    type: "",
+    name: "",
     email: "",
     phone: "",
-    licenseNumber: "",
     country: "",
     state: "",
     city: "",
     password: "",
+    confirmPassword: "",
     termsAccepted: false,
   });
 
@@ -87,21 +87,25 @@ function RegisterAsHospital() {
   // ================= VALIDATION =================
   const validateForm = () => {
     if (
-      !formData.registerAs ||
-      !formData.hospitalName ||
+      !formData.type ||
+      !formData.name ||
       !formData.email ||
       !formData.phone ||
-      // !formData.licenseNumber ||
       !formData.country ||
       // !formData.state ||
       // !formData.city ||
-      !formData.password
+      !formData.password ||
+      !formData.confirmPassword
     ) {
       return "All fields are required.";
     }
 
     if (formData.password.length < 6) {
       return "Password must be at least 6 characters.";
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      return "Passwords do not match.";
     }
 
     if (!formData.termsAccepted) {
@@ -141,14 +145,17 @@ function RegisterAsHospital() {
         city: selectedCity?.name || "",
       };
 
-      // await registerAsHospital(finalData);
-      router.push("/hospital");
+      // Remove confirmPassword from final data before sending to API
+      delete finalData.confirmPassword;
+
+      console.log(finalData)
+      await registerAsHospital(finalData);
 
       setSuccess(
         "Hospital Registered Successfully! Please complete your documentation."
       );
 
-      // router.push("/");
+      router.push("/hospital");
     } catch (err) {
       setError(err?.message || err);
     }
@@ -188,22 +195,22 @@ function RegisterAsHospital() {
           <form onSubmit={handleSubmit} className="space-y-4">
 
             <select
-              name="registerAs"
-              value={formData.registerAs}
+              name="type"
+              value={formData.type}
               onChange={handleChange}
               className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             >
               <option value="">Register As</option>
-              <option value="GovernmentHospital">Government Hospital</option>
-              <option value="PrivateHospital">Private Hospital</option>
-              <option value="CharityHospital">Charity Hospital</option>
+              <option value="Govt">Government Hospital</option>
+              <option value="Private">Private Hospital</option>
+              <option value="Charity">Charity Hospital</option>
             </select>
 
             <input
               type="text"
               placeholder="Hospital name"
-              name="hospitalName"
-              value={formData.hospitalName}
+              name="name"
+              value={formData.name}
               onChange={handleChange}
               className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
@@ -285,6 +292,36 @@ function RegisterAsHospital() {
               onChange={handleChange}
               className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
+
+            <input
+              type="password"
+              placeholder="Confirm your password"
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
+            />
+
+            {/* Password Match Indicator */}
+            {formData.password && formData.confirmPassword && (
+              <div className="text-sm">
+                {formData.password === formData.confirmPassword ? (
+                  <p className="text-green-600 flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Passwords match
+                  </p>
+                ) : (
+                  <p className="text-red-600 flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Passwords do not match
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Terms */}
             <div className="flex items-center gap-2">

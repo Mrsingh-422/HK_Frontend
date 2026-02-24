@@ -4,43 +4,64 @@ import React, { useState } from 'react'
 
 function Page() {
     const [documents, setDocuments] = useState({
-        hospitalImage: null,
-        licenseDocument: null,
+        hospitalImage: [],
+        licenseDocument: [],
         otherDocuments: []
     })
 
     const [previewUrls, setPreviewUrls] = useState({
-        hospitalImage: null,
-        licenseDocument: null
+        hospitalImage: [],
+        licenseDocument: []
     })
 
     const handleFileChange = (e, type) => {
-        const file = e.target.files[0]
-        if (file) {
+        const files = Array.from(e.target.files)
+        
+        if (files.length > 0) {
             if (type === 'hospitalImage' || type === 'licenseDocument') {
-                setDocuments(prev => ({ ...prev, [type]: file }))
+                // Add new files to existing array
+                setDocuments(prev => ({ 
+                    ...prev, 
+                    [type]: [...prev[type], ...files] 
+                }))
 
-                // Create preview URL
-                const url = URL.createObjectURL(file)
-                setPreviewUrls(prev => ({ ...prev, [type]: url }))
+                // Create preview URLs for new files
+                const newUrls = files.map(file => URL.createObjectURL(file))
+                setPreviewUrls(prev => ({ 
+                    ...prev, 
+                    [type]: [...prev[type], ...newUrls] 
+                }))
             } else if (type === 'otherDocuments') {
                 // For multiple files
-                const files = Array.from(e.target.files)
-                setDocuments(prev => ({ ...prev, otherDocuments: files }))
+                setDocuments(prev => ({ 
+                    ...prev, 
+                    otherDocuments: [...prev.otherDocuments, ...files] 
+                }))
             }
         }
     }
 
-    const handleRemoveFile = (type) => {
+    const handleRemoveFile = (type, index) => {
         if (type === 'hospitalImage' || type === 'licenseDocument') {
-            setDocuments(prev => ({ ...prev, [type]: null }))
-            if (previewUrls[type]) {
-                URL.revokeObjectURL(previewUrls[type])
-                setPreviewUrls(prev => ({ ...prev, [type]: null }))
+            // Remove file at specific index
+            const updatedFiles = documents[type].filter((_, i) => i !== index)
+            setDocuments(prev => ({ ...prev, [type]: updatedFiles }))
+            
+            // Remove preview URL and revoke object URL
+            if (previewUrls[type][index]) {
+                URL.revokeObjectURL(previewUrls[type][index])
+                const updatedUrls = previewUrls[type].filter((_, i) => i !== index)
+                setPreviewUrls(prev => ({ ...prev, [type]: updatedUrls }))
             }
         } else {
+            // Remove all other documents
             setDocuments(prev => ({ ...prev, otherDocuments: [] }))
         }
+    }
+
+    const handleRemoveSingleOtherDoc = (index) => {
+        const updatedFiles = documents.otherDocuments.filter((_, i) => i !== index)
+        setDocuments(prev => ({ ...prev, otherDocuments: updatedFiles }))
     }
 
     const handleSubmit = (e) => {
@@ -73,7 +94,7 @@ function Page() {
                             <svg className="w-6 h-6 text-[#08B36A] mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
-                            Hospital Image
+                            Hospital Images
                         </h2>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -86,16 +107,17 @@ function Page() {
                                     <div className="mt-4">
                                         <label htmlFor="hospital-image" className="cursor-pointer">
                                             <span className="mt-2 block text-sm font-medium text-gray-900">
-                                                Click to upload hospital image
+                                                Click to upload hospital images
                                             </span>
                                             <span className="text-xs text-gray-500">
-                                                PNG, JPG, GIF up to 10MB
+                                                PNG, JPG, GIF, PDF up to 10MB each (Multiple files allowed)
                                             </span>
                                         </label>
                                         <input
                                             id="hospital-image"
                                             type="file"
-                                            accept="image/*"
+                                            multiple
+                                            accept="image/*,.pdf"
                                             className="hidden"
                                             onChange={(e) => handleFileChange(e, 'hospitalImage')}
                                         />
@@ -105,22 +127,26 @@ function Page() {
 
                             {/* Preview Area */}
                             <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                                {previewUrls.hospitalImage ? (
-                                    <div className="relative group">
-                                        <img
-                                            src={previewUrls.hospitalImage}
-                                            alt="Hospital Preview"
-                                            className="w-full h-40 object-cover rounded-lg"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRemoveFile('hospitalImage')}
-                                            className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
+                                {previewUrls.hospitalImage.length > 0 ? (
+                                    <div className="space-y-3 max-h-80 overflow-y-auto">
+                                        {previewUrls.hospitalImage.map((url, index) => (
+                                            <div key={index} className="relative group">
+                                                <img
+                                                    src={url}
+                                                    alt={`Hospital Preview ${index + 1}`}
+                                                    className="w-full h-32 object-cover rounded-lg"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveFile('hospitalImage', index)}
+                                                    className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        ))}
                                     </div>
                                 ) : (
                                     <div className="h-40 flex items-center justify-center text-gray-400">
@@ -129,6 +155,13 @@ function Page() {
                                 )}
                             </div>
                         </div>
+                        
+                        {/* File Count Display */}
+                        {documents.hospitalImage.length > 0 && (
+                            <p className="text-sm text-[#08B36A] mt-2">
+                                {documents.hospitalImage.length} image(s) selected
+                            </p>
+                        )}
                     </div>
 
                     {/* License Document Upload */}
@@ -137,7 +170,7 @@ function Page() {
                             <svg className="w-6 h-6 text-[#08B36A] mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            Hospital License
+                            Hospital License Documents
                         </h2>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -150,15 +183,16 @@ function Page() {
                                     <div className="mt-4">
                                         <label htmlFor="license-doc" className="cursor-pointer">
                                             <span className="mt-2 block text-sm font-medium text-gray-900">
-                                                Click to upload license document
+                                                Click to upload license documents
                                             </span>
                                             <span className="text-xs text-gray-500">
-                                                PDF, PNG, JPG up to 10MB
+                                                PDF, PNG, JPG up to 10MB each (Multiple files allowed)
                                             </span>
                                         </label>
                                         <input
                                             id="license-doc"
                                             type="file"
+                                            multiple
                                             accept=".pdf,image/*"
                                             className="hidden"
                                             onChange={(e) => handleFileChange(e, 'licenseDocument')}
@@ -169,22 +203,26 @@ function Page() {
 
                             {/* Preview Area */}
                             <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                                {previewUrls.licenseDocument ? (
-                                    <div className="relative group">
-                                        <img
-                                            src={previewUrls.licenseDocument}
-                                            alt="License Preview"
-                                            className="w-full h-40 object-cover rounded-lg"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRemoveFile('licenseDocument')}
-                                            className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
+                                {previewUrls.licenseDocument.length > 0 ? (
+                                    <div className="space-y-3 max-h-80 overflow-y-auto">
+                                        {previewUrls.licenseDocument.map((url, index) => (
+                                            <div key={index} className="relative group">
+                                                <img
+                                                    src={url}
+                                                    alt={`License Preview ${index + 1}`}
+                                                    className="w-full h-32 object-cover rounded-lg"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveFile('licenseDocument', index)}
+                                                    className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        ))}
                                     </div>
                                 ) : (
                                     <div className="h-40 flex items-center justify-center text-gray-400">
@@ -193,6 +231,13 @@ function Page() {
                                 )}
                             </div>
                         </div>
+                        
+                        {/* File Count Display */}
+                        {documents.licenseDocument.length > 0 && (
+                            <p className="text-sm text-[#08B36A] mt-2">
+                                {documents.licenseDocument.length} document(s) selected
+                            </p>
+                        )}
                     </div>
 
                     {/* Other Documents Upload */}
@@ -218,7 +263,7 @@ function Page() {
                                             Upload additional documents (registration certificates, NOC, etc.)
                                         </span>
                                         <span className="text-xs text-gray-400 mt-2 block">
-                                            PDF, DOC, Images up to 10MB each
+                                            PDF, DOC, DOCX, Images up to 10MB each (Multiple files allowed)
                                         </span>
                                     </label>
                                     <input
@@ -236,18 +281,29 @@ function Page() {
                             {documents.otherDocuments.length > 0 && (
                                 <div className="mt-6 border-t pt-4">
                                     <h3 className="text-sm font-medium text-gray-700 mb-3">Selected Files:</h3>
-                                    <div className="space-y-2">
+                                    <div className="space-y-2 max-h-60 overflow-y-auto">
                                         {documents.otherDocuments.map((file, index) => (
-                                            <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                                                <div className="flex items-center">
-                                                    <svg className="w-4 h-4 text-[#08B36A] mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded group">
+                                                <div className="flex items-center flex-1 min-w-0">
+                                                    <svg className="w-4 h-4 text-[#08B36A] mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                     </svg>
-                                                    <span className="text-sm text-gray-600">{file.name}</span>
+                                                    <span className="text-sm text-gray-600 truncate">{file.name}</span>
                                                 </div>
-                                                <span className="text-xs text-gray-400">
-                                                    {(file.size / 1024 / 1024).toFixed(2)} MB
-                                                </span>
+                                                <div className="flex items-center gap-2 flex-shrink-0">
+                                                    <span className="text-xs text-gray-400">
+                                                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveSingleOtherDoc(index)}
+                                                        className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -288,8 +344,8 @@ function Page() {
                             <span className="text-sm font-medium text-gray-700">Documentation Progress</span>
                             <span className="text-sm font-medium text-[#08B36A]">
                                 {[
-                                    documents.hospitalImage ? 1 : 0,
-                                    documents.licenseDocument ? 1 : 0
+                                    documents.hospitalImage.length > 0 ? 1 : 0,
+                                    documents.licenseDocument.length > 0 ? 1 : 0
                                 ].reduce((a, b) => a + b, 0)}/2 Required
                             </span>
                         </div>
@@ -297,12 +353,12 @@ function Page() {
                             <div
                                 className="bg-[#08B36A] h-2.5 rounded-full transition-all duration-500"
                                 style={{
-                                    width: `${([documents.hospitalImage ? 1 : 0, documents.licenseDocument ? 1 : 0].reduce((a, b) => a + b, 0) / 2) * 100}%`
+                                    width: `${([documents.hospitalImage.length > 0 ? 1 : 0, documents.licenseDocument.length > 0 ? 1 : 0].reduce((a, b) => a + b, 0) / 2) * 100}%`
                                 }}
                             ></div>
                         </div>
                         <p className="text-xs text-gray-500 mt-2">
-                            * Hospital image and license are required. Other documents are optional.
+                            * Hospital images and license documents are required. Other documents are optional.
                         </p>
                     </div>
 

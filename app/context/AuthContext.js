@@ -86,9 +86,9 @@ export const AuthProvider = ({ children }) => {
     const registerAsHospital = async (userData) => {
         try {
             setLoading(true);
-            const response = await axios.post(`${API_URL}/auth/register/hospital`, userData);
-            const { token, user } = response.data;
-            setUser(user);
+            const response = await axios.post(`${API_URL}/api/auth/hospital/register`, userData);
+            const { token } = response.data;
+            localStorage.setItem("hospitalToken", token);
             return response.data;
         }
         catch (error) {
