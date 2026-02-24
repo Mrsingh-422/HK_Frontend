@@ -1,6 +1,5 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import "./UserRegister.css";
 import { useAuth } from "@/app/context/AuthContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import { useUserContext } from "@/app/context/UserContext";
@@ -8,11 +7,8 @@ import { useUserContext } from "@/app/context/UserContext";
 function UserRegister() {
   const { registerAsUser, loading } = useAuth();
   const { closeModal, openModal } = useGlobalContext();
-  const {
-    getAllCountries,
-    getStatesByCountry,
-    getCitiesByState,
-  } = useUserContext();
+  const { getAllCountries, getStatesByCountry, getCitiesByState } =
+    useUserContext();
 
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
@@ -33,18 +29,16 @@ function UserRegister() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // ================= FETCH DATA =================
-
+  // ================= FETCH =================
   useEffect(() => {
     const fetchCountries = async () => {
       try {
         const data = await getAllCountries();
         setCountries(data || []);
-      } catch (err) {
+      } catch {
         console.error("Failed to load countries");
       }
     };
-
     fetchCountries();
   }, []);
 
@@ -53,7 +47,7 @@ function UserRegister() {
       const data = await getStatesByCountry(countryId);
       setStates(data || []);
       setCities([]);
-    } catch (err) {
+    } catch {
       console.error("Failed to load states");
     }
   };
@@ -62,13 +56,12 @@ function UserRegister() {
     try {
       const data = await getCitiesByState(stateId);
       setCities(data || []);
-    } catch (err) {
+    } catch {
       console.error("Failed to load cities");
     }
   };
 
-  // ================= HANDLE CHANGE =================
-
+  // ================= CHANGE =================
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
@@ -77,17 +70,11 @@ function UserRegister() {
       [name]: type === "checkbox" ? checked : value,
     }));
 
-    if (name === "country") {
-      fetchStates(value);
-    }
-
-    if (name === "state") {
-      fetchCities(value);
-    }
+    if (name === "country") fetchStates(value);
+    if (name === "state") fetchCities(value);
   };
 
   // ================= VALIDATION =================
-
   const validateForm = () => {
     const {
       name,
@@ -114,23 +101,19 @@ function UserRegister() {
       return "All fields are required";
     }
 
-    if (password.length < 6) {
+    if (password.length < 6)
       return "Password must be at least 6 characters";
-    }
 
-    if (password !== confirmPassword) {
+    if (password !== confirmPassword)
       return "Passwords do not match";
-    }
 
-    if (!termsAccepted) {
+    if (!termsAccepted)
       return "You must accept terms & conditions";
-    }
 
     return null;
   };
 
-  // ================= SUBMIT (FIXED HERE ONLY) =================
-
+  // ================= SUBMIT =================
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -143,16 +126,12 @@ function UserRegister() {
     }
 
     try {
-      // 🔥 Convert IDs to Names BEFORE sending to backend
-
       const selectedCountry = countries.find(
         (c) => c.id == formData.country
       );
-
       const selectedState = states.find(
         (s) => s.id == formData.state
       );
-
       const selectedCity = cities.find(
         (c) => c.id == formData.city
       );
@@ -174,30 +153,46 @@ function UserRegister() {
   };
 
   return (
-    <div className="register-wrapper">
-      <div className="register-container">
+    <div className="min-h-screen bg-white py-12 px-4">
+      <div className="max-w-6xl mx-auto flex flex-col lg:flex-row items-center gap-12">
 
-        <div className="register-left">
+        {/* LEFT IMAGE */}
+        <div className="w-full lg:w-1/2 transition-transform duration-500 hover:scale-105">
           <img
             src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602351user-login.png"
             alt="Register"
+            className="w-full rounded-xl shadow-2xl"
           />
         </div>
 
-        <div className="register-right">
-          <h1>Get Started</h1>
+        {/* RIGHT FORM */}
+        <div className="w-full lg:w-1/2">
+          <h1 className="text-3xl md:text-4xl font-bold mb-6 text-gray-800">
+            Get Started
+          </h1>
 
-          {error && <p className="error-msg">{error}</p>}
-          {success && <p className="success-msg">{success}</p>}
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-300 text-red-600">
+              {error}
+            </div>
+          )}
 
-          <form onSubmit={handleSubmit}>
+          {success && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-300 text-green-700">
+              {success}
+            </div>
+          )}
 
+          <form onSubmit={handleSubmit} className="space-y-4">
+
+            {/* INPUTS */}
             <input
               type="text"
               placeholder="Full Name"
               name="name"
               value={formData.name}
               onChange={handleChange}
+              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
             <input
@@ -206,6 +201,7 @@ function UserRegister() {
               name="email"
               value={formData.email}
               onChange={handleChange}
+              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
             <input
@@ -214,14 +210,17 @@ function UserRegister() {
               name="phone"
               value={formData.phone}
               onChange={handleChange}
+              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
-            <div className="location-row">
+            {/* LOCATION ROW */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
               <select
                 name="country"
                 value={formData.country}
                 onChange={handleChange}
+                className="border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
               >
                 <option value="">Country</option>
                 {countries.map((c) => (
@@ -236,6 +235,7 @@ function UserRegister() {
                 value={formData.state}
                 onChange={handleChange}
                 disabled={!formData.country}
+                className="border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A] disabled:bg-gray-100"
               >
                 <option value="">State</option>
                 {states.map((s) => (
@@ -250,6 +250,7 @@ function UserRegister() {
                 value={formData.city}
                 onChange={handleChange}
                 disabled={!formData.state}
+                className="border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A] disabled:bg-gray-100"
               >
                 <option value="">City</option>
                 {cities.map((c) => (
@@ -258,15 +259,16 @@ function UserRegister() {
                   </option>
                 ))}
               </select>
-
             </div>
 
+            {/* PASSWORDS */}
             <input
               type="password"
               placeholder="Password"
               name="password"
               value={formData.password}
               onChange={handleChange}
+              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
             <input
@@ -275,30 +277,41 @@ function UserRegister() {
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleChange}
+              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
-            <div className="terms">
+            {/* TERMS */}
+            <div className="flex items-center gap-2">
               <input
                 type="checkbox"
                 name="termsAccepted"
                 checked={formData.termsAccepted}
                 onChange={handleChange}
+                className="accent-[#08B36A]"
               />
-              <span>Allow All Terms & Conditions on this site</span>
+              <span className="text-sm text-gray-600">
+                Allow All Terms & Conditions on this site
+              </span>
             </div>
 
-            <button type="submit" className="register-btn" disabled={loading}>
+            {/* BUTTON */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full md:w-auto px-8 py-3 bg-[#08B36A] text-white font-semibold shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 hover:bg-green-700 disabled:opacity-70"
+            >
               {loading ? "Registering..." : "Register →"}
             </button>
           </form>
 
-          <p className="login-text">
-            Already have an account{" "}
+          <p className="text-sm text-gray-600 mt-6">
+            Already have an account?{" "}
             <span
               onClick={() => {
                 closeModal();
                 openModal("login");
               }}
+              className="text-[#08B36A] font-medium cursor-pointer hover:underline"
             >
               Login
             </span>
