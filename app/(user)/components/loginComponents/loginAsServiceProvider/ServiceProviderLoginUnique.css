@@ -1,11 +1,11 @@
-.login-user-wrapper {
+/* ================= WRAPPER ================= */
+.sp-login-wrapper {
   width: 100%;
-  /* padding: 30px; */
   background: #ffffff;
 }
 
-/* TOP LOGIN BOX */
-.login-user-container {
+/* ================= TOP LOGIN BOX ================= */
+.sp-login-container {
   display: flex;
   background: #ffffff;
   padding: 40px;
@@ -16,26 +16,25 @@
   align-items: center;
 }
 
-/* LEFT IMAGE */
-.login-left img {
+/* ================= LEFT IMAGE ================= */
+.sp-login-left img {
   width: 350px;
   max-width: 100%;
 }
 
-/* RIGHT FORM */
-.login-right {
-  /* margin-left: 60px; */
+/* ================= RIGHT FORM ================= */
+.sp-login-right {
   flex: 1;
 }
 
-.login-right h2 {
+.sp-login-right h2 {
   font-size: 32px;
   font-weight: bold;
   margin-bottom: 20px;
 }
 
-/* INPUTS */
-.login-right input {
+/* ================= INPUTS ================= */
+.sp-login-input {
   width: 100%;
   padding: 12px 15px;
   border: 1px solid #42b883;
@@ -45,14 +44,14 @@
   font-size: 14px;
 }
 
-.hint-text {
+.sp-login-hint {
   font-size: 13px;
   color: #666;
   margin-top: 4px;
 }
 
-/* REMEMBER + FORGOT */
-.login-options {
+/* ================= REMEMBER + FORGOT ================= */
+.sp-login-options {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -60,8 +59,7 @@
   font-size: 14px;
 }
 
-/* Checkbox + text in one line */
-.remb {
+.sp-login-remember {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -70,16 +68,16 @@
   cursor: pointer;
 }
 
-.forgot {
+.sp-login-forgot {
   cursor: pointer;
 }
 
-.forgot:hover {
+.sp-login-forgot:hover {
   text-decoration: underline;
 }
 
-/* LOGIN BUTTON */
-.login-btn {
+/* ================= LOGIN BUTTON ================= */
+.sp-login-btn {
   margin-top: 20px;
   background: #2f8f5b;
   color: white;
@@ -90,39 +88,44 @@
   cursor: pointer;
 }
 
-.login-btn:hover {
+.sp-login-btn:hover {
   background: #256f47;
 }
 
-/* REGISTER TEXT */
-.register-text {
+.sp-login-btn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+/* ================= REGISTER TEXT ================= */
+.sp-login-register {
   margin-top: 15px;
   font-size: 15px;
 }
 
-.register-text span {
+.sp-login-register span {
   font-weight: bold;
   cursor: pointer;
 }
 
-.register-text span:hover {
+.sp-login-register span:hover {
   text-decoration: underline;
 }
 
 /* ================= USER DESCRIPTION SECTION ================= */
 
-.user-description {
+.sp-login-description {
   max-width: 1100px;
   margin: 40px auto 0;
 }
 
-.user-description h3 {
+.sp-login-description h3 {
   font-size: 28px;
   font-weight: bold;
   margin-bottom: 20px;
 }
 
-.desc-item {
+.sp-login-desc-item {
   display: flex;
   gap: 12px;
   margin-bottom: 15px;
@@ -131,14 +134,14 @@
   color: #333;
 }
 
-.check-icon {
+.sp-login-check {
   color: #2f8f5b;
   font-size: 18px;
   margin-top: 3px;
 }
 
-/* SUCCESS MESSAGE */
-.success-msg {
+/* ================= SUCCESS MESSAGE ================= */
+.sp-login-success {
   background-color: #e6ffed;
   color: #1a7f37;
   border: 1px solid #1a7f37;
@@ -147,11 +150,11 @@
   margin-bottom: 15px;
   font-size: 14px;
   font-weight: 500;
-  animation: fadeIn 0.3s ease-in-out;
+  animation: spFadeIn 0.3s ease-in-out;
 }
 
-/* ERROR MESSAGE */
-.error-msg {
+/* ================= ERROR MESSAGE ================= */
+.sp-login-error {
   background-color: #ffe6e6;
   color: #d93025;
   border: 1px solid #d93025;
@@ -160,52 +163,45 @@
   margin-bottom: 15px;
   font-size: 14px;
   font-weight: 500;
-  animation: fadeIn 0.3s ease-in-out;
+  animation: spFadeIn 0.3s ease-in-out;
 }
 
-/* Optional animation */
-@keyframes fadeIn {
+/* ================= OPTIONAL ANIMATION ================= */
+@keyframes spFadeIn {
   from {
     opacity: 0;
     transform: translateY(-4px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-/* Disabled button style */
-.login-btn:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-}
-
 /* ===================== TABLET RESPONSIVE ===================== */
 @media (max-width: 1024px) {
 
-  .login-user-container {
+  .sp-login-container {
     padding: 25px;
   }
 
-  .login-left img {
+  .sp-login-left img {
     width: 280px;
   }
 
-  .login-right {
+  .sp-login-right {
     margin-left: 30px;
   }
 
-  .login-right h2 {
+  .sp-login-right h2 {
     font-size: 26px;
   }
 
-  .user-description h3 {
+  .sp-login-description h3 {
     font-size: 22px;
   }
 
-  .desc-item {
+  .sp-login-desc-item {
     font-size: 15px;
   }
 }
@@ -213,93 +209,88 @@
 /* ===================== MOBILE RESPONSIVE ===================== */
 @media (max-width: 768px) {
 
-  /* Stack layout vertically */
-  .login-user-container {
+  .sp-login-container {
     flex-direction: column;
     padding: 20px;
     text-align: center;
   }
 
-  .login-left img {
+  .sp-login-left img {
     width: 220px;
     margin-bottom: 20px;
   }
 
-  .login-right {
+  .sp-login-right {
     margin-left: 0;
     width: 100%;
   }
 
-  .login-right h2 {
+  .sp-login-right h2 {
     font-size: 22px;
   }
 
-  /* Inputs */
-  .login-right input {
+  .sp-login-input {
     font-size: 14px;
     padding: 10px 12px;
   }
 
-  /* Remember & Forgot */
-  .login-options {
+  .sp-login-options {
     flex-direction: column;
     gap: 10px;
     align-items: flex-start;
   }
 
-  /* Buttons */
-  .login-btn {
+  .sp-login-btn {
     width: 100%;
     padding: 12px;
     font-size: 15px;
   }
 
-  /* Description Section */
-  .user-description {
+  .sp-login-description {
     padding: 0 10px;
   }
 
-  .user-description h3 {
+  .sp-login-description h3 {
     font-size: 20px;
   }
 
-  .desc-item {
+  .sp-login-desc-item {
     font-size: 14px;
   }
 }
 
-/* ===================== SMALL MOBILE (Phones < 480px) ===================== */
+/* ===================== SMALL MOBILE ===================== */
 @media (max-width: 480px) {
 
-  .login-user-wrapper {
+  .sp-login-wrapper {
     padding: 10px;
   }
 
-  .login-user-container {
+  .sp-login-container {
     padding: 15px;
   }
 
-  .login-left img {
+  .sp-login-left img {
     width: 180px;
   }
 
-  .login-right h2 {
+  .sp-login-right h2 {
     font-size: 18px;
   }
 
-  .login-right input {
+  .sp-login-input {
     font-size: 13px;
   }
 
-  .login-btn {
+  .sp-login-btn {
     font-size: 14px;
   }
 
-  .user-description h3 {
+  .sp-login-description h3 {
     font-size: 18px;
   }
 
-  .desc-item {
+  .sp-login-desc-item {
     font-size: 13px;
   }
 }

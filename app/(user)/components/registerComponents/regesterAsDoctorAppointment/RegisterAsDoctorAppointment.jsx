@@ -125,9 +125,13 @@ function RegisterAsDoctorAppointment() {
     <div className="doctor-register-wrapper">
       <div className="doctor-register-container">
         <div className="doctor-register-left">
-          <img
+          {/* <img
             src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602508doctor3.jpg"
             alt="Doctor"
+          /> */}
+          <img
+            src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602351user-login.png"
+            alt="Register"
           />
         </div>
 

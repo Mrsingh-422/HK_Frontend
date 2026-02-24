@@ -56,7 +56,7 @@ export default function GlobalModal() {
                 className="
                 relative z-10
                 w-fit
-        max-w-[95vw]
+                max-w-[95vw]
                 // max-h-[95vh]
                 bg-white
                 rounded-t-2xl sm:rounded-xl
