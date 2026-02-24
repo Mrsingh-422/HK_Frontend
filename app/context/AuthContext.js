@@ -124,7 +124,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-
     const loginAsUser = async (userData) => {
         try {
             setLoading(true);
@@ -136,6 +135,23 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem("user", JSON.stringify(user));
 
             setUser(user);
+            return response.data;
+        } catch (error) {
+            const message = error.response?.data?.message || "Login failed";
+            return Promise.reject(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const loginAsHospital = async (userData) => {
+        try {
+            setLoading(true);
+            const response = await axios.post(`${API_URL}/api/auth/hospital/login`, userData);
+            const { token } = response.data;
+
+            // SAVE BOTH TO LOCAL STORAGE
+            localStorage.setItem("hospitalToken", token);
             return response.data;
         } catch (error) {
             const message = error.response?.data?.message || "Login failed";
@@ -233,6 +249,7 @@ export const AuthProvider = ({ children }) => {
             loginAsDoctorAppointment,
             loginAsServiceProvider,
             loginAsAdmin,
+            loginAsHospital,
             forgotPassword,
             verifyOtp,
             resetPassword,

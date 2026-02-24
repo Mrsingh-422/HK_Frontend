@@ -2,35 +2,81 @@
 import React, { useState } from "react";
 import "./LoginAsHospital.css";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import { useAuth } from "@/app/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 function LoginAsHospital() {
+  const [identifier, setIdentifier] = useState(""); // phone OR email
+    const [password, setPassword] = useState("");
+    const [remember, setRemember] = useState(false);
+  
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
+  
+    const { openModal, closeModal } = useGlobalContext();
+    const { loginAsHospital } = useAuth();
 
-  const { openModal, closeModal } = useGlobalContext()
-
-  // ✅ State for form inputs
-  const [mobile, setMobile] = useState("");
-  const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
-
-  // ✅ Dummy Submit Handler
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    const hospitalLoginData = {
-      mobile,
-      password,
-      remember,
-      // role: "hospital"
+    const router = useRouter();
+  
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      setError("");
+      setSuccess("");
+  
+      if (!identifier || !password) {
+        setError("Please enter phone/email and password.");
+        return;
+      }
+  
+      try {
+        setLoading(true);
+  
+        // Check if input is email
+        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
+  
+        const userLoginData = {
+          password,
+          remember,
+          ...(isEmail
+            ? { email: identifier }
+            : { phone: identifier }),
+        };
+  
+        const res = await loginAsHospital(userLoginData);
+  
+        setSuccess("Login successful! Redirecting...");
+  
+        setTimeout(() => {
+          router.push("/hospital");
+        }, 1500);
+  
+      } catch (err) {
+        setError(
+          err?.response?.data?.message || "Invalid phone/email or password."
+        );
+      } finally {
+        setLoading(false);
+      }
     };
 
-    console.log("Hospital Login Data:", hospitalLoginData);
-
-    // Fake API call simulation
-    alert("Hospital Login API called (dummy)!");
-  };
 
   return (
     <div className="login-user-wrapper">
+
+      {/* Success Message */}
+      {success && (
+        <div className="success-msg" style={{ marginBottom: '10px', textAlign: 'center' }}>
+          {success}
+        </div>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <div className="error-msg" style={{ marginBottom: '10px', textAlign: 'center' }}>
+          {error}
+        </div>
+      )}
 
       {/* TOP LOGIN BOX */}
       <div className="login-user-container">
@@ -50,8 +96,8 @@ function LoginAsHospital() {
           <input
             type="text"
             placeholder="Enter your mobile number"
-            value={mobile}
-            onChange={(e) => setMobile(e.target.value)}
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
           />
           <p className="hint-text">We'll never share your email with anyone else.</p>
 
@@ -72,20 +118,24 @@ function LoginAsHospital() {
               Remember Password
             </label>
 
-            <span className="forgot">Forget Password?</span>
+            <span className="forgot" onClick={() => openModal("forgotPassword")}>Forget Password?</span>
           </div>
 
-          {/* ✅ Dummy Login Button */}
-          <button className="login-btn" onClick={handleSubmit}>
-            Login →
+          {/* Login Button */}
+          <button className="login-btn" onClick={handleSubmit} disabled={loading}>
+            {loading ? "Logging in..." : "Login →"}
           </button>
 
           <p className="register-text">
-            Don't have an account <span
+            Don't have an account{" "}
+            <span
               onClick={() => {
-                closeModal
+                closeModal();
                 openModal("register");
-              }}>Register?</span>
+              }}
+            >
+              Register?
+            </span>
           </p>
         </div>
       </div>
