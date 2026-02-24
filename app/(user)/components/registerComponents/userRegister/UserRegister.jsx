@@ -159,7 +159,7 @@ function UserRegister() {
         {/* LEFT IMAGE */}
         <div className="w-full lg:w-1/2 transition-transform duration-500 hover:scale-105">
           <img
-            src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602351user-login.png"
+            src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602393service.png"
             alt="Register"
             className="w-full rounded-xl shadow-2xl"
           />

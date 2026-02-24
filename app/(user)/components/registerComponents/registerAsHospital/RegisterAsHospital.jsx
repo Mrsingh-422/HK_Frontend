@@ -78,34 +78,32 @@ function RegisterAsHospital() {
   };
 
   return (
-    <div className=" min-h-screen bg-white md:px-20 box-border">
+    <div className="min-h-screen bg-white py-12 px-4">
+      <div className="max-w-6xl mx-auto flex flex-col lg:flex-row items-center gap-12">
 
-      {/* Top Container */}
-      <div className="flex flex-col lg:flex-row justify-center items-center gap-10 lg:gap-24 max-w-6xl mx-auto">
-
-        {/* Left Image */}
-        <div className="flex-1 flex justify-center">
+        {/* LEFT IMAGE */}
+        <div className="w-full lg:w-1/2 transition-transform duration-500 hover:scale-105">
           <img
-            src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602447SMS-Hospital.jpeg"
-            alt="Hospital"
-            className="w-full max-w-[420px] h-[280px] md:h-[350px] lg:h-[450px] object-cover rounded-sm shadow-[0_20px_50px_rgba(0,0,0,0.08)] transition-transform duration-400 hover:-translate-y-2"
+            src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602393service.png"
+            alt="Register"
+            className="w-full rounded-xl shadow-2xl"
           />
         </div>
 
-        {/* Right Form */}
-        <div className="flex-1 max-w-[480px] w-full">
-          <h1 className="text-2xl md:text-3xl lg:text-[42px] font-bold mb-8 text-center lg:text-left">
+        {/* RIGHT FORM */}
+        <div className="w-full lg:w-1/2">
+          <h1 className="text-3xl md:text-4xl font-bold mb-6 text-gray-800">
             Get Started
           </h1>
 
           {error && (
-            <div className="bg-[#fdecea] text-[#d32f2f] border border-[#f5c6cb] p-3 rounded-lg text-sm mb-5">
+            <div className="mb-4 p-3 bg-red-50 border border-red-300 text-red-600">
               {error}
             </div>
           )}
 
           {success && (
-            <div className="bg-[#e6f9f0] text-[#08B36A] border border-[#b7ebd3] p-3 rounded-lg text-sm mb-5">
+            <div className="mb-4 p-3 bg-green-50 border border-green-300 text-green-700">
               {success}
             </div>
           )}
@@ -116,7 +114,7 @@ function RegisterAsHospital() {
               name="registerAs"
               value={formData.registerAs}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-[#08B36A] text-sm focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20"
+              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             >
               <option value="">Register As</option>
               <option>Government Hospital</option>
@@ -130,7 +128,7 @@ function RegisterAsHospital() {
               name="hospitalName"
               value={formData.hospitalName}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-[#08B36A] text-sm focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20"
+              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
             <input
@@ -139,7 +137,7 @@ function RegisterAsHospital() {
               name="email"
               value={formData.email}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-[#08B36A] text-sm focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20"
+              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
             <input
@@ -148,11 +146,11 @@ function RegisterAsHospital() {
               name="phone"
               value={formData.phone}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-[#08B36A] text-sm focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20"
+              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
-            <p className="text-xs text-gray-500 -mt-2">
-              We'll never share your Phone with anyone else.
+            <p className="text-sm text-gray-500 -mt-2">
+              We'll never share your phone with anyone else.
             </p>
 
             <input
@@ -161,7 +159,7 @@ function RegisterAsHospital() {
               name="licenseNumber"
               value={formData.licenseNumber}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-[#08B36A] text-sm focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20"
+              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
             <input
@@ -170,35 +168,40 @@ function RegisterAsHospital() {
               name="password"
               value={formData.password}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-[#08B36A] text-sm focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20"
+              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
             {/* Terms */}
-            <div className="flex items-start gap-3 text-sm mt-2">
+            <div className="flex items-center gap-2">
               <input
                 type="checkbox"
                 name="termsAccepted"
                 checked={formData.termsAccepted}
                 onChange={handleChange}
-                className="mt-1 w-4 h-4 accent-[#08B36A]"
+                className="accent-[#08B36A]"
               />
-              <span>Allow All Terms & Conditions on this site</span>
+              <span className="text-sm text-gray-600">
+                Allow All Terms & Conditions on this site
+              </span>
             </div>
 
             {/* Button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full lg:w-auto bg-[#08B36A] text-white px-7 py-3  text-sm font-semibold tracking-wide transition-all duration-300 shadow-[0_10px_25px_rgba(8,179,106,0.25)] hover:bg-[#05965a] hover:-translate-y-1 hover:shadow-[0_15px_35px_rgba(8,179,106,0.35)] active:translate-y-0"
+              className="w-full md:w-auto px-8 py-3 bg-[#08B36A] text-white font-semibold shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 hover:bg-green-700 disabled:opacity-70"
             >
               {loading ? "Registering..." : "Register →"}
             </button>
 
-            <p className="text-sm mt-4">
+            <p className="text-sm text-gray-600 mt-6">
               Already have an account?{" "}
               <span
-                onClick={() => openModal("login")}
-                className="font-semibold underline cursor-pointer"
+                onClick={() => {
+                  closeModal();
+                  openModal("login");
+                }}
+                className="text-[#08B36A] cursor-pointer font-medium hover:underline"
               >
                 Login
               </span>
@@ -209,12 +212,12 @@ function RegisterAsHospital() {
       </div>
 
       {/* Bottom Section */}
-      <div className="mt-16 md:mt-24 max-w-5xl mx-auto">
+      <div className="mt-16 max-w-5xl mx-auto">
         <div>
-          <h2 className="text-2xl md:text-3xl font-semibold mb-4">
+          <h2 className="text-2xl md:text-3xl font-semibold mb-4 text-gray-800">
             Hospital
           </h2>
-          <p className="text-base md:text-lg leading-8 text-gray-700 max-w-3xl">
+          <p className="text-base md:text-lg leading-8 text-gray-600 max-w-3xl">
             Join our platform and manage appointments, doctors, and patients efficiently.
           </p>
         </div>
