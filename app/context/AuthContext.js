@@ -42,6 +42,29 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
 
+    const loginAsAdmin = async (userData) => {
+        try {
+            setLoading(true);
+            const response = await axios.post(
+                `${API_URL}/api/auth/admin/login`,
+                userData
+            );
+
+            const { token, admin } = response.data;
+            setAdmin(admin);
+            localStorage.setItem("token", token);
+            localStorage.setItem("admin", JSON.stringify(admin));
+
+            return response.data;
+        } catch (error) {
+            const message =
+                error.response?.data?.message || "Login failed";
+            return Promise.reject(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const registerAsUser = async (userData) => {
         try {
             setLoading(true);
@@ -156,29 +179,6 @@ export const AuthProvider = ({ children }) => {
         }
     }
 
-    const loginAsAdmin = async (userData) => {
-        try {
-            setLoading(true);
-            const response = await axios.post(
-                `${API_URL}/api/auth/admin/login`,
-                userData
-            );
-
-            const { token, admin } = response.data;
-            setAdmin(admin);
-            localStorage.setItem("token", token);
-            localStorage.setItem("admin", JSON.stringify(admin));
-
-            return response.data;
-        } catch (error) {
-            const message =
-                error.response?.data?.message || "Login failed";
-            return Promise.reject(message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const uploadHospitalDocuments = async (userData) => {
         try {
             setLoading(true);
@@ -240,7 +240,7 @@ export const AuthProvider = ({ children }) => {
     // 1️⃣ SEND OTP
     const forgotPassword = async (email) => {
         const res = await axios.post(
-            `${API_URL}/api/auth/user/forgot-password`,
+            `${API_URL}/api/password/forgot-password`,
             { email }
         );
         return res.data;
@@ -249,7 +249,7 @@ export const AuthProvider = ({ children }) => {
     // 2️⃣ VERIFY OTP
     const verifyOtp = async (email, otp) => {
         const res = await axios.post(
-            `${API_URL}/api/auth/user/verify-otp`,
+            `${API_URL}/api/password/verify-otp`,
             { email, otp }
         );
         return res.data;
@@ -257,8 +257,9 @@ export const AuthProvider = ({ children }) => {
 
     // 3️⃣ RESET PASSWORD
     const resetPassword = async (email, newPassword, confirmPassword) => {
+        alert(email, newPassword, confirmPassword);
         const res = await axios.post(
-            `${API_URL}/api/auth/user/reset-password`,
+            `${API_URL}/api/password/reset-password`,
             { email, newPassword, confirmPassword }
         );
         return res.data;
