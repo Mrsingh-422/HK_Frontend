@@ -9,12 +9,17 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [admin, setAdmin] = useState(null);
+    const [hospital, setHospital] = useState(null);
+    const [hospitalToken, setHospitalToken] = useState(null);
     const [loading, setLoading] = useState(true);
+
 
     useEffect(() => {
         const token = localStorage.getItem("token");
         const storedUser = localStorage.getItem("user");
         const storedAdmin = localStorage.getItem("admin");
+        const hospitalToken = localStorage.getItem("hospitalToken");
+        const storedHospital = localStorage.getItem("hospital");
 
         if (token) {
             if (storedUser) {
@@ -23,6 +28,14 @@ export const AuthProvider = ({ children }) => {
             if (storedAdmin) {
                 setAdmin(JSON.parse(storedAdmin));
             }
+        }
+
+        if (storedHospital) {
+            setHospital(JSON.parse(storedHospital));
+        }
+
+        if (hospitalToken) {
+            setHospitalToken(hospitalToken);
         }
 
         setLoading(false);
@@ -43,6 +56,66 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
             const message =
                 error.response?.data?.message || "Registration failed";
+            return Promise.reject(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const loginAsUser = async (userData) => {
+        try {
+            setLoading(true);
+            const response = await axios.post(`${API_URL}/api/auth/user/login`, userData);
+            const { token, user } = response.data;
+
+            // SAVE BOTH TO LOCAL STORAGE
+            localStorage.setItem("token", token);
+            localStorage.setItem("user", JSON.stringify(user));
+
+            setUser(user);
+            return response.data;
+        } catch (error) {
+            const message = error.response?.data?.message || "Login failed";
+            return Promise.reject(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const registerAsHospital = async (userData) => {
+        try {
+            setLoading(true);
+            const response = await axios.post(`${API_URL}/api/auth/hospital/register`, userData);
+            const { token, data } = response.data;
+            localStorage.setItem("hospitalToken", token);
+            setHospitalToken(token);
+            localStorage.setItem("hospital", JSON.stringify(data));
+            setHospital(data);
+            return response.data;
+        }
+        catch (error) {
+            const message =
+                error.response?.data?.message || "Registration failed";
+            return Promise.reject(message);
+        }
+        finally {
+            setLoading(false);
+        }
+    }
+
+    const loginAsHospital = async (userData) => {
+        try {
+            setLoading(true);
+            const response = await axios.post(`${API_URL}/api/auth/hospital/login`, userData);
+            const { token, data } = response.data;
+            // SAVE BOTH TO LOCAL STORAGE
+            localStorage.setItem("hospitalToken", token);
+            setHospitalToken(token);
+            localStorage.setItem("hospital", JSON.stringify(data));
+            setHospital(data);
+            return response.data;
+        } catch (error) {
+            const message = error.response?.data?.message || "Login failed";
             return Promise.reject(message);
         } finally {
             setLoading(false);
@@ -83,24 +156,6 @@ export const AuthProvider = ({ children }) => {
         }
     }
 
-    const registerAsHospital = async (userData) => {
-        try {
-            setLoading(true);
-            const response = await axios.post(`${API_URL}/api/auth/hospital/register`, userData);
-            const { token } = response.data;
-            localStorage.setItem("hospitalToken", token);
-            return response.data;
-        }
-        catch (error) {
-            const message =
-                error.response?.data?.message || "Registration failed";
-            return Promise.reject(message);
-        }
-        finally {
-            setLoading(false);
-        }
-    }
-
     const loginAsAdmin = async (userData) => {
         try {
             setLoading(true);
@@ -124,37 +179,22 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const loginAsUser = async (userData) => {
+    const uploadHospitalDocuments = async (userData) => {
         try {
             setLoading(true);
-            const response = await axios.post(`${API_URL}/api/auth/user/login`, userData);
-            const { token, user } = response.data;
 
-            // SAVE BOTH TO LOCAL STORAGE
-            localStorage.setItem("token", token);
-            localStorage.setItem("user", JSON.stringify(user));
-
-            setUser(user);
+            const hospitalToken = localStorage.getItem("hospitalToken");
+            const response = await axios.put(`${API_URL}/api/auth/hospital/update`,
+                userData,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${hospitalToken}` // Send token as Bearer token
+                    }
+                }
+            );
             return response.data;
         } catch (error) {
-            const message = error.response?.data?.message || "Login failed";
-            return Promise.reject(message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const loginAsHospital = async (userData) => {
-        try {
-            setLoading(true);
-            const response = await axios.post(`${API_URL}/api/auth/hospital/login`, userData);
-            const { token } = response.data;
-
-            // SAVE BOTH TO LOCAL STORAGE
-            localStorage.setItem("hospitalToken", token);
-            return response.data;
-        } catch (error) {
-            const message = error.response?.data?.message || "Login failed";
+            const message = error.response?.data?.message || "Upload failed";
             return Promise.reject(message);
         } finally {
             setLoading(false);
@@ -197,7 +237,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-
     // 1️⃣ SEND OTP
     const forgotPassword = async (email) => {
         const res = await axios.post(
@@ -230,8 +269,11 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem("token");
         localStorage.removeItem("admin");
         localStorage.removeItem("user");
+        localStorage.removeItem("hospitalToken");
+        localStorage.removeItem("hospital");
         setAdmin(null);
         setUser(null);
+        setHospital(null)
     };
 
 
@@ -241,6 +283,8 @@ export const AuthProvider = ({ children }) => {
             admin,
             loading,
             logout,
+            hospital,
+            hospitalToken,
             registerAsUser,
             registerAsDoctorAppointment,
             registerAsServiceProvider,
@@ -253,6 +297,7 @@ export const AuthProvider = ({ children }) => {
             forgotPassword,
             verifyOtp,
             resetPassword,
+            uploadHospitalDocuments,
             logout
         }}>
             {children}

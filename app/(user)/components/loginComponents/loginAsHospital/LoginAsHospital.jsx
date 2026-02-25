@@ -7,58 +7,58 @@ import { useRouter } from "next/navigation";
 
 function LoginAsHospital() {
   const [identifier, setIdentifier] = useState(""); // phone OR email
-    const [password, setPassword] = useState("");
-    const [remember, setRemember] = useState(false);
-  
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
-    const [success, setSuccess] = useState("");
-  
-    const { openModal, closeModal } = useGlobalContext();
-    const { loginAsHospital } = useAuth();
+  const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
 
-    const router = useRouter();
-  
-    const handleSubmit = async (e) => {
-      e.preventDefault();
-      setError("");
-      setSuccess("");
-  
-      if (!identifier || !password) {
-        setError("Please enter phone/email and password.");
-        return;
-      }
-  
-      try {
-        setLoading(true);
-  
-        // Check if input is email
-        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
-  
-        const userLoginData = {
-          password,
-          remember,
-          ...(isEmail
-            ? { email: identifier }
-            : { phone: identifier }),
-        };
-  
-        const res = await loginAsHospital(userLoginData);
-  
-        setSuccess("Login successful! Redirecting...");
-  
-        setTimeout(() => {
-          router.push("/hospital");
-        }, 1500);
-  
-      } catch (err) {
-        setError(
-          err?.response?.data?.message || "Invalid phone/email or password."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const { openModal, closeModal } = useGlobalContext();
+  const { loginAsHospital } = useAuth();
+
+  const router = useRouter();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (!identifier || !password) {
+      setError("Please enter phone/email and password.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Check if input is email
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
+
+      const userLoginData = {
+        password,
+        remember,
+        ...(isEmail
+          ? { email: identifier }
+          : { phone: identifier }),
+      };
+
+      const res = await loginAsHospital(userLoginData);
+
+      setSuccess("Login successful! Redirecting...");
+
+      setTimeout(() => {
+        router.push("/hospital/documents");
+      }, 1500);
+
+    } catch (err) {
+      setError(
+        err?.response?.data?.message || "Invalid phone/email or password."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
   return (

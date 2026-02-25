@@ -1,6 +1,8 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { useAuth } from '../../context/AuthContext'
+import { useRouter } from 'next/navigation'
 
 function Page() {
     const [documents, setDocuments] = useState({
@@ -14,28 +16,70 @@ function Page() {
         licenseDocument: []
     })
 
+    const { uploadHospitalDocuments, loading } = useAuth();
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isChecking, setIsChecking] = useState(true);
+
+    const router = useRouter();
+
+    useEffect(() => {
+        // Check localStorage directly
+        const checkAuth = () => {
+            const hospitalToken = localStorage.getItem("hospitalToken");
+            const hospital = localStorage.getItem("hospital");
+
+            if (!hospitalToken || !hospital) {
+                alert("Please login as a hospital to access this page");
+                router.push('/');
+            } else {
+                setIsAuthenticated(true);
+            }
+            setIsChecking(false);
+        };
+
+        // Small delay to ensure localStorage is available
+        setTimeout(checkAuth, 100);
+    }, [router]);
+
+    // Show loading while checking authentication
+    if (isChecking) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-16 h-16 border-4 border-[#08B36A] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-600">Checking authentication...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Don't render anything if not authenticated
+    if (!isAuthenticated) {
+        return null;
+    }
+
     const handleFileChange = (e, type) => {
         const files = Array.from(e.target.files)
-        
+
         if (files.length > 0) {
             if (type === 'hospitalImage' || type === 'licenseDocument') {
                 // Add new files to existing array
-                setDocuments(prev => ({ 
-                    ...prev, 
-                    [type]: [...prev[type], ...files] 
+                setDocuments(prev => ({
+                    ...prev,
+                    [type]: [...prev[type], ...files]
                 }))
 
                 // Create preview URLs for new files
                 const newUrls = files.map(file => URL.createObjectURL(file))
-                setPreviewUrls(prev => ({ 
-                    ...prev, 
-                    [type]: [...prev[type], ...newUrls] 
+                setPreviewUrls(prev => ({
+                    ...prev,
+                    [type]: [...prev[type], ...newUrls]
                 }))
             } else if (type === 'otherDocuments') {
                 // For multiple files
-                setDocuments(prev => ({ 
-                    ...prev, 
-                    otherDocuments: [...prev.otherDocuments, ...files] 
+                setDocuments(prev => ({
+                    ...prev,
+                    otherDocuments: [...prev.otherDocuments, ...files]
                 }))
             }
         }
@@ -46,7 +90,7 @@ function Page() {
             // Remove file at specific index
             const updatedFiles = documents[type].filter((_, i) => i !== index)
             setDocuments(prev => ({ ...prev, [type]: updatedFiles }))
-            
+
             // Remove preview URL and revoke object URL
             if (previewUrls[type][index]) {
                 URL.revokeObjectURL(previewUrls[type][index])
@@ -64,10 +108,59 @@ function Page() {
         setDocuments(prev => ({ ...prev, otherDocuments: updatedFiles }))
     }
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
-        // Handle form submission here
-        console.log('Documents to upload:', documents)
+
+        // Check if required documents exist
+        if (documents.hospitalImage.length === 0 || documents.licenseDocument.length === 0) {
+            alert('Please upload at least one hospital image and one license document');
+            return;
+        }
+
+        const formData = new FormData();
+
+        // Append all hospital images
+        documents.hospitalImage.forEach((file) => {
+            formData.append(`hospitalImage`, file);
+        });
+
+        // Append all license documents
+        documents.licenseDocument.forEach((file) => {
+            formData.append(`licenseDocument`, file);
+        });
+
+        // Append all other documents
+        documents.otherDocuments.forEach((file) => {
+            formData.append(`otherDocuments`, file);
+        });
+
+        try {
+            const res = await uploadHospitalDocuments(formData);
+            console.log('Upload successful:', res);
+
+            // Show success message
+            alert('Documents uploaded successfully!');
+
+            // Clear documents after successful upload
+            setDocuments({
+                hospitalImage: [],
+                licenseDocument: [],
+                otherDocuments: []
+            });
+
+            // Clear preview URLs
+            Object.values(previewUrls).forEach(urlArray => {
+                urlArray.forEach(url => URL.revokeObjectURL(url));
+            });
+            setPreviewUrls({
+                hospitalImage: [],
+                licenseDocument: []
+            });
+
+        } catch (error) {
+            console.error('Upload failed:', error);
+            alert('Failed to upload documents. Please try again.');
+        }
     }
 
     return (
@@ -155,7 +248,7 @@ function Page() {
                                 )}
                             </div>
                         </div>
-                        
+
                         {/* File Count Display */}
                         {documents.hospitalImage.length > 0 && (
                             <p className="text-sm text-[#08B36A] mt-2">
@@ -231,7 +324,7 @@ function Page() {
                                 )}
                             </div>
                         </div>
-                        
+
                         {/* File Count Display */}
                         {documents.licenseDocument.length > 0 && (
                             <p className="text-sm text-[#08B36A] mt-2">

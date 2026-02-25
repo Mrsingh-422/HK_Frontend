@@ -155,7 +155,7 @@ function RegisterAsHospital() {
         "Hospital Registered Successfully! Please complete your documentation."
       );
 
-      router.push("/hospital");
+      router.push("/hospital/documents");
     } catch (err) {
       setError(err?.message || err);
     }
