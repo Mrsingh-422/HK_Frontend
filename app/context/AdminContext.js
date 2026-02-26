@@ -138,7 +138,7 @@ export const AdminProvider = ({ children }) => {
     const saveHospitalContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/hospital`, data, {
+            const response = await axios.post(`${API_URL}/api/homepage/hospitals`, data, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },

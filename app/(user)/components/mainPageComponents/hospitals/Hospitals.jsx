@@ -7,26 +7,38 @@ import { useGlobalContext } from "@/app/context/GlobalContext";
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-const images = [
-    "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/16925932861680679867hospital-book.png",
-    "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692603059SMS-Hospital.jpeg",
-];
-
 function Hospitals() {
     const [current, setCurrent] = useState(0);
+    const [content, setContent] = useState(null);
 
-    const { getHospitalContent } = useGlobalContext()
+    const { getHospitalContent } = useGlobalContext();
 
-    // Same slider logic as Nursing
+    // Fetch Hospital Content
     useEffect(() => {
+        const fetchContent = async () => {
+            const response = await getHospitalContent();
+            if (response?.success) {
+                setContent(response.data);
+            }
+        };
+
+        fetchContent();
+    }, []);
+
+    // Dynamic Slider (only if images exist)
+    useEffect(() => {
+        if (!content?.images?.length) return;
+
         const interval = setInterval(() => {
             setCurrent((prev) =>
-                prev === images.length - 1 ? 0 : prev + 1
+                prev === content.images.length - 1 ? 0 : prev + 1
             );
         }, 4000);
 
         return () => clearInterval(interval);
-    }, []);
+    }, [content]);
+
+    if (!content) return null;
 
     return (
         <section className="hospital-section">
@@ -40,8 +52,12 @@ function Hospitals() {
                             transform: `translateX(-${current * 100}%)`,
                         }}
                     >
-                        {images.map((img, index) => (
-                            <img key={index} src={img} alt="Hospital" />
+                        {content.images.map((img, index) => (
+                            <img
+                                key={index}
+                                src={`${API_URL}${img}`}
+                                alt="Hospital"
+                            />
                         ))}
                     </div>
                 </div>
@@ -50,26 +66,17 @@ function Hospitals() {
                 <div className="hospital-right">
                     <div className="hospital-header">
                         <span>
-                            <FaArrowLeft /> Hospitals <FaArrowRight />
+                            <FaArrowLeft /> {content.title} <FaArrowRight />
                         </span>
-                        <h2>Hospital Facilities</h2>
+                        <h2>{content.subtitle}</h2>
                     </div>
 
                     <div className="hospital-description">
-                        <p>
-                            A health facility is, in general, any location where healthcare is provided.
-                            Health facilities range from small clinics and doctor's offices to urgent
-                            care centers and large hospitals with elaborate emergency rooms and trauma centers.
-                        </p>
-                        <p>
-                            Modern hospitals provide advanced diagnostic services, surgical procedures,
-                            emergency care, and specialized treatment options to ensure patients receive
-                            comprehensive medical support.
-                        </p>
-                        <p>
-                            Our hospitals are equipped with modern technology, skilled professionals,
-                            and patient-centered care systems to ensure the highest standards of healthcare.
-                        </p>
+                        {content.introduction
+                            ?.split("\r\n\r\n")
+                            .map((para, index) => (
+                                <p key={index}>{para}</p>
+                            ))}
                     </div>
 
                     <Link href="/" className="book-btn">

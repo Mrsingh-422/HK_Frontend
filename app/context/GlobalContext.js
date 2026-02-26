@@ -95,7 +95,7 @@ export const GlobalProvider = ({ children }) => {
 
     const getHospitalContent = async () => {
         try {
-            const response = await axios.get(`${API_URL}/api/homepage/hospital`);
+            const response = await axios.get(`${API_URL}/api/homepage/hospitals`);
             return response.data;
         } catch (error) {
             console.error("Error getting hospital content:", error);
