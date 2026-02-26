@@ -1,3 +1,5 @@
+'use client'
+
 import { createContext, useContext, useState } from "react";
 import axios from "axios";
 
@@ -9,8 +11,8 @@ export const AdminProvider = ({ children }) => {
 
     const saveHomePageContent = async (data) => {
         const token = localStorage.getItem("token");
-        try {
-            const response = await axios.post(`${API_URL}/api/homepage/homepage`, data, {
+        try { 
+            const response = await axios.post(`${API_URL}/api/homepage/main`, data, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -20,7 +22,7 @@ export const AdminProvider = ({ children }) => {
             console.error("Error saving home page content:", error);
             throw error;
         }
-    }   
+    }
 
     const addDoctorTeam = async (data) => {
         const token = localStorage.getItem("token");
@@ -73,6 +75,21 @@ export const AdminProvider = ({ children }) => {
         }
     };
 
+    const saveFeaturedProductsContent = async (data) => {
+        const token = localStorage.getItem("token");
+        try {
+            const response = await axios.post(`${API_URL}/api/homepage/featuredproducts`, data, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error saving featured products content:", error);
+            throw error;
+        }
+    }
+
 
     return (
         <AdminContext.Provider value={{
@@ -80,6 +97,7 @@ export const AdminProvider = ({ children }) => {
             addDoctorTeam,
             addIntroductionPageContent,
             saveAboutUsContent,
+            saveFeaturedProductsContent,
         }}>
             {children}
         </AdminContext.Provider>

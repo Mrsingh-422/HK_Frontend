@@ -54,7 +54,6 @@ function Page() {
                     (img) => `${API_URL}${img}`
                 );
 
-                alert(imageUrls)
                 setPreviews(imageUrls);
             }
         } catch (err) {

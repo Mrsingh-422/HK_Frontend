@@ -11,37 +11,77 @@ import {
     FaAmbulance,
     FaHospital,
 } from "react-icons/fa";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
-const images = [
-    "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/16925912031680098876appoint-dr.png",
-    "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/16925911941680098842kangaroo-wills.jpg",
-    "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/16925911781680098765wave-ground.jpg",
-];
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 function HeroSection() {
     const [current, setCurrent] = useState(0);
+    const [heroData, setHeroData] = useState({
+        title: "",
+        subtitle: "",
+        images: [],
+    });
 
+    const { getHomePageContent } = useGlobalContext();
+
+    // ✅ Fetch Dynamic Content
     useEffect(() => {
+        const fetchHeroContent = async () => {
+            try {
+                const response = await getHomePageContent();
+
+                if (response?.success && response?.data) {
+                    const data = response.data;
+
+                    setHeroData({
+                        title: data.title || "",
+                        subtitle: data.subtitle || "",
+                        images: (data.images || []).map(
+                            (img) => `${API_URL}${img}`   // ✅ fixed path
+                        ),
+                    });
+
+                    setCurrent(0); // reset index if images change
+                }
+            } catch (error) {
+                console.error("Error fetching hero content:", error);
+            }
+        };
+
+        fetchHeroContent();
+    }, []);
+
+    // ✅ Auto Carousel
+    useEffect(() => {
+        if (!heroData.images.length) return;
+
         const interval = setInterval(() => {
-            setCurrent((prev) => (prev + 1) % images.length);
+            setCurrent((prev) => (prev + 1) % heroData.images.length);
         }, 4000);
 
         return () => clearInterval(interval);
-    }, []);
+    }, [heroData.images]);
 
     return (
         <div className="hero-wrapper">
             {/* Background Carousel */}
             <div
                 className="hero-background"
-                style={{ backgroundImage: `url(${images[current]})` }}
+                style={{
+                    backgroundImage: heroData.images.length
+                        ? `url(${heroData.images[current]})`
+                        : "none",
+                }}
             >
                 <div className="hero-overlay">
                     <div className="hero-content">
-                        <h1>Health Kangaroo Website</h1>
+                        <h1>
+                            {heroData.title || "Health Kangaroo "}
+                        </h1>
                         <p>
-                            Here you will order medicines, book tests,
-                            consultations and many more
+                            {heroData.subtitle ||
+                                "Here you will order medicines, book tests, consultations and many more"}
                         </p>
                     </div>
                 </div>
