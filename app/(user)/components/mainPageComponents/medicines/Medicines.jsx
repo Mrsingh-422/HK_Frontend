@@ -3,37 +3,63 @@
 import React, { useState, useEffect } from "react";
 import "./Medicines.css";
 import Link from "next/link";
+import { useGlobalContext } from "@/app/context/GlobalContext";
+
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 const Medicines = () => {
 
-    /* ================= IMAGE ARRAY ================= */
-    const images = [
-        "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602940med1.jpg",
-        "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/16925926181680343192med18.png",
-    ];
+    const { getFeaturedProductsContent } = useGlobalContext();
 
     const [currentIndex, setCurrentIndex] = useState(0);
 
-    // Auto slide every 4 seconds
+    const [medData, setMedData] = useState({
+        title: "",
+        subtitle: "",
+        introduction: "",
+        images: [],
+    });
+
+    // ✅ Fetch dynamic content
     useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const response = await getFeaturedProductsContent();
+
+                if (response?.success && response?.data) {
+                    const data = response.data;
+
+                    setMedData({
+                        title: data.title || "",
+                        subtitle: data.subtitle || "",
+                        introduction: data.introduction || "",
+                        images: (data.images || []).map(
+                            (img) => `${API_URL}${img}`
+                        ),
+                    });
+
+                    setCurrentIndex(0);
+                }
+            } catch (error) {
+                console.error("Error fetching featured products:", error);
+            }
+        };
+
+        fetchData();
+    }, []);
+
+    // ✅ Auto slide every 4 seconds
+    useEffect(() => {
+        if (!medData.images.length) return;
+
         const interval = setInterval(() => {
-            nextSlide();
+            setCurrentIndex((prev) =>
+                prev === medData.images.length - 1 ? 0 : prev + 1
+            );
         }, 4000);
 
         return () => clearInterval(interval);
-    }, [currentIndex]);
-
-    const nextSlide = () => {
-        setCurrentIndex((prev) =>
-            prev === images.length - 1 ? 0 : prev + 1
-        );
-    };
-
-    const prevSlide = () => {
-        setCurrentIndex((prev) =>
-            prev === 0 ? images.length - 1 : prev - 1
-        );
-    };
+    }, [medData.images]);
 
     return (
         <section className="med-section">
@@ -44,15 +70,20 @@ const Medicines = () => {
 
                     <div className="med-top-row">
                         <p className="med-arrow">←</p>
-                        <span className="med-label">Medicines</span>
+                        <span className="med-label">
+                            {medData.title || "Medicines"}
+                        </span>
                         <p className="med-arrow">→</p>
                     </div>
 
-                    <h1 className="med-heading">Featured Products</h1>
+                    <h1 className="med-heading">
+                        {medData.subtitle || "Featured Products"}
+                    </h1>
 
                     <div className="med-description">
                         <p>
-                            Medicines can treat diseases and improve your health. If you are like most people, you need to take medicine at some point in your life. You may need to take medicine every day, or you may only need to take medicine once in a while. Either way, you want to make sure that your medicines are safe, and that they will help you get better. You may need to take medicine every day, or you may only need to take medicine once in a while
+                            {medData.introduction ||
+                                "Loading featured products content..."}
                         </p>
                     </div>
 
@@ -70,14 +101,15 @@ const Medicines = () => {
                                 transform: `translateX(-${currentIndex * 100}%)`
                             }}
                         >
-                            {images.map((img, index) => (
-                                <img
-                                    key={index}
-                                    src={img}
-                                    alt="Medicine"
-                                    className="med-image"
-                                />
-                            ))}
+                            {medData.images.length > 0 &&
+                                medData.images.map((img, index) => (
+                                    <img
+                                        key={index}
+                                        src={img}
+                                        alt="Medicine"
+                                        className="med-image"
+                                    />
+                                ))}
                         </div>
                     </div>
 

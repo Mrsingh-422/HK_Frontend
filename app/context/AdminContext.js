@@ -11,7 +11,7 @@ export const AdminProvider = ({ children }) => {
 
     const saveHomePageContent = async (data) => {
         const token = localStorage.getItem("token");
-        try { 
+        try {
             const response = await axios.post(`${API_URL}/api/homepage/main`, data, {
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -78,7 +78,7 @@ export const AdminProvider = ({ children }) => {
     const saveFeaturedProductsContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/featuredproducts`, data, {
+            const response = await axios.post(`${API_URL}/api/homepage/featured-products`, data, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -86,6 +86,36 @@ export const AdminProvider = ({ children }) => {
             return response.data;
         } catch (error) {
             console.error("Error saving featured products content:", error);
+            throw error;
+        }
+    }
+
+    const saveLaboratoryContent = async (data) => {
+        const token = localStorage.getItem("token");
+        try {
+            const response = await axios.post(`${API_URL}/api/homepage/laboratory`, data, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error saving laboratory content:", error);
+            throw error;
+        }
+    }
+
+    const saveOurAffiliatesContent = async (data) => {
+        const token = localStorage.getItem("token");
+        try {
+            const response = await axios.post(`${API_URL}/api/homepage/ouraffiliates`, data, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error saving our affiliates content:", error);
             throw error;
         }
     }
@@ -98,6 +128,8 @@ export const AdminProvider = ({ children }) => {
             saveIntroductionPageContent,
             saveAboutUsContent,
             saveFeaturedProductsContent,
+            saveLaboratoryContent,
+            saveOurAffiliatesContent,
         }}>
             {children}
         </AdminContext.Provider>

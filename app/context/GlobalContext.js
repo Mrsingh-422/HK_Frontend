@@ -43,10 +43,19 @@ export const GlobalProvider = ({ children }) => {
         }
     }
 
-
+    const getIntroductionPageContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/introduction`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting introduction page content:", error);
+            throw error;
+        }
+    }
+    
     const getFeaturedProductsContent = async () => {
         try {
-            const response = await axios.get(`${API_URL}/api/homepage/featuredproducts`);
+            const response = await axios.get(`${API_URL}/api/homepage/featured-products`);
             return response.data;
         } catch (error) {
             console.error("Error getting featured products content:", error);
@@ -54,12 +63,22 @@ export const GlobalProvider = ({ children }) => {
         }
     }
 
-    const getIntroductionPageContent = async () => {
+    const getLaboratoryContent = async () => {
         try {
-            const response = await axios.get(`${API_URL}/api/homepage/introduction`);
+            const response = await axios.get(`${API_URL}/api/homepage/laboratory`);
             return response.data;
         } catch (error) {
-            console.error("Error getting introduction page content:", error);
+            console.error("Error getting laboratory content:", error);
+            throw error;
+        }
+    }
+
+    const getOurAffiliatesContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/ouraffiliates`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting our affiliates content:", error);
             throw error;
         }
     }
@@ -89,6 +108,8 @@ export const GlobalProvider = ({ children }) => {
                 getFeaturedProductsContent,
                 getHomePageContent,
                 getIntroductionPageContent,
+                getLaboratoryContent,
+                getOurAffiliatesContent,
                 getDoctorTeamContent
             }}
         >

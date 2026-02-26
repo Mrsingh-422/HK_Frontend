@@ -191,15 +191,49 @@ export default function Sidebar() {
                                     href="/admind/websitesetting/home/featuredproducts"
                                     className={isActive("/admind/websitesetting/home/featuredproducts") ? "sub-active" : ""}
                                 >
-                                    Featured Products
+                                    Medicine Section
                                 </Link>
 
+                                <Link
+                                    href="/admind/websitesetting/home/laboratory"
+                                    className={isActive("/admind/websitesetting/home/laboratory") ? "sub-active" : ""}
+                                >
+                                    Laboratory Section
+                                </Link>
 
                                 <Link
                                     href="/admind/websitesetting/home/doctorsteam"
                                     className={isActive("/admind/websitesetting/home/doctorsteam") ? "sub-active" : ""}
                                 >
                                     Doctor's Team
+                                </Link>
+
+                                <Link
+                                    href="/admind/websitesetting/home/nursing"
+                                    className={isActive("/admind/websitesetting/home/nursing") ? "sub-active" : ""}
+                                >
+                                    Nursing Section
+                                </Link>
+
+                                <Link
+                                    href="/admind/websitesetting/home/ambulance"
+                                    className={isActive("/admind/websitesetting/home/ambulance") ? "sub-active" : ""}
+                                >
+                                    Ambulance Section
+                                </Link>
+
+                                <Link
+                                    href="/admind/websitesetting/home/hospital"
+                                    className={isActive("/admind/websitesetting/home/hospital") ? "sub-active" : ""}
+                                >
+                                    Hospital Section
+                                </Link>
+
+                                <Link
+                                    href="/admind/websitesetting/home/ouraffiliates"
+                                    className={isActive("/admind/websitesetting/home/ouraffiliates") ? "sub-active" : ""}
+                                >
+                                    Our Affiliates
                                 </Link>
 
                                 <Link
