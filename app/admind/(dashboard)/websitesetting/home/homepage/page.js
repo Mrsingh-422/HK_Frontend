@@ -5,7 +5,7 @@ import DashboardTopNavbar from "../../../components/topNavbar/DashboardTopNavbar
 import { useAdminContext } from "@/app/context/AdminContext";
 
 function Page() {
-  const { addHomepageContent } = useAdminContext()
+  const { saveHomePageContent } = useAdminContext();
 
   const [formData, setFormData] = useState({
     title: "",
@@ -18,6 +18,7 @@ function Page() {
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
+  // ================= HANDLE INPUT =================
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -27,10 +28,14 @@ function Page() {
 
     setFormData({ ...formData, images: files });
 
-    const previewUrls = files.map((file) => URL.createObjectURL(file));
+    const previewUrls = files.map((file) =>
+      URL.createObjectURL(file)
+    );
+
     setPreviews(previewUrls);
   };
 
+  // ================= HANDLE SUBMIT =================
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -47,7 +52,7 @@ function Page() {
         data.append("images", image);
       });
 
-      const response = await addHomepageContent(data);
+      const response = await saveHomePageContent(data);
 
       if (response?.success) {
         setSuccess("Homepage content added successfully!");
@@ -60,7 +65,7 @@ function Page() {
 
         setPreviews([]);
       } else {
-        setError(response?.message || "Something went wrong!");
+        setError(response?.message || "Something went wrong.");
       }
     } catch (err) {
       setError("Server error. Please try again.");
@@ -74,10 +79,10 @@ function Page() {
       <DashboardTopNavbar />
 
       <div className="min-h-screen bg-gray-100 flex justify-center items-start py-10">
-        <div className="bg-white w-full max-w-4xl rounded-2xl shadow-lg p-8">
+        <div className="bg-white w-full max-w-5xl rounded-2xl shadow-lg p-8">
 
           <h2 className="text-2xl font-semibold text-gray-700 mb-6">
-            Add Homepage Content
+            Manage Homepage Section
           </h2>
 
           {/* Success Message */}
@@ -100,74 +105,61 @@ function Page() {
           >
 
             {/* Title */}
-            <div className="md:col-span-2">
-              <label className="text-sm text-gray-600">Title</label>
-              <input
-                type="text"
-                name="title"
-                required
-                value={formData.title}
-                onChange={handleChange}
-                placeholder="Enter main title"
-                className="w-full mt-1 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-              />
-            </div>
+            <input
+              type="text"
+              name="title"
+              placeholder="Title"
+              required
+              value={formData.title}
+              onChange={handleChange}
+              className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
+            />
 
             {/* Subtitle */}
-            <div className="md:col-span-2">
-              <label className="text-sm text-gray-600">Subtitle</label>
-              <textarea
-                name="subtitle"
-                required
-                value={formData.subtitle}
-                onChange={handleChange}
-                placeholder="Enter subtitle"
-                rows={3}
-                className="w-full mt-1 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-              />
-            </div>
+            <input
+              type="text"
+              name="subtitle"
+              placeholder="Subtitle"
+              required
+              value={formData.subtitle}
+              onChange={handleChange}
+              className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
+            />
 
             {/* Image Upload */}
-            <div className="md:col-span-2">
-              <label className="text-sm text-gray-600">
-                Upload Images (Multiple)
-              </label>
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleImages}
-                className="w-full mt-1 p-3 border rounded-lg"
-              />
-            </div>
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={handleImages}
+              className="md:col-span-2 p-3 border rounded-lg"
+            />
 
             {/* Image Preview */}
             {previews.length > 0 && (
-              <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-4">
+              <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {previews.map((src, index) => (
                   <img
                     key={index}
                     src={src}
-                    alt="Preview"
-                    className="w-full h-32 object-cover rounded-lg border"
+                    alt="preview"
+                    className="h-32 w-full object-cover rounded-lg border"
                   />
                 ))}
               </div>
             )}
 
             {/* Submit Button */}
-            <div className="md:col-span-2 mt-4">
-              <button
-                type="submit"
-                disabled={loading}
-                className={`w-full py-3 rounded-lg shadow-md transition text-white ${loading
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-[#08B36A] hover:bg-[#08b369d6]"
-                  }`}
-              >
-                {loading ? "Saving..." : "Save Homepage Content"}
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className={`md:col-span-2 py-3 rounded-lg text-white shadow-md ${loading
+                  ? "bg-gray-400"
+                  : "bg-[#08B36A] hover:bg-[#079a5c]"
+                }`}
+            >
+              {loading ? "Processing..." : "Save Homepage Section"}
+            </button>
 
           </form>
         </div>

@@ -2,19 +2,46 @@
 
 import React, { useState, useEffect } from "react";
 import "./AboutUs.css";
+import { useGlobalContext } from "@/app/context/GlobalContext";
+
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 const AboutUs = () => {
+    const { getAboutUsContent } = useGlobalContext();
 
-    /* ---------------- IMAGE CAROUSEL DATA ---------------- */
-    const images = [
-        "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/16925912431680342928appoint-dr.png",
-        "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/16925912531680342963kangaroo-wills.jpg",
-    ];
-
+    const [aboutData, setAboutData] = useState(null);
+    const [images, setImages] = useState([]);
     const [currentImage, setCurrentImage] = useState(0);
+    const [activeTab, setActiveTab] = useState("Work");
 
-    // Auto change image every 4 sec
+    /* ---------------- FETCH DATA ---------------- */
     useEffect(() => {
+        const fetchData = async () => {
+            const response = await getAboutUsContent();
+
+            if (response?.success) {
+                const data = response.data;
+
+                setAboutData(data);
+
+                // ✅ FIX: Replace wrong folder name and attach backend URL
+                const fullImageUrls = (data.images || []).map((img) => {
+                    // Replace "frontend" with "homepage"
+                    const correctedPath = img.replace("/uploads/frontend/", "/uploads/homepage/");
+                    return `${API_URL}${correctedPath}`;
+                });
+
+                setImages(fullImageUrls);
+            }
+        };
+
+        fetchData();
+    }, []);
+
+    /* ---------------- AUTO IMAGE SLIDER ---------------- */
+    useEffect(() => {
+        if (images.length === 0) return;
+
         const interval = setInterval(() => {
             setCurrentImage((prev) =>
                 prev === images.length - 1 ? 0 : prev + 1
@@ -22,18 +49,14 @@ const AboutUs = () => {
         }, 4000);
 
         return () => clearInterval(interval);
-    }, [images.length]);
+    }, [images]);
 
-
-    /* ---------------- TAB DATA ---------------- */
+    /* ---------------- TAB DATA FROM API ---------------- */
     const tabContent = {
-        Work: "We provide professional healthcare consultation with expert doctors available 24/7. Our platform ensures easy booking, secure communication, and patient-first care experience.",
-        Mission: "Our mission is to make healthcare accessible, affordable, and convenient for everyone by connecting patients with certified professionals digitally.",
-        Achievement: "We have successfully served thousands of patients, partnered with top hospitals, and maintained 98% satisfaction rate across our healthcare services."
+        Work: aboutData?.workDescription || "adasdsad",
+        Mission: aboutData?.missionDescription || "adasdsad",
+        Achievement: aboutData?.achievementDescription || "adasdsad",
     };
-
-    const [activeTab, setActiveTab] = useState("Work");
-
 
     return (
         <section className="au-section">
@@ -47,7 +70,7 @@ const AboutUs = () => {
                         <div
                             className="au-carousel-track"
                             style={{
-                                transform: `translateX(-${currentImage * 100}%)`
+                                transform: `translateX(-${currentImage * 100}%)`,
                             }}
                         >
                             {images.map((img, index) => (
@@ -66,12 +89,14 @@ const AboutUs = () => {
                 <div className="au-content-area">
 
                     <div className="au-top-label">
-                        <span className="au-small-title">About Us</span>
+                        <span className="au-small-title">
+                            {aboutData?.title || "About Us"}
+                        </span>
                         <span className="au-small-arrow">→</span>
                     </div>
 
                     <h2 className="au-heading">
-                        We Are The Best To Take <br /> Care Of You
+                        {aboutData?.subtitle}
                     </h2>
 
                     {/* TABS */}
@@ -87,14 +112,16 @@ const AboutUs = () => {
                         ))}
                     </div>
 
-                    {/* DESCRIPTION CHANGES BASED ON TAB */}
+                    {/* DESCRIPTION */}
                     <div className="au-description">
                         <p>{tabContent[activeTab]}</p>
                     </div>
 
                     <div className="au-more-link">
                         <span className="au-more-arrow">→</span>
-                        <a href="#" className="au-more-text">More</a>
+                        <a href="#" className="au-more-text">
+                            More
+                        </a>
                     </div>
 
                 </div>

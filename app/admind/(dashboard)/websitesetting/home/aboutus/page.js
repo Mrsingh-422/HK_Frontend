@@ -5,6 +5,8 @@ import DashboardTopNavbar from "../../../components/topNavbar/DashboardTopNavbar
 import { useAdminContext } from "@/app/context/AdminContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
 function Page() {
     const { saveAboutUsContent } = useAdminContext();
     const { getAboutUsContent } = useGlobalContext();
@@ -47,7 +49,13 @@ function Page() {
                     images: [],
                 });
 
-                setPreviews(data.images || []);
+                // ✅ Add multer upload path here
+                const imageUrls = (data.images || []).map(
+                    (img) => `${API_URL}${img}`
+                );
+
+                alert(imageUrls)
+                setPreviews(imageUrls);
             }
         } catch (err) {
             console.log(err);

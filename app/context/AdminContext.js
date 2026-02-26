@@ -7,7 +7,7 @@ const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 export const AdminProvider = ({ children }) => {
 
-    const addHomePageContent = async (data) => {
+    const saveHomePageContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
             const response = await axios.post(`${API_URL}/api/homepage/homepage`, data, {
@@ -17,10 +17,10 @@ export const AdminProvider = ({ children }) => {
             });
             return response.data;
         } catch (error) {
-            console.error("Error adding home page content:", error);
+            console.error("Error saving home page content:", error);
             throw error;
         }
-    }
+    }   
 
     const addDoctorTeam = async (data) => {
         const token = localStorage.getItem("token");
@@ -76,7 +76,7 @@ export const AdminProvider = ({ children }) => {
 
     return (
         <AdminContext.Provider value={{
-            addHomePageContent,
+            saveHomePageContent,
             addDoctorTeam,
             addIntroductionPageContent,
             saveAboutUsContent,
