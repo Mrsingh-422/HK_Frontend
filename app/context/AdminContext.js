@@ -39,21 +39,6 @@ export const AdminProvider = ({ children }) => {
         }
     }
 
-    const addIntroductionPageContent = async (data) => {
-        const token = localStorage.getItem("token");
-        try {
-            const response = await axios.post(`${API_URL}/api/homepage/introductionpage`, data, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-            return response.data;
-        } catch (error) {
-            console.error("Error adding introduction page content:", error);
-            throw error;
-        }
-    }
-
     const saveAboutUsContent = async (data) => {
         const token = localStorage.getItem("token");
 
@@ -75,6 +60,21 @@ export const AdminProvider = ({ children }) => {
         }
     };
 
+    const saveIntroductionPageContent = async (data) => {
+        const token = localStorage.getItem("token");
+        try {
+            const response = await axios.post(`${API_URL}/api/homepage/introduction`, data, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error saving introduction page content:", error);
+            throw error;
+        }
+    }
+
     const saveFeaturedProductsContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
@@ -95,7 +95,7 @@ export const AdminProvider = ({ children }) => {
         <AdminContext.Provider value={{
             saveHomePageContent,
             addDoctorTeam,
-            addIntroductionPageContent,
+            saveIntroductionPageContent,
             saveAboutUsContent,
             saveFeaturedProductsContent,
         }}>

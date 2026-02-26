@@ -1,11 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import DashboardTopNavbar from "../../../components/topNavbar/DashboardTopNavbar";
-// import { useAdminContext } from "@/app/context/AdminProvider"; // adjust if needed
+import { useAdminContext } from "@/app/context/AdminContext";
+import { useGlobalContext } from "@/app/context/GlobalContext";
+
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 function Page() {
-  // const { addIntroductionSection } = useAdminContext(); // your backend function
+  const { saveIntroductionPageContent } = useAdminContext();
+  const { getIntroductionPageContent } = useGlobalContext();
 
   const [formData, setFormData] = useState({
     title: "",
@@ -15,21 +19,61 @@ function Page() {
   });
 
   const [previews, setPreviews] = useState([]);
+  const [existingImages, setExistingImages] = useState([]);
+
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+
+  // ✅ Fetch Existing Content
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await getIntroductionPageContent();
+
+        if (response?.success && response?.data) {
+          const data = response.data;
+
+          setFormData((prev) => ({
+            ...prev,
+            title: data.title || "",
+            subtitle: data.subtitle || "",
+            introduction: data.introduction || "",
+          }));
+
+          const backendImages = (data.images || []).map(
+            (img) => `${API_URL}${img}`
+          );
+
+          setExistingImages(backendImages);
+          setPreviews(backendImages);
+        }
+      } catch (err) {
+        console.error("Error fetching introduction content", err);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // ✅ Add new images without removing old ones
   const handleImages = (e) => {
     const files = Array.from(e.target.files);
 
-    setFormData({ ...formData, images: files });
+    setFormData((prev) => ({
+      ...prev,
+      images: [...prev.images, ...files],
+    }));
 
-    const previewUrls = files.map((file) => URL.createObjectURL(file));
-    setPreviews(previewUrls);
+    const previewUrls = files.map((file) =>
+      URL.createObjectURL(file)
+    );
+
+    setPreviews((prev) => [...prev, ...previewUrls]);
   };
 
   const handleSubmit = async (e) => {
@@ -49,19 +93,29 @@ function Page() {
         data.append("images", image);
       });
 
-      const response = await addIntroductionSection(data);
+      const response = await saveIntroductionPageContent(data);
 
       if (response?.success) {
-        setSuccess("Introduction section added successfully!");
+        setSuccess("Introduction section saved successfully!");
 
-        setFormData({
-          title: "",
-          subtitle: "",
-          introduction: "",
+        // Refetch updated content
+        const updated = await getIntroductionPageContent();
+
+        if (updated?.success && updated?.data) {
+          const data = updated.data;
+
+          const backendImages = (data.images || []).map(
+            (img) => `${API_URL}${img}`
+          );
+
+          setExistingImages(backendImages);
+          setPreviews(backendImages);
+        }
+
+        setFormData((prev) => ({
+          ...prev,
           images: [],
-        });
-
-        setPreviews([]);
+        }));
       } else {
         setError(response?.message || "Something went wrong!");
       }
@@ -83,14 +137,12 @@ function Page() {
             Add Introduction Section
           </h2>
 
-          {/* Success Message */}
           {success && (
             <div className="mb-4 p-3 rounded-lg bg-green-100 text-green-700 border border-green-300">
               {success}
             </div>
           )}
 
-          {/* Error Message */}
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-700 border border-red-300">
               {error}
@@ -102,7 +154,6 @@ function Page() {
             className="grid grid-cols-1 md:grid-cols-2 gap-6"
           >
 
-            {/* Title */}
             <div className="md:col-span-2">
               <label className="text-sm text-gray-600">Title</label>
               <input
@@ -116,7 +167,6 @@ function Page() {
               />
             </div>
 
-            {/* Subtitle */}
             <div className="md:col-span-2">
               <label className="text-sm text-gray-600">Subtitle</label>
               <input
@@ -130,7 +180,6 @@ function Page() {
               />
             </div>
 
-            {/* Introduction */}
             <div className="md:col-span-2">
               <label className="text-sm text-gray-600">Introduction</label>
               <textarea
@@ -144,7 +193,6 @@ function Page() {
               />
             </div>
 
-            {/* Image Upload */}
             <div className="md:col-span-2">
               <label className="text-sm text-gray-600">
                 Upload Images (Multiple)
@@ -158,7 +206,6 @@ function Page() {
               />
             </div>
 
-            {/* Image Preview */}
             {previews.length > 0 && (
               <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-4">
                 {previews.map((src, index) => (
@@ -172,14 +219,13 @@ function Page() {
               </div>
             )}
 
-            {/* Submit Button */}
             <div className="md:col-span-2 mt-4">
               <button
                 type="submit"
                 disabled={loading}
                 className={`w-full py-3 rounded-lg shadow-md transition text-white ${loading
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-[#08B36A] hover:bg-[#08b369d6]"
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-[#08B36A] hover:bg-[#08b369d6]"
                   }`}
               >
                 {loading ? "Saving..." : "Save Introduction Section"}

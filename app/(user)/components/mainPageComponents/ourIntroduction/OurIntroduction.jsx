@@ -3,27 +3,64 @@
 import React, { useEffect, useState } from "react";
 import "./OurIntroduction.css";
 import Link from "next/link";
+import { useGlobalContext } from "@/app/context/GlobalContext";
+
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 function OurIntroduction() {
-
-    // 🔹 This can later come from backend
-    const images = [
-        "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/16925912431680342928appoint-dr.png",
-        "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/16925912531680342963kangaroo-wills.jpg"
-    ];
+    const { getIntroductionPageContent } = useGlobalContext();
 
     const [currentIndex, setCurrentIndex] = useState(0);
 
-    // 🔹 Change image every 4 seconds
+    const [introData, setIntroData] = useState({
+        title: "",
+        subtitle: "",
+        introduction: "",
+        images: [],
+    });
+
+    // ✅ Fetch dynamic content
     useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const response = await getIntroductionPageContent();
+
+                if (response?.success && response?.data) {
+                    const data = response.data;
+
+                    setIntroData({
+                        title: data.title || "",
+                        subtitle: data.subtitle || "",
+                        introduction: data.introduction || "",
+                        images: (data.images || []).map(
+                            (img) => `${API_URL}${img}`
+                        ),
+                    });
+
+                    setCurrentIndex(0);
+                }
+            } catch (error) {
+                console.error("Error fetching introduction data:", error);
+            }
+        };
+
+        fetchData();
+    }, []);
+
+    // ✅ Auto carousel
+    useEffect(() => {
+        if (!introData.images.length) return;
+
         const interval = setInterval(() => {
             setCurrentIndex((prevIndex) =>
-                prevIndex === images.length - 1 ? 0 : prevIndex + 1
+                prevIndex === introData.images.length - 1
+                    ? 0
+                    : prevIndex + 1
             );
         }, 4000);
 
         return () => clearInterval(interval);
-    }, [images.length]);
+    }, [introData.images]);
 
     return (
         <section className="oi-section">
@@ -32,17 +69,21 @@ function OurIntroduction() {
                 {/* LEFT SIDE */}
                 <div className="oi-left">
                     <div className="oi-label-row">
-                        <span className="oi-label-text">Our Introduction</span>
+                        <span className="oi-label-text">
+                            {introData.title || "Our Introduction"}
+                        </span>
                         <span className="oi-label-arrow">→</span>
                     </div>
 
                     <h1 className="oi-title">
-                        Book Online For Doctor's <br /> Appointment
+                        {introData.subtitle ||
+                            "Book Online For Doctor's Appointment"}
                     </h1>
 
                     <div className="oi-description-box">
                         <p>
-                            Lorem ipsum dolor sit amet consectetur adipisicing elit. Atque sunt voluptates earum et molestiae repudiandae asperiores fuga illum nemo maxime iste. Lorem ipsum dolor, sit amet consectetur adipisicing elit. Accusantium voluptatibus inventore magnam in. Corrupti ex perferendis vero iure rerum! Nesciunt excepturi minima incidunt corporis culpa deserunt? Repellat, aut harum dignissimos doloribus optio quae nobis perferendis repudiandae voluptates velit qui, neque adipisci maxime quisquam itaque, suscipit quam doloremque nisi fuga accusamus beatae maiores veniam? Laborum expedita repellendus, molestiae corrupti nesciunt excepturi similique itaque modi cupiditate, porro ullam illum? Aspernatur excepturi iure minus omnis neque ex repellendus praesentium in, soluta voluptatibus recusandae ratione quaerat, quo quasi facere tempore non magnam inventore odio consequuntur quam dolores magni fugiat! Architecto ratione quas, cumque alias illo, eaque doloribus consequatur recusandae suscipit dolor quod dolore beatae et id? Necessitatibus rem alias laboriosam culpa nulla voluptas perferendis veritatis possimus animi ipsam quae fugit iusto sequi sint reiciendis, doloribus ad impedit? Dolores nam est eum sed illum magni ipsa sequi velit officia provident qui impedit possimus aut beatae, maxime reprehenderit labore, repudiandae neque ipsum dolore molestiae recusandae cumque. Dignissimos voluptatibus perspiciatis ad non placeat cum eius, ducimus porro doloremque nemo obcaecati labore quibusdam consectetur reiciendis sint aspernatur quas nihil cumque fugit odio aliquam adipisci praesentium! Fugiat, recusandae labore enim sunt, laborum voluptas optio dolore placeat commodi veniam iusto libero. Fugiat ullam aliquid minus earum veniam nisi quasi nihil itaque, soluta aut officia id ducimus illum, magni enim quibusdam odio, ipsum expedita incidunt rem facere cum in ab. Nesciunt aliquid incidunt ab dolorum? Aliquam, possimus quae! Exercitationem laudantium voluptatum dolorum voluptate explicabo blanditiis natus animi, saepe veniam nulla libero modi et recusandae magni nisi nihil quisquam quaerat error, velit vero. Dicta debitis neque eos accusantium et libero veritatis repellendus architecto placeat odit ratione ipsam deleniti ad reprehenderit itaque consequatur tempora ut delectus molestias pariatur officiis velit quibusdam, blanditiis quis? Asperiores voluptates vero aspernatur? Non at velit sit vel doloremque?
+                            {introData.introduction ||
+                                "Loading introduction content..."}
                         </p>
                     </div>
 
@@ -59,17 +100,18 @@ function OurIntroduction() {
                         <div
                             className="oi-carousel-track"
                             style={{
-                                transform: `translateX(-${currentIndex * 100}%)`
+                                transform: `translateX(-${currentIndex * 100}%)`,
                             }}
                         >
-                            {images.map((img, index) => (
-                                <img
-                                    key={index}
-                                    src={img}
-                                    className="oi-image"
-                                    alt={`slide-${index}`}
-                                />
-                            ))}
+                            {introData.images.length > 0 &&
+                                introData.images.map((img, index) => (
+                                    <img
+                                        key={index}
+                                        src={img}
+                                        className="oi-image"
+                                        alt={`slide-${index}`}
+                                    />
+                                ))}
                         </div>
                     </div>
                 </div>

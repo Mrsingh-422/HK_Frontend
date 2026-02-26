@@ -56,7 +56,7 @@ export const GlobalProvider = ({ children }) => {
 
     const getIntroductionPageContent = async () => {
         try {
-            const response = await axios.get(`${API_URL}/api/homepage/introductionpage`);
+            const response = await axios.get(`${API_URL}/api/homepage/introduction`);
             return response.data;
         } catch (error) {
             console.error("Error getting introduction page content:", error);
