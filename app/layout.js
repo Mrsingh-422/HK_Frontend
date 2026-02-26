@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminProvider } from "./context/AdminContext";
 import { AuthProvider } from "./context/AuthContext";
 import { GlobalProvider } from "./context/GlobalContext";
 import { UserProvider } from "./context/UserContext";
@@ -12,7 +13,9 @@ export default function RootLayout({ children }) {
         <GlobalProvider>
           <AuthProvider>
             <UserProvider>
-              {children}
+              <AdminProvider>
+                {children}
+              </AdminProvider>
             </UserProvider>
           </AuthProvider>
         </GlobalProvider>

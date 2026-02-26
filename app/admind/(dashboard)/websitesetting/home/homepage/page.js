@@ -2,10 +2,10 @@
 
 import React, { useState } from "react";
 import DashboardTopNavbar from "../../../components/topNavbar/DashboardTopNavbar";
-// import { useAdminContext } from "@/app/context/AdminProvider"; // adjust if path differs
+import { useAdminContext } from "@/app/context/AdminContext";
 
 function Page() {
-//   const { addHomepageContent } = useAdminContext();
+  const { addHomepageContent } = useAdminContext()
 
   const [formData, setFormData] = useState({
     title: "",
@@ -160,11 +160,10 @@ function Page() {
               <button
                 type="submit"
                 disabled={loading}
-                className={`w-full py-3 rounded-lg shadow-md transition text-white ${
-                  loading
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-[#08B36A] hover:bg-[#08b369d6]"
-                }`}
+                className={`w-full py-3 rounded-lg shadow-md transition text-white ${loading
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-[#08B36A] hover:bg-[#08b369d6]"
+                  }`}
               >
                 {loading ? "Saving..." : "Save Homepage Content"}
               </button>

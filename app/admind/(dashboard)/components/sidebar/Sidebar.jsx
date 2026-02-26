@@ -187,6 +187,14 @@ export default function Sidebar() {
                                     About Us
                                 </Link>
 
+
+                                <Link
+                                    href="/admind/websitesetting/home/doctorsteam"
+                                    className={isActive("/admind/websitesetting/home/doctorsteam") ? "sub-active" : ""}
+                                >
+                                    Doctor's Team
+                                </Link>
+
                                 <Link
                                     href="/admind/websitesetting/home/more"
                                     className={isActive("/admind/websitesetting/home/more") ? "sub-active" : ""}

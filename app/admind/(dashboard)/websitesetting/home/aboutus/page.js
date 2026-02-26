@@ -1,9 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import DashboardTopNavbar from "../../../components/topNavbar/DashboardTopNavbar";
+import { useAdminContext } from "@/app/context/AdminContext";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
 function Page() {
+    const { saveAboutUsContent } = useAdminContext();
+    const { getAboutUsContent } = useGlobalContext();
+
     const [formData, setFormData] = useState({
         title: "",
         subtitle: "",
@@ -14,23 +19,65 @@ function Page() {
     });
 
     const [previews, setPreviews] = useState([]);
+    const [hasData, setHasData] = useState(false);
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState("");
     const [error, setError] = useState("");
 
+    // ================= FETCH & PREFILL =================
+    useEffect(() => {
+        fetchAbout();
+    }, []);
+
+    const fetchAbout = async () => {
+        try {
+            const res = await getAboutUsContent();
+
+            if (res?.success && res?.data) {
+                const data = res.data;
+
+                setHasData(true);
+
+                setFormData({
+                    title: data.title || "",
+                    subtitle: data.subtitle || "",
+                    workDescription: data.workDescription || "",
+                    missionDescription: data.missionDescription || "",
+                    achievementDescription: data.achievementDescription || "",
+                    images: [],
+                });
+
+                setPreviews(data.images || []);
+            }
+        } catch (err) {
+            console.log(err);
+        }
+    };
+
+    // ================= HANDLE INPUT =================
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        setFormData({
+            ...formData,
+            [e.target.name]: e.target.value,
+        });
     };
 
     const handleImages = (e) => {
         const files = Array.from(e.target.files);
 
-        setFormData({ ...formData, images: files });
+        setFormData({
+            ...formData,
+            images: files,
+        });
 
-        const previewUrls = files.map((file) => URL.createObjectURL(file));
+        const previewUrls = files.map((file) =>
+            URL.createObjectURL(file)
+        );
+
         setPreviews(previewUrls);
     };
 
+    // ================= SAVE (AUTO CREATE / UPDATE) =================
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -47,27 +94,21 @@ function Page() {
             data.append("missionDescription", formData.missionDescription);
             data.append("achievementDescription", formData.achievementDescription);
 
-            formData.images.forEach((image) => {
-                data.append("images", image);
+            formData.images.forEach((img) => {
+                data.append("images", img);
             });
 
-            // 🔹 Replace with your backend function
-            console.log("Submitting:", formData);
+            await saveAboutUsContent(data);
 
-            setSuccess("About section saved successfully!");
+            setSuccess(
+                hasData
+                    ? "About section updated successfully!"
+                    : "About section added successfully!"
+            );
 
-            setFormData({
-                title: "",
-                subtitle: "",
-                workDescription: "",
-                missionDescription: "",
-                achievementDescription: "",
-                images: [],
-            });
-
-            setPreviews([]);
+            fetchAbout();
         } catch (err) {
-            setError("Server error. Please try again.");
+            setError("Something went wrong. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -78,20 +119,18 @@ function Page() {
             <DashboardTopNavbar />
 
             <div className="min-h-screen bg-gray-100 flex justify-center items-start py-10">
-                <div className="bg-white w-full max-w-4xl rounded-2xl shadow-lg p-8">
+                <div className="bg-white w-full max-w-5xl rounded-2xl shadow-lg p-8">
 
                     <h2 className="text-2xl font-semibold text-gray-700 mb-6">
-                        Add About Us Section
+                        Manage About Us Section
                     </h2>
 
-                    {/* Success Message */}
                     {success && (
                         <div className="mb-4 p-3 rounded-lg bg-green-100 text-green-700 border border-green-300">
                             {success}
                         </div>
                     )}
 
-                    {/* Error Message */}
                     {error && (
                         <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-700 border border-red-300">
                             {error}
@@ -102,119 +141,87 @@ function Page() {
                         onSubmit={handleSubmit}
                         className="grid grid-cols-1 md:grid-cols-2 gap-6"
                     >
+                        <input
+                            type="text"
+                            name="title"
+                            placeholder="Title"
+                            required
+                            value={formData.title}
+                            onChange={handleChange}
+                            className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
+                        />
 
-                        {/* Title */}
-                        <div>
-                            <label className="text-sm text-gray-600">Title</label>
-                            <input
-                                type="text"
-                                name="title"
-                                required
-                                value={formData.title}
-                                onChange={handleChange}
-                                placeholder="Enter main title"
-                                className="w-full mt-1 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                            />
-                        </div>
+                        <input
+                            type="text"
+                            name="subtitle"
+                            placeholder="Subtitle"
+                            required
+                            value={formData.subtitle}
+                            onChange={handleChange}
+                            className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
+                        />
 
-                        {/* Subtitle */}
-                        <div>
-                            <label className="text-sm text-gray-600">Subtitle</label>
-                            <input
-                                type="text"
-                                name="subtitle"
-                                required
-                                value={formData.subtitle}
-                                onChange={handleChange}
-                                placeholder="Enter subtitle"
-                                className="w-full mt-1 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                            />
-                        </div>
+                        <textarea
+                            name="workDescription"
+                            rows={4}
+                            placeholder="Work Description"
+                            required
+                            value={formData.workDescription}
+                            onChange={handleChange}
+                            className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
+                        />
 
-                        {/* Work Description */}
-                        <div className="md:col-span-2">
-                            <label className="text-sm text-gray-600">Work Description</label>
-                            <textarea
-                                name="workDescription"
-                                required
-                                rows={4}
-                                value={formData.workDescription}
-                                onChange={handleChange}
-                                placeholder="Enter Work tab description"
-                                className="w-full mt-1 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                            />
-                        </div>
+                        <textarea
+                            name="missionDescription"
+                            rows={4}
+                            placeholder="Mission Description"
+                            required
+                            value={formData.missionDescription}
+                            onChange={handleChange}
+                            className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
+                        />
 
-                        {/* Mission Description */}
-                        <div className="md:col-span-2">
-                            <label className="text-sm text-gray-600">Mission Description</label>
-                            <textarea
-                                name="missionDescription"
-                                required
-                                rows={4}
-                                value={formData.missionDescription}
-                                onChange={handleChange}
-                                placeholder="Enter Mission tab description"
-                                className="w-full mt-1 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                            />
-                        </div>
+                        <textarea
+                            name="achievementDescription"
+                            rows={4}
+                            placeholder="Achievement Description"
+                            required
+                            value={formData.achievementDescription}
+                            onChange={handleChange}
+                            className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
+                        />
 
-                        {/* Achievement Description */}
-                        <div className="md:col-span-2">
-                            <label className="text-sm text-gray-600">Achievement Description</label>
-                            <textarea
-                                name="achievementDescription"
-                                required
-                                rows={4}
-                                value={formData.achievementDescription}
-                                onChange={handleChange}
-                                placeholder="Enter Achievement tab description"
-                                className="w-full mt-1 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                            />
-                        </div>
+                        <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            onChange={handleImages}
+                            className="md:col-span-2 p-3 border rounded-lg"
+                        />
 
-                        {/* Image Upload */}
-                        <div className="md:col-span-2">
-                            <label className="text-sm text-gray-600">
-                                Upload Carousel Images
-                            </label>
-                            <input
-                                type="file"
-                                multiple
-                                accept="image/*"
-                                onChange={handleImages}
-                                className="w-full mt-1 p-3 border rounded-lg"
-                            />
-                        </div>
-
-                        {/* Preview */}
                         {previews.length > 0 && (
-                            <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-4">
+                            <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                                 {previews.map((src, index) => (
                                     <img
                                         key={index}
                                         src={src}
-                                        alt="Preview"
-                                        className="w-full h-32 object-cover rounded-lg border"
+                                        alt="preview"
+                                        className="h-32 w-full object-cover rounded-lg border"
                                     />
                                 ))}
                             </div>
                         )}
 
-                        {/* Submit Button */}
-                        <div className="md:col-span-2 mt-4">
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className={`w-full py-3 rounded-lg shadow-md transition text-white ${loading
-                                        ? "bg-gray-400 cursor-not-allowed"
-                                        : "bg-[#08B36A] hover:bg-[#08b369d6]"
-                                    }`}
-                            >
-                                {loading ? "Saving..." : "Save About Section"}
-                            </button>
-                        </div>
-
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className={`md:col-span-2 py-3 rounded-lg text-white shadow-md ${loading
+                                ? "bg-gray-400 cursor-not-allowed"
+                                : "bg-[#08B36A] hover:bg-[#079a5c]"
+                                }`}
+                        >
+                            {loading ? "Processing..." : "Save About Section"}
+                        </button>
                     </form>
                 </div>
             </div>
