@@ -4,12 +4,20 @@
 
 .sidebar {
     width: 260px;
+    transition: width 0.3s ease;
+    overflow-x: hidden;   /* only hide horizontal */
+    
+    padding: 20px 15px;
+    overflow-y: auto;     /* allow vertical scroll */
+}
+
+/* .sidebar {
+    width: 260px;
     height: 100vh;
     background: #f8f9fb;
-    padding: 20px 15px;
     border-right: 1px solid #e5e5e5;
     overflow-y: auto;
-}
+} */
 
 .logo-section {
     text-align: center;

@@ -9,13 +9,13 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <UserProvider>
+        <GlobalProvider>
           <AuthProvider>
-            <GlobalProvider>
+            <UserProvider>
               {children}
-            </GlobalProvider>
+            </UserProvider>
           </AuthProvider>
-        </UserProvider>
+        </GlobalProvider>
       </body>
     </html>
   );

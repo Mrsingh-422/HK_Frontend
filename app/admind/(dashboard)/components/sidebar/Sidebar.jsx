@@ -20,6 +20,7 @@ import { useGlobalContext } from "@/app/context/GlobalContext";
 export default function Sidebar() {
     const pathname = usePathname();
     const [openMenu, setOpenMenu] = useState(null);
+    const [openSubMenu, setOpenSubMenu] = useState(null); // ✅ NEW
     const [isHovering, setIsHovering] = useState(false);
 
     const { sidebarOpen, toggleSidebar } = useGlobalContext();
@@ -28,11 +29,22 @@ export default function Sidebar() {
         setOpenMenu(openMenu === menu ? null : menu);
     };
 
+    const toggleSubMenu = (menu) => {
+        setOpenSubMenu(openSubMenu === menu ? null : menu);
+    };
+
     useEffect(() => {
         if (pathname.includes("/subadmin")) setOpenMenu("subadmin");
         if (pathname.includes("/users")) setOpenMenu("users");
         if (pathname.includes("/vendors")) setOpenMenu("vendors");
         if (pathname.includes("/drivers")) setOpenMenu("drivers");
+        if (pathname.includes("/websitesetting")) {
+            setOpenMenu("websitesetting");
+
+            if (pathname.includes("/home/")) {
+                setOpenSubMenu("homepage");
+            }
+        }
     }, [pathname]);
 
     const isActive = (route) => pathname === route;
@@ -81,11 +93,9 @@ export default function Sidebar() {
                 >
                     <FaUser className="icon" />
                     <span>Sub Admin</span>
-                    {
-                        openMenu === "subadmin"
-                            ? <FaChevronDown className="arrow" />
-                            : <FaChevronRight className="arrow" />
-                    }
+                    {openMenu === "subadmin"
+                        ? <FaChevronDown className="arrow" />
+                        : <FaChevronRight className="arrow" />}
                 </div>
 
                 {openMenu === "subadmin" && (
@@ -112,11 +122,9 @@ export default function Sidebar() {
                 >
                     <FaUsers className="icon" />
                     <span>Users</span>
-                    {
-                        openMenu === "users"
-                            ? <FaChevronDown className="arrow" />
-                            : <FaChevronRight className="arrow" />
-                    }
+                    {openMenu === "users"
+                        ? <FaChevronDown className="arrow" />
+                        : <FaChevronRight className="arrow" />}
                 </div>
 
                 {openMenu === "users" && (
@@ -130,65 +138,99 @@ export default function Sidebar() {
                     </div>
                 )}
 
-                {/* Vendors */}
+                {/* Website Setting */}
                 <div
-                    className={`menu-item dropdown ${isParentActive("/admin/vendors") ? "active" : ""}`}
-                    onClick={() => toggleMenu("vendors")}
+                    className={`menu-item dropdown ${isParentActive("/admind/websitesetting") ? "active" : ""}`}
+                    onClick={() => toggleMenu("websitesetting")}
                 >
-                    <FaStore className="icon" />
-                    <span>Vendors</span>
-                    {
-                        openMenu === "vendors"
-                            ? <FaChevronDown className="arrow" />
-                            : <FaChevronRight className="arrow" />
-                    }
+                    <FaUser className="icon" />
+                    <span>Website Setting</span>
+                    {openMenu === "websitesetting"
+                        ? <FaChevronDown className="arrow" />
+                        : <FaChevronRight className="arrow" />}
                 </div>
 
-                {openMenu === "vendors" && (
+                {openMenu === "websitesetting" && (
                     <div className="submenu">
-                        <Link
-                            href="/admin/vendors/pharmacy"
-                            className={isActive("/admin/vendors/pharmacy") ? "sub-active" : ""}
-                        >
-                            Pharmacy
-                        </Link>
-                        <Link
-                            href="/admin/vendors/lab"
-                            className={isActive("/admin/vendors/lab") ? "sub-active" : ""}
-                        >
-                            Lab
-                        </Link>
-                        <Link
-                            href="/admin/vendors/nurse"
-                            className={isActive("/admin/vendors/nurse") ? "sub-active" : ""}
-                        >
-                            Nurse
-                        </Link>
-                    </div>
-                )}
 
-                {/* Drivers */}
-                <div
-                    className={`menu-item dropdown ${isParentActive("/admin/drivers") ? "active" : ""}`}
-                    onClick={() => toggleMenu("drivers")}
-                >
-                    <FaTruck className="icon" />
-                    <span>Drivers</span>
-                    {
-                        openMenu === "drivers"
-                            ? <FaChevronDown className="arrow" />
-                            : <FaChevronRight className="arrow" />
-                    }
-                </div>
-
-                {openMenu === "drivers" && (
-                    <div className="submenu">
-                        <Link
-                            href="/admin/drivers/pharmacy"
-                            className={isActive("/admin/drivers/pharmacy") ? "sub-active" : ""}
+                        {/* Home Page (Nested Dropdown) */}
+                        <div
+                            className="menu-item dropdown"
+                            onClick={() => toggleSubMenu("homepage")}
                         >
-                            Pharmacy Drivers
-                        </Link>
+                            <span>Home Page</span>
+                            {openSubMenu === "homepage"
+                                ? <FaChevronDown className="arrow" />
+                                : <FaChevronRight className="arrow" />}
+                        </div>
+
+                        {openSubMenu === "homepage" && (
+                            <div className="submenu">
+                                <Link
+                                    href="/admind/websitesetting/home/homepage"
+                                    className={isActive("/admind/websitesetting/home/homepage") ? "sub-active" : ""}
+                                >
+                                    Home
+                                </Link>
+
+                                <Link
+                                    href="/admind/websitesetting/home/introductionpage"
+                                    className={isActive("/admind/websitesetting/home/introductionpage") ? "sub-active" : ""}
+                                >
+                                    Introduction
+                                </Link>
+
+                                <Link
+                                    href="/admind/websitesetting/home/aboutus"
+                                    className={isActive("/admind/websitesetting/home/aboutus") ? "sub-active" : ""}
+                                >
+                                    About Us
+                                </Link>
+
+                                <Link
+                                    href="/admind/websitesetting/home/more"
+                                    className={isActive("/admind/websitesetting/home/more") ? "sub-active" : ""}
+                                >
+                                    More
+                                </Link>
+                            </div>
+                        )}
+
+                        <div
+                            className="menu-item dropdown"
+                            onClick={() => toggleSubMenu("labpage")}
+                        >
+                            <span>Lab Page</span>
+                            {openSubMenu === "labpage"
+                                ? <FaChevronDown className="arrow" />
+                                : <FaChevronRight className="arrow" />}
+                        </div>
+
+                        {openSubMenu === "labpage" && (
+                            <div className="submenu">
+                                <Link
+                                    href="/admind/websitesetting/lab/labpage"
+                                    className={isActive("/admind/websitesetting/lab/labpage") ? "sub-active" : ""}
+                                >
+                                    Lab
+                                </Link>
+
+                                <Link
+                                    href="/admind/websitesetting/lab/introductionpage"
+                                    className={isActive("/admind/websitesetting/lab/introductionpage") ? "sub-active" : ""}
+                                >
+                                    Introduction
+                                </Link>
+
+                                <Link
+                                    href="/admind/websitesetting/lab/more"
+                                    className={isActive("/admind/websitesetting/lab/more") ? "sub-active" : ""}
+                                >
+                                    More
+                                </Link>
+                            </div>
+                        )}
+
                     </div>
                 )}
 

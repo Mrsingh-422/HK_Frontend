@@ -12,8 +12,7 @@ export const GlobalProvider = ({ children }) => {
     const toggleSidebar = () => {
         setSidebarOpen(prev => !prev);
     };
-
-
+    
     const openModal = (type) => {
         setModalType(type);
     };
