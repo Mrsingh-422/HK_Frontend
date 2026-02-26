@@ -130,4 +130,10 @@ const AboutUs = () => {
     );
 };
 
+<<<<<<< HEAD
 export default AboutUs;
+=======
+export default AboutUs; 
+
+
+>>>>>>> d70c78610b34528ca7575038544a3d3c3bc2218d
