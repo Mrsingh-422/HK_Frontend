@@ -105,6 +105,52 @@ export const AdminProvider = ({ children }) => {
         }
     }
 
+    const saveNursingContent =  async (data) => {
+        const token = localStorage.getItem("token");
+        try {
+            const response = await axios.post(`${API_URL}/api/homepage/nursing`, data, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error saving nursing content:", error);
+            throw error;
+        }
+    }
+
+    const saveAmbulanceContent = async (data) => {
+        const token = localStorage.getItem("token");
+        try {
+            const response = await axios.post(`${API_URL}/api/homepage/ambulance`, data, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error saving ambulance content:", error);
+            throw error;
+        }
+    }
+
+    const saveHospitalContent = async (data) => {
+        const token = localStorage.getItem("token");
+        try {
+            const response = await axios.post(`${API_URL}/api/homepage/hospital`, data, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error saving hospital content:", error);
+            throw error;
+        }
+    }
+
+
     const saveOurAffiliatesContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
@@ -130,6 +176,9 @@ export const AdminProvider = ({ children }) => {
             saveFeaturedProductsContent,
             saveLaboratoryContent,
             saveOurAffiliatesContent,
+            saveNursingContent,
+            saveAmbulanceContent,
+            saveHospitalContent,
         }}>
             {children}
         </AdminContext.Provider>

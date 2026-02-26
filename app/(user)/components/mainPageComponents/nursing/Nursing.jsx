@@ -3,25 +3,42 @@ import React, { useState, useEffect } from "react";
 import "./Nursing.css";
 import { FaArrowLeft, FaArrowRight } from "react-icons/fa";
 import Link from "next/link";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
-const images = [
-  "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602989nurse3.png",
-  "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692603023nurse5.jpg",
-];
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 function Nursing() {
   const [current, setCurrent] = useState(0);
+  const [content, setContent] = useState(null);
 
-  // Auto slide
+  const { getNursingContent } = useGlobalContext();
+
+  // Fetch Nursing Content
   useEffect(() => {
+    const fetchContent = async () => {
+      const response = await getNursingContent();
+      if (response?.success) {
+        setContent(response.data);
+      }
+    };
+
+    fetchContent();
+  }, []);
+
+  // Auto slide (only if images exist)
+  useEffect(() => {
+    if (!content?.images?.length) return;
+
     const interval = setInterval(() => {
       setCurrent((prev) =>
-        prev === images.length - 1 ? 0 : prev + 1
+        prev === content.images.length - 1 ? 0 : prev + 1
       );
     }, 4000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [content]);
+
+  if (!content) return null;
 
   return (
     <section className="nursing-section">
@@ -35,8 +52,12 @@ function Nursing() {
               transform: `translateX(-${current * 100}%)`,
             }}
           >
-            {images.map((img, index) => (
-              <img key={index} src={img} alt="Nurse" />
+            {content.images.map((img, index) => (
+              <img
+                key={index}
+                src={`${API_URL}${img}`}
+                alt="Nurse"
+              />
             ))}
           </div>
         </div>
@@ -45,25 +66,17 @@ function Nursing() {
         <div className="nursing-right">
           <div className="nursing-header">
             <span style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-              <FaArrowLeft /> Nursing <FaArrowRight />
+              <FaArrowLeft /> {content.title} <FaArrowRight />
             </span>
-            <h2>We Have Experienced Nurses</h2>
+            <h2>{content.subtitle}</h2>
           </div>
 
           <div className="nursing-description">
-            <p>
-              Nurses work with doctors and other health care workers to make patients
-              well and to keep them fit and healthy. Nurses also help with end-of-life
-              needs and assist other family members with grieving.
-            </p>
-            <p>
-              Professional nurses play a critical role in patient care, helping
-              individuals recover and improve their overall well-being.
-            </p>
-            <p>
-              Our experienced nurses are dedicated to providing compassionate,
-              personalized care tailored to each patient's unique needs.
-            </p>
+            {content.introduction
+              ?.split("\r\n\r\n")
+              .map((para, index) => (
+                <p key={index}>{para}</p>
+              ))}
           </div>
 
           <Link href="#" className="book-btn">

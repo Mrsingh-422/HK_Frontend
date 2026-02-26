@@ -52,7 +52,7 @@ export const GlobalProvider = ({ children }) => {
             throw error;
         }
     }
-    
+
     const getFeaturedProductsContent = async () => {
         try {
             const response = await axios.get(`${API_URL}/api/homepage/featured-products`);
@@ -69,6 +69,36 @@ export const GlobalProvider = ({ children }) => {
             return response.data;
         } catch (error) {
             console.error("Error getting laboratory content:", error);
+            throw error;
+        }
+    }
+
+    const getNursingContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/nursing`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting nursing content:", error);
+            throw error;
+        }
+    }
+
+    const getAmbulanceContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/ambulance`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting ambulance content:", error);
+            throw error;
+        }
+    }
+
+    const getHospitalContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/hospital`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting hospital content:", error);
             throw error;
         }
     }
@@ -110,7 +140,10 @@ export const GlobalProvider = ({ children }) => {
                 getIntroductionPageContent,
                 getLaboratoryContent,
                 getOurAffiliatesContent,
-                getDoctorTeamContent
+                getDoctorTeamContent,
+                getNursingContent,
+                getAmbulanceContent,
+                getHospitalContent,
             }}
         >
             {children}

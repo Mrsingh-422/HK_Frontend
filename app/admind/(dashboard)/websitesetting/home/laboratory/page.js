@@ -99,7 +99,7 @@ function Page() {
         setSuccess("Laboratory section saved successfully!");
 
         // Refetch updated content
-        const updated = await getIntroductionPageContent();
+        const updated = await getLaboratoryContent();
 
         if (updated?.success && updated?.data) {
           const data = updated.data;

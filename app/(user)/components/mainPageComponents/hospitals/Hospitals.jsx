@@ -3,6 +3,9 @@ import React, { useState, useEffect } from "react";
 import "./Hospitals.css";
 import { FaArrowLeft, FaArrowRight } from "react-icons/fa";
 import Link from "next/link";
+import { useGlobalContext } from "@/app/context/GlobalContext";
+
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 const images = [
     "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/16925932861680679867hospital-book.png",
@@ -11,6 +14,8 @@ const images = [
 
 function Hospitals() {
     const [current, setCurrent] = useState(0);
+
+    const { getHospitalContent } = useGlobalContext()
 
     // Same slider logic as Nursing
     useEffect(() => {

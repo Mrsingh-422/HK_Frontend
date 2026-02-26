@@ -1,34 +1,43 @@
+"use client";
+import { useGlobalContext } from '@/app/context/GlobalContext';
 import Link from 'next/link';
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react';
+
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 function AmbulanceFacility() {
-    const images = [
-        "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/16925928471680343420ambulancevan.jpg",
-        "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692603043emergency.jpeg",
-    ];
 
     const [currentIndex, setCurrentIndex] = useState(0);
+    const [content, setContent] = useState(null);
 
-    // Auto slide every 4 seconds
+    const { getAmbulanceContent } = useGlobalContext();
+
+    // Fetch Content
     useEffect(() => {
+        const fetchContent = async () => {
+            const response = await getAmbulanceContent();
+            if (response?.success) {
+                setContent(response.data);
+            }
+        };
+
+        fetchContent();
+    }, []);
+
+    // Auto slide every 4 seconds (only if images exist)
+    useEffect(() => {
+        if (!content?.images?.length) return;
+
         const interval = setInterval(() => {
-            nextSlide();
+            setCurrentIndex((prev) =>
+                prev === content.images.length - 1 ? 0 : prev + 1
+            );
         }, 4000);
 
         return () => clearInterval(interval);
-    }, [currentIndex]);
+    }, [content]);
 
-    const nextSlide = () => {
-        setCurrentIndex((prev) =>
-            prev === images.length - 1 ? 0 : prev + 1
-        );
-    };
-
-    const prevSlide = () => {
-        setCurrentIndex((prev) =>
-            prev === 0 ? images.length - 1 : prev - 1
-        );
-    };
+    if (!content) return null;
 
     return (
         <section className="med-section">
@@ -39,22 +48,21 @@ function AmbulanceFacility() {
 
                     <div className="med-top-row">
                         <p className="med-arrow">←</p>
-                        <span className="med-label">Ambulance Facility</span>
+                        <span className="med-label">{content.title}</span>
                         <p className="med-arrow">→</p>
                     </div>
 
-                    <h1 className="med-heading">24*7 Service Available
+                    <h1 className="med-heading">
+                        {content.subtitle}
                     </h1>
 
                     <div className="med-description">
-                        <p>
-                            Keep emergency phone numbers posted in your home where you can easily access them. Also enter the numbers into your cell phone. Everyone in your household, including children, should know when and how to call these numbers. These numbers include: fire department, poison control center, ambulance center, and work phone numbers.
-
-
-                        </p>
+                        <p>{content.introduction}</p>
                     </div>
 
-                    <Link href='/' className="med-btn">Order Now</Link>
+                    <Link href='/' className="med-btn">
+                        Order Now
+                    </Link>
 
                 </div>
 
@@ -68,11 +76,11 @@ function AmbulanceFacility() {
                                 transform: `translateX(-${currentIndex * 100}%)`
                             }}
                         >
-                            {images.map((img, index) => (
+                            {content.images.map((img, index) => (
                                 <img
                                     key={index}
-                                    src={img}
-                                    alt="Medicine"
+                                    src={`${API_URL}${img}`}
+                                    alt="Ambulance"
                                     className="med-image"
                                 />
                             ))}
@@ -84,7 +92,6 @@ function AmbulanceFacility() {
             </div>
         </section>
     );
-};
+}
 
-
-export default AmbulanceFacility
+export default AmbulanceFacility;
