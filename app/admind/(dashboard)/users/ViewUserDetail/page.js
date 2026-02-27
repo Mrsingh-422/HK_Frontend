@@ -10,11 +10,11 @@ import InsuranceList from "../components/InsuranceList";
 import WorkDetailComponent from "../components/WorkDetailComponent";
 
 // Placeholder Components (Replace these with your actual imported components)
-const Prescriptions = ({ user }) => <div className="p-6 rounded-xl"><PrescriptionComponent /></div>;
-const HealthLocker = ({ user }) => <div className="p-6  rounded-xl"><HealthLockerComponent /></div>;
-const EmergencyContacts = ({ user }) => <div className="p-6 rounded-xl"><EmergencyComponent /></div>;
-const HealthInsurance = ({ user }) => <div className="p-6 rounded-xl"><InsuranceList /></div>;
-const WorkDetails = ({ user }) => <div className="p-6 rounded-xl"><WorkDetailComponent /></div>;
+const Prescriptions = ({ user }) => <div className="rounded-xl"><PrescriptionComponent /></div>;
+const HealthLocker = ({ user }) => <div className="rounded-xl"><HealthLockerComponent /></div>;
+const EmergencyContacts = ({ user }) => <div className="rounded-xl"><EmergencyComponent /></div>;
+const HealthInsurance = ({ user }) => <div className="rounded-xl"><InsuranceList /></div>;
+const WorkDetails = ({ user }) => <div className="rounded-xl"><WorkDetailComponent /></div>;
 
 export default function ViewUserDetail() {
     const searchParams = useSearchParams();
