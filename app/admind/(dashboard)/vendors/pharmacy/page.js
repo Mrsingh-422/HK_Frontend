@@ -3,12 +3,15 @@ import React, { useState, useMemo } from "react";
 import DashboardTopNavbar from "../../components/topNavbar/DashboardTopNavbar";
 import { FaBuilding, FaEye, FaSearch } from "react-icons/fa";
 import { MdOutlineSwapVert } from "react-icons/md";
+import ViewPharmacyComponent from "./components/ViewPharmacyComponent";
 
 function PharmacyVendorsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [entries, setEntries] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedVendor, setSelectedVendor] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // ✅ Dummy Data
   const [vendors, setVendors] = useState([
@@ -164,14 +167,14 @@ function PharmacyVendorsPage() {
                       <div
                         onClick={() => handleToggleStatus(item.id)}
                         className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-all duration-300 ${item.status
-                            ? "bg-emerald-500"
-                            : "bg-red-600"
+                          ? "bg-emerald-500"
+                          : "bg-red-600"
                           }`}
                       >
                         <div
                           className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${item.status
-                              ? "translate-x-6"
-                              : "translate-x-0"
+                            ? "translate-x-6"
+                            : "translate-x-0"
                             }`}
                         />
                       </div>
@@ -180,8 +183,8 @@ function PharmacyVendorsPage() {
                     <td className="py-4 px-4 text-center">
                       <span
                         className={`font-semibold ${item.verified === "Approved"
-                            ? "text-emerald-500"
-                            : "text-yellow-500"
+                          ? "text-emerald-500"
+                          : "text-yellow-500"
                           }`}
                       >
                         {item.verified}
@@ -198,8 +201,14 @@ function PharmacyVendorsPage() {
                       {item.joinDate}
                     </td>
 
-                    <td className="py-4 px-4 text-center">
-                      <button className="text-orange-500 hover:scale-110 hover:text-orange-600 transition">
+                    <td className="py-4 px-4 text-center cursor-pointer">
+                      <button
+                        onClick={() => {
+                          setSelectedVendor(item);
+                          setIsModalOpen(true);
+                        }}
+                        className="text-orange-500 hover:scale-110 hover:text-orange-600 transition cursor-pointer"
+                      >
                         <FaEye size={18} />
                       </button>
                     </td>
@@ -265,7 +274,15 @@ function PharmacyVendorsPage() {
 
         </div>
       </div>
+      {isModalOpen && (
+        <ViewPharmacyComponent
+          vendor={selectedVendor}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
     </div>
+
+
   );
 }
 
