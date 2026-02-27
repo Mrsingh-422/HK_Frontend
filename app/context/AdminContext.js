@@ -105,7 +105,7 @@ export const AdminProvider = ({ children }) => {
         }
     }
 
-    const saveNursingContent =  async (data) => {
+    const saveNursingContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
             const response = await axios.post(`${API_URL}/api/homepage/nursing`, data, {
@@ -150,6 +150,70 @@ export const AdminProvider = ({ children }) => {
         }
     }
 
+    const addDoctorInDoctorsTeam = async (formData) => {
+        const token = localStorage.getItem("token");
+
+        try {
+            const response = await axios.post(
+                `${API_URL}/api/homepage/doctorsteam`,
+                formData,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "multipart/form-data",
+                    },
+                }
+            );
+
+            return response.data;
+        } catch (error) {
+            console.error("Error adding doctor team:", error);
+            throw error;
+        }
+    };
+
+    const updateDoctorInDoctorsTeam = async (id, formData) => {
+        const token = localStorage.getItem("token");
+
+        try {
+            const response = await axios.put(
+                `${API_URL}/api/homepage/doctorsteam/${id}`,
+                formData,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "multipart/form-data",
+                    },
+                }
+            );
+
+            return response.data;
+        } catch (error) {
+            console.error("Error updating doctor in doctors team:", error);
+            throw error;
+        }
+    };
+
+    const deleteDoctorInDoctorsTeam = async (id) => {
+        const token = localStorage.getItem("token");
+
+        try {
+            const response = await axios.delete(
+                `${API_URL}/api/homepage/doctorsteam/${id}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
+
+            return response.data;
+        } catch (error) {
+            console.error("Error deleting doctor in doctors team:", error);
+            throw error;
+        }
+    };
+
 
     const saveOurAffiliatesContent = async (data) => {
         const token = localStorage.getItem("token");
@@ -179,6 +243,9 @@ export const AdminProvider = ({ children }) => {
             saveNursingContent,
             saveAmbulanceContent,
             saveHospitalContent,
+            addDoctorInDoctorsTeam,
+            updateDoctorInDoctorsTeam,
+            deleteDoctorInDoctorsTeam,
         }}>
             {children}
         </AdminContext.Provider>

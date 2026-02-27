@@ -152,98 +152,12 @@ export default function Sidebar() {
 
                 {openMenu === "websitesetting" && (
                     <div className="submenu">
-
-                        {/* Home Page (Nested Dropdown) */}
-                        <div
-                            className="menu-item dropdown"
-                            onClick={() => toggleSubMenu("homepage")}
+                        <Link
+                            href="/admind/websitesetting/home"
+                            className={isActive("/admind/websitesetting/home") ? "sub-active" : ""}
                         >
-                            <span>Home Page</span>
-                            {openSubMenu === "homepage"
-                                ? <FaChevronDown className="arrow" />
-                                : <FaChevronRight className="arrow" />}
-                        </div>
-
-                        {openSubMenu === "homepage" && (
-                            <div className="submenu">
-                                <Link
-                                    href="/admind/websitesetting/home/homepage"
-                                    className={isActive("/admind/websitesetting/home/homepage") ? "sub-active" : ""}
-                                >
-                                    Home
-                                </Link>
-
-                                <Link
-                                    href="/admind/websitesetting/home/introductionpage"
-                                    className={isActive("/admind/websitesetting/home/introductionpage") ? "sub-active" : ""}
-                                >
-                                    Introduction
-                                </Link>
-
-                                <Link
-                                    href="/admind/websitesetting/home/aboutus"
-                                    className={isActive("/admind/websitesetting/home/aboutus") ? "sub-active" : ""}
-                                >
-                                    About Us
-                                </Link>
-
-                                <Link
-                                    href="/admind/websitesetting/home/featuredproducts"
-                                    className={isActive("/admind/websitesetting/home/featuredproducts") ? "sub-active" : ""}
-                                >
-                                    Medicine Section
-                                </Link>
-
-                                <Link
-                                    href="/admind/websitesetting/home/laboratory"
-                                    className={isActive("/admind/websitesetting/home/laboratory") ? "sub-active" : ""}
-                                >
-                                    Laboratory Section
-                                </Link>
-
-                                <Link
-                                    href="/admind/websitesetting/home/doctorsteam"
-                                    className={isActive("/admind/websitesetting/home/doctorsteam") ? "sub-active" : ""}
-                                >
-                                    Doctor's Team
-                                </Link>
-
-                                <Link
-                                    href="/admind/websitesetting/home/nursing"
-                                    className={isActive("/admind/websitesetting/home/nursing") ? "sub-active" : ""}
-                                >
-                                    Nursing Section
-                                </Link>
-
-                                <Link
-                                    href="/admind/websitesetting/home/ambulance"
-                                    className={isActive("/admind/websitesetting/home/ambulance") ? "sub-active" : ""}
-                                >
-                                    Ambulance Section
-                                </Link>
-
-                                <Link
-                                    href="/admind/websitesetting/home/hospital"
-                                    className={isActive("/admind/websitesetting/home/hospital") ? "sub-active" : ""}
-                                >
-                                    Hospital Section
-                                </Link>
-
-                                <Link
-                                    href="/admind/websitesetting/home/ouraffiliates"
-                                    className={isActive("/admind/websitesetting/home/ouraffiliates") ? "sub-active" : ""}
-                                >
-                                    Our Affiliates
-                                </Link>
-
-                                <Link
-                                    href="/admind/websitesetting/home/more"
-                                    className={isActive("/admind/websitesetting/home/more") ? "sub-active" : ""}
-                                >
-                                    More
-                                </Link>
-                            </div>
-                        )}
+                            Home Page Setting
+                        </Link>
 
                         <div
                             className="menu-item dropdown"

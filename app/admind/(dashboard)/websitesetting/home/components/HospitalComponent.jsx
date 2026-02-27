@@ -7,7 +7,7 @@ import { useGlobalContext } from "@/app/context/GlobalContext";
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-function Page() {
+function HospitalComponent() {
   const { saveHospitalContent } = useAdminContext();
   const { getHospitalContent } = useGlobalContext();
 
@@ -128,8 +128,6 @@ function Page() {
 
   return (
     <>
-      <DashboardTopNavbar />
-
       <div className="min-h-screen bg-gray-100 flex justify-center items-start py-10">
         <div className="bg-white w-full max-w-4xl rounded-2xl shadow-lg p-8">
 
@@ -239,4 +237,4 @@ function Page() {
   );
 }
 
-export default Page;
+export default HospitalComponent;

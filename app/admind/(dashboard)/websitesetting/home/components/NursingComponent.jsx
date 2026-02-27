@@ -7,9 +7,9 @@ import { useGlobalContext } from "@/app/context/GlobalContext";
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-function Page() {
-  const { saveLaboratoryContent } = useAdminContext();
-  const { getLaboratoryContent } = useGlobalContext();
+function NursingComponent() {
+  const { saveNursingContent } = useAdminContext();
+  const { getNursingContent } = useGlobalContext();
 
   const [formData, setFormData] = useState({
     title: "",
@@ -29,7 +29,7 @@ function Page() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await getLaboratoryContent();
+        const response = await getNursingContent();
 
         if (response?.success && response?.data) {
           const data = response.data;
@@ -93,13 +93,13 @@ function Page() {
         data.append("images", image);
       });
 
-      const response = await saveLaboratoryContent(data);
+      const response = await saveNursingContent(data);
 
       if (response?.success) {
-        setSuccess("Laboratory section saved successfully!");
+        setSuccess("Introduction section saved successfully!");
 
         // Refetch updated content
-        const updated = await getLaboratoryContent();
+        const updated = await getNursingContent();
 
         if (updated?.success && updated?.data) {
           const data = updated.data;
@@ -128,13 +128,11 @@ function Page() {
 
   return (
     <>
-      <DashboardTopNavbar />
-
       <div className="min-h-screen bg-gray-100 flex justify-center items-start py-10">
         <div className="bg-white w-full max-w-4xl rounded-2xl shadow-lg p-8">
 
           <h2 className="text-2xl font-semibold text-gray-700 mb-6">
-            Add Laboratory Section
+            Add Nursing Section
           </h2>
 
           {success && (
@@ -239,4 +237,4 @@ function Page() {
   );
 }
 
-export default Page;
+export default NursingComponent;

@@ -7,9 +7,9 @@ import { useGlobalContext } from "@/app/context/GlobalContext";
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-function Page() {
-    const { saveFeaturedProductsContent } = useAdminContext();
-    const { getFeaturedProductsContent } = useGlobalContext();
+function LaboratoryComponent() {
+    const { saveLaboratoryContent } = useAdminContext();
+    const { getLaboratoryContent } = useGlobalContext();
 
     const [formData, setFormData] = useState({
         title: "",
@@ -29,7 +29,7 @@ function Page() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await getFeaturedProductsContent();
+                const response = await getLaboratoryContent();
 
                 if (response?.success && response?.data) {
                     const data = response.data;
@@ -93,13 +93,13 @@ function Page() {
                 data.append("images", image);
             });
 
-            const response = await saveFeaturedProductsContent(data);
+            const response = await saveLaboratoryContent(data);
 
             if (response?.success) {
-                setSuccess("Introduction section saved successfully!");
+                setSuccess("Laboratory section saved successfully!");
 
                 // Refetch updated content
-                const updated = await getFeaturedProductsContent();
+                const updated = await getLaboratoryContent();
 
                 if (updated?.success && updated?.data) {
                     const data = updated.data;
@@ -128,13 +128,11 @@ function Page() {
 
     return (
         <>
-            <DashboardTopNavbar />
-
             <div className="min-h-screen bg-gray-100 flex justify-center items-start py-10">
                 <div className="bg-white w-full max-w-4xl rounded-2xl shadow-lg p-8">
 
                     <h2 className="text-2xl font-semibold text-gray-700 mb-6">
-                        Add Medicine Section
+                        Add Laboratory Section
                     </h2>
 
                     {success && (
@@ -239,4 +237,4 @@ function Page() {
     );
 }
 
-export default Page;
+export default LaboratoryComponent;

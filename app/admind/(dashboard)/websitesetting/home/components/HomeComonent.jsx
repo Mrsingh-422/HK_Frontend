@@ -7,16 +7,13 @@ import { useGlobalContext } from "@/app/context/GlobalContext";
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-function Page() {
-    const { saveAboutUsContent } = useAdminContext();
-    const { getAboutUsContent } = useGlobalContext();
+function HomeComponent() {
+    const { saveHomePageContent } = useAdminContext();
+    const { getHomePageContent } = useGlobalContext();
 
     const [formData, setFormData] = useState({
         title: "",
         subtitle: "",
-        workDescription: "",
-        missionDescription: "",
-        achievementDescription: "",
         images: [],
     });
 
@@ -28,12 +25,12 @@ function Page() {
 
     // ================= FETCH & PREFILL =================
     useEffect(() => {
-        fetchAbout();
+        fetchHome();
     }, []);
 
-    const fetchAbout = async () => {
+    const fetchHome = async () => {
         try {
-            const res = await getAboutUsContent();
+            const res = await getHomePageContent();
 
             if (res?.success && res?.data) {
                 const data = res.data;
@@ -43,13 +40,10 @@ function Page() {
                 setFormData({
                     title: data.title || "",
                     subtitle: data.subtitle || "",
-                    workDescription: data.workDescription || "",
-                    missionDescription: data.missionDescription || "",
-                    achievementDescription: data.achievementDescription || "",
                     images: [],
                 });
 
-                // ✅ Add multer upload path here
+                // Add multer upload path
                 const imageUrls = (data.images || []).map(
                     (img) => `${API_URL}${img}`
                 );
@@ -97,23 +91,20 @@ function Page() {
 
             data.append("title", formData.title);
             data.append("subtitle", formData.subtitle);
-            data.append("workDescription", formData.workDescription);
-            data.append("missionDescription", formData.missionDescription);
-            data.append("achievementDescription", formData.achievementDescription);
 
             formData.images.forEach((img) => {
                 data.append("images", img);
             });
 
-            await saveAboutUsContent(data);
+            await saveHomePageContent(data);
 
             setSuccess(
                 hasData
-                    ? "About section updated successfully!"
-                    : "About section added successfully!"
+                    ? "Homepage section updated successfully!"
+                    : "Homepage section added successfully!"
             );
 
-            fetchAbout();
+            fetchHome();
         } catch (err) {
             setError("Something went wrong. Please try again.");
         } finally {
@@ -123,13 +114,12 @@ function Page() {
 
     return (
         <>
-            <DashboardTopNavbar />
 
             <div className="min-h-screen bg-gray-100 flex justify-center items-start py-10">
                 <div className="bg-white w-full max-w-5xl rounded-2xl shadow-lg p-8">
 
                     <h2 className="text-2xl font-semibold text-gray-700 mb-6">
-                        Manage About Us Section
+                        Manage Homepage Section
                     </h2>
 
                     {success && (
@@ -168,36 +158,6 @@ function Page() {
                             className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
                         />
 
-                        <textarea
-                            name="workDescription"
-                            rows={4}
-                            placeholder="Work Description"
-                            required
-                            value={formData.workDescription}
-                            onChange={handleChange}
-                            className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                        />
-
-                        <textarea
-                            name="missionDescription"
-                            rows={4}
-                            placeholder="Mission Description"
-                            required
-                            value={formData.missionDescription}
-                            onChange={handleChange}
-                            className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                        />
-
-                        <textarea
-                            name="achievementDescription"
-                            rows={4}
-                            placeholder="Achievement Description"
-                            required
-                            value={formData.achievementDescription}
-                            onChange={handleChange}
-                            className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                        />
-
                         <input
                             type="file"
                             multiple
@@ -223,12 +183,13 @@ function Page() {
                             type="submit"
                             disabled={loading}
                             className={`md:col-span-2 py-3 rounded-lg text-white shadow-md ${loading
-                                ? "bg-gray-400 cursor-not-allowed"
-                                : "bg-[#08B36A] hover:bg-[#079a5c]"
+                                    ? "bg-gray-400 cursor-not-allowed"
+                                    : "bg-[#08B36A] hover:bg-[#079a5c]"
                                 }`}
                         >
-                            {loading ? "Processing..." : "Save About Section"}
+                            {loading ? "Processing..." : "Save Homepage Section"}
                         </button>
+
                     </form>
                 </div>
             </div>
@@ -236,4 +197,4 @@ function Page() {
     );
 }
 
-export default Page;
+export default HomeComponent;
