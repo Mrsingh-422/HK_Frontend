@@ -2,7 +2,7 @@
 import React from "react";
 import { FaTimes } from "react-icons/fa";
 
-function ViewPharmacyComponent({ vendor, onClose }) {
+function ShowLabVendorDetail({ vendor, onClose }) {
     if (!vendor) return null;
 
     return (
@@ -20,7 +20,7 @@ function ViewPharmacyComponent({ vendor, onClose }) {
                 {/* Header */}
                 <div className="mb-6 border-b pb-4">
                     <h2 className="text-2xl font-semibold text-gray-800">
-                        Pharmacy Details
+                        Lab Vendor Details
                     </h2>
                 </div>
 
@@ -77,4 +77,4 @@ function ViewPharmacyComponent({ vendor, onClose }) {
     );
 }
 
-export default ViewPharmacyComponent;
+export default ShowLabVendorDetail;

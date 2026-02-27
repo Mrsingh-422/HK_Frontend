@@ -12,7 +12,7 @@ import ManageLabTestComponent from "./components/ManageLabTestComponent";
 
 const ManageLabVendor = () => {
     return (
-        <div className="pt-4 pb-4 rounded-2xl shadow-sm">
+        <div>
             <ManageLabVendorComponent />
         </div>
     );
@@ -20,7 +20,7 @@ const ManageLabVendor = () => {
 
 const LabTestReport = () => {
     return (
-        <div className="pt-4 pb-4 rounded-2xl shadow-sm">
+        <div>
             <LabTestReportComponent />
         </div>
     );
@@ -28,7 +28,7 @@ const LabTestReport = () => {
 
 const LabTestType = () => {
     return (
-        <div className="pt-4 pb-4 rounded-2xl shadow-sm">
+        <div>
             <LabTestTypeComponent />
         </div>
     );
@@ -36,7 +36,7 @@ const LabTestType = () => {
 
 const LabTestPackage = () => {
     return (
-        <div className="pt-4 pb-4 rounded-2xl shadow-sm">
+        <div>
             <LabTestPackageComponent />
         </div>
     );
@@ -44,7 +44,7 @@ const LabTestPackage = () => {
 
 const ManageLabTest = () => {
     return (
-        <div className="pt-4 pb-4 rounded-2xl shadow-sm">
+        <div>
             <ManageLabTestComponent />
         </div>
     );
@@ -84,7 +84,7 @@ function Page() {
         <>
             <DashboardTopNavbar heading="Lab Vendors" />
 
-            <div className="p-6 bg-gray-50 min-h-screen">
+            <div className="p-0 min-h-screen">
 
                 {/* ================= TABS ================= */}
                 <div className="flex flex-wrap gap-2 mb-6 border-b pb-2">
@@ -92,7 +92,7 @@ function Page() {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer
                 ${activeTab === tab.id
                                     ? "bg-emerald-500 text-white shadow"
                                     : "bg-white text-gray-600 hover:bg-gray-100"
