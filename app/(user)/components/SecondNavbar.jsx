@@ -51,8 +51,8 @@ function SecondNavbar() {
                 </Link>
 
                 <Link
-                    href="/medicine"
-                    className={`snav-link ${isActive("/medicine") ? "snav-active" : ""}`}
+                    href="/buymedicine"
+                    className={`snav-link ${isActive("/buymedicine") ? "snav-active" : ""}`}
                     onClick={() => setMenuOpen(false)}
                 >
                     Buy Medicine
