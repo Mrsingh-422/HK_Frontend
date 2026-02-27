@@ -23,7 +23,7 @@ const DashboardTopNavbar = ({ heading }) => {
 
     const { logout } = useAuth()
 
-    const profileRef = useRef(null);
+    const profileRef = useRef(null); 
     const notificationRef = useRef(null);
 
     const { user, toggleSidebar } = useGlobalContext()
