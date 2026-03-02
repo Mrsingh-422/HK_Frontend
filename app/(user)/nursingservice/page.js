@@ -10,6 +10,8 @@ import NursingPosts from './components/NursingPosts'
 import OurNursingServices from './components/OurNursingServices'
 import ExperiencedNurses from './components/ExperiencedNurses'
 import OnlyTheBestCare from './components/OnlyTheBestCare'
+import OurNursingPartners from './components/OurNursingPartners'
+import FromHealthNursing from './components/FromHealthNursing'
 
 function page() {
     return (
@@ -23,6 +25,8 @@ function page() {
             <OurNursingServices />
             <ExperiencedNurses />
             <OnlyTheBestCare />
+            <OurNursingPartners />
+            <FromHealthNursing />
         </>
     )
 }
