@@ -42,7 +42,6 @@ function OurPartners() {
   return (
     <div className="py-12 md:py-15 bg-white overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 text-center mb-10 md:mb-16">
-        {/* Header with Arrows */}
         <div className="flex items-center justify-center gap-4 mb-2">
           <svg className="w-5 h-5 text-emerald-500 cursor-pointer" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
           <span className="text-emerald-500 font-bold text-lg md:text-xl tracking-wide">Laboratories</span>
@@ -53,13 +52,6 @@ function OurPartners() {
         <h2 className="text-3xl md:text-6xl font-black text-slate-800 tracking-tight">
           Our Partners Lab's
         </h2>
-
-        {/* Decorative Bracket Icon */}
-        <div className="flex justify-end max-w-5xl mx-auto mt-4 text-emerald-500 opacity-60">
-           <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-             <path d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
-           </svg>
-        </div>
       </div>
 
       {/* Marquee Wrapper */}

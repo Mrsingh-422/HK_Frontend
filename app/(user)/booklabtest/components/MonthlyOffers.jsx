@@ -47,12 +47,6 @@ function MonthlyOffers() {
         <h2 className="text-3xl md:text-5xl font-black text-slate-800 tracking-tight">
           Monthly Offers
         </h2>
-        <div className="flex justify-center mt-4 text-emerald-500 opacity-60">
-           {/* Code icon visual from the screenshot */}
-           <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-             <path d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
-           </svg>
-        </div>
       </div>
 
       {/* Marquee Wrapper */}

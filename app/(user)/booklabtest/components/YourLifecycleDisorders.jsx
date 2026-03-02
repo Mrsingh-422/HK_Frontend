@@ -54,13 +54,6 @@ function YourLifecycleDisorders() {
         <h1 className="text-3xl md:text-6xl font-black text-slate-800 tracking-tight">
           Your Lifecycle disorders!
         </h1>
-        
-        {/* Small decorative icon often found in your UI */}
-        <div className="flex justify-center mt-6 text-emerald-500 opacity-60">
-           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-             <path d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
-           </svg>
-        </div>
       </div>
 
       {/* Marquee Section */}

@@ -80,7 +80,7 @@ function OnlinePharmacy() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8 font-sans">
+    <div className="min-h-screen py-10 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-7xl mx-auto space-y-12">
         
         {/* HIDDEN FILE INPUT */}
