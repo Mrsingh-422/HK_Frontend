@@ -59,16 +59,16 @@ function SecondNavbar() {
                 </Link>
 
                 <Link
-                    href="/doctor-appointment"
-                    className={`snav-link ${isActive("/doctor-appointment") ? "snav-active" : ""}`}
+                    href="/drappointment"
+                    className={`snav-link ${isActive("/drappointment") ? "snav-active" : ""}`}
                     onClick={() => setMenuOpen(false)}
                 >
                     Dr. Appointment
                 </Link>
 
                 <Link
-                    href="/nursing"
-                    className={`snav-link ${isActive("/nursing") ? "snav-active" : ""}`}
+                    href="/nursingservice"
+                    className={`snav-link ${isActive("/nursingservice") ? "snav-active" : ""}`}
                     onClick={() => setMenuOpen(false)}
                 >
                     Nursing Service
