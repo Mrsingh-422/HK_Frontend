@@ -7,6 +7,9 @@ import FindMyNurseTwo from './components/FindMyNurseTwo'
 import AllNursingServices from './components/AllNursingServices'
 import NursePackages from './components/NursePackages'
 import NursingPosts from './components/NursingPosts'
+import OurNursingServices from './components/OurNursingServices'
+import ExperiencedNurses from './components/ExperiencedNurses'
+import OnlyTheBestCare from './components/OnlyTheBestCare'
 
 function page() {
     return (
@@ -17,6 +20,9 @@ function page() {
             <AllNursingServices />
             <NursePackages />
             <NursingPosts />
+            <OurNursingServices />
+            <ExperiencedNurses />
+            <OnlyTheBestCare />
         </>
     )
 }
