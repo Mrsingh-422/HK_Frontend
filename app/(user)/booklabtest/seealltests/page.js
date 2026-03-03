@@ -44,7 +44,7 @@ function AllTestsPage() {
 
             <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 py-7">
                 <div className="max-w-6xl mx-auto flex items-center justify-between">
-                    <button onClick={() => router.back()} className="flex items-center gap-1.5 text-slate-600 font-bold text-xs uppercase tracking-widest">
+                    <button onClick={() => router.back()} className="flex items-center gap-1.5 text-slate-600 font-bold text-xs uppercase tracking-widest cursor-pointer">
                         <FaArrowLeft /> Back
                     </button>
                     <div className="flex items-center gap-1.5 text-slate-400">
