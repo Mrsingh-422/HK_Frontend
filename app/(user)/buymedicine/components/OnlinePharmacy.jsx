@@ -74,7 +74,7 @@ function OnlinePharmacy() {
         </div>
 
         {/* ================= TOP ACTION CARDS ================= */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="group bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 text-center transition-all hover:shadow-xl">
             <p className="text-slate-500 text-sm font-black uppercase tracking-widest mb-6">Regular Basis?</p>
             <button className="w-full py-4 border-2 border-[#08B36A] text-[#08B36A] font-black rounded-2xl hover:bg-[#08B36A] hover:text-white transition-all text-xs tracking-widest">BOOK A REFILL</button>
@@ -92,6 +92,53 @@ function OnlinePharmacy() {
             <p className="text-slate-500 text-sm font-black uppercase tracking-widest mb-6">No prescription?</p>
             <button className="w-full py-4 border-2 border-[#08B36A] text-[#08B36A] font-black rounded-2xl hover:bg-[#08B36A] hover:text-white transition-all text-xs tracking-widest">GET STARTED</button>
           </div>
+        </div> */}
+
+        {/* ================= TOP ACTION CARDS ================= */}
+        <div className="flex md:grid md:grid-cols-3 gap-4 md:gap-6 overflow-x-auto md:overflow-visible pb-2 md:pb-0">
+
+          <div className="group min-w-[260px] md:min-w-0 flex-shrink-0 bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 text-center transition-all hover:shadow-xl">
+            <p className="text-slate-500 text-sm font-black uppercase tracking-widest mb-6">
+              Regular Basis?
+            </p>
+            <button className="w-full py-4 border-2 border-[#08B36A] text-[#08B36A] font-black rounded-2xl hover:bg-[#08B36A] hover:text-white transition-all text-xs tracking-widest">
+              BOOK A REFILL
+            </button>
+          </div>
+
+          <div
+            className={`min-w-[260px] md:min-w-0 flex-shrink-0 p-8 rounded-[2rem] shadow-lg border text-center transition-all ${uploadSuccess
+              ? "bg-slate-900 border-slate-800"
+              : "bg-[#08B36A] border-emerald-400 shadow-[#08B36A]/20"
+              }`}
+          >
+            <p className="text-white/90 text-sm font-black uppercase tracking-widest mb-6">
+              Have a prescription?
+            </p>
+            <button
+              onClick={handleUploadClick}
+              className="w-full py-4 bg-white text-[#08B36A] font-black rounded-2xl flex items-center justify-center gap-3 text-xs tracking-widest shadow-lg active:scale-95 transition-transform"
+            >
+              {isUploading ? (
+                <div className="animate-spin h-4 w-4 border-2 border-[#08B36A] border-t-transparent rounded-full" />
+              ) : uploadSuccess ? (
+                <FaCheckCircle className="text-emerald-500" />
+              ) : (
+                <FaUpload />
+              )}
+              {isUploading ? "PROCESS..." : uploadSuccess ? "ATTACHED" : "UPLOAD NOW"}
+            </button>
+          </div>
+
+          <div className="group min-w-[260px] md:min-w-0 flex-shrink-0 bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 text-center transition-all hover:shadow-xl">
+            <p className="text-slate-500 text-sm font-black uppercase tracking-widest mb-6">
+              No prescription?
+            </p>
+            <button className="w-full py-4 border-2 border-[#08B36A] text-[#08B36A] font-black rounded-2xl hover:bg-[#08B36A] hover:text-white transition-all text-xs tracking-widest">
+              GET STARTED
+            </button>
+          </div>
+
         </div>
 
         {/* ================= BODY SECTION ================= */}
