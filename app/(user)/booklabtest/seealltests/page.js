@@ -84,7 +84,11 @@ function AllTestsPage() {
                             className="bg-white rounded-2xl p-2.5 md:p-4 shadow-sm border border-slate-100 flex flex-col group hover:shadow-md transition-all"
                         >
                             <div className="h-28 sm:h-36 md:h-48 w-full relative overflow-hidden rounded-xl bg-slate-50 mb-3">
-                                <img src={pkg.image} className="w-full h-full object-cover transition-transform group-hover:scale-105" alt={pkg.name} />
+                                <img
+                                    src={pkg.image}
+                                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                    alt={pkg.name}
+                                /> 
                                 <div className="absolute bottom-2 right-2 bg-[#08B36A] text-white px-1.5 py-0.5 rounded-lg text-[7px] md:text-[9px] font-black shadow-lg">
                                     <FaMapMarkerAlt className="inline mr-1" />{pkg.distance}km
                                 </div>
