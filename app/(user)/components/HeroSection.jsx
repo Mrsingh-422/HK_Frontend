@@ -94,17 +94,17 @@ function HeroSection() {
                     <span>Book Lab Test</span>
                 </Link>
 
-                <Link href="/medicine" className="hero-card">
+                <Link href="/buymedicine" className="hero-card">
                     <FaPills className="card-icon purple" />
                     <span>Buy Medicines</span>
                 </Link>
 
-                <Link href="/doctor-appointment" className="hero-card">
+                <Link href="/drappointment" className="hero-card">
                     <FaUserMd className="card-icon blue" />
                     <span>Dr. Appointment</span>
                 </Link>
 
-                <Link href="/nursing" className="hero-card">
+                <Link href="/nursingservice" className="hero-card">
                     <FaUserNurse className="card-icon green" />
                     <span>Nursing Service</span>
                 </Link>

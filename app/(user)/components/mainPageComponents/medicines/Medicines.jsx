@@ -87,7 +87,7 @@ const Medicines = () => {
                         </p>
                     </div>
 
-                    <Link href='/' className="med-btn">Order Now</Link>
+                    <Link href='/buymedicine' className="med-btn">Order Now</Link>
 
                 </div>
 
