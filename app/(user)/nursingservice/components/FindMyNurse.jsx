@@ -6,11 +6,23 @@ import {
 
 import { NURSES_DATA } from "../../../constants/constants";
 import { useRouter } from "next/navigation";
+import NurseDetailsModal from "./otherComponents/NurseDetailsModel";
 
 function FindMyNurse() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("recommended");
   const router = useRouter()
+
+
+  // MODAL STATES
+  const [selectedNurse, setSelectedNurse] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleNurseClick = (nur) => {
+    setSelectedNurse(nur);
+    setIsModalOpen(true);
+  };
+
   // SORTING & FILTERING
   const processedServices = useMemo(() => {
     let filtered = NURSES_DATA.filter((item) =>
@@ -31,6 +43,11 @@ function FindMyNurse() {
 
   return (
     <div className="min-h-screen py-8 md:py-16 px-4 sm:px-6 lg:px-8 font-sans">
+      <NurseDetailsModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        nurse={selectedNurse}
+      />
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10">
 
         {/* LEFT SECTION */}
@@ -115,7 +132,9 @@ function FindMyNurse() {
                             <p className="text-[10px] text-slate-400 font-bold uppercase">Booking Fee</p>
                             <p className="text-2xl font-black text-slate-900">₹{service.price}</p>
                           </div>
-                          <button className="bg-[#08B36A] hover:bg-slate-900 text-white font-black px-8 py-3 rounded-xl transition-all shadow-lg active:scale-95 text-xs uppercase tracking-widest">
+                          <button
+                            onClick={() => handleNurseClick(service)}
+                            className="bg-[#08B36A] hover:bg-slate-900 text-white font-black px-8 py-3 rounded-xl transition-all shadow-lg active:scale-95 text-xs uppercase tracking-widest">
                             Hire Now
                           </button>
                         </div>
