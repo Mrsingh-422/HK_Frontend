@@ -2,52 +2,31 @@
 
 import React, { useState } from "react";
 import { FaArrowRight } from "react-icons/fa";
+import { INITIAL_PACKAGES } from "../../../constants/constants";
+import { useRouter } from "next/navigation";
+import TestDetailsModal from "./otherComponents/TestDetailsModal";
 
-const packages = [
-  {
-    id: 1,
-    name: "Full Body Check Up",
-    price: "80300",
-    image:
-      "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=400&q=80",
-  },
-  {
-    id: 2,
-    name: "Full Body Check Up",
-    price: "500",
-    image:
-      "https://images.unsplash.com/photo-1576086213369-97a306d36557?auto=format&fit=crop&w=400&q=80",
-  },
-  {
-    id: 3,
-    name: "Fever Package",
-    price: "4746",
-    image:
-      "https://images.unsplash.com/photo-1584036561566-baf8f5f1b144?auto=format&fit=crop&w=400&q=80",
-  },
-  {
-    id: 4,
-    name: "Diabetes Care",
-    price: "19380",
-    image:
-      "https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&w=400&q=80",
-  },
-  {
-    id: 5,
-    name: "PCOD Profile",
-    price: "9788",
-    image:
-      "https://images.unsplash.com/photo-1511174511562-5f7f185854c8?auto=format&fit=crop&w=400&q=80",
-  },
-];
-
-const displayPackages = [...packages, ...packages];
+const displayPackages = [...INITIAL_PACKAGES, ...INITIAL_PACKAGES];
 
 function HealthPackages() {
   const [isPaused, setIsPaused] = useState(false);
+  const router = useRouter();
+
+  const [selectedPackage, setSelectedPackage] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleBookClick = (pkg) => {
+    setSelectedPackage(pkg);
+    setIsModalOpen(true);
+  };
 
   return (
     <div className="py-14 md:py-20 overflow-hidden">
+      <TestDetailsModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        pkg={selectedPackage}
+      />
       {/* Section Header */}
       <div className="max-w-7xl mx-auto px-4 mb-10 md:mb-14 text-center">
         <h2 className="text-2xl sm:text-3xl md:text-5xl font-extrabold text-slate-800 mb-3">
@@ -107,13 +86,15 @@ function HealthPackages() {
                 {/* Price Bar */}
                 <div className="bg-[#fde047] hover:bg-[#facc15] transition-colors py-2.5 sm:py-3 px-4 sm:px-5 rounded-xl flex items-center justify-between mb-4 cursor-pointer group/price">
                   <span className="text-base sm:text-lg font-black text-slate-900">
-                    ₹{pkg.price}
+                    {pkg.price}
                   </span>
                   <FaArrowRight className="text-slate-900 group-hover/price:translate-x-1 transition-transform" />
                 </div>
 
                 {/* Button */}
-                <button className="w-full bg-[#10b981] hover:bg-slate-900 text-white text-sm sm:text-base font-bold py-2.5 sm:py-3 rounded-xl transition-all shadow-lg active:scale-95">
+                <button
+                  onClick={() => handleBookClick(pkg)}
+                  className="w-full bg-[#10b981] hover:bg-slate-900 text-white text-sm sm:text-base font-bold py-2.5 sm:py-3 rounded-xl transition-all shadow-lg active:scale-95">
                   Book A Test
                 </button>
               </div>
