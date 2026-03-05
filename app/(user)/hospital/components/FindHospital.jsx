@@ -1,25 +1,16 @@
+import { useRouter } from "next/navigation";
 import React, { useState, useMemo } from "react";
 import {
     FaStar, FaFilter, FaSearch, FaMapMarkerAlt,
     FaPhoneAlt, FaChevronRight, FaHospital, FaTimes, FaArrowRight
 } from "react-icons/fa";
-
-// 1. DATA OBJECT
-const HOSPITAL_DATA = [
-    { id: 1, name: "Yash Hospital", address: "TDI City, Sector 118", distance: 8737, rating: 4, image: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&w=400&q=80" },
-    { id: 2, name: "Radius Hospital", address: "Mohali, Punjab", distance: 12.5, rating: 5, image: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=400&q=80" },
-    { id: 3, name: "City Care Clinic", address: "Sector 62, Noida", distance: 5.2, rating: 3, image: "https://images.unsplash.com/photo-1512678080530-7760d81faba6?auto=format&fit=crop&w=400&q=80" },
-    { id: 4, name: "Max Health", address: "Chandigarh, India", distance: 1050, rating: 5, image: "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=400&q=80" },
-    { id: 5, name: "Silver Oaks", address: "Phase 9, Mohali", distance: 4.8, rating: 4, image: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=400&q=80" },
-    { id: 6, name: "Fortis Medics", address: "Sector 62, Gurgaon", distance: 22.0, rating: 5, image: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&w=400&q=80" },
-    { id: 7, name: "Apollo Reach", address: "Lajpat Nagar, Delhi", distance: 18.2, rating: 4, image: "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=400&q=80" },
-    { id: 8, name: "Mayo Multispeciality", address: "Sector 69, Mohali", distance: 1.5, rating: 5, image: "https://images.unsplash.com/photo-1512678080530-7760d81faba6?auto=format&fit=crop&w=400&q=80" },
-];
+import { HOSPITAL_DATA } from "@/app/constants/constants";
 
 function FindHospital() {
     const [searchTerm, setSearchTerm] = useState("");
     const [sortBy, setSortBy] = useState("recommended");
-    const [showAll, setShowAll] = useState(false);
+
+    const router = useRouter()
 
     // SEARCH & SORT LOGIC
     const processedHospitals = useMemo(() => {
@@ -35,7 +26,6 @@ function FindHospital() {
     }, [searchTerm, sortBy]);
 
     // Handle Visibility Limit (6 hospitals)
-    const visibleItems = showAll ? processedHospitals : processedHospitals.slice(0, 6);
     const hasMore = processedHospitals.length > 6;
 
     return (
@@ -108,9 +98,9 @@ function FindHospital() {
 
                     {/* LISTING CARDS */}
                     <div className="space-y-4 md:space-y-6">
-                        {visibleItems.length > 0 ? (
+                        {processedHospitals.length > 6 ? (
                             <>
-                                {visibleItems.map((hospital) => (
+                                {processedHospitals.slice(0, 6).map((hospital) => (
                                     <div key={hospital.id} className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-4 sm:p-6 shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-500 group">
                                         <div className="flex flex-col sm:flex-row gap-5 md:gap-8">
 
@@ -158,10 +148,10 @@ function FindHospital() {
                                 ))}
 
                                 {/* CONDITIONAL SEE ALL BUTTON */}
-                                {hasMore && !showAll && (
+                                {hasMore && (
                                     <div className="pt-6 text-center">
                                         <button
-                                            onClick={() => setShowAll(true)}
+                                            onClick={() => router.push("/hospital/seeallhospitals")}
                                             className="inline-flex items-center gap-3 bg-white text-[#08B36A] border-2 border-[#08B36A] font-black px-12 py-4 rounded-2xl hover:bg-[#08B36A] hover:text-white transition-all shadow-lg active:scale-95 group"
                                         >
                                             See All Hospitals <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
@@ -169,17 +159,6 @@ function FindHospital() {
                                         <p className="text-slate-400 text-[10px] font-bold mt-4 uppercase tracking-widest">
                                             Showing 6 of {processedHospitals.length} available partners
                                         </p>
-                                    </div>
-                                )}
-
-                                {showAll && (
-                                    <div className="pt-6 text-center">
-                                        <button
-                                            onClick={() => setShowAll(false)}
-                                            className="text-slate-400 hover:text-[#08B36A] font-bold text-xs underline underline-offset-4 decoration-2"
-                                        >
-                                            Show Less
-                                        </button>
                                     </div>
                                 )}
                             </>

@@ -5,6 +5,7 @@ import {
     FaTimes, FaArrowRight, FaMapMarkerAlt, FaPhoneAlt, FaChevronRight
 } from "react-icons/fa";
 import { AMBULANCE_DATA } from "../../../constants/constants";
+import ShowAmbulanceModal from "../components/otherComponents/ShowAmbulancsModel";
 
 const categories = [
     { id: "ALS", label: "ALS", img: "https://cdn-icons-png.flaticon.com/512/1032/1032989.png" },
@@ -17,6 +18,20 @@ function FindEmergencyAmbulance() {
     const [searchTerm, setSearchTerm] = useState("");
     const [sortBy, setSortBy] = useState("recommended");
     const router = useRouter()
+
+    const [selectedAmbulance, setSelectedAmbulance] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const handleSelectAmbulance = (ambulance) => {
+        setSelectedAmbulance(ambulance);
+        setIsModalOpen(true);
+    };
+
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setSelectedAmbulance(null);
+    };
+
 
     // SEARCH & SORT LOGIC
     const processedAmbulances = useMemo(() => {
@@ -36,6 +51,11 @@ function FindEmergencyAmbulance() {
 
     return (
         <div className="min-h-screen py-8 md:py-16 px-4 sm:px-6 lg:px-8 font-sans">
+            <ShowAmbulanceModal
+                isOpen={isModalOpen} // CRITICAL: Added this to trigger visibility
+                ambulance={selectedAmbulance}
+                onClose={closeModal}
+            />
             <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10">
 
                 {/* LEFT SECTION: STICKY SEARCH */}
@@ -148,7 +168,9 @@ function FindEmergencyAmbulance() {
                                                         <p className="text-[10px] text-slate-400 font-bold uppercase">Estimated Fare</p>
                                                         <p className="text-2xl font-black text-slate-900">₹{item.price}</p>
                                                     </div>
-                                                    <button className="bg-[#08B36A] hover:bg-slate-900 text-white font-black px-8 py-3 rounded-xl transition-all shadow-lg shadow-[#08B36A]/20 active:scale-95 flex items-center gap-2 text-sm">
+                                                    <button
+                                                        onClick={() => handleSelectAmbulance(item)}
+                                                        className="bg-[#08B36A] hover:bg-slate-900 text-white font-black px-8 py-3 rounded-xl transition-all shadow-lg shadow-[#08B36A]/20 active:scale-95 flex items-center gap-2 text-sm">
                                                         BOOK NOW <FaChevronRight className="text-[10px]" />
                                                     </button>
                                                 </div>
