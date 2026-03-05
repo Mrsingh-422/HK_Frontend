@@ -1814,3 +1814,201 @@ export const INITIAL_PACKAGES = [
     ]
   }
 ];
+
+export const SINGLE_TESTS = [
+  {
+    id: 1,
+    name: "ANTI THYROGLOBULIN",
+    price: "1300",
+    image: "https://images.unsplash.com/photo-1579152276503-6058d9488e9d?auto=format&fit=crop&w=400&q=80",
+    category: "Thyroid",
+    sampleType: "Blood",
+    fastingRequired: false,
+    reportTime: "24 Hours",
+    description: "Anti Thyroglobulin test helps detect autoimmune thyroid diseases such as Hashimoto's thyroiditis.",
+    preparation: "No special preparation required.",
+    parameters: ["Thyroglobulin Antibodies"]
+  },
+
+  {
+    id: 2,
+    name: "CBC (Complete Blood Count)",
+    price: "450",
+    image: "https://images.unsplash.com/photo-1581594549595-35f6edc8e2e7?auto=format&fit=crop&w=400&q=80",
+    category: "Blood Test",
+    sampleType: "Blood",
+    fastingRequired: false,
+    reportTime: "12 Hours",
+    description: "CBC test measures different components of blood including red cells, white cells, and platelets.",
+    preparation: "No fasting required.",
+    parameters: ["RBC", "WBC", "Hemoglobin", "Platelets", "Hematocrit"]
+  },
+
+  {
+    id: 3,
+    name: "Lipid Profile",
+    price: "900",
+    image: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=400&q=80",
+    category: "Heart Health",
+    sampleType: "Blood",
+    fastingRequired: true,
+    reportTime: "24 Hours",
+    description: "Lipid profile measures cholesterol levels and helps assess risk of heart disease.",
+    preparation: "8–12 hours fasting required.",
+    parameters: ["Total Cholesterol", "HDL", "LDL", "Triglycerides"]
+  },
+
+  {
+    id: 4,
+    name: "Blood Sugar Fasting",
+    price: "250",
+    image: "https://images.unsplash.com/photo-1588776814546-ec7e2b57c2d6?auto=format&fit=crop&w=400&q=80",
+    category: "Diabetes",
+    sampleType: "Blood",
+    fastingRequired: true,
+    reportTime: "6 Hours",
+    description: "Fasting blood sugar test measures glucose levels after fasting for at least 8 hours.",
+    preparation: "8 hours fasting required.",
+    parameters: ["Glucose Level"]
+  },
+
+  {
+    id: 5,
+    name: "Vitamin D Test",
+    price: "1200",
+    image: "https://images.unsplash.com/photo-1581594693702-fbdc51b2763b?auto=format&fit=crop&w=400&q=80",
+    category: "Vitamin Test",
+    sampleType: "Blood",
+    fastingRequired: false,
+    reportTime: "24 Hours",
+    description: "Vitamin D test measures the level of vitamin D in the body to detect deficiency.",
+    preparation: "No fasting required.",
+    parameters: ["25-Hydroxy Vitamin D"]
+  },
+
+  {
+    id: 6,
+    name: "Vitamin B12 Test",
+    price: "1000",
+    image: "https://images.unsplash.com/photo-1581595219319-5f7d6b6a2b4a?auto=format&fit=crop&w=400&q=80",
+    category: "Vitamin Test",
+    sampleType: "Blood",
+    fastingRequired: false,
+    reportTime: "24 Hours",
+    description: "This test checks Vitamin B12 levels to diagnose deficiency or anemia.",
+    preparation: "No special preparation required.",
+    parameters: ["Vitamin B12 Level"]
+  },
+
+  {
+    id: 7,
+    name: "Thyroid Stimulating Hormone (TSH)",
+    price: "600",
+    image: "https://images.unsplash.com/photo-1584515933487-779824d29309?auto=format&fit=crop&w=400&q=80",
+    category: "Thyroid",
+    sampleType: "Blood",
+    fastingRequired: false,
+    reportTime: "24 Hours",
+    description: "TSH test evaluates thyroid gland function.",
+    preparation: "No fasting required.",
+    parameters: ["TSH"]
+  },
+
+  {
+    id: 8,
+    name: "Liver Function Test (LFT)",
+    price: "850",
+    image: "https://images.unsplash.com/photo-1576765607924-3f0c2d6b7c10?auto=format&fit=crop&w=400&q=80",
+    category: "Liver",
+    sampleType: "Blood",
+    fastingRequired: true,
+    reportTime: "24 Hours",
+    description: "LFT measures liver enzymes and proteins to assess liver health.",
+    preparation: "8 hours fasting recommended.",
+    parameters: ["ALT", "AST", "Bilirubin", "Albumin"]
+  },
+
+  {
+    id: 9,
+    name: "Kidney Function Test (KFT)",
+    price: "900",
+    image: "https://images.unsplash.com/photo-1582719188393-bb71ca45dbb9?auto=format&fit=crop&w=400&q=80",
+    category: "Kidney",
+    sampleType: "Blood",
+    fastingRequired: false,
+    reportTime: "24 Hours",
+    description: "KFT checks kidney performance by measuring waste products in blood.",
+    preparation: "No special preparation required.",
+    parameters: ["Creatinine", "Blood Urea", "Uric Acid"]
+  },
+
+  {
+    id: 10,
+    name: "Dengue NS1 Antigen",
+    price: "950",
+    image: "https://images.unsplash.com/photo-1581594549595-35f6edc8e2e7?auto=format&fit=crop&w=400&q=80",
+    category: "Infection",
+    sampleType: "Blood",
+    fastingRequired: false,
+    reportTime: "12 Hours",
+    description: "Dengue NS1 test helps detect dengue virus infection in early stages.",
+    preparation: "No fasting required.",
+    parameters: ["NS1 Antigen"]
+  },
+
+  {
+    id: 11,
+    name: "Malaria Antigen Test",
+    price: "700",
+    image: "https://images.unsplash.com/photo-1581594549595-35f6edc8e2e7?auto=format&fit=crop&w=400&q=80",
+    category: "Infection",
+    sampleType: "Blood",
+    fastingRequired: false,
+    reportTime: "12 Hours",
+    description: "Malaria antigen test detects malaria parasites in the blood.",
+    preparation: "No special preparation needed.",
+    parameters: ["Plasmodium Antigen"]
+  },
+
+  {
+    id: 12,
+    name: "C-Reactive Protein (CRP)",
+    price: "650",
+    image: "https://images.unsplash.com/photo-1580281658629-58c4e4dba9c9?auto=format&fit=crop&w=400&q=80",
+    category: "Inflammation",
+    sampleType: "Blood",
+    fastingRequired: false,
+    reportTime: "12 Hours",
+    description: "CRP test detects inflammation in the body.",
+    preparation: "No fasting required.",
+    parameters: ["CRP Level"]
+  },
+
+  {
+    id: 13,
+    name: "Urine Routine Test",
+    price: "300",
+    image: "https://images.unsplash.com/photo-1581595219341-7a5d2e0b8c9e?auto=format&fit=crop&w=400&q=80",
+    category: "Urine Test",
+    sampleType: "Urine",
+    fastingRequired: false,
+    reportTime: "6 Hours",
+    description: "Urine routine test analyzes urine for infections, kidney problems, and diabetes.",
+    preparation: "Morning sample preferred.",
+    parameters: ["Protein", "Glucose", "pH", "Ketones"]
+  },
+
+  {
+    id: 14,
+    name: "HIV Screening Test",
+    price: "1100",
+    image: "https://images.unsplash.com/photo-1580281657521-6b6b2c8b8f6c?auto=format&fit=crop&w=400&q=80",
+    category: "Infection",
+    sampleType: "Blood",
+    fastingRequired: false,
+    reportTime: "24 Hours",
+    description: "HIV screening detects antibodies against HIV virus.",
+    preparation: "No fasting required.",
+    parameters: ["HIV Antibody"]
+  }
+];

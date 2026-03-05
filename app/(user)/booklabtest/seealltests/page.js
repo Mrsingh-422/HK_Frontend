@@ -26,7 +26,7 @@ function AllTestsPage() {
     const [selectedPackage, setSelectedPackage] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const handleBookClick = (pkg) => {  
+    const handleBookClick = (pkg) => {
         setSelectedPackage(pkg);
         setIsModalOpen(true);
     };
