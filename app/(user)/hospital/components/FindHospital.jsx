@@ -5,11 +5,24 @@ import {
     FaPhoneAlt, FaChevronRight, FaHospital, FaTimes, FaArrowRight
 } from "react-icons/fa";
 import { HOSPITAL_DATA } from "@/app/constants/constants";
+import HospitalDetailsModal from "./otherComponents/HospitalDetailsModal";
 
 function FindHospital() {
     const [searchTerm, setSearchTerm] = useState("");
     const [sortBy, setSortBy] = useState("recommended");
 
+    const [selectedHospital, setSelectedHospital] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const handleSelectHospital = (hospital) => {
+        setSelectedHospital(hospital);
+        setIsModalOpen(true);
+    };
+
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setTimeout(() => setSelectedHospital(null), 300);
+    };
     const router = useRouter()
 
     // SEARCH & SORT LOGIC
@@ -30,6 +43,12 @@ function FindHospital() {
 
     return (
         <div className="min-h-screen py-8 md:py-16 px-4 sm:px-6 lg:px-8 font-sans">
+
+            <HospitalDetailsModal
+                isOpen={isModalOpen}
+                hospital={selectedHospital}
+                onClose={closeModal}
+            />
             <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10">
 
                 {/* LEFT SECTION: HERO & SEARCH (Sticky on Desktop) */}
@@ -138,7 +157,9 @@ function FindHospital() {
                                                         <FaPhoneAlt className="text-sm md:text-base" />
                                                     </div>
 
-                                                    <button className="bg-[#08B36A] hover:bg-slate-900 text-white font-black px-6 md:px-10 py-2.5 md:py-3.5 rounded-xl transition-all shadow-lg shadow-[#08B36A]/20 active:scale-95 uppercase tracking-widest text-[10px] md:text-xs">
+                                                    <button
+                                                        onClick={() => handleSelectHospital(hospital)}
+                                                        className="bg-[#08B36A] hover:bg-slate-900 text-white font-black px-6 md:px-10 py-2.5 md:py-3.5 rounded-xl transition-all shadow-lg shadow-[#08B36A]/20 active:scale-95 uppercase tracking-widest text-[10px] md:text-xs">
                                                         Book Now
                                                     </button>
                                                 </div>
