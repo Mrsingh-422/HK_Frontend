@@ -212,11 +212,14 @@
 
 /* ===================== MOBILE RESPONSIVE ===================== */
 @media (max-width: 768px) {
+  .login-left {
+    display: none;
+  }
 
   /* Stack layout vertically */
   .login-user-container {
     flex-direction: column;
-    padding: 20px;
+    padding: 4px;
     text-align: center;
   }
 

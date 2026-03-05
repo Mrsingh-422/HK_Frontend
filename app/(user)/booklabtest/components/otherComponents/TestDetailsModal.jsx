@@ -119,7 +119,8 @@ const TestDetailsModal = ({ isOpen, onClose, pkg }) => {
             <div className="flex items-baseline gap-2">
               <span className="text-2xl md:text-3xl font-black text-slate-900">{pkg.discountPrice}</span>
               <span className="text-xs md:text-sm text-slate-400 line-through font-bold">
-                ₹{parseInt(pkg.discountPrice.replace(/\D/g, '')) + 500}
+                {/* ₹{parseInt(pkg.discountPrice.replace(/\D/g, '')) + 500} */}
+                {pkg.price}
               </span>
             </div>
           </div>
