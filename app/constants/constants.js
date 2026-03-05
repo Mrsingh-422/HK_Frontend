@@ -322,3 +322,523 @@ export const INITIAL_MEDICINES = [
     howToUse: "Take before breakfast."
   }
 ];
+
+export const DOCTORS_DATA = [
+  {
+    id: 1,
+    name: "Dr. Abhi",
+    specialty: "Heart Specialist",
+    category: "Cardiology",
+    experience: "3 Years",
+    qualification: "MBBS, MD (Cardiology)",
+    hospital: "Fortis Heart Institute",
+    registrationNumber: "PMC/2019/45821",
+    speaks: ["English", "Hindi", "Punjabi"],
+    address: "Mohali, Punjab",
+    clinicAddress: "Fortis Hospital, Sector 62, Mohali, Punjab",
+    distance: 8.5,
+    rating: 4.3,
+    totalReviews: 214,
+    consultFee: 3000,
+    clinicFee: 2500,
+    videoConsultFee: 2000,
+    image: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80",
+    about: "Dr. Abhi is a skilled cardiologist specializing in preventive cardiology and heart failure management.",
+    services: ["Heart Checkup", "ECG", "Angiography Consultation", "Blood Pressure Management", "Cholesterol Management"],
+    conditionsTreated: ["Coronary Artery Disease", "Heart Failure", "High Blood Pressure", "Arrhythmia", "High Cholesterol"],
+    education: [
+      { degree: "MBBS", institute: "AIIMS Delhi", year: "2018" },
+      { degree: "MD Cardiology", institute: "PGIMER Chandigarh", year: "2022" }
+    ],
+    availability: {
+      clinicDays: ["Monday", "Wednesday", "Friday"],
+      clinicTiming: "10:00 AM - 3:00 PM",
+      videoConsultation: "Daily 6:00 PM - 9:00 PM"
+    },
+    awards: ["Best Young Cardiologist Award 2023"],
+    reviews: [
+      { patient: "Rahul Sharma", rating: 5, comment: "Very professional doctor.", date: "2025-12-12" }
+    ]
+  },
+
+  {
+    id: 2,
+    name: "Dr. Riya Sharma",
+    specialty: "Dermatologist",
+    category: "Dermatology",
+    experience: "6 Years",
+    qualification: "MBBS, MD Dermatology",
+    hospital: "Apollo Skin Center",
+    registrationNumber: "DMC/2017/9921",
+    speaks: ["English", "Hindi"],
+    address: "Delhi, India",
+    clinicAddress: "Apollo Clinic, South Delhi",
+    distance: 3.2,
+    rating: 4.6,
+    totalReviews: 320,
+    consultFee: 2200,
+    clinicFee: 1800,
+    videoConsultFee: 1500,
+    image: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80",
+    about: "Experienced dermatologist treating acne, pigmentation and skin allergies.",
+    services: ["Acne Treatment", "Skin Allergy Treatment", "Laser Skin Therapy", "Anti Aging Treatment"],
+    conditionsTreated: ["Acne", "Psoriasis", "Skin Allergy", "Pigmentation"],
+    education: [
+      { degree: "MBBS", institute: "Delhi University", year: "2015" },
+      { degree: "MD Dermatology", institute: "AIIMS Delhi", year: "2019" }
+    ],
+    availability: {
+      clinicDays: ["Tuesday", "Thursday", "Saturday"],
+      clinicTiming: "11:00 AM - 4:00 PM",
+      videoConsultation: "Daily 7:00 PM - 9:00 PM"
+    },
+    awards: ["Best Dermatologist Delhi 2022"],
+    reviews: [
+      { patient: "Sneha Kapoor", rating: 5, comment: "Helped my acne problem.", date: "2025-10-02" }
+    ]
+  },
+
+  {
+    id: 3,
+    name: "Dr. Karan Mehta",
+    specialty: "Orthopedic Surgeon",
+    category: "Orthopedics",
+    experience: "8 Years",
+    qualification: "MBBS, MS Orthopedics",
+    hospital: "Max Super Specialty Hospital",
+    registrationNumber: "PMC/2016/8821",
+    speaks: ["English", "Hindi"],
+    address: "Chandigarh, Punjab",
+    clinicAddress: "Max Hospital, Chandigarh",
+    distance: 5.6,
+    rating: 4.5,
+    totalReviews: 280,
+    consultFee: 2600,
+    clinicFee: 2000,
+    videoConsultFee: 1700,
+    image: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=400&q=80",
+    about: "Orthopedic surgeon specializing in joint replacement and sports injuries.",
+    services: ["Joint Replacement", "Fracture Treatment", "Arthroscopy", "Sports Injury Treatment"],
+    conditionsTreated: ["Knee Pain", "Fractures", "Arthritis", "Back Pain"],
+    education: [
+      { degree: "MBBS", institute: "PGIMER Chandigarh", year: "2014" },
+      { degree: "MS Orthopedics", institute: "AIIMS Delhi", year: "2018" }
+    ],
+    availability: {
+      clinicDays: ["Monday", "Thursday", "Saturday"],
+      clinicTiming: "9:00 AM - 1:00 PM",
+      videoConsultation: "Daily 6:00 PM - 8:00 PM"
+    },
+    awards: ["Best Orthopedic Surgeon Punjab 2023"],
+    reviews: [
+      { patient: "Amit Kumar", rating: 5, comment: "Great treatment for my knee pain.", date: "2025-08-15" }
+    ]
+  },
+
+  {
+    id: 4,
+    name: "Dr. Neha Kapoor",
+    specialty: "Gynecologist",
+    category: "Gynecology",
+    experience: "7 Years",
+    qualification: "MBBS, MD Gynecology",
+    hospital: "Cloudnine Hospital",
+    registrationNumber: "DMC/2018/7721",
+    speaks: ["English", "Hindi"],
+    address: "Noida, UP",
+    clinicAddress: "Cloudnine Hospital, Noida",
+    distance: 4.4,
+    rating: 4.7,
+    totalReviews: 340,
+    consultFee: 2500,
+    clinicFee: 2100,
+    videoConsultFee: 1800,
+    image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=400&q=80",
+    about: "Specialist in pregnancy care, infertility treatment and women's health.",
+    services: ["Pregnancy Care", "Infertility Treatment", "Menstrual Disorders"],
+    conditionsTreated: ["PCOS", "Infertility", "Pregnancy Complications"],
+    education: [
+      { degree: "MBBS", institute: "King George Medical University", year: "2015" },
+      { degree: "MD Gynecology", institute: "AIIMS Delhi", year: "2019" }
+    ],
+    availability: {
+      clinicDays: ["Monday", "Wednesday", "Friday"],
+      clinicTiming: "10:30 AM - 2:30 PM",
+      videoConsultation: "Daily 7:00 PM - 9:00 PM"
+    },
+    awards: ["Top Gynecologist Noida 2024"],
+    reviews: [
+      { patient: "Ritika Jain", rating: 5, comment: "Very caring doctor.", date: "2025-11-18" }
+    ]
+  },
+
+  {
+    id: 5,
+    name: "Dr. Arjun Singh",
+    specialty: "Neurologist",
+    category: "Neurology",
+    experience: "10 Years",
+    qualification: "MBBS, DM Neurology",
+    hospital: "Medanta Hospital",
+    registrationNumber: "PMC/2015/7722",
+    speaks: ["English", "Hindi"],
+    address: "Gurgaon, Haryana",
+    clinicAddress: "Medanta Medicity, Gurgaon",
+    distance: 6.1,
+    rating: 4.8,
+    totalReviews: 410,
+    consultFee: 3500,
+    clinicFee: 3000,
+    videoConsultFee: 2500,
+    image: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=400&q=80",
+    about: "Neurologist specializing in epilepsy, stroke and migraine treatment.",
+    services: ["Stroke Treatment", "Migraine Management", "EEG Test"],
+    conditionsTreated: ["Epilepsy", "Stroke", "Migraine"],
+    education: [
+      { degree: "MBBS", institute: "AIIMS Delhi", year: "2012" },
+      { degree: "DM Neurology", institute: "PGIMER Chandigarh", year: "2016" }
+    ],
+    availability: {
+      clinicDays: ["Tuesday", "Thursday", "Saturday"],
+      clinicTiming: "11:00 AM - 3:00 PM",
+      videoConsultation: "Daily 7:00 PM - 9:00 PM"
+    },
+    awards: ["Best Neurologist India 2022"],
+    reviews: [
+      { patient: "Manoj Verma", rating: 5, comment: "Excellent doctor.", date: "2025-09-02" }
+    ]
+  },
+
+  {
+    id: 6,
+    name: "Dr. Priya Verma",
+    specialty: "Pediatrician",
+    category: "Pediatrics",
+    experience: "5 Years",
+    qualification: "MBBS, MD Pediatrics",
+    hospital: "Rainbow Children's Hospital",
+    registrationNumber: "PMC/2020/5542",
+    speaks: ["English", "Hindi"],
+    address: "Ludhiana, Punjab",
+    clinicAddress: "Rainbow Children's Clinic, Ludhiana",
+    distance: 6.3,
+    rating: 4.4,
+    totalReviews: 190,
+    consultFee: 1800,
+    clinicFee: 1500,
+    videoConsultFee: 1200,
+    image: "https://images.unsplash.com/photo-1594824475525-1c90a2d8f6d2?auto=format&fit=crop&w=400&q=80",
+    about: "Child specialist focused on newborn and pediatric care.",
+    services: ["Child Vaccination", "Newborn Care", "Growth Monitoring"],
+    conditionsTreated: ["Fever in Children", "Allergies", "Nutrition Issues"],
+    education: [
+      { degree: "MBBS", institute: "Punjab University", year: "2016" },
+      { degree: "MD Pediatrics", institute: "AIIMS Delhi", year: "2020" }
+    ],
+    availability: {
+      clinicDays: ["Monday", "Wednesday", "Saturday"],
+      clinicTiming: "10:00 AM - 1:00 PM",
+      videoConsultation: "Daily 6:00 PM - 8:00 PM"
+    },
+    awards: ["Young Pediatrician Award 2023"],
+    reviews: [
+      { patient: "Pooja Sharma", rating: 4, comment: "Very good with kids.", date: "2025-10-10" }
+    ]
+  },
+
+  {
+    id: 7,
+    name: "Dr. Rahul Khanna",
+    specialty: "ENT Specialist",
+    category: "ENT",
+    experience: "9 Years",
+    qualification: "MBBS, MS ENT",
+    hospital: "BLK Hospital",
+    registrationNumber: "DMC/2016/6612",
+    speaks: ["English", "Hindi"],
+    address: "Delhi, India",
+    clinicAddress: "BLK Super Specialty Hospital",
+    distance: 7.5,
+    rating: 4.4,
+    totalReviews: 205,
+    consultFee: 2000,
+    clinicFee: 1700,
+    videoConsultFee: 1400,
+    image: "https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=400&q=80",
+    about: "ENT specialist treating sinus, ear infections and throat issues.",
+    services: ["Sinus Treatment", "Hearing Test", "Throat Infection Treatment"],
+    conditionsTreated: ["Sinusitis", "Ear Infection", "Tonsillitis"],
+    education: [
+      { degree: "MBBS", institute: "Delhi University", year: "2013" },
+      { degree: "MS ENT", institute: "AIIMS Delhi", year: "2017" }
+    ],
+    availability: {
+      clinicDays: ["Monday", "Thursday", "Saturday"],
+      clinicTiming: "12:00 PM - 4:00 PM",
+      videoConsultation: "Daily 8:00 PM - 9:30 PM"
+    },
+    awards: ["Best ENT Doctor Delhi 2023"],
+    reviews: [
+      { patient: "Vikas Jain", rating: 5, comment: "Solved my sinus issue.", date: "2025-07-01" }
+    ]
+  },
+
+  {
+    id: 8,
+    name: "Dr. Sneha Patel",
+    specialty: "Dentist",
+    category: "Dental",
+    experience: "4 Years",
+    qualification: "BDS, MDS",
+    hospital: "Smile Dental Clinic",
+    registrationNumber: "GDC/2021/2211",
+    speaks: ["English", "Hindi", "Gujarati"],
+    address: "Ahmedabad, Gujarat",
+    clinicAddress: "Smile Dental Care, Ahmedabad",
+    distance: 2.8,
+    rating: 4.7,
+    totalReviews: 170,
+    consultFee: 1500,
+    clinicFee: 1200,
+    videoConsultFee: 1000,
+    image: "https://images.unsplash.com/photo-1606813909355-2065a9e1b8a5?auto=format&fit=crop&w=400&q=80",
+    about: "Dentist specializing in cosmetic and restorative dentistry.",
+    services: ["Teeth Cleaning", "Root Canal", "Teeth Whitening"],
+    conditionsTreated: ["Tooth Decay", "Gum Disease", "Tooth Pain"],
+    education: [
+      { degree: "BDS", institute: "Gujarat University", year: "2018" },
+      { degree: "MDS", institute: "Manipal University", year: "2021" }
+    ],
+    availability: {
+      clinicDays: ["Monday", "Tuesday", "Friday"],
+      clinicTiming: "9:00 AM - 1:00 PM",
+      videoConsultation: "Daily 6:00 PM - 8:00 PM"
+    },
+    awards: ["Best Dentist Ahmedabad 2024"],
+    reviews: [
+      { patient: "Ramesh Shah", rating: 5, comment: "Very gentle dentist.", date: "2025-05-22" }
+    ]
+  },
+  {
+    id: 9,
+    name: "Dr. Aman Gupta",
+    specialty: "General Physician",
+    category: "General Medicine",
+    experience: "7 Years",
+    qualification: "MBBS, MD General Medicine",
+    hospital: "Apollo Hospital",
+    registrationNumber: "PMC/2017/3342",
+    speaks: ["English", "Hindi"],
+    address: "Delhi, India",
+    clinicAddress: "Apollo Clinic, Karol Bagh, Delhi",
+    distance: 3.9,
+    rating: 4.5,
+    totalReviews: 190,
+    consultFee: 2000,
+    clinicFee: 1700,
+    videoConsultFee: 1400,
+    image: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=400&q=80",
+    about: "Experienced general physician treating common illnesses, infections and lifestyle diseases.",
+    services: ["General Checkup", "Fever Treatment", "Diabetes Management", "Hypertension Treatment"],
+    conditionsTreated: ["Fever", "Diabetes", "Blood Pressure", "Infections"],
+    education: [
+      { degree: "MBBS", institute: "Delhi University", year: "2014" },
+      { degree: "MD General Medicine", institute: "AIIMS Delhi", year: "2018" }
+    ],
+    availability: {
+      clinicDays: ["Monday", "Tuesday", "Thursday"],
+      clinicTiming: "10:00 AM - 2:00 PM",
+      videoConsultation: "Daily 7:00 PM - 9:00 PM"
+    },
+    awards: ["Best Physician Delhi 2023"],
+    reviews: [
+      { patient: "Sanjay Mehta", rating: 5, comment: "Very helpful doctor.", date: "2025-08-14" }
+    ]
+  },
+
+  {
+    id: 10,
+    name: "Dr. Kavita Sharma",
+    specialty: "Psychiatrist",
+    category: "Mental Health",
+    experience: "9 Years",
+    qualification: "MBBS, MD Psychiatry",
+    hospital: "MindCare Clinic",
+    registrationNumber: "DMC/2016/8841",
+    speaks: ["English", "Hindi"],
+    address: "Noida, UP",
+    clinicAddress: "MindCare Mental Health Clinic, Noida",
+    distance: 4.7,
+    rating: 4.6,
+    totalReviews: 210,
+    consultFee: 2600,
+    clinicFee: 2200,
+    videoConsultFee: 2000,
+    image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=400&q=80",
+    about: "Psychiatrist specializing in anxiety, depression and stress management.",
+    services: ["Mental Health Consultation", "Anxiety Treatment", "Depression Therapy"],
+    conditionsTreated: ["Depression", "Anxiety", "Panic Disorder", "Stress"],
+    education: [
+      { degree: "MBBS", institute: "King George Medical University", year: "2012" },
+      { degree: "MD Psychiatry", institute: "AIIMS Delhi", year: "2016" }
+    ],
+    availability: {
+      clinicDays: ["Wednesday", "Friday", "Saturday"],
+      clinicTiming: "11:00 AM - 3:00 PM",
+      videoConsultation: "Daily 6:00 PM - 9:00 PM"
+    },
+    awards: ["Mental Health Excellence Award 2022"],
+    reviews: [
+      { patient: "Anjali Verma", rating: 5, comment: "Very supportive doctor.", date: "2025-09-21" }
+    ]
+  },
+
+  {
+    id: 11,
+    name: "Dr. Rohit Bansal",
+    specialty: "Urologist",
+    category: "Urology",
+    experience: "11 Years",
+    qualification: "MBBS, MS Urology",
+    hospital: "Medanta Hospital",
+    registrationNumber: "PMC/2014/9911",
+    speaks: ["English", "Hindi"],
+    address: "Gurgaon, Haryana",
+    clinicAddress: "Medanta Medicity, Gurgaon",
+    distance: 6.2,
+    rating: 4.7,
+    totalReviews: 260,
+    consultFee: 3200,
+    clinicFee: 2800,
+    videoConsultFee: 2500,
+    image: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80",
+    about: "Experienced urologist treating kidney stones and urinary tract disorders.",
+    services: ["Kidney Stone Treatment", "Prostate Treatment", "Urinary Infection Treatment"],
+    conditionsTreated: ["Kidney Stones", "UTI", "Prostate Enlargement"],
+    education: [
+      { degree: "MBBS", institute: "PGIMER Chandigarh", year: "2011" },
+      { degree: "MS Urology", institute: "AIIMS Delhi", year: "2015" }
+    ],
+    availability: {
+      clinicDays: ["Monday", "Thursday"],
+      clinicTiming: "12:00 PM - 4:00 PM",
+      videoConsultation: "Daily 7:00 PM - 9:00 PM"
+    },
+    awards: ["Top Urologist Haryana 2024"],
+    reviews: [
+      { patient: "Rakesh Yadav", rating: 5, comment: "Solved my kidney stone issue.", date: "2025-06-10" }
+    ]
+  },
+
+  {
+    id: 12,
+    name: "Dr. Pooja Malhotra",
+    specialty: "Ophthalmologist",
+    category: "Eye Specialist",
+    experience: "8 Years",
+    qualification: "MBBS, MS Ophthalmology",
+    hospital: "Vision Eye Center",
+    registrationNumber: "DMC/2016/7711",
+    speaks: ["English", "Hindi"],
+    address: "Chandigarh, Punjab",
+    clinicAddress: "Vision Eye Center, Chandigarh",
+    distance: 5.4,
+    rating: 4.6,
+    totalReviews: 230,
+    consultFee: 2100,
+    clinicFee: 1800,
+    videoConsultFee: 1500,
+    image: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=400&q=80",
+    about: "Eye specialist experienced in cataract surgery and vision correction.",
+    services: ["Eye Checkup", "Cataract Surgery", "Vision Correction"],
+    conditionsTreated: ["Cataract", "Glaucoma", "Dry Eyes"],
+    education: [
+      { degree: "MBBS", institute: "Punjab University", year: "2013" },
+      { degree: "MS Ophthalmology", institute: "AIIMS Delhi", year: "2017" }
+    ],
+    availability: {
+      clinicDays: ["Tuesday", "Friday"],
+      clinicTiming: "10:00 AM - 2:00 PM",
+      videoConsultation: "Daily 7:00 PM - 8:30 PM"
+    },
+    awards: ["Best Eye Surgeon Chandigarh 2023"],
+    reviews: [
+      { patient: "Sunita Sharma", rating: 4, comment: "Very experienced doctor.", date: "2025-07-15" }
+    ]
+  },
+
+  {
+    id: 13,
+    name: "Dr. Vikram Sethi",
+    specialty: "Gastroenterologist",
+    category: "Gastroenterology",
+    experience: "12 Years",
+    qualification: "MBBS, DM Gastroenterology",
+    hospital: "Max Super Specialty Hospital",
+    registrationNumber: "PMC/2012/6644",
+    speaks: ["English", "Hindi"],
+    address: "Delhi, India",
+    clinicAddress: "Max Hospital, Saket, Delhi",
+    distance: 4.1,
+    rating: 4.8,
+    totalReviews: 310,
+    consultFee: 3400,
+    clinicFee: 3000,
+    videoConsultFee: 2600,
+    image: "https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=400&q=80",
+    about: "Gastroenterologist specializing in digestive system disorders.",
+    services: ["Endoscopy", "Acidity Treatment", "Liver Disease Treatment"],
+    conditionsTreated: ["Acidity", "Liver Disease", "Ulcers"],
+    education: [
+      { degree: "MBBS", institute: "AIIMS Delhi", year: "2010" },
+      { degree: "DM Gastroenterology", institute: "PGIMER Chandigarh", year: "2014" }
+    ],
+    availability: {
+      clinicDays: ["Monday", "Wednesday", "Saturday"],
+      clinicTiming: "11:00 AM - 3:00 PM",
+      videoConsultation: "Daily 8:00 PM - 9:30 PM"
+    },
+    awards: ["Top Gastroenterologist India 2023"],
+    reviews: [
+      { patient: "Deepak Jain", rating: 5, comment: "Very knowledgeable doctor.", date: "2025-09-11" }
+    ]
+  },
+
+  {
+    id: 14,
+    name: "Dr. Meera Nair",
+    specialty: "Endocrinologist",
+    category: "Endocrinology",
+    experience: "10 Years",
+    qualification: "MBBS, DM Endocrinology",
+    hospital: "Apollo Hospital",
+    registrationNumber: "KER/2015/9922",
+    speaks: ["English", "Hindi", "Malayalam"],
+    address: "Bangalore, India",
+    clinicAddress: "Apollo Hospital, Bangalore",
+    distance: 3.6,
+    rating: 4.7,
+    totalReviews: 245,
+    consultFee: 3200,
+    clinicFee: 2800,
+    videoConsultFee: 2400,
+    image: "https://images.unsplash.com/photo-1606813909355-2065a9e1b8a5?auto=format&fit=crop&w=400&q=80",
+    about: "Endocrinologist treating diabetes, thyroid and hormone disorders.",
+    services: ["Diabetes Management", "Thyroid Treatment", "Hormone Therapy"],
+    conditionsTreated: ["Diabetes", "Thyroid Disorder", "Hormonal Imbalance"],
+    education: [
+      { degree: "MBBS", institute: "Kerala University", year: "2011" },
+      { degree: "DM Endocrinology", institute: "AIIMS Delhi", year: "2015" }
+    ],
+    availability: {
+      clinicDays: ["Monday", "Thursday", "Saturday"],
+      clinicTiming: "9:30 AM - 1:30 PM",
+      videoConsultation: "Daily 7:00 PM - 9:00 PM"
+    },
+    awards: ["Best Endocrinologist 2024"],
+    reviews: [
+      { patient: "Anita Nair", rating: 5, comment: "Excellent diabetes care.", date: "2025-10-05" }
+    ]
+  }
+
+];

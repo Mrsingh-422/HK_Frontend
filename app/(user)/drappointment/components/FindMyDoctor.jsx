@@ -1,25 +1,30 @@
-import React, { useState, useMemo } from "react";
-import { 
-  FaStar, FaFilter, FaSearch, FaMapMarkerAlt, 
-  FaVideo, FaHospital, FaChevronRight, FaUserMd, FaTimes, FaArrowRight 
-} from "react-icons/fa";
+'use client'
 
-const DOCTORS_DATA = [
-  { id: 1, name: "Dr. Abhi", specialty: "Heart Specialist", experience: "3 Years", speaks: "English, Hindi", address: "Mohali, Punjab", distance: 8.5, rating: 3, image: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80", consultFee: 3000, clinicFee: 2500 },
-  { id: 2, name: "Dr. Sahib", specialty: "Neurologist", experience: "8 Years", speaks: "English, Punjabi", address: "Sector 62, Noida", distance: 12.2, rating: 5, image: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=400&q=80", consultFee: 1500, clinicFee: 1000 },
-  { id: 3, name: "Dr. Ananya Rao", specialty: "Dermatologist", experience: "10 Years", speaks: "English, Telugu", address: "Hitech City, Hyderabad", distance: 2.1, rating: 5, image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=400&q=80", consultFee: 800, clinicFee: 600 },
-  { id: 4, name: "Dr. Vikram Singh", specialty: "Orthopedic", experience: "15 Years", speaks: "Hindi, Punjabi", address: "Chandigarh, Sector 17", distance: 4.8, rating: 4, image: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=400&q=80", consultFee: 1200, clinicFee: 1000 },
-  { id: 5, name: "Dr. Sarah D'souza", specialty: "Gynecologist", experience: "6 Years", speaks: "English, Konkani", address: "Panjim, Goa", distance: 15.0, rating: 4, image: "https://images.unsplash.com/photo-1559839734-2b71f1536783?auto=format&fit=crop&w=400&q=80", consultFee: 2000, clinicFee: 1800 },
-  { id: 6, name: "Dr. Sameer Khan", specialty: "Dentist", experience: "5 Years", speaks: "Hindi, Urdu", address: "Lajpat Nagar, Delhi", distance: 3.5, rating: 5, image: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80", consultFee: 500, clinicFee: 400 },
-  { id: 7, name: "Dr. Megha Kapoor", specialty: "Pediatrician", experience: "12 Years", speaks: "English, Hindi", address: "Powai, Mumbai", distance: 1.2, rating: 5, image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=400&q=80", consultFee: 1000, clinicFee: 800 },
-];
+import { useRouter } from "next/navigation";
+import React, { useState, useMemo } from "react";
+import {
+  FaStar, FaFilter, FaSearch, FaMapMarkerAlt,
+  FaVideo, FaHospital, FaChevronRight, FaUserMd, FaTimes, FaArrowRight
+} from "react-icons/fa";
+import { DOCTORS_DATA } from "@/app/constants/constants";
+import DoctorDetailsModal from "./otherComponents/DoctorDetailsModal";
 
 function FindMyDoctor() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("recommended");
+  const router = useRouter()
+
+  // 2. State management
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeDoctor, setActiveDoctor] = useState(null);
+
+  const handleOpenDoctor = (doctor) => {
+    setActiveDoctor(doctor);
+    setIsModalOpen(true);
+  };
 
   const processedDoctors = useMemo(() => {
-    let filtered = DOCTORS_DATA.filter(doc => 
+    let filtered = DOCTORS_DATA.filter(doc =>
       doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       doc.specialty.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -36,8 +41,14 @@ function FindMyDoctor() {
 
   return (
     <div className="min-h-screen py-6 md:py-12 px-4 sm:px-6 lg:px-8 font-sans">
+      {/* 3. Add the component once at the bottom of the JSX */}
+      <DoctorDetailsModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        doctor={activeDoctor}
+      />
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-        
+
         {/* LEFT SECTION: HERO & SEARCH (Standard block on mobile, sticky on desktop) */}
         <div className="lg:col-span-5 space-y-6 md:space-y-8 lg:sticky lg:top-35 h-fit">
           <div className="border-l-4 border-[#08B36A] pl-4 md:pl-6 space-y-2 md:space-y-4">
@@ -48,9 +59,9 @@ function FindMyDoctor() {
               Find My <br className="hidden sm:block" /> Doctor! 👩‍⚕️
             </h1>
           </div>
-          
+
           <p className="text-slate-600 text-sm sm:text-base md:text-lg leading-relaxed max-w-xl">
-            Connect with top-rated specialists instantly. We prioritize your health 
+            Connect with top-rated specialists instantly. We prioritize your health
             by bringing certified medical professionals to your doorstep.
           </p>
 
@@ -79,7 +90,7 @@ function FindMyDoctor() {
             </p>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <FaFilter className="text-[#08B36A] flex-shrink-0" />
-              <select 
+              <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 className="w-full sm:w-auto bg-slate-50 border-none text-xs sm:text-sm font-bold text-slate-700 py-2 pl-3 pr-8 rounded-xl focus:ring-2 focus:ring-[#08B36A] cursor-pointer"
@@ -119,10 +130,10 @@ function FindMyDoctor() {
                               ))}
                             </div>
                           </div>
-                          
+
                           <div className="grid grid-cols-2 gap-y-2 mt-4 text-[11px] md:text-sm">
                             <p className="text-slate-500">Exp: <span className="text-slate-800 font-bold">{doc.experience}</span></p>
-                            <p className="text-slate-500">Lang: <span className="text-slate-800 font-bold">{doc.speaks.split(',')[0]}</span></p>
+                            <p className="text-slate-500">Lang: <span className="text-slate-800 font-bold">{doc.speaks}</span></p>
                             <p className="text-slate-500 col-span-2 flex items-center gap-1">
                               <FaMapMarkerAlt className="text-[#08B36A] flex-shrink-0" /> <span className="truncate">{doc.address}</span>
                               <span className="ml-auto text-[9px] bg-slate-100 px-1.5 py-0.5 rounded-full font-bold">~{doc.distance}km</span>
@@ -132,13 +143,17 @@ function FindMyDoctor() {
 
                         {/* Action Grid - 2 columns on small phone, 2 columns on desktop */}
                         <div className="grid grid-cols-2 gap-3 mt-5 pt-4 border-t border-slate-50">
-                          <button className="bg-[#08B36A] hover:bg-slate-900 text-white py-2.5 rounded-xl transition-all shadow-md flex flex-col items-center justify-center">
+                          <button
+                            onClick={() => handleOpenDoctor(doc)}
+                            className="bg-[#08B36A] hover:bg-slate-900 text-white py-2.5 rounded-xl transition-all shadow-md flex flex-col items-center justify-center">
                             <span className="text-sm md:text-lg font-black leading-none">₹{doc.consultFee}</span>
                             <span className="text-[8px] md:text-[10px] font-bold uppercase mt-1 opacity-90 truncate px-1 flex items-center gap-1">
                               <FaVideo className="hidden xs:inline" /> Online
                             </span>
                           </button>
-                          <button className="bg-amber-400 hover:bg-slate-900 hover:text-white text-slate-900 py-2.5 rounded-xl transition-all shadow-md flex flex-col items-center justify-center">
+                          <button
+                            onClick={() => handleOpenDoctor(doc)}
+                            className="bg-amber-400 hover:bg-slate-900 hover:text-white text-slate-900 py-2.5 rounded-xl transition-all shadow-md flex flex-col items-center justify-center">
                             <span className="text-sm md:text-lg font-black leading-none">₹{doc.clinicFee}</span>
                             <span className="text-[8px] md:text-[10px] font-bold uppercase mt-1 opacity-90 truncate px-1 flex items-center gap-1">
                               <FaHospital className="hidden xs:inline" /> Clinic
@@ -152,11 +167,11 @@ function FindMyDoctor() {
 
                 {hasMore && (
                   <div className="pt-4 text-center">
-                    <button 
-                      onClick={() => alert("Navigating to all doctors...")}
+                    <button
+                      onClick={() => router.push("/drappointment/seealldoctors")}
                       className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-[#08B36A] border-2 border-[#08B36A] font-black px-10 py-3.5 rounded-2xl hover:bg-[#08B36A] hover:text-white transition-all shadow-lg active:scale-95 group"
                     >
-                      See All Doctors 
+                      See All Doctors
                       <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
                     </button>
                     <p className="text-slate-400 text-[10px] mt-3 font-medium uppercase tracking-tighter">
