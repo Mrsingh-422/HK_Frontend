@@ -1,20 +1,10 @@
+import { useRouter } from "next/navigation";
 import React, { useState, useMemo } from "react";
 import {
     FaSearch, FaFilter, FaStar, FaAmbulance,
     FaTimes, FaArrowRight, FaMapMarkerAlt, FaPhoneAlt, FaChevronRight
 } from "react-icons/fa";
-
-// 1. DATA OBJECT (Easy to manage backend later)
-const AMBULANCE_DATA = [
-    { id: 1, name: "Cardiac Care ALS", type: "ALS", vendor: "LifeLine Services", price: 1500, distance: 2.5, rating: 5, image: "https://images.unsplash.com/photo-1587748801476-6218d60ad48c?auto=format&fit=crop&w=400&q=80" },
-    { id: 2, name: "Basic Life Support", type: "BLS", vendor: "City Response", price: 800, distance: 4.2, rating: 4, image: "https://images.unsplash.com/photo-1599700403969-f77b3aa74837?auto=format&fit=crop&w=400&q=80" },
-    { id: 3, name: "Patient Transport", type: "PTV", vendor: "Health Transit", price: 500, distance: 1.1, rating: 3, image: "https://images.unsplash.com/photo-1612994370726-5d4d609fca1b?auto=format&fit=crop&w=400&q=80" },
-    { id: 4, name: "Neonatal Care", type: "NNA", vendor: "Baby Safe", price: 2500, distance: 12.0, rating: 5, image: "https://images.unsplash.com/photo-1587748801476-6218d60ad48c?auto=format&fit=crop&w=400&q=80" },
-    { id: 5, name: "Advanced ALS Unit", type: "ALS", vendor: "Prime Rescue", price: 1800, distance: 3.8, rating: 4, image: "https://images.unsplash.com/photo-1599700403969-f77b3aa74837?auto=format&fit=crop&w=400&q=80" },
-    { id: 6, name: "Standard BLS", type: "BLS", vendor: "Metro Aid", price: 900, distance: 5.5, rating: 4, image: "https://images.unsplash.com/photo-1612994370726-5d4d609fca1b?auto=format&fit=crop&w=400&q=80" },
-    { id: 7, name: "Express PTV", type: "PTV", vendor: "FastCare", price: 600, distance: 0.5, rating: 5, image: "https://images.unsplash.com/photo-1587748801476-6218d60ad48c?auto=format&fit=crop&w=400&q=80" },
-    { id: 8, name: "Regional NNA", type: "NNA", vendor: "Kids First", price: 2200, distance: 15.2, rating: 4, image: "https://images.unsplash.com/photo-1599700403969-f77b3aa74837?auto=format&fit=crop&w=400&q=80" },
-];
+import { AMBULANCE_DATA } from "../../../constants/constants";
 
 const categories = [
     { id: "ALS", label: "ALS", img: "https://cdn-icons-png.flaticon.com/512/1032/1032989.png" },
@@ -26,7 +16,7 @@ const categories = [
 function FindEmergencyAmbulance() {
     const [searchTerm, setSearchTerm] = useState("");
     const [sortBy, setSortBy] = useState("recommended");
-    const [showAll, setShowAll] = useState(false);
+    const router = useRouter()
 
     // SEARCH & SORT LOGIC
     const processedAmbulances = useMemo(() => {
@@ -42,8 +32,6 @@ function FindEmergencyAmbulance() {
         return filtered;
     }, [searchTerm, sortBy]);
 
-    // Handle Visibility
-    const visibleItems = showAll ? processedAmbulances : processedAmbulances.slice(0, 6);
     const hasMore = processedAmbulances.length > 6;
 
     return (
@@ -120,9 +108,9 @@ function FindEmergencyAmbulance() {
 
                     {/* LISTING CARDS */}
                     <div className="space-y-6">
-                        {visibleItems.length > 0 ? (
+                        {processedAmbulances.length > 6 ? (
                             <>
-                                {visibleItems.map((item) => (
+                                {processedAmbulances.slice(0, 6).map((item) => (
                                     <div key={item.id} className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-4 sm:p-6 shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
                                         <div className="flex flex-col sm:flex-row gap-6">
                                             {/* Image Area */}
@@ -173,14 +161,14 @@ function FindEmergencyAmbulance() {
                                 {hasMore && (
                                     <div className="pt-6 text-center">
                                         <button
-                                            onClick={() => setShowAll(!showAll)}
+                                            onClick={() => { router.push("/ambulance/seeallambulances") }}
                                             className="inline-flex items-center gap-2 bg-white text-[#08B36A] border-2 border-[#08B36A] font-black px-10 py-4 rounded-2xl hover:bg-[#08B36A] hover:text-white transition-all shadow-lg active:scale-95 group"
                                         >
-                                            {showAll ? "Show Less" : "See All Ambulances"}
-                                            <FaArrowRight className={`group-hover:translate-x-1 transition-transform ${showAll ? 'rotate-90' : ''}`} />
+                                            See All Ambulances
+                                            <FaArrowRight className={`group-hover:translate-x-1 transition-transform`} />
                                         </button>
                                         <p className="text-slate-400 text-[10px] mt-3 font-bold uppercase tracking-widest">
-                                            Currently viewing {visibleItems.length} of {processedAmbulances.length} units
+                                            Currently viewing {processedAmbulances.length} of {processedAmbulances.length} units
                                         </p>
                                     </div>
                                 )}
