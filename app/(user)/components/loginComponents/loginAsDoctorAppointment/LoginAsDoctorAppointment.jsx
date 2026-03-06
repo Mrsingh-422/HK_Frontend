@@ -1,18 +1,16 @@
 "use client";
 import React, { useState } from "react";
-import "./LoginAsDoctorAppointment.css";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
 function LoginAsDoctorAppointment() {
-
-  const { openModal, closeModal } = useGlobalContext()
+  const { openModal, closeModal } = useGlobalContext();
 
   // ✅ State for form fields
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
 
-  // ✅ Dummy Submit Function
+  // ✅ Submit Function
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -20,82 +18,99 @@ function LoginAsDoctorAppointment() {
       mobile,
       password,
       remember,
-      role: "doctor_appointment"
+      role: "doctor_appointment",
     };
 
     console.log("Doctor Appointment Login Data:", appointmentDoctorData);
-
-    // Fake API call simulation
     alert("Doctor Appointment Login API called (dummy)!");
   };
 
   return (
-    <div className="login-user-wrapper">
-
+    <div className="w-full bg-white">
       {/* TOP LOGIN BOX */}
-      <div className="login-user-container">
-
-        {/* LEFT IMAGE */}
-        <div className="login-left">
+      <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
+        
+        {/* LEFT IMAGE - Hidden on mobile, visible from md up */}
+        <div className="hidden md:block flex-shrink-0">
           <img
             src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692600715doctor1.png"
             alt="Login Illustration"
+            className="w-[280px] lg:w-[350px] max-w-full rounded-lg"
           />
         </div>
 
         {/* RIGHT FORM */}
-        <div className="login-right">
-          <h2>Get Started</h2>
+        <div className="flex-1 w-full md:ml-8 lg:ml-15 text-center md:text-left">
+          <h2 className="text-xl sm:text-2xl md:text-[32px] font-bold mb-5 leading-tight">
+            Get Started
+          </h2>
 
           <input
             type="text"
             placeholder="Enter your mobile number"
+            className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
             value={mobile}
             onChange={(e) => setMobile(e.target.value)}
           />
-          <p className="hint-text">We'll never share your email with anyone else.</p>
+          <p className="text-[13px] text-gray-500 mb-3 text-left">
+            We'll never share your mobile number or email with anyone else.
+          </p>
 
           <input
             type="password"
             placeholder="Password"
+            className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          <div className="login-options">
-            <label className="remb">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-4 text-sm gap-2">
+            <label className="inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
               <input
                 type="checkbox"
+                className="w-4 h-4 accent-[#2f8f5b]"
                 checked={remember}
                 onChange={(e) => setRemember(e.target.checked)}
               />
               Remember Password
             </label>
 
-            <span className="forgot">Forget Password?</span>
+            <span className="cursor-pointer hover:underline text-[#333]">
+              Forget Password?
+            </span>
           </div>
 
-          {/* ✅ Dummy Submit Button */}
-          <button className="login-btn" onClick={handleSubmit}>
+          {/* Login Button */}
+          <button
+            className="w-full md:w-auto mt-5 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-7 rounded text-base transition-colors"
+            onClick={handleSubmit}
+          >
             Login →
           </button>
 
-          <p className="register-text">
-            Don't have an account <span
+          <p className="mt-4 text-[15px] text-gray-700">
+            Don't have an account{" "}
+            <span
+              className="font-bold cursor-pointer hover:underline"
               onClick={() => {
-                closeModal
+                closeModal(); // Fixed: Added parentheses
                 openModal("register");
-              }}>Register?</span>
+              }}
+            >
+              Register?
+            </span>
           </p>
         </div>
       </div>
 
-      {/* USER DESCRIPTION SECTION */}
-      <div className="user-description">
-        <h3>Vendor Doctor</h3>
+      {/* DESCRIPTION SECTION */}
+      <div className="max-w-[1100px] mx-auto mt-10 px-4 md:px-0 pb-10">
+        <h3 className="text-lg sm:text-xl md:text-[28px] font-bold mb-5">
+          Vendor Doctor
+        </h3>
 
-        <div className="desc-item">
-          <span className="check-icon">✔</span>
+        <div className="flex gap-3 text-sm md:text-base leading-relaxed text-[#333]">
+          <span className="text-[#2f8f5b] font-bold text-lg leading-none mt-1">✔</span>
           <p>
             Lorem ipsum dolor sit amet consectetur adipisicing elit. Molestias
             eius, quas ipsa quam maiores nobis eveniet quasi repellat aliquid
@@ -103,7 +118,6 @@ function LoginAsDoctorAppointment() {
           </p>
         </div>
       </div>
-
     </div>
   );
 }

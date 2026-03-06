@@ -31,7 +31,7 @@ function RegisterAsHospital() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // ================= FETCH COUNTRIES =================
+  // ================= FETCH LOGIC =================
   useEffect(() => {
     const fetchCountries = async () => {
       try {
@@ -44,7 +44,6 @@ function RegisterAsHospital() {
     fetchCountries();
   }, []);
 
-  // ================= FETCH STATES =================
   const fetchStates = async (countryId) => {
     try {
       const data = await getStatesByCountry(countryId);
@@ -55,7 +54,6 @@ function RegisterAsHospital() {
     }
   };
 
-  // ================= FETCH CITIES =================
   const fetchCities = async (stateId) => {
     try {
       const data = await getCitiesByState(stateId);
@@ -65,10 +63,9 @@ function RegisterAsHospital() {
     }
   };
 
-  // ================= HANDLE CHANGE =================
+  // ================= HANDLERS =================
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -84,38 +81,16 @@ function RegisterAsHospital() {
     }
   };
 
-  // ================= VALIDATION =================
   const validateForm = () => {
-    if (
-      !formData.type ||
-      !formData.name ||
-      !formData.email ||
-      !formData.phone ||
-      !formData.country ||
-      // !formData.state ||
-      // !formData.city ||
-      !formData.password ||
-      !formData.confirmPassword
-    ) {
+    if (!formData.type || !formData.name || !formData.email || !formData.phone || !formData.country || !formData.password || !formData.confirmPassword) {
       return "All fields are required.";
     }
-
-    if (formData.password.length < 6) {
-      return "Password must be at least 6 characters.";
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      return "Passwords do not match.";
-    }
-
-    if (!formData.termsAccepted) {
-      return "You must accept terms & conditions.";
-    }
-
+    if (formData.password.length < 6) return "Password must be at least 6 characters.";
+    if (formData.password !== formData.confirmPassword) return "Passwords do not match.";
+    if (!formData.termsAccepted) return "You must accept terms & conditions.";
     return null;
   };
 
-  // ================= SUBMIT =================
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -128,15 +103,9 @@ function RegisterAsHospital() {
     }
 
     try {
-      const selectedCountry = countries.find(
-        (c) => c.id == formData.country
-      );
-      const selectedState = states.find(
-        (s) => s.id == formData.state
-      );
-      const selectedCity = cities.find(
-        (c) => c.id == formData.city
-      );
+      const selectedCountry = countries.find((c) => c.id == formData.country);
+      const selectedState = states.find((s) => s.id == formData.state);
+      const selectedCity = cities.find((c) => c.id == formData.city);
 
       const finalData = {
         ...formData,
@@ -145,60 +114,59 @@ function RegisterAsHospital() {
         city: selectedCity?.name || "",
       };
 
-      // Remove confirmPassword from final data before sending to API
       delete finalData.confirmPassword;
-
-      console.log(finalData)
       await registerAsHospital(finalData);
 
-      setSuccess(
-        "Hospital Registered Successfully! Please complete your documentation."
-      );
-
-      router.push("/hospital/documents");
+      setSuccess("Hospital Registered Successfully! Redirecting...");
+      setTimeout(() => {
+        closeModal();
+        router.push("/hospital/documents");
+      }, 1500);
     } catch (err) {
-      setError(err?.message || err);
+      setError(err?.message || "Registration failed.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-white py-12 px-4">
-      <div className="max-w-6xl mx-auto flex flex-col lg:flex-row items-center gap-12">
+    <div className="w-full bg-white">
+      {/* TOP REGISTER BOX */}
+      <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
 
-        {/* LEFT IMAGE */}
-        <div className="w-full lg:w-1/2 transition-transform duration-500 hover:scale-105">
+        {/* LEFT IMAGE - Hidden on mobile, visible from md up */}
+        <div className="hidden md:block flex-shrink-0">
           <img
             src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602393service.png"
-            alt="Register"
-            className="w-full rounded-xl shadow-2xl"
+            alt="Hospital Register"
+            className="w-[280px] lg:w-[350px] max-w-full rounded-xl"
           />
         </div>
 
         {/* RIGHT FORM */}
-        <div className="w-full lg:w-1/2">
-          <h1 className="text-3xl md:text-4xl font-bold mb-6 text-gray-800">
+        <div className="flex-1 w-full md:ml-8 lg:ml-15 text-center md:text-left">
+          <h2 className="text-xl sm:text-2xl md:text-[32px] font-bold mb-5 leading-tight">
             Get Started
-          </h1>
+          </h2>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-300 text-red-600">
-              {error}
-            </div>
-          )}
-
+          {/* Success Message */}
           {success && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-300 text-green-700">
+            <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-4 text-sm font-medium animate-in fade-in duration-300">
               {success}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Error Message */}
+          {error && (
+            <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-4 text-sm font-medium animate-in fade-in duration-300">
+              {error}
+            </div>
+          )}
 
+          <form onSubmit={handleSubmit} className="w-full">
             <select
               name="type"
               value={formData.type}
               onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] bg-white"
             >
               <option value="">Register As</option>
               <option value="Govt">Government Hospital</option>
@@ -208,173 +176,137 @@ function RegisterAsHospital() {
 
             <input
               type="text"
-              placeholder="Hospital name"
               name="name"
+              placeholder="Hospital Name"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
               value={formData.name}
               onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
             <input
               type="email"
-              placeholder="Hospital email"
               name="email"
+              placeholder="Hospital Email"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
               value={formData.email}
               onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
             <input
               type="text"
-              placeholder="Hospital phone number"
               name="phone"
+              placeholder="Hospital Phone Number"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
               value={formData.phone}
               onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
-
-            <p className="text-sm text-gray-500 -mt-2">
+            <p className="text-[13px] text-gray-500 mb-3 text-left">
               We'll never share your phone with anyone else.
             </p>
 
-            {/* LOCATION ROW - Same as UserRegister */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <select
-                name="country"
-                value={formData.country}
-                onChange={handleChange}
-                className="border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
-              >
-                <option value="">Country</option>
-                {countries.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+            {/* LOCATION FIELDS - One per line as requested */}
+            <select
+              name="country"
+              value={formData.country}
+              onChange={handleChange}
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] bg-white"
+            >
+              <option value="">Country</option>
+              {countries.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
 
-              <select
-                name="state"
-                value={formData.state}
-                onChange={handleChange}
-                disabled={!formData.country}
-                className="border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A] disabled:bg-gray-100"
-              >
-                <option value="">State</option>
-                {states.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+            <select
+              name="state"
+              value={formData.state}
+              onChange={handleChange}
+              disabled={!formData.country}
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] disabled:bg-gray-100 bg-white"
+            >
+              <option value="">State</option>
+              {states.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
 
-              <select
-                name="city"
-                value={formData.city}
-                onChange={handleChange}
-                disabled={!formData.state}
-                className="border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A] disabled:bg-gray-100"
-              >
-                <option value="">City</option>
-                {cities.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              name="city"
+              value={formData.city}
+              onChange={handleChange}
+              disabled={!formData.state}
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] disabled:bg-gray-100 bg-white"
+            >
+              <option value="">City</option>
+              {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
 
             <input
               type="password"
-              placeholder="Enter your password"
               name="password"
+              placeholder="Enter your password"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
               value={formData.password}
               onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
             <input
               type="password"
-              placeholder="Confirm your password"
               name="confirmPassword"
+              placeholder="Confirm your password"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
               value={formData.confirmPassword}
               onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
-            {/* Password Match Indicator */}
-            {formData.password && formData.confirmPassword && (
-              <div className="text-sm">
-                {formData.password === formData.confirmPassword ? (
-                  <p className="text-green-600 flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    Passwords match
-                  </p>
-                ) : (
-                  <p className="text-red-600 flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    Passwords do not match
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Terms */}
-            <div className="flex items-center gap-2">
+            {/* TERMS */}
+            <div className="flex items-center gap-1.5 mt-4 text-sm">
               <input
                 type="checkbox"
                 name="termsAccepted"
+                className="w-4 h-4 accent-[#2f8f5b] cursor-pointer"
                 checked={formData.termsAccepted}
                 onChange={handleChange}
-                className="accent-[#08B36A]"
               />
-              <span className="text-sm text-gray-600">
+              <label className="text-gray-600 cursor-pointer">
                 Allow All Terms & Conditions on this site
-              </span>
+              </label>
             </div>
 
-            {/* Button */}
+            {/* BUTTON */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full md:w-auto px-8 py-3 bg-[#08B36A] text-white font-semibold shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 hover:bg-green-700 disabled:opacity-70"
+              className="w-full md:w-auto mt-5 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-8 rounded text-base transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               {loading ? "Registering..." : "Register →"}
             </button>
-
-            <p className="text-sm text-gray-600 mt-6">
-              Already have an account?{" "}
-              <span
-                onClick={() => {
-                  closeModal();
-                  openModal("login");
-                }}
-                className="text-[#08B36A] cursor-pointer font-medium hover:underline"
-              >
-                Login
-              </span>
-            </p>
-
           </form>
-        </div>
-      </div>
 
-      {/* Bottom Section */}
-      <div className="mt-16 max-w-5xl mx-auto">
-        <div>
-          <h2 className="text-2xl md:text-3xl font-semibold mb-4 text-gray-800">
-            Hospital
-          </h2>
-          <p className="text-base md:text-lg leading-8 text-gray-600 max-w-3xl">
-            Join our platform and manage appointments, doctors, and patients efficiently.
+          <p className="mt-4 text-[15px] text-gray-700">
+            Already have an account?{" "}
+            <span
+              onClick={() => {
+                closeModal();
+                openModal("login");
+              }}
+              className="font-bold cursor-pointer hover:underline text-[#2f8f5b]"
+            >
+              Login
+            </span>
           </p>
         </div>
       </div>
 
+      {/* FOOTER DESCRIPTION SECTION */}
+      <div className="max-w-[1100px] mx-auto mt-10 px-4 md:px-0 pb-10">
+        <h3 className="text-lg sm:text-xl md:text-[28px] font-bold mb-5">
+          Hospital
+        </h3>
+        <div className="flex gap-3 text-sm md:text-base leading-relaxed text-[#333]">
+          <span className="text-[#2f8f5b] font-bold mt-1">✔</span>
+          <p>
+            Join our platform and manage appointments, doctors, and patients efficiently.
+            Registration is the first step towards digitalizing your healthcare facility.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

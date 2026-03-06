@@ -31,23 +31,11 @@ function RegisterAsServiceProvider() {
   };
 
   const validateForm = () => {
-    if (
-      !formData.name ||
-      !formData.phone ||
-      !formData.location ||
-      !formData.password
-    ) {
+    if (!formData.name || !formData.phone || !formData.location || !formData.password || !formData.category || !formData.gender) {
       return "All fields are required.";
     }
-
-    if (formData.password.length < 6) {
-      return "Password must be at least 6 characters.";
-    }
-
-    if (!formData.termsAccepted) {
-      return "You must accept terms & conditions.";
-    }
-
+    if (formData.password.length < 6) return "Password must be at least 6 characters.";
+    if (!formData.termsAccepted) return "You must accept terms & conditions.";
     return null;
   };
 
@@ -64,66 +52,59 @@ function RegisterAsServiceProvider() {
 
     try {
       await registerAsServiceProvider(formData);
-
       setSuccess("Service Provider Registered Successfully!");
-
-      setFormData({
-        name: "",
-        gender: "",
-        category: "",
-        phone: "",
-        location: "",
-        password: "",
-        termsAccepted: false,
-      });
-
-      router.push("/");
+      setTimeout(() => {
+        closeModal();
+        router.push("/");
+      }, 1500);
     } catch (err) {
-      setError(err?.message || err);
+      setError(err?.message || "Registration failed.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-white py-12 px-4">
-      <div className="max-w-6xl mx-auto flex flex-col lg:flex-row items-center gap-10">
-
-        {/* LEFT IMAGE */}
-        <div className="w-full lg:w-1/2 transition-transform duration-500 hover:scale-105">
+    <div className="w-full bg-white">
+      {/* TOP REGISTER BOX */}
+      <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
+        
+        {/* LEFT IMAGE - Hidden on mobile, visible from md up */}
+        <div className="hidden md:block flex-shrink-0">
           <img
             src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602393service.png"
             alt="Service Illustration"
-            className="w-full rounded-xl shadow-2xl"
+            className="w-[280px] lg:w-[350px] max-w-full rounded-xl"
           />
         </div>
 
         {/* RIGHT FORM */}
-        <div className="w-full lg:w-1/2">
-          <h1 className="text-3xl md:text-4xl font-bold mb-6 text-gray-800">
+        <div className="flex-1 w-full md:ml-8 lg:ml-15 text-center md:text-left">
+          <h2 className="text-xl sm:text-2xl md:text-[32px] font-bold mb-5 leading-tight">
             Get Started
-          </h1>
+          </h2>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-300 text-red-600">
-              {error}
-            </div>
-          )}
-
+          {/* Success Message */}
           {success && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-300 text-green-700">
+            <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-4 text-sm font-medium animate-in fade-in duration-300">
               {success}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Error Message */}
+          {error && (
+            <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-4 text-sm font-medium animate-in fade-in duration-300">
+              {error}
+            </div>
+          )}
 
+          <form onSubmit={handleSubmit} className="w-full">
             {/* NAME */}
             <input
               type="text"
-              placeholder="Enter your name"
               name="name"
+              placeholder="Enter your name"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
               value={formData.name}
               onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A] focus:border-[#08B36A]"
             />
 
             {/* GENDER */}
@@ -131,7 +112,7 @@ function RegisterAsServiceProvider() {
               name="gender"
               value={formData.gender}
               onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] bg-white"
             >
               <option value="">Select Gender</option>
               <option value="Male">Male</option>
@@ -140,67 +121,61 @@ function RegisterAsServiceProvider() {
             </select>
 
             {/* CATEGORY */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Select Category
-              </label>
-              <select
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-                className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
-              >
-                <option value="">Select</option>
-                <option value="Nursing">Nursing</option>
-                <option value="Pharmacy">Pharmacy</option>
-                <option value="Lab">Phlebotomist / Lab</option>
-              </select>
-            </div>
+            <select
+              name="category"
+              value={formData.category}
+              onChange={handleChange}
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] bg-white"
+            >
+              <option value="">Select Category</option>
+              <option value="Nursing">Nursing</option>
+              <option value="Pharmacy">Pharmacy</option>
+              <option value="Lab">Phlebotomist / Lab</option>
+            </select>
 
             {/* PHONE */}
             <input
               type="text"
-              placeholder="Enter your phone number"
               name="phone"
+              placeholder="Enter your phone number"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
               value={formData.phone}
               onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
-
-            <p className="text-sm text-gray-500">
+            <p className="text-[13px] text-gray-500 mb-3 text-left">
               We'll never share your phone with anyone else.
             </p>
 
             {/* LOCATION */}
             <input
               type="text"
-              placeholder="Enter your location"
               name="location"
+              placeholder="Enter your location"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
               value={formData.location}
               onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
             {/* PASSWORD */}
             <input
               type="password"
-              placeholder="Enter your password"
               name="password"
+              placeholder="Enter your password"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
               value={formData.password}
               onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
             {/* TERMS */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 mt-4 text-sm">
               <input
                 type="checkbox"
                 name="termsAccepted"
+                className="w-4 h-4 accent-[#2f8f5b] cursor-pointer"
                 checked={formData.termsAccepted}
                 onChange={handleChange}
-                className="accent-[#08B36A]"
               />
-              <label className="text-sm text-gray-600">
+              <label className="text-gray-600 cursor-pointer">
                 Allow All Terms & Conditions on this site
               </label>
             </div>
@@ -209,55 +184,46 @@ function RegisterAsServiceProvider() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full md:w-auto px-8 py-3 bg-[#08B36A] text-white font-semibold shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 hover:bg-green-700 disabled:opacity-70"
+              className="w-full md:w-auto mt-5 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-8 rounded text-base transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               {loading ? "Registering..." : "Register →"}
             </button>
-
-            <p className="text-sm text-gray-600 mt-4">
-              Already have an account?{" "}
-              <span
-                onClick={() => {
-                  closeModal();
-                  openModal("login");
-                }}
-                className="text-[#08B36A] cursor-pointer font-medium hover:underline"
-              >
-                Login
-              </span>
-            </p>
           </form>
+
+          <p className="mt-4 text-[15px] text-gray-700">
+            Already have an account?{" "}
+            <span
+              onClick={() => {
+                closeModal();
+                openModal("login");
+              }}
+              className="font-bold cursor-pointer hover:underline text-[#2f8f5b]"
+            >
+              Login
+            </span>
+          </p>
         </div>
       </div>
 
-      {/* BOTTOM INFO SECTION */}
-      <div className="max-w-6xl mx-auto mt-16 gap-8">
-        <div className="p-6 ">
-          <h2 className="text-xl font-semibold text-gray-800 mb-3">
-            Nursing
-          </h2>
-          <p className="text-gray-600 text-sm">
-            Provide professional home care services including elderly care,
-            post-surgery assistance and patient monitoring.
-          </p>
-        </div>
-
-        <div className="p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-3">
-            Pharmacy
-          </h2>
-          <p className="text-gray-600 text-sm">
-            Register your pharmacy to deliver medicines quickly and safely.
-          </p>
-        </div>
-
-        <div className="p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-3">
-            Lab / Phlebotomist
-          </h2>
-          <p className="text-gray-600 text-sm">
-            Offer home sample collection and diagnostic services.
-          </p>
+      {/* FOOTER DESCRIPTION SECTION */}
+      <div className="max-w-[1100px] mx-auto mt-10 px-4 md:px-0 pb-10">
+        <h3 className="text-lg sm:text-xl md:text-[28px] font-bold mb-5">
+          Service Provider
+        </h3>
+        
+        <div className="space-y-4">
+          <div className="flex gap-3 text-sm md:text-base leading-relaxed text-[#333]">
+            <span className="text-[#2f8f5b] font-bold mt-1">✔</span>
+            <p><strong>Nursing:</strong> Provide professional home care services including elderly care and post-surgery assistance.</p>
+          </div>
+          <div className="flex gap-3 text-sm md:text-base leading-relaxed text-[#333]">
+            <span className="text-[#2f8f5b] font-bold mt-1">✔</span>
+            <p><strong>Pharmacy:</strong> Register your pharmacy to deliver medicines quickly and safely to patients.</p>
+          </div>
+          <div className="flex gap-3 text-sm md:text-base leading-relaxed text-[#333]">
+            <span className="text-[#2f8f5b] font-bold mt-1">✔</span>
+            <p><strong>Lab / Phlebotomist:</strong> Offer home sample collection and diagnostic services at patient doorsteps.</p>
+          </div>
         </div>
       </div>
     </div>

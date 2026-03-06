@@ -7,25 +7,10 @@ import { useUserContext } from "@/app/context/UserContext";
 function RegisterAsDoctorAppointment() {
   const { registerAsDoctorAppointment, loading } = useAuth();
   const { closeModal, openModal } = useGlobalContext();
-  const { getDoctorSpecializations, getDoctorQualifications } =
-    useUserContext();
+  const { getDoctorSpecializations, getDoctorQualifications } = useUserContext();
 
   const [qualifications, setQualifications] = useState([]);
   const [specialists, setSpecialists] = useState([]);
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const quals = await getDoctorQualifications();
-        const specs = await getDoctorSpecializations();
-        setQualifications(quals || []);
-        setSpecialists(specs || []);
-      } catch (error) {
-        console.error("Failed to load doctor metadata", error);
-      }
-    };
-    loadData();
-  }, []);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -43,6 +28,20 @@ function RegisterAsDoctorAppointment() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const quals = await getDoctorQualifications();
+        const specs = await getDoctorSpecializations();
+        setQualifications(quals || []);
+        setSpecialists(specs || []);
+      } catch (error) {
+        console.error("Failed to load doctor metadata", error);
+      }
+    };
+    loadData();
+  }, []);
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -51,213 +50,207 @@ function RegisterAsDoctorAppointment() {
     }));
   };
 
-  const validateForm = () => {
-    if (
-      !formData.name ||
-      !formData.email ||
-      !formData.phone ||
-      !formData.address ||
-      !formData.qualification ||
-      !formData.speciality ||
-      !formData.licenseNumber ||
-      !formData.councilNumber ||
-      !formData.password
-    ) {
-      return "All fields are required.";
-    }
-
-    if (formData.password.length < 6) {
-      return "Password must be at least 6 characters.";
-    }
-
-    if (!formData.termsAccepted) {
-      return "You must accept terms & conditions.";
-    }
-
-    return null;
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
 
-    const validationError = validateForm();
-    if (validationError) {
-      setError(validationError);
+    if (!formData.termsAccepted) {
+      setError("You must accept terms & conditions.");
       return;
     }
 
     try {
-      setSuccess(
-        "Doctor registration successful! Please wait for admin approval."
-      );
+      await registerAsDoctorAppointment(formData);
+      setSuccess("Doctor registration successful! Please wait for admin approval.");
+      setTimeout(() => closeModal(), 2000);
     } catch (err) {
-      setError(err?.message || err);
+      setError(err?.message || "Registration failed.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-white py-12 px-4">
-      <div className="max-w-6xl mx-auto flex flex-col lg:flex-row items-center gap-10">
-
-        {/* LEFT IMAGE */}
-        <div className="w-full lg:w-1/2 transition-transform duration-500 hover:scale-105">
+    <div className="w-full bg-white">
+      {/* TOP REGISTER BOX */}
+      <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
+        
+        {/* LEFT IMAGE - Hidden on mobile, visible from md up */}
+        <div className="hidden md:block flex-shrink-0">
           <img
             src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602351user-login.png"
             alt="Doctor Register"
-            className="w-full rounded-xl shadow-2xl"
+            className="w-[280px] lg:w-[350px] max-w-full"
           />
         </div>
 
         {/* RIGHT FORM */}
-        <div className="w-full lg:w-1/2">
-          <h1 className="text-3xl md:text-4xl font-bold mb-6 text-gray-800">
+        <div className="flex-1 w-full md:ml-8 lg:ml-15 text-center md:text-left">
+          <h2 className="text-xl sm:text-2xl md:text-[32px] font-bold mb-5 leading-tight">
             Get Started
-          </h1>
+          </h2>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-300 text-red-600">
-              {error}
-            </div>
-          )}
-
+          {/* Success Message */}
           {success && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-300 text-green-700">
+            <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-4 text-sm font-medium animate-in fade-in duration-300">
               {success}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Error Message */}
+          {error && (
+            <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-4 text-sm font-medium animate-in fade-in duration-300">
+              {error}
+            </div>
+          )}
 
-            {/* INPUT STYLE */}
-            {[
-              { name: "name", type: "text", placeholder: "Enter your name" },
-              { name: "phone", type: "text", placeholder: "Enter your phone number" },
-              { name: "address", type: "text", placeholder: "Enter your Address" },
-              { name: "licenseNumber", type: "text", placeholder: "Enter your License Number" },
-              { name: "councilNumber", type: "text", placeholder: "Enter your Council Number" },
-            ].map((field) => (
-              <input
-                key={field.name}
-                type={field.type}
-                name={field.name}
-                placeholder={field.placeholder}
-                value={formData[field.name]}
-                onChange={handleChange}
-                className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A] focus:border-[#08B36A]"
-              />
-            ))}
+          <form onSubmit={handleSubmit} className="w-full">
+            <input
+              type="text"
+              name="name"
+              placeholder="Enter your name"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
+              value={formData.name}
+              onChange={handleChange}
+            />
 
-            {/* EMAIL + VERIFY */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 mb-3">
               <input
                 type="email"
                 name="email"
                 placeholder="Enter your email"
+                className="flex-1 p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
                 value={formData.email}
                 onChange={handleChange}
-                className="flex-1 border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
               />
               <button
                 type="button"
-                className="px-4 bg-[#08B36A] text-white font-medium hover:bg-green-700 transition"
+                className="px-4 bg-[#2f8f5b] text-white text-sm font-medium rounded hover:bg-[#256f47] transition"
               >
                 Verify
               </button>
             </div>
 
-            <p className="text-sm text-gray-500">
-              We'll never share your phone with anyone else.
+            <input
+              type="text"
+              name="phone"
+              placeholder="Enter your phone number"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
+              value={formData.phone}
+              onChange={handleChange}
+            />
+            <p className="text-[13px] text-gray-500 mb-3 text-left">
+                We'll never share your phone with anyone else.
             </p>
 
-            {/* SELECTS */}
+            <input
+              type="text"
+              name="address"
+              placeholder="Enter your Address"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
+              value={formData.address}
+              onChange={handleChange}
+            />
+
             <select
               name="qualification"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] bg-white"
               value={formData.qualification}
               onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             >
               <option value="">Select qualification</option>
               {qualifications.map((qual) => (
-                <option key={qual._id} value={qual.id}>
-                  {qual.name}
-                </option>
+                <option key={qual._id} value={qual.id}>{qual.name}</option>
               ))}
             </select>
 
             <select
               name="speciality"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] bg-white"
               value={formData.speciality}
               onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             >
               <option value="">Select Specialist</option>
               {specialists.map((spec) => (
-                <option key={spec._id} value={spec.id}>
-                  {spec.name}
-                </option>
+                <option key={spec._id} value={spec.id}>{spec.name}</option>
               ))}
             </select>
 
-            {/* PASSWORD */}
+            <input
+              type="text"
+              name="licenseNumber"
+              placeholder="Enter your License Number"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
+              value={formData.licenseNumber}
+              onChange={handleChange}
+            />
+
+            <input
+              type="text"
+              name="councilNumber"
+              placeholder="Enter your Council Number"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
+              value={formData.councilNumber}
+              onChange={handleChange}
+            />
+
             <input
               type="password"
               name="password"
               placeholder="Enter your password"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
               value={formData.password}
               onChange={handleChange}
-              className="w-full border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#08B36A]"
             />
 
-            {/* CHECKBOX */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 mt-4 text-sm">
               <input
                 type="checkbox"
                 name="termsAccepted"
+                className="w-4 h-4 accent-[#2f8f5b] cursor-pointer"
                 checked={formData.termsAccepted}
                 onChange={handleChange}
-                className="accent-[#08B36A]"
               />
-              <label className="text-sm text-gray-600">
+              <label className="text-gray-600 cursor-pointer">
                 Allow All Terms & Conditions on this site
               </label>
             </div>
 
-            {/* BUTTON */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full md:w-auto px-8 py-3 bg-[#08B36A] text-white font-semibold shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 hover:bg-green-700 disabled:opacity-70"
+              className="w-full md:w-auto mt-5 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-7 rounded text-base transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               {loading ? "Registering..." : "Register →"}
             </button>
-
-            <p className="text-sm text-gray-600 mt-4">
-              Already have an account?{" "}
-              <span
-                onClick={() => {
-                  closeModal();
-                  openModal("login");
-                }}
-                className="text-[#08B36A] cursor-pointer font-medium hover:underline"
-              >
-                Login
-              </span>
-            </p>
           </form>
+
+          <p className="mt-4 text-[15px] text-gray-700">
+            Already have an account?{" "}
+            <span
+              onClick={() => {
+                closeModal();
+                openModal("login");
+              }}
+              className="font-bold cursor-pointer hover:underline text-[#2f8f5b]"
+            >
+              Login
+            </span>
+          </p>
         </div>
       </div>
 
-      {/* BOTTOM INFO SECTION */}
-      <div className="max-w-5xl mx-auto mt-16 text-center">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">
+      {/* FOOTER SECTION */}
+      <div className="max-w-[1100px] mx-auto mt-10 px-4 md:px-0 pb-10">
+        <h3 className="text-lg sm:text-xl md:text-[28px] font-bold mb-5">
           Vendor Doctor
-        </h2>
-        <p className="text-gray-600">
-          ✓ Join our platform as a certified medical professional and start
-          managing your appointments, patients and availability easily.
-        </p>
+        </h3>
+        <div className="flex gap-2 text-sm md:text-base leading-relaxed text-[#333]">
+          <span className="text-[#2f8f5b] font-bold">✔</span>
+          <p>
+            Join our platform as a certified medical professional and start managing 
+            your appointments, patients and availability easily.
+          </p>
+        </div>
       </div>
     </div>
   );
