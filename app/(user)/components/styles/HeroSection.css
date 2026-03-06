@@ -38,7 +38,7 @@
 
 /* Cards Section */
 .hero-cards {
-    z-index: 1000;
+    z-index: 10;
     position: absolute;
     bottom: -36px;
     width: 100%;

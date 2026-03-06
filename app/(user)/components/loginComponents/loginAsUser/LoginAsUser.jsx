@@ -52,7 +52,7 @@ function LoginAsUser() {
     <div className="w-full bg-white">
       {/* TOP LOGIN BOX */}
       <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
-        
+
         {/* LEFT IMAGE - Hidden on mobile, visible from md (768px) up */}
         <div className="hidden md:block flex-shrink-0">
           <img
@@ -112,7 +112,7 @@ function LoginAsUser() {
               Remember Password
             </label>
 
-            <span 
+            <span
               className="cursor-pointer hover:underline text-[#333]"
               onClick={() => openModal("forgotPassword")}
             >
@@ -149,8 +149,8 @@ function LoginAsUser() {
           User
         </h3>
         <p className="text-sm md:text-base leading-relaxed text-[#333]">
-          Lorem ipsum dolor sit amet consectetur adipisicing elit. Dolore maiores, 
-          in aliquam cum nulla laudantium voluptatum maxime numquam ipsum molestias 
+          Lorem ipsum dolor sit amet consectetur adipisicing elit. Dolore maiores,
+          in aliquam cum nulla laudantium voluptatum maxime numquam ipsum molestias
           porro totam. Eius ducimus harum, sint perspiciatis vel delectus quam.
         </p>
       </div>

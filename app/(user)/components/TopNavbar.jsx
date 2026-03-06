@@ -45,11 +45,10 @@ export default function TopNavbar() {
   }, [profileOpen]);
 
   const menuItems = [
-    { icon: <FaUserCircle />, label: "My Account", link: "/" },
-    { icon: <FaAddressBook />, label: "Address Book", link: "/" },
-    { icon: <FaHistory />, label: "My Orders", link: "/" },
-    { icon: <FaHospital />, label: "Hospital Appointment", link: "/" },
-    { icon: <FaAmbulance />, label: "Ambulance Booking", link: "/" },
+    { icon: <FaUserCircle />, label: "My Account", link: "/userscreens/myaccount" },
+    { icon: <FaHistory />, label: "My Orders", link: "/userscreens/previousorders" },
+    { icon: <FaHospital />, label: "Hospital Appointment", link: "/userscreens/hospitalappointment" },
+    { icon: <FaAmbulance />, label: "Ambulance Booking", link: "/userscreens/ambulanceappointment" },
     { icon: <FaFilePrescription />, label: "My Prescriptions", link: "/" },
     { icon: <FaWallet />, label: "Wallet", link: "/" },
   ];
@@ -100,7 +99,7 @@ export default function TopNavbar() {
               </div>
             )}
 
-            <Link href="/offers" className="tnav-link-iconic hide-mobile">
+            <Link href="/userscreens/offers" className="tnav-link-iconic hide-mobile">
               <FaTag />
               <span className="link-text">Offers</span>
             </Link>
