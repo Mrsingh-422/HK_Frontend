@@ -1,8 +1,10 @@
+import { useRouter } from "next/navigation";
 import React, { useState, useEffect } from "react";
 import { FaCheckCircle, FaArrowRight } from "react-icons/fa";
 
 function RecomendedMedicines() {
   const [currentImg, setCurrentImg] = useState(0);
+  const router = useRouter()
 
   const carouselImages = [
     "./buymed/recmed1.png",
@@ -21,19 +23,18 @@ function RecomendedMedicines() {
     <section className="py-12 md:py-24 bg-white overflow-hidden font-sans">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
-          
+
           {/* LEFT SECTION: IMAGE CAROUSEL */}
           <div className="relative group">
             {/* Decorative background accent */}
             <div className="absolute -inset-4 bg-slate-50 rounded-[2.5rem] -rotate-2 hidden lg:block"></div>
-            
+
             <div className="relative h-[300px] sm:h-[450px] md:h-[550px] w-full rounded-3xl overflow-hidden shadow-2xl border-4 border-white bg-slate-100">
               {carouselImages.map((img, index) => (
                 <div
                   key={index}
-                  className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-                    index === currentImg ? "opacity-100 z-10 scale-100" : "opacity-0 z-0 scale-105"
-                  }`}
+                  className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImg ? "opacity-100 z-10 scale-100" : "opacity-0 z-0 scale-105"
+                    }`}
                 >
                   <img
                     src={img}
@@ -50,9 +51,8 @@ function RecomendedMedicines() {
                   <button
                     key={idx}
                     onClick={() => setCurrentImg(idx)}
-                    className={`h-1.5 transition-all duration-300 rounded-full ${
-                      idx === currentImg ? "w-10 bg-white" : "w-3 bg-white/50"
-                    }`}
+                    className={`h-1.5 transition-all duration-300 rounded-full ${idx === currentImg ? "w-10 bg-white" : "w-3 bg-white/50"
+                      }`}
                   />
                 ))}
               </div>
@@ -72,8 +72,8 @@ function RecomendedMedicines() {
             </div>
 
             <p className="text-slate-600 text-base md:text-xl leading-relaxed max-w-xl">
-              Lorem ipsum dolor sit, amet consectetur adipisicing elit. Explicabo 
-              expedita dolore esse ipsam nobis debitis hic. Quality medication trusted 
+              Lorem ipsum dolor sit, amet consectetur adipisicing elit. Explicabo
+              expedita dolore esse ipsam nobis debitis hic. Quality medication trusted
               by leading medical professionals.
             </p>
 
@@ -83,7 +83,9 @@ function RecomendedMedicines() {
             </div>
 
             <div className="pt-6">
-              <button className="group relative border-2 border-[#08B36A] text-[#08B36A] font-black px-10 py-4 rounded-xl hover:bg-[#08B36A] hover:text-white transition-all duration-300 active:scale-95 flex items-center justify-center gap-3 uppercase tracking-widest text-sm shadow-lg shadow-[#08B36A]/10">
+              <button
+                onClick={() => router.push("/buymedicine/seeallmed")}
+                className="group relative border-2 border-[#08B36A] text-[#08B36A] font-black px-10 py-4 rounded-xl hover:bg-[#08B36A] hover:text-white transition-all duration-300 active:scale-95 flex items-center justify-center gap-3 uppercase tracking-widest text-sm shadow-lg shadow-[#08B36A]/10">
                 Buy Now
                 <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
               </button>

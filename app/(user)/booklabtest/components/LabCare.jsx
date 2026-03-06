@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { FaFlask, FaMicroscope, FaClock, FaHandHoldingHeart, FaCreditCard, FaShieldAlt, FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import { useRouter } from "next/navigation";
 
 function LabCare() {
     const [currentSlide, setCurrentSlide] = useState(0);
+    const router = useRouter();
 
     const carouselImages = [
         "./labImages/labcareimg1.png",
@@ -63,7 +65,9 @@ function LabCare() {
                         </div>
 
                         <div className="pt-6">
-                            <button className="bg-emerald-600 hover:bg-slate-900 text-white font-black px-12 py-5 rounded-2xl shadow-xl shadow-emerald-100 hover:shadow-slate-300 transition-all active:scale-95 text-lg uppercase tracking-wider">
+                            <button
+                                onClick={() => router.push("/booklabtest/seealltests")}
+                                className="bg-emerald-600 hover:bg-slate-900 text-white font-black px-12 py-5 rounded-2xl shadow-xl shadow-emerald-100 hover:shadow-slate-300 transition-all active:scale-95 text-lg uppercase tracking-wider">
                                 Book a Test Now
                             </button>
                         </div>

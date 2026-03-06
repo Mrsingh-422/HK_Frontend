@@ -1,3 +1,4 @@
+import { useRouter } from "next/navigation";
 import React, { useState, useEffect } from "react";
 import { FaCheckCircle, FaChevronRight } from "react-icons/fa";
 
@@ -9,6 +10,8 @@ function TheBestOfBest() {
         "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?auto=format&fit=crop&w=1000&q=80",
         "https://images.unsplash.com/photo-1576086213369-97a306d36557?auto=format&fit=crop&w=1000&q=80",
     ];
+
+    const router = useRouter()
 
     // Carousel Logic (3 seconds)
     useEffect(() => {
@@ -47,7 +50,9 @@ function TheBestOfBest() {
                         </div>
 
                         <div className="pt-4">
-                            <button className="group relative border-2 border-emerald-500 text-emerald-600 font-bold px-8 py-3 rounded-md hover:bg-emerald-500 hover:text-white transition-all duration-300 active:scale-95 flex items-center gap-2">
+                            <button
+                                onClick={() => router.push("/buymedicine/seeallmed")}
+                                className="group relative border-2 border-emerald-500 text-emerald-600 font-bold px-8 py-3 rounded-md hover:bg-emerald-500 hover:text-white transition-all duration-300 active:scale-95 flex items-center gap-2">
                                 Book Now
                                 <FaChevronRight className="text-sm group-hover:translate-x-1 transition-transform" />
                             </button>

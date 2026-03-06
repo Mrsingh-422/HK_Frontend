@@ -1,47 +1,35 @@
 import React, { useState } from "react";
 import { FaArrowRight, FaArrowLeft } from "react-icons/fa";
-
-const products = [
-    {
-        id: 1,
-        name: "Invokana 100mg Tablet",
-        price: "₹545",
-        image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=400&q=80",
-    },
-    {
-        id: 2,
-        name: "Metformin 500mg ER",
-        price: "₹120",
-        image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?auto=format&fit=crop&w=400&q=80",
-    },
-    {
-        id: 3,
-        name: "Atorvastatin 20mg",
-        price: "₹850",
-        image: "https://images.unsplash.com/photo-1550572017-ed20015948f4?auto=format&fit=crop&w=400&q=80",
-    },
-    {
-        id: 4,
-        name: "Combiflam Plus",
-        price: "₹45",
-        image: "https://images.unsplash.com/photo-1583946099379-f9c9cb8bc030?auto=format&fit=crop&w=400&q=80",
-    },
-    {
-        id: 5,
-        name: "Telma 40mg Tablet",
-        price: "₹210",
-        image: "https://images.unsplash.com/photo-1614944034234-41da077af0d9?auto=format&fit=crop&w=400&q=80",
-    },
-];
+import { INITIAL_MEDICINES } from "@/app/constants/constants";
+import MedicineDetailsModal from "./otherComponents/MedicineDetailsModal";
 
 // Double the list for infinite marquee effect
-const displayProducts = [...products, ...products];
+const displayProducts = [...INITIAL_MEDICINES, ...INITIAL_MEDICINES];
 
 function FeaturedProducts() {
     const [isPaused, setIsPaused] = useState(false);
+    // MODAL STATES
+    const [selectedMedicine, setSelectedMedicine] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const handleBuyClick = (med) => {
+        setSelectedMedicine(med);
+        setIsModalOpen(true);
+    };
+
+    const handleAddToCart = (med) => {
+        // Here you would typically dispatch to Redux or update a Context
+        alert(`${med.name} added to cart!`);
+    };
 
     return (
         <div className="py-12 md:py-12 bg-white overflow-hidden">
+            <MedicineDetailsModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                medicine={selectedMedicine}
+                onAddToCart={handleAddToCart}
+            />
             {/* Header Section */}
             <div className="max-w-7xl mx-auto px-4 text-center mb-10 md:mb-16">
                 <div className="flex items-center justify-center gap-4 mb-2">
@@ -93,12 +81,14 @@ function FeaturedProducts() {
 
                                 {/* Signature Yellow Price Bar */}
                                 <div className="bg-[#fde047] hover:bg-[#facc15] transition-colors py-2.5 sm:py-3 px-6 rounded-lg flex items-center justify-between mb-4 group/price cursor-pointer">
-                                    <span className="text-base sm:text-lg font-black text-slate-900">{prod.price}</span>
+                                    <span className="text-base sm:text-lg font-black text-slate-900">{prod.actualPrice}</span>
                                     <FaArrowRight className="text-slate-900 group-hover/price:translate-x-1 transition-transform" />
                                 </div>
 
                                 {/* Action Button */}
-                                <button className="w-full bg-[#10b981] hover:bg-slate-900 text-white font-bold py-2 sm:py-3 rounded-lg transition-all shadow-md active:scale-95 text-xs sm:text-sm uppercase tracking-wider">
+                                <button
+                                    onClick={() => handleBuyClick(prod)}
+                                    className="w-full bg-[#10b981] hover:bg-slate-900 text-white font-bold py-2 sm:py-3 rounded-lg transition-all shadow-md active:scale-95 text-xs sm:text-sm uppercase tracking-wider">
                                     Order Now
                                 </button>
                             </div>
