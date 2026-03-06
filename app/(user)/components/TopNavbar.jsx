@@ -105,7 +105,7 @@ export default function TopNavbar() {
               <span className="link-text">Offers</span>
             </Link>
 
-            <Link href="/cart" className="tnav-link-iconic">
+            <Link href="/userscreens/usercart" className="tnav-link-iconic">
               <div className="icon-badge-wrapper">
                 <FaShoppingCart />
                 <span className="badge-count">0</span>

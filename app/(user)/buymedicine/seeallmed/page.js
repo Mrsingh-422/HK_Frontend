@@ -112,8 +112,8 @@ export default function AllMedicinesPage() {
                             key={cat}
                             onClick={() => setActiveCategory(cat)}
                             className={`whitespace-nowrap px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat
-                                    ? "bg-[#08B36A] text-white shadow-lg shadow-emerald-100"
-                                    : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                                ? "bg-[#08B36A] text-white shadow-lg shadow-emerald-100"
+                                : "bg-slate-50 text-slate-500 hover:bg-slate-100"
                                 }`}
                         >
                             {cat}
