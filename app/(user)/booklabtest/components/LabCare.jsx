@@ -30,7 +30,7 @@ function LabCare() {
     }, [carouselImages.length]);
 
     return (
-        <section className="bg-white py-16 md:py-24 overflow-hidden">
+        <section className="bg-[#f8fafc] py-16 md:py-24 overflow-hidden">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
 

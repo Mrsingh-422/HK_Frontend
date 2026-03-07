@@ -13,7 +13,7 @@ function BookYourPrescriptionTest() {
     };
 
     return (
-        <div className=" py-3 px-4 sm:px-6 lg:px-8">
+        <div className=" py-3 px-4 bg-[#f8fafc] sm:px-6 lg:px-8">
             <div className="max-w-7xl mx-auto">
                 {/* Main Card Container */}
                 <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/60 overflow-hidden border border-slate-100 flex flex-col lg:flex-row min-h-[500px]">

@@ -21,7 +21,7 @@ function HealthPackages() {
   };
 
   return (
-    <div className="py-14 md:py-20 overflow-hidden">
+    <div className="py-14 md:py-20 bg-[#f8fafc] overflow-hidden">
       <TestDetailsModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

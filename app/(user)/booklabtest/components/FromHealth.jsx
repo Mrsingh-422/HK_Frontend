@@ -2,18 +2,18 @@ import React from "react";
 
 function FromHealth() {
   return (
-    <section className="bg-slate-50 py-12 px-4 overflow-hidden">
+    <section className="bg-[#f8fafc] py-12 px-4 overflow-hidden">
       <div className="max-w-7xl mx-auto">
-        
+
         {/* The Slanted Banner Container */}
         <div className="relative">
-          
+
           {/* Background Slant (White Box) */}
           <div className="absolute inset-0 bg-white shadow-sm md:skew-x-[-10deg] transform origin-center transition-all duration-500"></div>
 
           {/* Content Wrapper (Un-skewed on Desktop) */}
           <div className="relative z-10 md:skew-x-[10deg] flex flex-col lg:flex-row items-center justify-between px-6 py-8 md:px-16 md:py-10 gap-8 lg:gap-4">
-            
+
             {/* Left Content */}
             <div className="flex-1 text-center lg:text-left space-y-2">
               <h2 className="text-2xl md:text-3xl lg:text-4xl font-black italic text-emerald-600 leading-tight">
@@ -29,9 +29,9 @@ function FromHealth() {
             <div className="flex-shrink-0 flex flex-col items-center">
               <div className="w-32 h-32 md:w-40 md:h-40 rounded-full flex items-center justify-center">
                 {/* Replace with your actual Kangaroo Logo */}
-                <img 
-                  src="logo.png" 
-                  alt="Health Kangaroo Logo" 
+                <img
+                  src="logo.png"
+                  alt="Health Kangaroo Logo"
                   className="w-full h-full object-contain"
                 />
               </div>

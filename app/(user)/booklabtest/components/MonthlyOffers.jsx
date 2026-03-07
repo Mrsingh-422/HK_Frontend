@@ -41,7 +41,7 @@ function MonthlyOffers() {
   const [isPaused, setIsPaused] = useState(false);
 
   return (
-    <div className="py-8 md:py-12 overflow-hidden">
+    <div className="py-8 md:py-12 bg-[#f8fafc] overflow-hidden">
       {/* Section Header */}
       <div className="max-w-7xl mx-auto px-4 mb-10 md:mb-16 text-center">
         <h2 className="text-3xl md:text-5xl font-black text-slate-800 tracking-tight">

@@ -258,7 +258,7 @@ function BookYourDiseaseTest() {
   };
 
   return (
-    <div className="min-h-screen py-10 px-4 sm:px-6 lg:px-8 font-sans">
+    <div className="min-h-screen bg-[#f8fafc] py-10 px-4 sm:px-6 lg:px-8 font-sans">
 
       {/* Modal Integration */}
       <TestDetailsModal

@@ -27,7 +27,7 @@ function HowItWorks() {
     ];
 
     return (
-        <section className="py-16 md:py-15 bg-white">
+        <section className="py-16 md:py-15 bg-[#f8fafc]">
             <div className="max-w-7xl mx-auto px-6">
 
                 {/* Section Heading */}

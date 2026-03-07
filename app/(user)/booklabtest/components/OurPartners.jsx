@@ -40,7 +40,7 @@ function OurPartners() {
   const [isPaused, setIsPaused] = useState(false);
 
   return (
-    <div className="py-12 md:py-15 bg-white overflow-hidden">
+    <div className="py-12 md:py-15 bg-[#f8fafc] overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 text-center mb-10 md:mb-16">
         <div className="flex items-center justify-center gap-4 mb-2">
           <svg className="w-5 h-5 text-emerald-500 cursor-pointer" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>

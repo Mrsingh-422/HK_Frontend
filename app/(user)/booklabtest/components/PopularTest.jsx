@@ -19,7 +19,7 @@ function PopularTest() {
   };
 
   return (
-    <div className="py-12 md:py-20 bg-white overflow-hidden">
+    <div className="py-12 md:py-20 bg-[#f8fafc] overflow-hidden">
       <SingleTestDetailModel
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
