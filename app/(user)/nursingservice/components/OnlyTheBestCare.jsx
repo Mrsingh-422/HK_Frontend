@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { FaUserMd, FaHeartbeat, FaStethoscope, FaCheckCircle } from "react-icons/fa";
+import { useRouter } from "next/navigation";
 
 function OnlyTheBestCare() {
   const [currentImg, setCurrentImg] = useState(0);
+  const router = useRouter();
 
   // 1. CONTENT DATA OBJECT (For easy backend handling later)
   const contentData = {
@@ -110,7 +112,9 @@ function OnlyTheBestCare() {
 
             {/* Mobile-Friendly Action Button (Added for better UX) */}
             <div className="pt-4 md:pt-6">
-                <button className="w-full sm:w-auto bg-[#08B36A] hover:bg-slate-900 text-white font-black px-10 py-4 rounded-xl shadow-lg shadow-[#08B36A]/20 transition-all active:scale-95 uppercase tracking-widest text-xs">
+                <button 
+                onClick={() => router.push('/nursingservice/seeallnurses')}
+                className="cursor-pointer w-full sm:w-auto bg-[#08B36A] hover:bg-slate-900 text-white font-black px-10 py-4 rounded-xl shadow-lg shadow-[#08B36A]/20 transition-all active:scale-95 uppercase tracking-widest text-xs">
                     Get Started Now
                 </button>
             </div>

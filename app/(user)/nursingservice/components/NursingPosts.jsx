@@ -1,3 +1,4 @@
+import { useRouter } from "next/navigation";
 import React from "react";
 import { FaUserNurse, FaClipboardList, FaHeartbeat } from "react-icons/fa";
 
@@ -28,7 +29,9 @@ const steps = [
   },
 ];
 
+
 function NursingPosts() {
+  const router = useRouter()
   return (
     <section className="py-8 sm:py-10 lg:py-28 bg-[#f8fafc] font-sans overflow-hidden">
       <div className="max-w-7xl mx-auto px-5 sm:px-10">
@@ -95,7 +98,9 @@ function NursingPosts() {
 
         {/* FOOTER ACTION (Optional but makes it look professional) */}
         <div className="mt-10 md:mt-16 text-center">
-            <button className="bg-[#08B36A] hover:bg-slate-900 text-white font-black px-10 py-4 rounded-2xl shadow-xl shadow-[#08B36A]/20 transition-all active:scale-95 uppercase tracking-widest text-xs md:text-sm">
+            <button 
+            onClick={() => router.push('/nursingservice/seeallnurses')}
+            className="cursor-pointer bg-[#08B36A] hover:bg-slate-900 text-white font-black px-10 py-4 rounded-2xl shadow-xl shadow-[#08B36A]/20 transition-all active:scale-95 uppercase tracking-widest text-xs md:text-sm">
                 Get Started Now
             </button>
         </div>

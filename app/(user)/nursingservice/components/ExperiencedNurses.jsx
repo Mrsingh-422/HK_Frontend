@@ -1,7 +1,9 @@
+import { useRouter } from "next/navigation";
 import React from "react";
 import { FaUserNurse, FaChevronRight } from "react-icons/fa";
 
 function ExperiencedNurses() {
+    const router = useRouter()
     return (
         <section className="py-16 md:py-15 bg-[#f8fafc] relative overflow-hidden font-sans">
             {/* Subtle Background Decoration */}
@@ -39,7 +41,9 @@ function ExperiencedNurses() {
 
                 {/* Action Button */}
                 <div className="mt-10 md:mt-14">
-                    <button className="group bg-[#08B36A] hover:bg-slate-900 text-white font-black px-10 py-4 rounded-xl shadow-xl shadow-[#08B36A]/20 transition-all duration-300 active:scale-95 flex items-center justify-center gap-3 mx-auto uppercase tracking-widest text-sm">
+                    <button
+                        onClick={() => router.push('/nursingservice/seeallnurses')}
+                        className="cursor-pointer group bg-[#08B36A] hover:bg-slate-900 text-white font-black px-10 py-4 rounded-xl shadow-xl shadow-[#08B36A]/20 transition-all duration-300 active:scale-95 flex items-center justify-center gap-3 mx-auto uppercase tracking-widest text-sm">
                         Hire Now
                         <FaChevronRight className="text-xs group-hover:translate-x-1 transition-transform" />
                     </button>
