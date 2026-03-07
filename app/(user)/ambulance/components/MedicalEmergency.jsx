@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { FaChevronRight, FaCheckCircle, FaClock } from "react-icons/fa";
+import { useRouter } from "next/navigation";
 
 function MedicalEmergency() {
   const [currentImg, setCurrentImg] = useState(0);
+  const router = useRouter();
 
   // 1. CONTENT DATA OBJECT (For easy backend handling)
   const medicalEmergencyData = {
@@ -52,7 +54,9 @@ function MedicalEmergency() {
             </div>
 
             <div className="pt-6">
-              <button className="group relative border-2 border-[#08B36A] text-[#08B36A] font-black px-10 py-4 rounded-xl hover:bg-[#08B36A] hover:text-white transition-all duration-300 active:scale-95 flex items-center justify-center gap-3 uppercase tracking-widest text-sm shadow-lg shadow-[#08B36A]/10">
+              <button 
+              onClick={() => router.push('/ambulance/seeallambulances')}
+              className="cursor-pointer group relative border-2 border-[#08B36A] text-[#08B36A] font-black px-10 py-4 rounded-xl hover:bg-[#08B36A] hover:text-white transition-all duration-300 active:scale-95 flex items-center justify-center gap-3 uppercase tracking-widest text-sm shadow-lg shadow-[#08B36A]/10">
                 Book Now
                 <FaChevronRight className="text-xs group-hover:translate-x-1 transition-transform" />
               </button>

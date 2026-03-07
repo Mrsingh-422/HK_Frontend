@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { FaQuoteLeft, FaChevronRight, FaAmbulance, FaClock } from "react-icons/fa";
+import { useRouter } from "next/navigation";
 
 function ReferralAmbulanceServices() {
+  const router = useRouter();
   // 1. DATA OBJECT (Easy for backend integration)
   const referralData = {
     tagline: "Referral Ambulance Services",
@@ -107,7 +109,9 @@ function ReferralAmbulanceServices() {
               </div>
 
               {/* Styled Outline Button matching screenshot */}
-              <button className="w-full sm:w-auto border-2 border-[#08B36A] text-[#08B36A] font-black px-10 py-4 rounded-xl hover:bg-[#08B36A] hover:text-white transition-all duration-300 shadow-lg shadow-[#08B36A]/10 active:scale-95 uppercase tracking-widest text-sm flex items-center justify-center gap-3">
+              <button
+              onClick={() => router.push('/ambulance/seeallambulances')}
+              className="cursor-pointer w-full sm:w-auto border-2 border-[#08B36A] text-[#08B36A] font-black px-10 py-4 rounded-xl hover:bg-[#08B36A] hover:text-white transition-all duration-300 shadow-lg shadow-[#08B36A]/10 active:scale-95 uppercase tracking-widest text-sm flex items-center justify-center gap-3">
                 Book Now
                 <FaChevronRight className="text-xs" />
               </button>
