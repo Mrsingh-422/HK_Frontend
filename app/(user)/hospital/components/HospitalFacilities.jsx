@@ -1,8 +1,10 @@
+import { useRouter } from "next/navigation";
 import React, { useState, useEffect } from "react";
 import { FaArrowLeft, FaArrowRight, FaPlusCircle, FaHandHoldingHeart } from "react-icons/fa";
 
 function HospitalFacilities() {
   const [currentImg, setCurrentImg] = useState(0);
+  const router = useRouter()
 
   // 1. DATA OBJECT
   const facilityData = {
@@ -31,7 +33,7 @@ function HospitalFacilities() {
   }, [facilityData.carouselImages.length]);
 
   return (
-    <section className="py-7 md:py-12 bg-white font-sans overflow-hidden">
+    <section className="py-7 md:py-12 bg-[#f8fafc] font-sans overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Main Layout: Carousel on Left/Top, Content on Right/Bottom */}
@@ -108,7 +110,9 @@ function HospitalFacilities() {
 
             {/* Book Now Button */}
             <div className="pt-2">
-              <button className="bg-[#08B36A] hover:bg-slate-900 text-white font-black px-10 py-4 rounded-xl shadow-lg shadow-[#08B36A]/20 transition-all active:scale-95 uppercase tracking-widest text-xs md:text-sm">
+              <button 
+              onClick={() => router.push("/hospital/seeallhospitals")}
+              className="bg-[#08B36A] hover:bg-slate-900 text-white font-black px-10 py-4 rounded-xl shadow-lg shadow-[#08B36A]/20 transition-all active:scale-95 uppercase tracking-widest text-xs md:text-sm">
                 Book Now
               </button>
             </div>

@@ -1,47 +1,37 @@
 import React, { useState } from "react";
 import { FaArrowLeft, FaArrowRight } from "react-icons/fa";
-
-const hospitalPartners = [
-  {
-    id: 1,
-    name: "Pgi Chandigarh",
-    desc: "Lorem ipsum dolor sit amet consectetur adipisicing elit. Minus hic, nobis mollitia.",
-    image: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=400&q=80",
-  },
-  {
-    id: 2,
-    name: "Radius Hospital",
-    desc: "hello friends, providing advanced brain and heart care services.",
-    image: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&w=400&q=80",
-  },
-  {
-    id: 3,
-    name: "piims",
-    desc: "Lorem ipsum dolor sit amet consectetur adipisicing elit. Minus hic, nobis mollitia.",
-    image: "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=400&q=80",
-  },
-  {
-    id: 4,
-    name: "City Care Center",
-    desc: "Dedicated to providing 24/7 emergency and surgical services.",
-    image: "https://images.unsplash.com/photo-1512678080530-7760d81faba6?auto=format&fit=crop&w=400&q=80",
-  },
-  {
-    id: 5,
-    name: "Silver Oaks",
-    desc: "Multi-speciality healthcare facility with world-class infrastructure.",
-    image: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=400&q=80",
-  },
-];
+import { HOSPITAL_DATA } from "@/app/constants/constants";
+import HospitalDetailsModal from "./otherComponents/HospitalDetailsModal";
 
 // Double the array for a seamless loop
-const displayHospitals = [...hospitalPartners, ...hospitalPartners];
+const displayHospitals = [...HOSPITAL_DATA];
 
 function OurHospitalPartners() {
   const [isPaused, setIsPaused] = useState(false);
 
+  // MODAL STATES
+  const [selectedHospital, setSelectedHospital] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleSelectHospital = (hospital) => {
+    setSelectedHospital(hospital);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setTimeout(() => setSelectedHospital(null), 300);
+  };
+
   return (
-    <div className="py-8 md:py-12 bg-white overflow-hidden font-sans">
+    <div className="py-8 md:py-12 bg-[#f8fafc] overflow-hidden font-sans">
+
+      <HospitalDetailsModal
+        isOpen={isModalOpen}
+        hospital={selectedHospital}
+        onClose={closeModal}
+      />
+
       <div className="max-w-7xl mx-auto px-4 text-center mb-10 md:mb-20">
 
         {/* Tagline Header */}
@@ -77,6 +67,7 @@ function OurHospitalPartners() {
           {displayHospitals.map((hospital, index) => (
             <div
               key={`${hospital.id}-${index}`}
+              onClick={() => handleSelectHospital(hospital)}
               className="w-[200px] sm:w-[260px] md:w-[320px] flex-shrink-0 bg-white border border-slate-100 rounded-xl md:rounded-[2rem] shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden flex flex-col group"
             >
               {/* Hospital Image Area */}
@@ -95,7 +86,7 @@ function OurHospitalPartners() {
                   {hospital.name}
                 </h3>
                 <p className="text-slate-500 text-[10px] md:text-sm leading-relaxed line-clamp-3 md:line-clamp-4">
-                  {hospital.desc}
+                  {hospital.about}
                 </p>
               </div>
             </div>

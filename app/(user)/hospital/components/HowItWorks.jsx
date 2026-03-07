@@ -39,7 +39,7 @@ function HowItWorks() {
     ];
 
     return (
-        <section className="py-10 md:py-16 bg-white font-sans overflow-hidden">
+        <section className="py-10 md:py-16 bg-[#f8fafc] font-sans overflow-hidden">
             <div className="max-w-7xl mx-auto px-6 lg:px-8">
 
                 {/* MAIN HEADER */}
