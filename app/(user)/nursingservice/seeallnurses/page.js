@@ -47,7 +47,7 @@ export default function AllNursesPage() {
   };
 
   return (
-    <div className="min-h-screen font-sans selection:bg-[#08B36A]/10 bg-white">
+    <div className="min-h-screen font-sans selection:bg-[#08B36A]/10 bg-[#f8fafc]">
 
       <NurseDetailsModal
         isOpen={isModalOpen}

@@ -38,7 +38,7 @@ function NursePackages() {
   const [isPaused, setIsPaused] = useState(false);
 
   return (
-    <div className="py-10 md:py-20 bg-white overflow-hidden font-sans">
+    <div className="py-10 md:py-20 bg-[#f8fafc] overflow-hidden font-sans">
       {/* Section Header */}
       <div className="max-w-7xl mx-auto px-4 text-center mb-8 md:mb-16">
         <h2 className="text-2xl md:text-5xl font-black text-slate-800 tracking-tight">

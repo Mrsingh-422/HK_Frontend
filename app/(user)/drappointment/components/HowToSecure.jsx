@@ -30,7 +30,7 @@ const data = [
 
 function HowToSecure() {
     return (
-        <section className="py-12 sm:py-20 lg:py-28 bg-white font-sans">
+        <section className="py-12 sm:py-20 lg:py-28 bg-[#f8fafc] font-sans">
             <div className="max-w-7xl mx-auto px-5 sm:px-10">
 
                 {/* HEADER SECTION */}

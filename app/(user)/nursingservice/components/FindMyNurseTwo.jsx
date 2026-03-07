@@ -51,7 +51,7 @@ function FindMyNurseTwo() {
     };
 
     return (
-        <section className="py-6 md:py-16 px-4 sm:px-6 lg:px-8 font-sans">
+        <section className="py-6 md:py-16 px-4 sm:px-6 lg:px-8 font-sans bg-[#f8fafc]">
             <div className="max-w-6xl mx-auto">
 
                 {/* Main Card Container */}

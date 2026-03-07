@@ -46,7 +46,7 @@ function OurAllSpecialistsTeam() {
     const [isPaused, setIsPaused] = useState(false);
 
     return (
-        <div className="py-12 md:py-15 overflow-hidden font-sans">
+        <div className="py-12 md:py-15 overflow-hidden font-sans bg-[#f8fafc]">
             <div className="max-w-7xl mx-auto px-4 text-center mb-10 md:mb-16">
                 {/* Header with Arrows */}
                 <div className="flex items-center justify-center gap-4 mb-2">

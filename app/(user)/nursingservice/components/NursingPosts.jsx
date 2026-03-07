@@ -30,7 +30,7 @@ const steps = [
 
 function NursingPosts() {
   return (
-    <section className="py-8 sm:py-10 lg:py-28 bg-white font-sans overflow-hidden">
+    <section className="py-8 sm:py-10 lg:py-28 bg-[#f8fafc] font-sans overflow-hidden">
       <div className="max-w-7xl mx-auto px-5 sm:px-10">
         
         {/* HEADER SECTION */}

@@ -42,7 +42,7 @@ function FindMyNurse() {
   const hasMore = processedServices.length > 6;
 
   return (
-    <div className="min-h-screen py-8 md:py-16 px-4 sm:px-6 lg:px-8 font-sans">
+    <div className="min-h-screen py-8 md:py-16 px-4 sm:px-6 lg:px-8 font-sans bg-[#f8fafc]">
       <NurseDetailsModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

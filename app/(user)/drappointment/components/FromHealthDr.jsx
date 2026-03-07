@@ -2,7 +2,7 @@ import React from "react";
 
 function FromHealthDr() {
     return (
-        <section className="bg-slate-50 py-12 px-4 overflow-hidden">
+        <section className="bg-[#f8fafc] py-12 px-4 overflow-hidden">
             <div className="max-w-7xl mx-auto">
 
                 {/* The Slanted Banner Container */}

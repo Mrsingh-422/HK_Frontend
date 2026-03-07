@@ -31,7 +31,7 @@ function OurNursingServices() {
   }, [pageData.carouselImages.length]);
 
   return (
-    <section className="py-8 md:py-16 bg-white font-sans overflow-hidden">
+    <section className="py-8 md:py-16 bg-[#f8fafc] font-sans overflow-hidden">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         
         {/* Main Wrapper Container */}

@@ -38,7 +38,7 @@ function FindMyConsultant() {
     const hasMore = processedConsultants.length > 6;
 
     return (
-        <div className="min-h-screen py-6 md:py-12 px-4 sm:px-6 lg:px-8 font-sans">
+        <div className="min-h-screen py-6 md:py-12 px-4 sm:px-6 lg:px-8 font-sans bg-[#f8fafc]">
             <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
 
                 {/* LEFT SECTION: HERO & SEARCH (Sticky on desktop) */}

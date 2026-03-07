@@ -3,7 +3,7 @@ import { FaUserNurse, FaChevronRight } from "react-icons/fa";
 
 function ExperiencedNurses() {
     return (
-        <section className="py-16 md:py-15 bg-white relative overflow-hidden font-sans">
+        <section className="py-16 md:py-15 bg-[#f8fafc] relative overflow-hidden font-sans">
             {/* Subtle Background Decoration */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-[#08B36A]/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
             <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#08B36A]/5 rounded-full -ml-32 -mb-32 blur-3xl"></div>

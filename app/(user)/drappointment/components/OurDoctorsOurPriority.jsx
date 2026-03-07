@@ -28,7 +28,7 @@ function OurDoctorsOurPriority() {
   }, [carouselImages.length]);
 
   return (
-    <section className="py-16 md:py-15 bg-white overflow-hidden font-sans">
+    <section className="py-16 md:py-15 bg-[#f8fafc] overflow-hidden font-sans">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           

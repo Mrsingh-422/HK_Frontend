@@ -40,7 +40,7 @@ function FindMyDoctor() {
   const hasMore = processedDoctors.length > 6;
 
   return (
-    <div className="min-h-screen py-6 md:py-12 px-4 sm:px-6 lg:px-8 font-sans">
+    <div className="min-h-screen bg-[#f8fafc] py-6 md:py-12 px-4 sm:px-6 lg:px-8 font-sans">
       {/* 3. Add the component once at the bottom of the JSX */}
       <DoctorDetailsModal
         isOpen={isModalOpen}

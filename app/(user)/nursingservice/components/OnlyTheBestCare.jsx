@@ -31,7 +31,7 @@ function OnlyTheBestCare() {
   }, [contentData.carouselImages.length]);
 
   return (
-    <section className="py-10 md:py-20 bg-white font-sans overflow-hidden">
+    <section className="py-10 md:py-20 bg-[#f8fafc] font-sans overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Main Grid: Mobile (1 Col) | Desktop (2 Col) */}

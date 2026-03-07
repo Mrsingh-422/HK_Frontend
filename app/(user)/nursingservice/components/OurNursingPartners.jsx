@@ -41,7 +41,7 @@ function OurNursingPartners() {
     const [isPaused, setIsPaused] = useState(false);
 
     return (
-        <div className="py-12 md:py-15 bg-white overflow-hidden font-sans">
+        <div className="py-12 md:py-15 bg-[#f8fafc] overflow-hidden font-sans">
             <div className="max-w-7xl mx-auto px-4 text-center mb-10 md:mb-20">
 
                 {/* Header with Arrows */}
