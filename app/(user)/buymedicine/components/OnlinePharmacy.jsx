@@ -51,7 +51,7 @@ function OnlinePharmacy() {
   };
 
   return (
-    <div className="min-h-screen py-10 px-4 sm:px-6 lg:px-8 font-sans">
+    <div className="min-h-screen bg-[#f8fafc] py-10 px-4 sm:px-6 lg:px-8 font-sans">
       <MedicineDetailsModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -185,7 +185,7 @@ function OnlinePharmacy() {
               {visibleMedicines.map((med) => (
                 <div key={med.id} className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-slate-50 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 flex flex-col group">
                   {/* Product Image Area */}
-                  <div className="relative h-48 w-full bg-slate-50 rounded-[2rem] overflow-hidden mb-6 p-6 flex items-center justify-center">
+                  <div className="relative h-48 w-full bg-slate-50 rounded-[2rem] overflow-hidden mb-6 p-0 flex items-center justify-center">
                     <img src={med.image} alt={med.name} className="h-full w-full object-contain mix-blend-multiply transition-transform duration-700 group-hover:scale-110" />
                     <div className="absolute top-4 right-4 bg-[#08B36A] text-white p-2 rounded-xl shadow-lg flex items-center gap-1">
                       <FaPercent className="text-[10px]" />

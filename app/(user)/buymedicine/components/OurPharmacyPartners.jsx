@@ -41,7 +41,7 @@ function OurPharmacyPartners() {
   const [isPaused, setIsPaused] = useState(false);
 
   return (
-    <div className="py-12 md:py-20 bg-white overflow-hidden font-sans">
+    <div className="py-12 md:py-20 bg-[#f8fafc] overflow-hidden font-sans">
       {/* Header Section */}
       <div className="max-w-7xl mx-auto px-4 text-center mb-10 md:mb-16">
         <div className="flex items-center justify-center gap-4 mb-2">

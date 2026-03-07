@@ -23,7 +23,7 @@ function FeaturedProducts() {
     };
 
     return (
-        <div className="py-12 md:py-12 bg-white overflow-hidden">
+        <div className="py-12 md:py-12 bg-[#f8fafc] overflow-hidden">
             <MedicineDetailsModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}

@@ -25,7 +25,7 @@ function BestSellings() {
     };
 
     return (
-        <div className="py-12 md:py-10 bg-white overflow-hidden font-sans">
+        <div className="py-12 md:py-10 bg-[#f8fafc] overflow-hidden font-sans">
             <MedicineDetailsModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
