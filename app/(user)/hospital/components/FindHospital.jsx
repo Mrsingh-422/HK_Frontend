@@ -159,7 +159,7 @@ function FindHospital() {
 
                                                     <button
                                                         onClick={() => handleSelectHospital(hospital)}
-                                                        className="bg-[#08B36A] hover:bg-slate-900 text-white font-black px-6 md:px-10 py-2.5 md:py-3.5 rounded-xl transition-all shadow-lg shadow-[#08B36A]/20 active:scale-95 uppercase tracking-widest text-[10px] md:text-xs">
+                                                        className="cursor-pointer bg-[#08B36A] hover:bg-slate-900 text-white font-black px-6 md:px-10 py-2.5 md:py-3.5 rounded-xl transition-all shadow-lg shadow-[#08B36A]/20 active:scale-95 uppercase tracking-widest text-[10px] md:text-xs">
                                                         Book Now
                                                     </button>
                                                 </div>
@@ -173,7 +173,7 @@ function FindHospital() {
                                     <div className="pt-6 text-center">
                                         <button
                                             onClick={() => router.push("/hospital/seeallhospitals")}
-                                            className="inline-flex items-center gap-3 bg-white text-[#08B36A] border-2 border-[#08B36A] font-black px-12 py-4 rounded-2xl hover:bg-[#08B36A] hover:text-white transition-all shadow-lg active:scale-95 group"
+                                            className="cursor-pointer inline-flex items-center gap-3 bg-white text-[#08B36A] border-2 border-[#08B36A] font-black px-12 py-4 rounded-2xl hover:bg-[#08B36A] hover:text-white transition-all shadow-lg active:scale-95 group"
                                         >
                                             See All Hospitals <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
                                         </button>

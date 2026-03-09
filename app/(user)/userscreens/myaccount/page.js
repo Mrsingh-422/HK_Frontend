@@ -10,6 +10,8 @@ import {
     HiOutlineTrash, HiOutlinePencilAlt, HiOutlineLocationMarker, HiX
 } from "react-icons/hi";
 import { MdVerified, MdOutlineAddLocationAlt } from "react-icons/md";
+import ViewMembers from "./components/ViewMembers";
+import EmergencyContacts from "./components/EmergencyContacts";
 
 function MyAccount() {
     // --- 1. PROFILE STATE ---
@@ -251,7 +253,10 @@ function MyAccount() {
                         </div>
                     )}
                 </section>
+                <ViewMembers />
+                <EmergencyContacts />
             </div>
+
 
             {/* --- MOBILE-OPTIMIZED MODAL --- */}
             {isModalOpen && (
