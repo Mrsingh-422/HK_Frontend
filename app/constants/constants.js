@@ -2012,3 +2012,163 @@ export const SINGLE_TESTS = [
     parameters: ["HIV Antibody"]
   }
 ];
+
+export const HOSPITAL_APPOINTMENT = [
+  // 1. STATUS: COMPLETED (Discharged Patient)
+  {
+    id: "APT-99281",
+    bookedDate: "Sep 15, 2023",
+    status: "Completed",
+    patient: {
+      name: "Jane Smith",
+      age: 32,
+      gender: "Female",
+      bloodGroup: "B+",
+      uhid: "UHID-22910",
+      admissionDate: "Sep 10, 2023",
+      dischargeDate: "Sep 15, 2023", // Added for completed
+      roomType: "General Ward (Bed 12)",
+      ward: "Maternity Wing"
+    },
+    assignedDoctor: "Dr. Emily Blunt (OB-GYN)",
+    billing: {
+      totalAmount: 25000,
+      paidAmount: 25000,
+      pendingAmount: 0,
+      currency: "₹",
+      breakdown: [
+        { label: "Delivery Charges", amount: 15000 },
+        { label: "Pharmacy", amount: 3000 },
+        { label: "Lab Tests", amount: 2000 },
+        { label: "Ward Charges (5 Days)", amount: 5000 }
+      ]
+    },
+    hospital: {
+      id: 2,
+      name: "City Care Mother & Child",
+      address: "Sector 62, Mohali",
+      rating: 4.5,
+      image: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80",
+      phone: "+91 8877665544",
+      website: "www.citycarehospital.com",
+      about: "A specialized facility focused on maternal health and pediatric excellence.",
+      services: ["Neonatal ICU", "Labor Room", "Pediatrics", "Vaccination"]
+    }
+  },
+
+  // 2. STATUS: PENDING (Awaiting Hospital Confirmation)
+  {
+    id: "APT-44512",
+    bookedDate: "Nov 10, 2023",
+    status: "Pending",
+    patient: {
+      name: "Michael Brown",
+      age: 58,
+      gender: "Male",
+      bloodGroup: "A-",
+      uhid: "UHID-11002",
+      admissionDate: "Awaiting Confirmation",
+      roomType: "Semi-Private Room",
+      ward: "General Surgery"
+    },
+    assignedDoctor: "Awaiting Doctor Assignment",
+    billing: {
+      totalAmount: 1200, // Just the booking/consultation fee for now
+      paidAmount: 1200,
+      pendingAmount: 0,
+      currency: "₹",
+      breakdown: [
+        { label: "Registration Fee", amount: 200 },
+        { label: "Initial Consultation", amount: 1000 }
+      ]
+    },
+    hospital: {
+      id: 3,
+      name: "Fortis Super Speciality",
+      address: "Phase 8, Mohali",
+      rating: 4.9,
+      image: "https://images.unsplash.com/photo-1512678080530-7760d81faba6?auto=format&fit=crop&w=800&q=80",
+      phone: "+91 172-555-0000",
+      website: "www.fortishealthcare.com",
+      about: "Multi-speciality tertiary care hospital known for clinical excellence.",
+      services: ["Organ Transplant", "Robotic Surgery", "Trauma Center", "24/7 Lab"]
+    }
+  },
+
+  // 3. STATUS: CONFIRMED (Upcoming OPD Appointment)
+  {
+    id: "APT-88273",
+    bookedDate: "Nov 15, 2023",
+    status: "Confirmed",
+    patient: {
+      name: "Robert Wilson",
+      age: 27,
+      gender: "Male",
+      bloodGroup: "AB+",
+      uhid: "UHID-77362",
+      admissionDate: "N/A (OPD Visit)",
+      roomType: "N/A",
+      ward: "Dermatology OPD"
+    },
+    assignedDoctor: "Dr. Alok Verma (Dermatologist)",
+    billing: {
+      totalAmount: 800,
+      paidAmount: 0,
+      pendingAmount: 800,
+      currency: "₹",
+      breakdown: [
+        { label: "OPD Consultation", amount: 800 }
+      ]
+    },
+    hospital: {
+      id: 4,
+      name: "Skin & Laser Center",
+      address: "Sector 35, Chandigarh",
+      rating: 4.3,
+      image: "https://images.unsplash.com/photo-1504813184591-01572f98c85f?auto=format&fit=crop&w=800&q=80",
+      phone: "+91 9123456789",
+      website: "www.skinlasercenter.com",
+      about: "Premier center for skin, hair, and aesthetic treatments.",
+      services: ["Laser Treatment", "Allergy Testing", "Cosmetic Surgery"]
+    }
+  },
+
+  // 4. STATUS: CANCELLED (User Cancelled)
+  {
+    id: "APT-11200",
+    bookedDate: "Oct 05, 2023",
+    status: "Cancelled",
+    patient: {
+      name: "Alice Cooper",
+      age: 12,
+      gender: "Female",
+      bloodGroup: "O-",
+      uhid: "UHID-00912",
+      admissionDate: "Cancelled",
+      roomType: "N/A",
+      ward: "Pediatrics"
+    },
+    assignedDoctor: "Dr. Megha Singh (Pediatrician)",
+    billing: {
+      totalAmount: 500,
+      paidAmount: 500,
+      pendingAmount: 0,
+      currency: "₹",
+      breakdown: [
+        { label: "Booking Fee", amount: 500 }
+      ],
+      refundStatus: "Refund Processed" // Special field for cancelled
+    },
+    hospital: {
+      id: 5,
+      name: "Global Kids Clinic",
+      address: "Zirakpur, Punjab",
+      rating: 4.1,
+      image: "https://images.unsplash.com/photo-1538108197017-c13466739195?auto=format&fit=crop&w=800&q=80",
+      phone: "+91 9000011111",
+      website: "www.globalkids.com",
+      about: "A child-friendly clinic environment specializing in pediatric care and growth monitoring.",
+      services: ["Vaccination", "Nebulization", "Child Psychology"]
+    }
+  }
+]
