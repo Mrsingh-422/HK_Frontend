@@ -51,7 +51,7 @@ export default function TopNavbar() {
     { icon: <FaHospital />, label: "Hospital Appointment", link: "/userscreens/hospitalappointment" },
     { icon: <FaAmbulance />, label: "Ambulance Booking", link: "/userscreens/ambulanceappointment" },
     { icon: <FiMessageCircle />, label: "Chats", link: "/userscreens/mychats" },
-    { icon: <FaFilePrescription />, label: "My Prescriptions", link: "/" },
+    { icon: <FaFilePrescription />, label: "My Prescriptions", link: "/userscreens/myprescriptions" },
     { icon: <FaWallet />, label: "Wallet", link: "/" },
   ];
 
