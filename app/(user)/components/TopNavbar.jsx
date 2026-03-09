@@ -17,8 +17,9 @@ import {
   FaAmbulance,
   FaFilePrescription,
   FaAddressBook,
-  FaTimes
+  FaTimes,
 } from "react-icons/fa";
+import { FiMessageCircle } from "react-icons/fi";
 
 import MainLogin from "./loginComponents/MainLogin";
 import MainRegister from "./registerComponents/MainRegister";
@@ -49,6 +50,7 @@ export default function TopNavbar() {
     { icon: <FaHistory />, label: "My Orders", link: "/userscreens/previousorders" },
     { icon: <FaHospital />, label: "Hospital Appointment", link: "/userscreens/hospitalappointment" },
     { icon: <FaAmbulance />, label: "Ambulance Booking", link: "/userscreens/ambulanceappointment" },
+    { icon: <FiMessageCircle />, label: "Chats", link: "/userscreens/mychats" },
     { icon: <FaFilePrescription />, label: "My Prescriptions", link: "/" },
     { icon: <FaWallet />, label: "Wallet", link: "/" },
   ];
