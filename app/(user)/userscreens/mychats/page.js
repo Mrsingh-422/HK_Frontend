@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from "react";
 // Icons
 import {
   FiSearch, FiSend, FiPaperclip, FiArrowLeft,
-  FiMoreVertical, FiCheckCircle, FiPhone, FiVideo, FiHome, 
+  FiMoreVertical, FiCheckCircle, FiPhone, FiVideo, FiHome,
 } from "react-icons/fi";
 import { MdVerified, MdOutlineMedicalServices } from "react-icons/md";
 
