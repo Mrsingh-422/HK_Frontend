@@ -115,16 +115,6 @@ export default function HospitalLayout({ children }) {
                             )
                         })}
                     </nav>
-
-                    <div className="p-4 border-t border-gray-100">
-                        <button
-                            onClick={logout}
-                            className="flex items-center gap-3 px-4 py-3.5 w-full text-red-500 hover:bg-red-50 rounded-xl transition-all font-medium"
-                        >
-                            <FaSignOutAlt className="text-lg" />
-                            <span>Sign Out</span>
-                        </button>
-                    </div>
                 </div>
             </aside>
 
