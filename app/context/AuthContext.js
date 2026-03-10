@@ -7,38 +7,31 @@ const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [admin, setAdmin] = useState(null);
     const [hospital, setHospital] = useState(null);
     const [hospitalToken, setHospitalToken] = useState(null);
+    const [user, setUser] = useState(null);
+    const [token, setToken] = useState(null);
+    const [admin, setAdmin] = useState(null);
     const [loading, setLoading] = useState(true);
 
-
     useEffect(() => {
-        const token = localStorage.getItem("token");
-        const storedUser = localStorage.getItem("user");
-        const storedAdmin = localStorage.getItem("admin");
-        const hospitalToken = localStorage.getItem("hospitalToken");
-        const storedHospital = localStorage.getItem("hospital");
+        const hydrateAuth = () => {
+            const storedToken = localStorage.getItem("token");
+            const storedUser = localStorage.getItem("user");
+            const storedAdmin = localStorage.getItem("admin");
+            const storedHToken = localStorage.getItem("hospitalToken");
+            const storedHospital = localStorage.getItem("hospital");
 
-        if (token) {
-            if (storedUser) {
-                setUser(JSON.parse(storedUser));
-            }
-            if (storedAdmin) {
-                setAdmin(JSON.parse(storedAdmin));
-            }
-        }
+            if (storedToken) setToken(storedToken);
+            if (storedUser) setUser(JSON.parse(storedUser));
+            if (storedAdmin) setAdmin(JSON.parse(storedAdmin));
+            if (storedHToken) setHospitalToken(storedHToken);
+            if (storedHospital) setHospital(JSON.parse(storedHospital));
 
-        if (storedHospital) {
-            setHospital(JSON.parse(storedHospital));
-        }
+            setLoading(false);
+        };
 
-        if (hospitalToken) {
-            setHospitalToken(hospitalToken);
-        }
-
-        setLoading(false);
+        hydrateAuth();
     }, []);
 
 
@@ -126,16 +119,24 @@ export const AuthProvider = ({ children }) => {
         }
     }
 
+    // 2. REFINED LOGIN FUNCTION
     const loginAsHospital = async (userData) => {
         try {
             setLoading(true);
             const response = await axios.post(`${API_URL}/api/auth/hospital/login`, userData);
-            const { token, data } = response.data;
-            // SAVE BOTH TO LOCAL STORAGE
+
+            // The response you shared: { success, fullAccess, profileStatus, message, data, token }
+            const { token, data, profileStatus, fullAccess } = response.data;
+
+            // Create a merged object so state always has the latest status
+            const hospitalData = { ...data, profileStatus, fullAccess };
+
             localStorage.setItem("hospitalToken", token);
+            localStorage.setItem("hospital", JSON.stringify(hospitalData));
+
             setHospitalToken(token);
-            localStorage.setItem("hospital", JSON.stringify(data));
-            setHospital(data);
+            setHospital(hospitalData);
+
             return response.data;
         } catch (error) {
             const message = error.response?.data?.message || "Login failed";
@@ -144,6 +145,8 @@ export const AuthProvider = ({ children }) => {
             setLoading(false);
         }
     };
+
+
 
     const registerAsDoctorAppointment = async (userData) => {
         try {

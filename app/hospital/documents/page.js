@@ -42,7 +42,7 @@ function Page() {
 
             // Check profile status
             if (hospital.profileStatus === 'Approved') {
-                router.push('/hospital');
+                router.push('/hospital/dashboard');
                 return;
             } else if (hospital.profileStatus === 'Pending') {
                 setStatusMessage('Your documents are under review. Please wait for admin approval.');
@@ -559,7 +559,7 @@ function Page() {
                             <div className="text-center mt-8 p-6 bg-green-50 rounded-xl">
                                 <p className="text-green-600 font-semibold">Your profile has been approved!</p>
                                 <button
-                                    onClick={() => router.push('/hospital')}
+                                    onClick={() => router.push('/hospital/dashboard')}
                                     className="mt-4 px-6 py-2 bg-[#08B36A] text-white rounded-lg hover:bg-green-700 transition-colors"
                                 >
                                     Go to Hospital Dashboard

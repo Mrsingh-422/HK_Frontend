@@ -31,7 +31,6 @@ function LoginAsHospital() {
     try {
       setLoading(true);
 
-      // Check if input is email
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
 
       const userLoginData = {
@@ -40,17 +39,25 @@ function LoginAsHospital() {
         ...(isEmail ? { email: identifier } : { phone: identifier }),
       };
 
-      await loginAsHospital(userLoginData);
+      // 1. Capture the response from the login function
+      const res = await loginAsHospital(userLoginData);
 
       setSuccess("Login successful! Redirecting...");
 
+      // 2. Logic-based redirection
       setTimeout(() => {
-        router.push("/hospital/documents");
+        if (res.profileStatus === "Approved") {
+          // If already approved, go to dashboard
+          router.push("/hospital/dashboard");
+        } else {
+          // If Pending, Rejected, or Incomplete, go to documents page
+          router.push("/hospital/documents");
+        }
       }, 1500);
+
     } catch (err) {
-      setError(
-        err?.response?.data?.message || "Invalid phone/email or password."
-      );
+      // Since your Context returns Promise.reject(message), 'err' is the message string
+      setError(err || "Invalid phone/email or password.");
     } finally {
       setLoading(false);
     }
@@ -75,7 +82,7 @@ function LoginAsHospital() {
 
       {/* TOP LOGIN BOX */}
       <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
-        
+
         {/* LEFT IMAGE - Hidden on mobile, visible from md up */}
         <div className="hidden md:block flex-shrink-0">
           <img
@@ -121,8 +128,8 @@ function LoginAsHospital() {
               Remember Password
             </label>
 
-            <span 
-              className="cursor-pointer hover:underline text-[#333]" 
+            <span
+              className="cursor-pointer hover:underline text-[#333]"
               onClick={() => openModal("forgotPassword")}
             >
               Forget Password?
