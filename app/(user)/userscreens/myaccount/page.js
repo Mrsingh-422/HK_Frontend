@@ -13,7 +13,7 @@ function MyAccount() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [isEditingProfile, setIsEditingProfile] = useState(false);
+    const [isEditingProfile, setIsEditingProfile] = useState(false); 
 
     const [userData, setUserData] = useState(null);
     const [tempProfile, setTempProfile] = useState({});
