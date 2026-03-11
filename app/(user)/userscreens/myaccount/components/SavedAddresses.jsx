@@ -1,5 +1,6 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useUserContext } from "@/app/context/UserContext";
 import { FiPhone, FiCheck, FiLoader, FiMapPin, FiHash, FiFlag } from 'react-icons/fi';
 import {
     HiPlus, HiOutlinePencilAlt, HiOutlineTrash,
@@ -8,11 +9,18 @@ import {
 import { MdOutlineAddLocationAlt, MdOutlineLocationCity, MdOutlinePlace } from 'react-icons/md';
 
 /**
- * @param {Array} addresses - The array of address objects from parent state
- * @param {Function} onUpdate - Callback to update parent (e.g., updateUserDataField('userAddress', newList))
- * @param {String} userPhone - Default phone from user profile
+ * @param {Array} addresses
+ * @param {Function} onUpdate
+ * @param {String} userPhone
  */
 function SavedAddresses({ addresses = [], onUpdate, userPhone }) {
+
+    const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
+
+    const [countries, setCountries] = useState([]);
+    const [states, setStates] = useState([]);
+    const [cities, setCities] = useState([]);
+
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -27,16 +35,58 @@ function SavedAddresses({ addresses = [], onUpdate, userPhone }) {
         pincode: "",
         city: "",
         state: "",
-        country: "India",
+        country: "",
         isDefault: false,
     };
 
     const [formData, setFormData] = useState(initialFormState);
 
-    const openModal = (addr = null) => {
+    // ------------------ FETCH COUNTRIES ------------------
+
+    useEffect(() => {
+        const fetchCountries = async () => {
+            try {
+                const data = await getAllCountries();
+                setCountries(data || []);
+            } catch {
+                console.error("Failed to load countries");
+            }
+        };
+        fetchCountries();
+    }, []);
+
+    const fetchStates = async (countryId) => {
+        try {
+            const data = await getStatesByCountry(countryId);
+            setStates(data || []);
+            setCities([]);
+        } catch {
+            console.error("Failed to load states");
+        }
+    };
+
+    const fetchCities = async (stateId) => {
+        try {
+            const data = await getCitiesByState(stateId);
+            setCities(data || []);
+        } catch {
+            console.error("Failed to load cities");
+        }
+    };
+
+    const openModal = async (addr = null) => {
         if (addr) {
             setFormData(addr);
             setIsEditing(true);
+
+            if (addr.country) {
+                await fetchStates(addr.country);
+            }
+
+            if (addr.state) {
+                await fetchCities(addr.state);
+            }
+
         } else {
             setFormData({ ...initialFormState, phone: userPhone });
             setIsEditing(false);
@@ -46,10 +96,21 @@ function SavedAddresses({ addresses = [], onUpdate, userPhone }) {
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
+
         setFormData(prev => ({
             ...prev,
             [name]: type === 'checkbox' ? checked : value
         }));
+
+        if (name === "country") {
+            fetchStates(value);
+            setFormData(prev => ({ ...prev, state: "", city: "" }));
+        }
+
+        if (name === "state") {
+            fetchCities(value);
+            setFormData(prev => ({ ...prev, city: "" }));
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -57,21 +118,33 @@ function SavedAddresses({ addresses = [], onUpdate, userPhone }) {
         setIsSubmitting(true);
 
         try {
+
+            const selectedCountry = countries.find(c => c.id == formData.country);
+            const selectedState = states.find(s => s.id == formData.state);
+            const selectedCity = cities.find(c => c.id == formData.city);
+
+            const finalData = {
+                ...formData,
+                country: selectedCountry?.name || formData.country,
+                state: selectedState?.name || formData.state,
+                city: selectedCity?.name || formData.city
+            };
+
             let updatedList;
 
-            // If this is set to default, set all others to false
-            const baseList = formData.isDefault
+            const baseList = finalData.isDefault
                 ? addresses.map(a => ({ ...a, isDefault: false }))
                 : [...addresses];
 
             if (isEditing) {
-                updatedList = baseList.map(a => a.id === formData.id ? formData : a);
+                updatedList = baseList.map(a => a.id === finalData.id ? finalData : a);
             } else {
-                updatedList = [...baseList, { ...formData, id: Date.now() }];
+                updatedList = [...baseList, { ...finalData, id: Date.now() }];
             }
 
             await onUpdate(updatedList);
             setIsModalOpen(false);
+
         } catch (error) {
             console.error("Failed to save address:", error);
         } finally {
@@ -148,40 +221,75 @@ function SavedAddresses({ addresses = [], onUpdate, userPhone }) {
                         </div>
 
                         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                            {/* Address Type Select */}
-                            <div className="space-y-1 text-left">
-                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Select Label</label>
-                                <div className="flex gap-2 p-1.5 bg-gray-50 border border-gray-200 rounded-xl">
-                                    {["Home", "Work", "Other"].map(type => (
-                                        <button
-                                            key={type}
-                                            type="button"
-                                            onClick={() => setFormData({ ...formData, addressType: type })}
-                                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${formData.addressType === type ? "bg-white border border-gray-200 text-[#08b36a]" : "text-gray-400"}`}
-                                        >
-                                            {type}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="sm:col-span-2">
-                                    <InputField icon={<FiPhone />} label="Phone Number" name="phone" placeholder="e.g. +91 9876543210" value={formData.phone} onChange={handleInputChange} />
-                                </div>
-                                <div className="sm:col-span-2">
-                                    <InputField icon={<MdOutlinePlace />} label="House / Flat / Office No" name="houseNo" placeholder="e.g. Flat 402, Block B" value={formData.houseNo} onChange={handleInputChange} />
-                                </div>
-                                <div className="sm:col-span-2">
-                                    <InputField icon={<FiMapPin />} label="Sector / Area / Street" name="sector" placeholder="e.g. Sector 118, TDI City" value={formData.sector} onChange={handleInputChange} />
-                                </div>
-                                <div className="sm:col-span-2">
-                                    <InputField icon={<FiFlag />} label="Landmark (Optional)" name="landmark" placeholder="e.g. Near North Park" value={formData.landmark} onChange={handleInputChange} />
-                                </div>
+
+                                <InputField icon={<FiPhone />} label="Phone Number" name="phone" placeholder="e.g. +91 9876543210" value={formData.phone} onChange={handleInputChange} />
+
+                                <InputField icon={<MdOutlinePlace />} label="House / Flat / Office No" name="houseNo" placeholder="e.g. Flat 402, Block B" value={formData.houseNo} onChange={handleInputChange} />
+
+                                <InputField icon={<FiMapPin />} label="Sector / Area / Street" name="sector" placeholder="e.g. Sector 118, TDI City" value={formData.sector} onChange={handleInputChange} />
+
+                                <InputField icon={<FiFlag />} label="Landmark (Optional)" name="landmark" placeholder="e.g. Near North Park" value={formData.landmark} onChange={handleInputChange} />
+
                                 <InputField icon={<FiHash />} label="Pincode" name="pincode" placeholder="160055" value={formData.pincode} onChange={handleInputChange} />
-                                <InputField icon={<MdOutlineLocationCity />} label="City" name="city" placeholder="Mohali" value={formData.city} onChange={handleInputChange} />
-                                <InputField icon={<FiMapPin />} label="State" name="state" placeholder="Punjab" value={formData.state} onChange={handleInputChange} />
-                                <InputField icon={<MdOutlinePlace />} label="Country" name="country" placeholder="India" value={formData.country} onChange={handleInputChange} />
+
+                                {/* COUNTRY */}
+                                <div className="space-y-1 text-left sm:col-span-2">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1.5 px-1 tracking-wider">
+                                        <span className="text-[#08b36a]"><MdOutlinePlace /></span> Country
+                                    </label>
+                                    <select
+                                        name="country"
+                                        value={formData.country}
+                                        onChange={handleInputChange}
+                                        className="w-full p-3.5 bg-white border border-gray-300 rounded-xl outline-none text-sm font-semibold text-gray-800 focus:border-[#08b36a] focus:ring-1 focus:ring-[#08b36a]"
+                                    >
+                                        <option value="">Country</option>
+                                        {countries.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+
+                                {/* STATE */}
+                                <div className="space-y-1 text-left">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1.5 px-1 tracking-wider">
+                                        <span className="text-[#08b36a]"><FiMapPin /></span> State
+                                    </label>
+                                    <select
+                                        name="state"
+                                        value={formData.state}
+                                        onChange={handleInputChange}
+                                        disabled={!formData.country}
+                                        className="w-full p-3.5 bg-white border border-gray-300 rounded-xl outline-none text-sm font-semibold text-gray-800 focus:border-[#08b36a] focus:ring-1 focus:ring-[#08b36a]"
+                                    >
+                                        <option value="">State</option>
+                                        {states.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* CITY */}
+                                <div className="space-y-1 text-left">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1.5 px-1 tracking-wider">
+                                        <span className="text-[#08b36a]"><MdOutlineLocationCity /></span> City
+                                    </label>
+                                    <select
+                                        name="city"
+                                        value={formData.city}
+                                        onChange={handleInputChange}
+                                        disabled={!formData.state}
+                                        className="w-full p-3.5 bg-white border border-gray-300 rounded-xl outline-none text-sm font-semibold text-gray-800 focus:border-[#08b36a] focus:ring-1 focus:ring-[#08b36a]"
+                                    >
+                                        <option value="">City</option>
+                                        {cities.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
 
                             <label className="flex items-center gap-3 p-2 cursor-pointer group">

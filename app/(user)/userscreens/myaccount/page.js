@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
+import { useUserContext } from "@/app/context/UserContext";
 import { FiUser, FiMail, FiPhone, FiCamera, FiEdit2, FiCheck, FiX, FiLoader, FiMapPin } from "react-icons/fi";
 import { HiOutlineCalendar, HiOutlineIdentification } from "react-icons/hi";
 import { MdVerified, MdOutlineLocationCity, MdPublic } from "react-icons/md";
@@ -11,14 +12,52 @@ import SavedAddresses from "./components/SavedAddresses";
 
 function MyAccount() {
 
+    const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
+
+    const [countries, setCountries] = useState([]);
+    const [states, setStates] = useState([]);
+    const [cities, setCities] = useState([]);
+
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [isEditingProfile, setIsEditingProfile] = useState(false); 
+    const [isEditingProfile, setIsEditingProfile] = useState(false);
 
     const [userData, setUserData] = useState(null);
     const [tempProfile, setTempProfile] = useState({});
 
     const fileInputRef = useRef(null);
+
+    // ------------------ FETCH COUNTRIES ------------------
+    useEffect(() => {
+        const fetchCountries = async () => {
+            try {
+                const data = await getAllCountries();
+                setCountries(data || []);
+            } catch {
+                console.error("Failed to load countries");
+            }
+        };
+        fetchCountries();
+    }, []);
+
+    const fetchStates = async (countryId) => {
+        try {
+            const data = await getStatesByCountry(countryId);
+            setStates(data || []);
+            setCities([]);
+        } catch {
+            console.error("Failed to load states");
+        }
+    };
+
+    const fetchCities = async (stateId) => {
+        try {
+            const data = await getCitiesByState(stateId);
+            setCities(data || []);
+        } catch {
+            console.error("Failed to load cities");
+        }
+    };
 
     // ------------------ FETCH USER DATA ------------------
     useEffect(() => {
@@ -92,14 +131,29 @@ function MyAccount() {
     const handleSaveProfile = async () => {
         setIsSaving(true);
         try {
+
+            const selectedCountry = countries.find(c => c.id == tempProfile.country);
+            const selectedState = states.find(s => s.id == tempProfile.state);
+            const selectedCity = cities.find(c => c.id == tempProfile.city);
+
+            const finalData = {
+                ...tempProfile,
+                country: selectedCountry?.name || tempProfile.country,
+                state: selectedState?.name || tempProfile.state,
+                city: selectedCity?.name || tempProfile.city
+            };
+
             /*
             await axios.put("/api/user/updateProfile", {
                 type: "profile",
-                data: tempProfile
+                data: finalData
             });
             */
-            setUserData(tempProfile);
+
+            setUserData(finalData);
+            setTempProfile(finalData);
             setIsEditingProfile(false);
+
         } catch (error) {
             console.error("Save failed:", error);
         } finally {
@@ -149,10 +203,21 @@ function MyAccount() {
     // ------------------ INPUT HANDLERS ------------------
     const handleInputChange = (e) => {
         const { name, value } = e.target;
+
         setTempProfile(prev => ({
             ...prev,
             [name]: value
         }));
+
+        if (name === "country") {
+            fetchStates(value);
+            setTempProfile(prev => ({ ...prev, state: "", city: "" }));
+        }
+
+        if (name === "state") {
+            fetchCities(value);
+            setTempProfile(prev => ({ ...prev, city: "" }));
+        }
     };
 
     const handleImageChange = (e) => {
@@ -253,9 +318,6 @@ function MyAccount() {
                                 { label: "Email", name: "email", icon: <FiMail />, type: "email" },
                                 { label: "Phone", name: "phone", icon: <FiPhone />, type: "tel" },
                                 { label: "DOB", name: "dob", icon: <HiOutlineCalendar />, type: "date" },
-                                { label: "City", name: "city", icon: <MdOutlineLocationCity />, type: "text" },
-                                { label: "State", name: "state", icon: <FiMapPin />, type: "text" },
-                                { label: "Country", name: "country", icon: <MdPublic />, type: "text" },
                             ].map((field) => (
 
                                 <div key={field.name} className="space-y-1">
@@ -285,6 +347,93 @@ function MyAccount() {
                                 </div>
 
                             ))}
+
+                            {/* COUNTRY */}
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="text-[#08b36a]"><MdPublic /></span> Country
+                                </label>
+
+                                {isEditingProfile ? (
+
+                                    <select
+                                        name="country"
+                                        value={tempProfile.country || ""}
+                                        onChange={handleInputChange}
+                                        className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold"
+                                    >
+                                        <option value="">Country</option>
+                                        {countries.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+
+                                ) : (
+
+                                    <p className="text-gray-800 font-bold text-sm">{userData.country}</p>
+
+                                )}
+                            </div>
+
+                            {/* STATE */}
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="text-[#08b36a]"><FiMapPin /></span> State
+                                </label>
+
+                                {isEditingProfile ? (
+
+                                    <select
+                                        name="state"
+                                        value={tempProfile.state || ""}
+                                        onChange={handleInputChange}
+                                        disabled={!tempProfile.country}
+                                        className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold"
+                                    >
+                                        <option value="">State</option>
+                                        {states.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+
+                                ) : (
+
+                                    <p className="text-gray-800 font-bold text-sm">{userData.state}</p>
+
+                                )}
+                            </div>
+
+
+                            {/* city  */}
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="text-[#08b36a]"><MdOutlineLocationCity /></span> City
+                                </label>
+
+                                {isEditingProfile ? (
+
+                                    <select
+                                        name="city"
+                                        value={tempProfile.city || ""}
+                                        onChange={handleInputChange}
+                                        disabled={!tempProfile.state}
+                                        className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold"
+                                    >
+                                        <option value="">City</option>
+                                        {cities.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+
+                                ) : (
+
+                                    <p className="text-gray-800 font-bold text-sm">{userData.city}</p>
+
+                                )}
+                            </div>
+
+                            {/* GENDER */}
 
                             <div className="space-y-1">
 
