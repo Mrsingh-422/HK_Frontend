@@ -1,258 +1,262 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     FiUsers, FiPlus, FiTrash2, FiUser, FiX,
-    FiCheck, FiPhone, FiMail, FiCalendar
+    FiCheck, FiPhone, FiEdit2, FiCamera, FiLoader, FiHash
 } from 'react-icons/fi';
-import { HiOutlineIdentification } from 'react-icons/hi';
+import { HiOutlineIdentification } from "react-icons/hi";
 
-function ViewMembers() {
-    // --- 1. STATE ---
-    const [members, setMembers] = useState([
-        {
-            id: 1,
-            name: "Jane Doe",
-            relation: "Spouse",
-            age: "28",
-            gender: "Female",
-            phone: "+91 98765-43210",
-            email: "jane.doe@example.com"
-        }
-    ]);
-
+/**
+ * @param {Array} members - The familyMember array from parent state
+ * @param {Function} onUpdate - Callback to update parent (e.g., updateUserDataField('familyMember', newList))
+ */
+function ViewMembers({ members = [], onUpdate }) {
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [formData, setFormData] = useState({
-        name: "",
+    const [editingId, setEditingId] = useState(null);
+
+    const initialFormState = {
+        memberName: "",
         relation: "Spouse",
         age: "",
-        gender: "Male",
         phone: "",
-        email: ""
-    });
+        gender: "Female",
+        profilePic: "" 
+    };
+    
+    const [formData, setFormData] = useState(initialFormState);
+    const fileInputRef = useRef(null);
 
-    // --- 2. HANDLERS ---
-    const handleAddMember = (e) => {
-        e.preventDefault();
-        const newMember = { ...formData, id: Date.now() };
-        setMembers([...members, newMember]);
-        setIsModalOpen(false);
-        // Reset Form
-        setFormData({ name: "", relation: "Spouse", age: "", gender: "Male", phone: "", email: "" });
+    // --- HANDLERS ---
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setFormData(prev => ({ ...prev, profilePic: reader.result }));
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
-    const deleteMember = (id) => {
-        if (window.confirm("Remove this family member?")) {
-            setMembers(members.filter(m => m.id !== id));
+    const openModal = (member = null) => {
+        if (member) {
+            setEditingId(member.id || member.memberName); 
+            setFormData(member);
+        } else {
+            setEditingId(null);
+            setFormData(initialFormState);
+        }
+        setIsModalOpen(true);
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+
+        try {
+            let updatedList;
+            if (editingId) {
+                updatedList = members.map(m => (m.id === editingId || m.memberName === editingId) ? formData : m);
+            } else {
+                updatedList = [...members, { ...formData, id: Date.now() }];
+            }
+
+            await onUpdate(updatedList);
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error("Failed to save member:", error);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const deleteMember = (id, name) => {
+        if (window.confirm(`Remove ${name} from family members?`)) {
+            const updatedList = members.filter(m => (m.id !== id && m.memberName !== name));
+            onUpdate(updatedList);
         }
     };
 
     return (
-        <div className="bg-gray-50/50 py-4 md:py-6 font-sans">
-            <div className="max-w-6xl mx-auto">
-
-                {/* --- HEADER SECTION --- */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight flex items-center gap-3">
-                            Family Members
-                            <span className="text-sm bg-[#08b36a]/10 text-[#08b36a] px-3 py-1 rounded-full border border-[#08b36a]/20">
-                                {members.length} Total
-                            </span>
-                        </h1>
-                        <p className="text-gray-500 text-sm mt-1">Manage profiles for quick bookings and records</p>
-                    </div>
-
-                    {/* Always show "Add" button if list is not empty */}
-                    {members.length > 0 && (
-                        <button
-                            onClick={() => setIsModalOpen(true)}
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#08b36a] text-white px-6 py-3 rounded-2xl font-bold text-sm hover:bg-[#256f47] transition-all shadow-lg shadow-green-100 active:scale-95"
-                        >
-                            <FiPlus size={20} /> Add Member
-                        </button>
-                    )}
+        <section className="mt-10">
+            <div className="flex justify-between items-center mb-6">
+                <div className="text-left">
+                    <h2 className="text-xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
+                        Family Members 
+                        <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full uppercase font-bold">
+                            {members.length}
+                        </span>
+                    </h2>
+                    <p className="text-gray-500 text-xs font-medium">Profiles for quick appointment booking</p>
                 </div>
+                <button
+                    onClick={() => openModal()}
+                    className="flex items-center gap-2 border border-[#08b36a] text-[#08b36a] px-4 py-2 rounded-xl font-bold text-sm hover:bg-green-50 transition-all active:scale-95"
+                >
+                    <FiPlus /> Add Member
+                </button>
+            </div>
 
-                {/* --- MEMBERS DISPLAY --- */}
-                {members.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {members.map((member) => (
-                            <div key={member.id} className="bg-white border border-gray-100 rounded-[32px] p-6 shadow-sm hover:shadow-xl hover:shadow-gray-200/50 transition-all group relative">
-                                {/* Delete Button */}
-                                <button
-                                    onClick={() => deleteMember(member.id)}
-                                    className="absolute top-5 right-5 p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-100 "
-                                >
-                                    <FiTrash2 size={18} />
-                                </button>
+            {members.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {members.map((member, index) => (
+                        <div key={member.id || index} className="bg-white border border-gray-300 rounded-[24px] p-5 transition-all group relative hover:border-[#08b36a]">
+                            <div className="absolute top-4 right-4 flex gap-1 transition-opacity">
+                                <button onClick={() => openModal(member)} className="p-2 text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-100 rounded-lg"><FiEdit2 size={14} /></button>
+                                <button onClick={() => deleteMember(member.id, member.memberName)} className="p-2 text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-lg"><FiTrash2 size={14} /></button>
+                            </div>
 
-                                {/* Profile Header */}
-                                <div className="flex items-center gap-4 mb-6">
-                                    <div className="w-14 h-14 bg-gradient-to-br from-[#08b36a] to-[#2ecc71] text-white rounded-2xl flex items-center justify-center shadow-inner">
-                                        <FiUser size={28} />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-gray-900 text-lg leading-tight">{member.name}</h3>
-                                        <span className="inline-block mt-1 text-[10px] font-black uppercase tracking-widest text-[#08b36a] bg-green-50 px-2 py-0.5 rounded-md">
-                                            {member.relation}
-                                        </span>
-                                    </div>
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="w-14 h-14 rounded-2xl overflow-hidden bg-white border border-gray-300 shrink-0">
+                                    {member.profilePic ? (
+                                        <img src={member.profilePic} alt={member.memberName} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-gray-300"><FiUser size={24} /></div>
+                                    )}
                                 </div>
-
-                                {/* Details Grid */}
-                                <div className="grid grid-cols-2 gap-4 mb-6">
-                                    <div className="bg-gray-50 p-3 rounded-2xl">
-                                        <span className="block text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Age</span>
-                                        <span className="text-sm font-bold text-gray-700">{member.age} Years</span>
-                                    </div>
-                                    <div className="bg-gray-50 p-3 rounded-2xl">
-                                        <span className="block text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Gender</span>
-                                        <span className="text-sm font-bold text-gray-700">{member.gender}</span>
-                                    </div>
-                                </div>
-
-                                {/* Contact Section */}
-                                <div className="space-y-3 pt-4 border-t border-gray-50">
-                                    <div className="flex items-center gap-3 text-gray-600">
-                                        <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-[#08b36a]">
-                                            <FiPhone size={14} />
-                                        </div>
-                                        <span className="text-xs font-medium">{member.phone || "No phone added"}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-gray-600">
-                                        <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-[#08b36a]">
-                                            <FiMail size={14} />
-                                        </div>
-                                        <span className="text-xs font-medium truncate">{member.email || "No email added"}</span>
-                                    </div>
+                                <div className="text-left">
+                                    <h3 className="font-bold text-gray-900 text-base">{member.memberName}</h3>
+                                    <span className="text-[10px] font-black uppercase text-[#08b36a] bg-green-50 px-2 py-0.5 border border-green-100 rounded">
+                                        {member.relation}
+                                    </span>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                ) : (
-                    /* --- EMPTY STATE --- */
-                    <div className="bg-white rounded-[40px] border-2 border-dashed border-gray-100 py-20 px-6 text-center flex flex-col items-center animate-in fade-in zoom-in duration-500">
-                        <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6 text-gray-200">
-                            <FiUsers size={48} />
+
+                            <div className="grid grid-cols-2 gap-2 mb-4">
+                                <div className="bg-gray-50 border border-gray-200 p-2 rounded-xl text-left">
+                                    <p className="text-[9px] text-gray-400 font-bold uppercase">Age</p>
+                                    <p className="text-xs font-bold text-gray-700">{member.age} Years</p>
+                                </div>
+                                <div className="bg-gray-50 border border-gray-200 p-2 rounded-xl text-left">
+                                    <p className="text-[9px] text-gray-400 font-bold uppercase">Gender</p>
+                                    <p className="text-xs font-bold text-gray-700">{member.gender}</p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-gray-600 text-xs pt-3 border-t border-gray-200 text-left">
+                                <FiPhone className="text-[#08b36a]" />
+                                <span className="font-bold">{member.phone || "No phone added"}</span>
+                            </div>
                         </div>
-                        <h3 className="text-gray-900 font-black text-xl mb-2">Your family list is empty</h3>
-                        <p className="text-gray-400 text-sm max-w-sm mx-auto mb-10 leading-relaxed">
-                            Add family members to book appointments for them and keep their medical history in one place.
-                        </p>
-                        <button
-                            onClick={() => setIsModalOpen(true)}
-                            className="flex items-center gap-3 bg-[#08b36a] text-white px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-[#256f47] transition-all shadow-xl shadow-green-100 active:scale-95"
-                        >
-                            <FiPlus size={20} /> Add Your First Member
-                        </button>
-                    </div>
-                )}
+                    ))}
+                </div>
+            ) : (
+                <div className="py-12 bg-white rounded-3xl border border-dashed border-gray-300 flex flex-col items-center">
+                    <FiUsers size={40} className="text-gray-300 mb-3" />
+                    <p className="text-gray-400 text-sm font-medium">No family members added yet</p>
+                </div>
+            )}
 
-                {/* --- ADD MEMBER MODAL (Responsive Bottom Sheet on Mobile) --- */}
-                {isModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                        <div className="bg-white w-full max-w-lg rounded-t-[40px] sm:rounded-[40px] shadow-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto">
-                            <div className="sticky top-0 z-10 bg-[#08b36a] p-6 text-white flex justify-between items-center">
-                                <div>
-                                    <h3 className="font-bold text-lg">Add Family Member</h3>
-                                    <p className="text-white/70 text-xs">Fill in the details below</p>
+            {/* MODAL */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+                    <div className="bg-white w-full max-w-md rounded-[32px] border border-gray-200 shadow-xl overflow-hidden">
+                        <div className="bg-[#08b36a] p-6 text-white flex justify-between items-center">
+                            <h3 className="font-bold text-lg">{editingId ? "Edit Profile" : "Add Member"}</h3>
+                            <button onClick={() => setIsModalOpen(false)} className="hover:text-red-200 transition-colors"><FiX size={24} /></button>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+                            {/* Profile Pic Upload */}
+                            <div className="flex flex-col items-center mb-2">
+                                <div className="relative group cursor-pointer" onClick={() => fileInputRef.current.click()}>
+                                    <div className="w-20 h-20 rounded-3xl bg-white border border-gray-300 overflow-hidden flex items-center justify-center group-hover:border-[#08b36a] transition-all">
+                                        {formData.profilePic ? (
+                                            <img src={formData.profilePic} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <FiCamera className="text-gray-400" size={24} />
+                                        )}
+                                    </div>
+                                    <div className="absolute inset-0 bg-black/10 rounded-3xl opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                                        <FiEdit2 />
+                                    </div>
+                                    <input type="file" ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
                                 </div>
-                                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/20 rounded-xl transition-colors">
-                                    <FiX size={24} />
-                                </button>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase mt-2">Member Photo</p>
                             </div>
 
-                            <form onSubmit={handleAddMember} className="p-6 md:p-8 space-y-6">
-                                {/* Row 1: Name */}
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">Full Name</label>
-                                    <div className="relative">
-                                        <FiUser className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                                        <input
-                                            required type="text"
-                                            className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border-2 border-transparent focus:border-[#08b36a] focus:bg-white rounded-2xl outline-none text-sm font-bold transition-all"
-                                            placeholder="John Smith"
-                                            value={formData.name}
-                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
+                            <InputField 
+                                label="Full Name" 
+                                icon={<FiUser/>} 
+                                placeholder="e.g. Jane Doe"
+                                value={formData.memberName} 
+                                onChange={(val) => setFormData({...formData, memberName: val})} 
+                            />
 
-                                {/* Row 2: Relation & Age */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Relation</label>
-                                        <select
-                                            className="w-full p-3.5 bg-gray-50 border-2 border-transparent focus:border-[#08b36a] focus:bg-white rounded-2xl outline-none text-sm font-bold transition-all"
-                                            value={formData.relation}
-                                            onChange={(e) => setFormData({ ...formData, relation: e.target.value })}
-                                        >
-                                            <option>Spouse</option><option>Child</option><option>Parent</option>
-                                            <option>Sibling</option><option>Other</option>
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Age</label>
-                                        <input
-                                            required type="number"
-                                            className="w-full p-3.5 bg-gray-50 border-2 border-transparent focus:border-[#08b36a] focus:bg-white rounded-2xl outline-none text-sm font-bold transition-all"
-                                            placeholder="Years"
-                                            value={formData.age}
-                                            onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                                        />
-                                    </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1 text-left">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase px-1 tracking-wider">Relation</label>
+                                    <select 
+                                        className="w-full p-3 bg-white border border-gray-300 rounded-xl text-sm font-semibold outline-none focus:border-[#08b36a] focus:ring-1 focus:ring-[#08b36a] transition-all"
+                                        value={formData.relation}
+                                        onChange={(e) => setFormData({...formData, relation: e.target.value})}
+                                    >
+                                        <option>Spouse</option><option>Child</option><option>Parent</option><option>Sibling</option><option>Other</option>
+                                    </select>
                                 </div>
+                                <InputField 
+                                    label="Age" 
+                                    icon={<FiHash/>} 
+                                    type="number" 
+                                    placeholder="e.g. 28"
+                                    value={formData.age} 
+                                    onChange={(val) => setFormData({...formData, age: val})} 
+                                />
+                            </div>
 
-                                {/* Row 3: Phone & Email */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Phone Number</label>
-                                        <input
-                                            required type="tel"
-                                            className="w-full p-3.5 bg-gray-50 border-2 border-transparent focus:border-[#08b36a] focus:bg-white rounded-2xl outline-none text-sm font-bold transition-all"
-                                            placeholder="+91 00000 00000"
-                                            value={formData.phone}
-                                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Email Address</label>
-                                        <input
-                                            required type="email"
-                                            className="w-full p-3.5 bg-gray-50 border-2 border-transparent focus:border-[#08b36a] focus:bg-white rounded-2xl outline-none text-sm font-bold transition-all"
-                                            placeholder="alex@example.com"
-                                            value={formData.email}
-                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Row 4: Gender Toggle */}
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Gender</label>
-                                    <div className="flex gap-2 p-1.5 bg-gray-50 rounded-2xl">
-                                        {["Male", "Female", "Other"].map(g => (
-                                            <button
-                                                key={g} type="button"
-                                                onClick={() => setFormData({ ...formData, gender: g })}
-                                                className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all ${formData.gender === g ? "bg-white text-[#08b36a] shadow-sm" : "text-gray-400"}`}
-                                            >
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1 text-left">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase px-1 tracking-wider">Gender</label>
+                                    <div className="flex p-1 bg-gray-50 border border-gray-300 rounded-xl">
+                                        {["Male", "Female"].map(g => (
+                                            <button key={g} type="button" 
+                                                onClick={() => setFormData({...formData, gender: g})}
+                                                className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${formData.gender === g ? "bg-white border border-gray-200 text-[#08b36a]" : "text-gray-400"}`}>
                                                 {g}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
+                                <InputField 
+                                    label="Phone" 
+                                    icon={<FiPhone/>} 
+                                    placeholder="e.g. +91 98765 43210"
+                                    value={formData.phone} 
+                                    onChange={(val) => setFormData({...formData, phone: val})} 
+                                />
+                            </div>
 
-                                <button type="submit" className="w-full py-4 bg-[#08b36a] text-white font-black text-sm uppercase tracking-wider rounded-2xl shadow-lg shadow-green-100 hover:bg-[#256f47] transition-all active:scale-[0.98] flex items-center justify-center gap-2">
-                                    <FiCheck size={18} /> Save Member Information
-                                </button>
-                            </form>
-                        </div>
+                            <button
+                                disabled={isSubmitting}
+                                type="submit"
+                                className="w-full py-4 bg-[#08b36a] text-white font-bold rounded-2xl hover:bg-[#256f47] flex items-center justify-center gap-2 transition-all disabled:opacity-50 active:scale-[0.98]"
+                            >
+                                {isSubmitting ? <FiLoader className="animate-spin" /> : <FiCheck />}
+                                {editingId ? "Update Member" : "Save Member"}
+                            </button>
+                        </form>
                     </div>
-                )}
-            </div>
-        </div>
+                </div>
+            )}
+        </section>
     );
 }
+
+const InputField = ({ label, icon, value, onChange, placeholder, type = "text" }) => (
+    <div className="space-y-1 text-left">
+        <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1.5 px-1 tracking-wider">
+            <span className="text-[#08b36a]">{icon}</span> {label}
+        </label>
+        <input
+            required
+            type={type}
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full p-3 bg-white border border-gray-300 rounded-xl outline-none text-sm font-semibold text-gray-800 focus:border-[#08b36a] focus:ring-1 focus:ring-[#08b36a] transition-all placeholder:text-gray-400"
+        />
+    </div>
+);
 
 export default ViewMembers;
