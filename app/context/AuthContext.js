@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }) => {
             const { token, user } = response.data;
 
             // SAVE BOTH TO LOCAL STORAGE
-            localStorage.setItem("token", token);
+            localStorage.setItem("userToken", token);
             localStorage.setItem("user", JSON.stringify(user));
             setUser(user);
             return response.data;
@@ -85,7 +85,7 @@ export const AuthProvider = ({ children }) => {
             const { token, user } = response.data;
 
             // SAVE BOTH TO LOCAL STORAGE
-            localStorage.setItem("token", token);
+            localStorage.setItem("userToken", token);
             localStorage.setItem("user", JSON.stringify(user));
 
             setUser(user);
