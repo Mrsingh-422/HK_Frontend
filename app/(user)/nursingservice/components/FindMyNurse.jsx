@@ -1,29 +1,57 @@
-import React, { useState, useMemo } from "react";
+"use client";
+
+import React, { useState, useMemo, useEffect } from "react";
 import {
   FaSearch, FaFilter, FaStar, FaUserNurse,
-  FaTimes, FaArrowRight, FaMapMarkerAlt, FaClock
+  FaTimes, FaArrowRight
 } from "react-icons/fa";
 
 import { NURSES_DATA } from "../../../constants/constants";
 import { useRouter } from "next/navigation";
 import NurseDetailsModal from "./otherComponents/NurseDetailsModel";
+import { useGlobalContext } from "@/app/context/GlobalContext";
+
+// --- FALLBACK STATIC DATA ---
+const STATIC_PAGE_DATA = {
+    headerTag: "Book Your Personal Home Services",
+    mainTitle: "Find My Nurse! 👩‍⚕️",
+    description: "Reliable, certified, and compassionate nursing care in the comfort of your home. Select from our verified specialty packages.",
+    searchLabel: "Find Your home service..",
+    searchPlaceholder: "find my home care"
+};
 
 function FindMyNurse() {
+  const router = useRouter();
+  const { getNursePageData } = useGlobalContext();
+
+  // --- Dynamic States ---
+  const [pageData, setPageData] = useState(STATIC_PAGE_DATA);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("recommended");
-  const router = useRouter()
-
-
-  // MODAL STATES
   const [selectedNurse, setSelectedNurse] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // FETCH CONTENT FROM BACKEND
+  useEffect(() => {
+    const fetchContent = async () => {
+      try {
+        const res = await getNursePageData();
+        if (res?.success && res?.data) {
+          setPageData(res.data);
+        }
+      } catch (err) {
+        console.error("Backend fetch failed, using static fallback.");
+      }
+    };
+    fetchContent();
+  }, [getNursePageData]);
 
   const handleNurseClick = (nur) => {
     setSelectedNurse(nur);
     setIsModalOpen(true);
   };
 
-  // SORTING & FILTERING
+  // SORTING & FILTERING LOGIC
   const processedServices = useMemo(() => {
     let filtered = NURSES_DATA.filter((item) =>
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -37,52 +65,60 @@ function FindMyNurse() {
     return filtered;
   }, [searchTerm, sortBy]);
 
-  // LIMIT LOGIC: Show only 6
   const visibleServices = processedServices.slice(0, 6);
   const hasMore = processedServices.length > 6;
 
   return (
     <div className="min-h-screen py-8 md:py-16 px-4 sm:px-6 lg:px-8 font-sans bg-[#f8fafc]">
+      
+      {/* Detail Modal */}
       <NurseDetailsModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         nurse={selectedNurse}
       />
+
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10">
 
-        {/* LEFT SECTION */}
-        <div className="lg:col-span-5 space-y-8 lg:sticky lg:top-35 h-fit">
+        {/* ================= LEFT SECTION: DYNAMIC CONTENT ================= */}
+        <div className="lg:col-span-5 space-y-8 lg:sticky lg:top-24 h-fit">
           <div className="border-l-4 border-[#08B36A] pl-6 space-y-4">
             <h4 className="text-[#08B36A] font-black uppercase tracking-widest text-xs md:text-sm">
-              Book Your Personal Home Services
+              {pageData.headerTag}
             </h4>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 leading-tight">
-              Find My Nurse! 👩‍⚕️
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 leading-tight whitespace-pre-line">
+              {pageData.mainTitle}
             </h1>
           </div>
 
           <p className="text-slate-600 text-base md:text-lg leading-relaxed max-w-xl">
-            Reliable, certified, and compassionate nursing care in the comfort of your home.
-            Select from our verified specialty packages.
+            {pageData.description}
           </p>
 
           <div className="space-y-4 max-w-md">
-            <label className="text-[#08B36A] font-black text-sm uppercase tracking-wide">Find Your home service..</label>
+            <label className="text-[#08B36A] font-black text-sm uppercase tracking-wide">
+                {pageData.searchLabel}
+            </label>
             <div className="relative group">
               <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#08B36A] transition-colors" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="find my home care"
+                placeholder={pageData.searchPlaceholder}
                 className="w-full pl-12 pr-12 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:ring-2 focus:ring-[#08B36A] focus:border-transparent outline-none transition-all shadow-sm text-lg"
               />
-              {searchTerm && <FaTimes className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500 cursor-pointer" onClick={() => setSearchTerm("")} />}
+              {searchTerm && (
+                <FaTimes 
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500 cursor-pointer" 
+                    onClick={() => setSearchTerm("")} 
+                />
+              )}
             </div>
           </div>
         </div>
 
-        {/* RIGHT SECTION */}
+        {/* ================= RIGHT SECTION: LISTINGS ================= */}
         <div className="lg:col-span-7 space-y-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm gap-4">
             <p className="text-slate-700 font-bold">
@@ -109,8 +145,8 @@ function FindMyNurse() {
                 {visibleServices.map((service) => (
                   <div key={service.id} className="bg-white rounded-[2rem] p-5 md:p-6 shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
                     <div className="flex flex-col sm:flex-row gap-6 lg:gap-8">
-                      <div className="w-full sm:w-44 h-44 flex-shrink-0 relative">
-                        <img src={service.image} alt={service.name} className="w-full h-full object-cover rounded-3xl" />
+                      <div className="w-full sm:w-44 h-44 flex-shrink-0 relative overflow-hidden rounded-3xl">
+                        <img src={service.image} alt={service.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                       </div>
                       <div className="flex-1 flex flex-col justify-between">
                         <div className="space-y-1">
@@ -143,7 +179,7 @@ function FindMyNurse() {
                   </div>
                 ))}
 
-                {/* SEE ALL BUTTON */}
+                {/* See All Services */}
                 {hasMore && (
                   <div className="pt-6 text-center">
                     <button

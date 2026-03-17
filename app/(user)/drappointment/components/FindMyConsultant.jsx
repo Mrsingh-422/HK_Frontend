@@ -1,49 +1,104 @@
-import React, { useState, useMemo } from "react";
+
+"use client";
+
+import React, { useState, useMemo, useEffect } from "react";
 import {
     FaStar, FaFilter, FaSearch, FaMapMarkerAlt,
     FaVideo, FaHospital, FaTimes, FaArrowRight, FaUserMd
 } from "react-icons/fa";
+import { useGlobalContext } from "@/app/context/GlobalContext"; // Import context
+import { useRouter } from "next/navigation";
 
-const CONSULTANTS_DATA = [
-    { id: 1, name: "Dr. Abhi", specialty: "Heart Specialist", experience: "3 Years", speaks: "Hindi, English", address: "Mohali, Punjab", distance: 8.5, rating: 3, image: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=400&q=80", consultFee: 3000, clinicFee: 2500 },
-    { id: 2, name: "Dr. Sahib", specialty: "Neurologist", experience: "8 Years", speaks: "English, Punjabi", address: "Sector 62, Noida", distance: 12.2, rating: 5, image: "https://images.unsplash.com/photo-1559839734-2b71f1536783?auto=format&fit=crop&w=400&q=80", consultFee: 1500, clinicFee: 1000 },
-    { id: 3, name: "Dr. Ananya", specialty: "Dermatologist", experience: "10 Years", speaks: "English, Telugu", address: "Hitech City, Hyderabad", distance: 2.1, rating: 4, image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=400&q=80", consultFee: 800, clinicFee: 600 },
-    { id: 4, name: "Dr. Abhi", specialty: "Heart Specialist", experience: "3 Years", speaks: "Hindi, English", address: "Mohali, Punjab", distance: 8.5, rating: 3, image: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=400&q=80", consultFee: 3000, clinicFee: 2500 },
-    { id: 5, name: "Dr. Sahib", specialty: "Neurologist", experience: "8 Years", speaks: "English, Punjabi", address: "Sector 62, Noida", distance: 12.2, rating: 5, image: "https://images.unsplash.com/photo-1559839734-2b71f1536783?auto=format&fit=crop&w=400&q=80", consultFee: 1500, clinicFee: 1000 },
-    { id: 6, name: "Dr. Ananya", specialty: "Dermatologist", experience: "10 Years", speaks: "English, Telugu", address: "Hitech City, Hyderabad", distance: 2.1, rating: 4, image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=400&q=80", consultFee: 800, clinicFee: 600 },
-    { id: 7, name: "Dr. Abhi", specialty: "Heart Specialist", experience: "3 Years", speaks: "Hindi, English", address: "Mohali, Punjab", distance: 8.5, rating: 3, image: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=400&q=80", consultFee: 3000, clinicFee: 2500 },
-    { id: 8, name: "Dr. Sahib", specialty: "Neurologist", experience: "8 Years", speaks: "English, Punjabi", address: "Sector 62, Noida", distance: 12.2, rating: 5, image: "https://images.unsplash.com/photo-1559839734-2b71f1536783?auto=format&fit=crop&w=400&q=80", consultFee: 1500, clinicFee: 1000 },
-    { id: 9, name: "Dr. Ananya", specialty: "Dermatologist", experience: "10 Years", speaks: "English, Telugu", address: "Hitech City, Hyderabad", distance: 2.1, rating: 4, image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=400&q=80", consultFee: 800, clinicFee: 600 },
-];
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 function FindMyConsultant() {
+    // 1. Context & State
+    const CONSULTANTS_DATA = [
+        { id: 1, name: "Dr. Abhi", specialty: "Heart Specialist", experience: "3 Years", speaks: "Hindi, English", address: "Mohali, Punjab", distance: 8.5, rating: 3, image: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=400&q=80", consultFee: 3000, clinicFee: 2500 },
+        { id: 2, name: "Dr. Sahib", specialty: "Neurologist", experience: "8 Years", speaks: "English, Punjabi", address: "Sector 62, Noida", distance: 12.2, rating: 5, image: "https://images.unsplash.com/photo-1559839734-2b71f1536783?auto=format&fit=crop&w=400&q=80", consultFee: 1500, clinicFee: 1000 },
+        { id: 3, name: "Dr. Ananya", specialty: "Dermatologist", experience: "10 Years", speaks: "English, Telugu", address: "Hitech City, Hyderabad", distance: 2.1, rating: 4, image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=400&q=80", consultFee: 800, clinicFee: 600 },
+        { id: 4, name: "Dr. Abhi", specialty: "Heart Specialist", experience: "3 Years", speaks: "Hindi, English", address: "Mohali, Punjab", distance: 8.5, rating: 3, image: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=400&q=80", consultFee: 3000, clinicFee: 2500 },
+        { id: 5, name: "Dr. Sahib", specialty: "Neurologist", experience: "8 Years", speaks: "English, Punjabi", address: "Sector 62, Noida", distance: 12.2, rating: 5, image: "https://images.unsplash.com/photo-1559839734-2b71f1536783?auto=format&fit=crop&w=400&q=80", consultFee: 1500, clinicFee: 1000 },
+        { id: 6, name: "Dr. Ananya", specialty: "Dermatologist", experience: "10 Years", speaks: "English, Telugu", address: "Hitech City, Hyderabad", distance: 2.1, rating: 4, image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=400&q=80", consultFee: 800, clinicFee: 600 },
+        { id: 7, name: "Dr. Abhi", specialty: "Heart Specialist", experience: "3 Years", speaks: "Hindi, English", address: "Mohali, Punjab", distance: 8.5, rating: 3, image: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=400&q=80", consultFee: 3000, clinicFee: 2500 },
+        { id: 8, name: "Dr. Sahib", specialty: "Neurologist", experience: "8 Years", speaks: "English, Punjabi", address: "Sector 62, Noida", distance: 12.2, rating: 5, image: "https://images.unsplash.com/photo-1559839734-2b71f1536783?auto=format&fit=crop&w=400&q=80", consultFee: 1500, clinicFee: 1000 },
+        { id: 9, name: "Dr. Ananya", specialty: "Dermatologist", experience: "10 Years", speaks: "English, Telugu", address: "Hitech City, Hyderabad", distance: 2.1, rating: 4, image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=400&q=80", consultFee: 800, clinicFee: 600 },
+    ];
+    const router = useRouter()
+    const { getConsultantPageData, getAllConsultants } = useGlobalContext();
+
     const [searchTerm, setSearchTerm] = useState("");
     const [sortBy, setSortBy] = useState("recommended");
 
+    // Dynamic Page Content State
+    const [pageData, setPageData] = useState({
+        miniTitle: "Book Your Personal Meeting",
+        mainTitle: "Find Your Consultant! 👩‍⚕️",
+        subTitle: "A doctor who saves life of the patients by his service.",
+        description: "Connect with top-rated specialists instantly. We prioritize your health by bringing certified medical professionals to your doorstep."
+    });
+
+    // Dynamic Consultants State
+    const [consultants, setConsultants] = useState(CONSULTANTS_DATA);
+    const [loading, setLoading] = useState(false);
+
+    // 2. Fetch Data on Mount
+    // useEffect(() => {
+    //     const fetchInitialData = async () => {
+    //         setLoading(true);
+    //         try {
+    //             // Fetch text content (Titles/Description)
+    //             const pageRes = await getConsultantPageData();
+    //             if (pageRes?.success && pageRes?.data) {
+    //                 setPageData({
+    //                     miniTitle: pageRes.data.miniTitle || "",
+    //                     mainTitle: pageRes.data.mainTitle || "",
+    //                     subTitle: pageRes.data.subTitle || "",
+    //                     description: pageRes.data.description || ""
+    //                 });
+    //             }
+
+    //             // Fetch actual consultants list from database
+    //             const consultRes = await getAllConsultants();
+    //             if (consultRes?.success) {
+    //                 setConsultants(consultRes.data);
+    //             }
+    //         } catch (err) {
+    //             console.error("Error fetching data:", err);
+    //         } finally {
+    //             setLoading(false);
+    //         }
+    //     };
+
+    //     fetchInitialData();
+    // }, []);
+
+    // 3. Logic for filtering and sorting
     const processedConsultants = useMemo(() => {
-        let filtered = CONSULTANTS_DATA.filter(doc =>
+        let filtered = consultants.filter(doc =>
             doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             doc.specialty.toLowerCase().includes(searchTerm.toLowerCase())
         );
-        return filtered.sort((a, b) => {
+
+        return [...filtered].sort((a, b) => {
             if (sortBy === "price-low") return a.consultFee - b.consultFee;
             if (sortBy === "rating-high") return b.rating - a.rating;
             if (sortBy === "distance-near") return a.distance - b.distance;
             return 0;
         });
-    }, [searchTerm, sortBy]);
+    }, [searchTerm, sortBy, consultants]);
 
-    // For UI logic, showing a max of 6 (even though data is smaller here)
     const visibleConsultants = processedConsultants.slice(0, 6);
     const hasMore = processedConsultants.length > 6;
+
+    if (loading) return <div className="min-h-screen flex items-center justify-center text-[#08B36A] font-bold">Loading...</div>;
 
     return (
         <div className="min-h-screen py-6 md:py-12 px-4 sm:px-6 lg:px-8 font-sans bg-[#f8fafc]">
             <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
 
-                {/* LEFT SECTION: HERO & SEARCH (Sticky on desktop) */}
+                {/* LEFT SECTION: LISTING */}
                 <div className="lg:col-span-7 space-y-6">
-                    {/* SORT BAR */}
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm gap-4">
                         <p className="text-slate-700 text-sm sm:text-base font-bold">
                             Found <span className="text-[#08B36A]">{processedConsultants.length} Specialists</span>
@@ -63,17 +118,15 @@ function FindMyConsultant() {
                         </div>
                     </div>
 
-                    {/* LISTING */}
                     <div className="space-y-6">
                         {visibleConsultants.length > 0 ? (
                             <>
                                 {visibleConsultants.map((doc) => (
-                                    <div key={doc.id} className="bg-white rounded-[1.5rem] md:rounded-[2rem] p-4 sm:p-6 shadow-sm border border-slate-100 hover:shadow-xl transition-all duration-300 group">
+                                    <div key={doc.id || doc._id} className="bg-white rounded-[1.5rem] md:rounded-[2rem] p-4 sm:p-6 shadow-sm border border-slate-100 hover:shadow-xl transition-all duration-300 group">
                                         <div className="flex flex-col sm:flex-row gap-4 md:gap-8">
-                                            {/* Image */}
                                             <div className="w-full sm:w-40 md:w-48 h-56 sm:h-40 md:h-48 flex-shrink-0 relative">
                                                 <img
-                                                    src={doc.image}
+                                                    src={doc.image?.startsWith('http') ? doc.image : `${API_URL}${doc.image}`}
                                                     alt={doc.name}
                                                     className="w-full h-full object-cover rounded-2xl md:rounded-3xl shadow-inner"
                                                 />
@@ -82,7 +135,6 @@ function FindMyConsultant() {
                                                 </div>
                                             </div>
 
-                                            {/* Info Content */}
                                             <div className="flex-1 flex flex-col justify-between">
                                                 <div>
                                                     <div className="flex justify-between items-start">
@@ -112,23 +164,19 @@ function FindMyConsultant() {
                                                             </span>
                                                         </p>
                                                     </div>
-                                                    <button className="text-red-500 font-bold text-[11px] md:text-xs hover:underline mt-2 uppercase tracking-tighter">
-                                                        view full details
-                                                    </button>
                                                 </div>
 
-                                                {/* Action Buttons */}
                                                 <div className="grid grid-cols-2 gap-3 mt-5 pt-4 border-t border-slate-50">
-                                                    <button className="bg-[#08B36A] hover:bg-slate-900 text-white py-2.5 rounded-xl transition-all shadow-md flex flex-col items-center justify-center group/btn">
+                                                    <button className="bg-[#08B36A] hover:bg-slate-900 text-white py-2.5 rounded-xl transition-all shadow-md flex flex-col items-center justify-center">
                                                         <span className="text-sm md:text-lg font-black leading-none">₹{doc.consultFee}</span>
-                                                        <span className="text-[8px] md:text-[10px] font-bold uppercase mt-1 opacity-90 truncate px-1 flex items-center gap-1">
-                                                            <FaVideo className="hidden xs:inline" /> Consult Online
+                                                        <span className="text-[8px] md:text-[10px] font-bold uppercase mt-1 opacity-90 flex items-center gap-1">
+                                                            <FaVideo /> Online
                                                         </span>
                                                     </button>
                                                     <button className="bg-amber-400 hover:bg-slate-900 hover:text-white text-slate-900 py-2.5 rounded-xl transition-all shadow-md flex flex-col items-center justify-center">
                                                         <span className="text-sm md:text-lg font-black leading-none">₹{doc.clinicFee}</span>
-                                                        <span className="text-[8px] md:text-[10px] font-bold uppercase mt-1 opacity-90 truncate px-1 flex items-center gap-1">
-                                                            <FaHospital className="hidden xs:inline" /> Visit Clinic
+                                                        <span className="text-[8px] md:text-[10px] font-bold uppercase mt-1 opacity-90 flex items-center gap-1">
+                                                            <FaHospital /> Clinic
                                                         </span>
                                                     </button>
                                                 </div>
@@ -140,11 +188,9 @@ function FindMyConsultant() {
                                 {hasMore && (
                                     <div className="pt-4 text-center">
                                         <button
-                                            onClick={() => alert("Loading more consultants...")}
-                                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-[#08B36A] border-2 border-[#08B36A] font-black px-10 py-3.5 rounded-2xl hover:bg-[#08B36A] hover:text-white transition-all shadow-lg active:scale-95 group"
-                                        >
-                                            See All Consultants
-                                            <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
+                                            onClick={() => router.push('/drappointment/seealldoctors')}
+                                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-[#08B36A] border-2 border-[#08B36A] font-black px-10 py-3.5 rounded-2xl hover:bg-[#08B36A] hover:text-white transition-all shadow-lg active:scale-95 group">
+                                            See All Consultants <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
                                         </button>
                                     </div>
                                 )}
@@ -153,38 +199,32 @@ function FindMyConsultant() {
                             <div className="bg-white p-12 md:p-20 rounded-[2rem] border-2 border-dashed border-slate-200 text-center">
                                 <FaUserMd className="mx-auto text-5xl text-slate-200 mb-4" />
                                 <h3 className="text-lg font-bold text-slate-800">No consultants match your search</h3>
-                                <button
-                                    onClick={() => setSearchTerm("")}
-                                    className="mt-4 text-[#08B36A] font-bold underline"
-                                >
-                                    Reset search
-                                </button>
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* RIGHT SECTION: CONSULTANTS LIST */}
-                <div className="lg:col-span-5 space-y-6 md:space-y-8 lg:sticky lg:top-35 h-fit">
+                {/* RIGHT SECTION: DYNAMIC CONTENT */}
+                <div className="lg:col-span-5 space-y-6 md:space-y-8 lg:sticky lg:top-40 h-fit">
                     <div className="border-l-4 border-[#08B36A] pl-4 md:pl-6 space-y-2 md:space-y-4">
                         <h4 className="text-[#08B36A] font-black uppercase tracking-widest text-[10px] sm:text-xs">
-                            Book Your Personal Meeting
+                            {pageData.miniTitle}
                         </h4>
                         <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 leading-tight">
-                            Find Your <br className="hidden sm:block" /> Consultant! 👩‍⚕️
+                            {pageData.mainTitle}
                         </h1>
                     </div>
 
                     <div className="space-y-4 max-w-xl">
                         <h2 className="text-xl font-bold text-slate-700">
-                            A doctor who saves life of the patients by his service.
+                            {pageData.subTitle}
                         </h2>
                         <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
-                            Connect with top-rated specialists instantly. We prioritize your health
-                            by bringing certified medical professionals to your doorstep.
+                            {pageData.description}
                         </p>
                     </div>
 
+                    {/* SEARCH BOX */}
                     <div className="space-y-3 max-w-md">
                         <label className="text-[#08B36A] font-black text-[11px] uppercase tracking-wider">Search Specialist</label>
                         <div className="relative group">

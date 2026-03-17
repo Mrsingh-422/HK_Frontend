@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   FaFlask, FaStar, FaFilter, FaSearch, FaMicroscope,
   FaCheckCircle, FaTimes, FaInbox, FaMapMarkerAlt, FaSortAmountDown, FaArrowRight
 } from "react-icons/fa";
 import TestDetailsModal from "./otherComponents/TestDetailsModal";
+import { useGlobalContext } from "@/app/context/GlobalContext"; // Import Context
 
 const INITIAL_PACKAGES = [
   {
@@ -20,15 +21,7 @@ const INITIAL_PACKAGES = [
     rating: 4,
     distance: 2.1,
     tests: "Includes 25 Parameters",
-    detailedTests: [
-      "ECG",
-      "2D Echo",
-      "Lipid Profile",
-      "High Sensitivity CRP",
-      "Homocysteine",
-      "Troponin I",
-      "CK-MB"
-    ]
+    detailedTests: ["ECG", "2D Echo", "Lipid Profile", "High Sensitivity CRP", "Homocysteine", "Troponin I", "CK-MB"]
   },
   {
     id: 5,
@@ -41,14 +34,7 @@ const INITIAL_PACKAGES = [
     rating: 5,
     distance: 4.8,
     tests: "Includes 10 Parameters",
-    detailedTests: [
-      "TSH",
-      "T3 Total",
-      "T4 Total",
-      "Free T3",
-      "Free T4",
-      "Anti-TPO Antibodies"
-    ]
+    detailedTests: ["TSH", "T3 Total", "T4 Total", "Free T3", "Free T4", "Anti-TPO Antibodies"]
   },
   {
     id: 6,
@@ -61,15 +47,7 @@ const INITIAL_PACKAGES = [
     rating: 4,
     distance: 6.3,
     tests: "Includes 15 Parameters",
-    detailedTests: [
-      "Creatinine",
-      "Blood Urea",
-      "Uric Acid",
-      "Sodium",
-      "Potassium",
-      "Chloride",
-      "Glomerular Filtration Rate"
-    ]
+    detailedTests: ["Creatinine", "Blood Urea", "Uric Acid", "Sodium", "Potassium", "Chloride", "Glomerular Filtration Rate"]
   },
   {
     id: 7,
@@ -82,15 +60,7 @@ const INITIAL_PACKAGES = [
     rating: 4,
     distance: 1.9,
     tests: "Includes 12 Parameters",
-    detailedTests: [
-      "SGPT (ALT)",
-      "SGOT (AST)",
-      "Alkaline Phosphatase",
-      "Bilirubin Total",
-      "Bilirubin Direct",
-      "Total Protein",
-      "Albumin"
-    ]
+    detailedTests: ["SGPT (ALT)", "SGOT (AST)", "Alkaline Phosphatase", "Bilirubin Total", "Bilirubin Direct", "Total Protein", "Albumin"]
   },
   {
     id: 8,
@@ -103,14 +73,7 @@ const INITIAL_PACKAGES = [
     rating: 5,
     distance: 3.5,
     tests: "Includes 8 Parameters",
-    detailedTests: [
-      "Vitamin D",
-      "Vitamin B12",
-      "Calcium",
-      "Iron",
-      "Ferritin",
-      "Magnesium"
-    ]
+    detailedTests: ["Vitamin D", "Vitamin B12", "Calcium", "Iron", "Ferritin", "Magnesium"]
   },
   {
     id: 9,
@@ -123,15 +86,7 @@ const INITIAL_PACKAGES = [
     rating: 4,
     distance: 2.7,
     tests: "Includes 55 Parameters",
-    detailedTests: [
-      "CBC",
-      "Thyroid Profile",
-      "Pap Smear",
-      "Hormone Panel",
-      "Lipid Profile",
-      "Blood Sugar Fasting",
-      "Vitamin D"
-    ]
+    detailedTests: ["CBC", "Thyroid Profile", "Pap Smear", "Hormone Panel", "Lipid Profile", "Blood Sugar Fasting", "Vitamin D"]
   },
   {
     id: 10,
@@ -144,15 +99,7 @@ const INITIAL_PACKAGES = [
     rating: 4,
     distance: 4.1,
     tests: "Includes 50 Parameters",
-    detailedTests: [
-      "CBC",
-      "PSA",
-      "Testosterone",
-      "Lipid Profile",
-      "Liver Function Test",
-      "Kidney Function Test",
-      "Blood Sugar"
-    ]
+    detailedTests: ["CBC", "PSA", "Testosterone", "Lipid Profile", "Liver Function Test", "Kidney Function Test", "Blood Sugar"]
   },
   {
     id: 11,
@@ -165,15 +112,7 @@ const INITIAL_PACKAGES = [
     rating: 5,
     distance: 2.4,
     tests: "Includes 70 Parameters",
-    detailedTests: [
-      "Complete Hemogram",
-      "Lipid Profile",
-      "Kidney Function Test",
-      "Liver Function Test",
-      "Thyroid Profile",
-      "Vitamin B12",
-      "Blood Sugar Fasting"
-    ]
+    detailedTests: ["Complete Hemogram", "Lipid Profile", "Kidney Function Test", "Liver Function Test", "Thyroid Profile", "Vitamin B12", "Blood Sugar Fasting"]
   },
   {
     id: 12,
@@ -186,14 +125,7 @@ const INITIAL_PACKAGES = [
     rating: 3,
     distance: 5.9,
     tests: "Includes 18 Parameters",
-    detailedTests: [
-      "CBC",
-      "Malaria Antigen",
-      "Dengue NS1",
-      "Typhoid Test",
-      "ESR",
-      "CRP"
-    ]
+    detailedTests: ["CBC", "Malaria Antigen", "Dengue NS1", "Typhoid Test", "ESR", "CRP"]
   },
   {
     id: 13,
@@ -206,27 +138,51 @@ const INITIAL_PACKAGES = [
     rating: 4,
     distance: 3.8,
     tests: "Includes 40 Parameters",
-    detailedTests: [
-      "CBC",
-      "Blood Sugar",
-      "Urine Routine",
-      "Liver Function Test",
-      "Kidney Function Test",
-      "Chest X-Ray",
-      "HIV Screening"
-    ]
+    detailedTests: ["CBC", "Blood Sugar", "Urine Routine", "Liver Function Test", "Kidney Function Test", "Chest X-Ray", "HIV Screening"]
   }
 ];
 
 function BookYourDiseaseTest() {
   const router = useRouter();
+  const { getSearchTestData } = useGlobalContext(); // Assuming this context function exists
+
+  // States for Search & Sort
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("recommended");
+
+  // Dynamic Content State (Left Side)
+  const [pageData, setPageData] = useState({
+    miniTitle: "100% Verified Labs",
+    mainTitle: "Search Test By Habits!",
+    description: "Book your lab tests online at HealthKangaroo. Get instant results and save time with our secure and reliable platform. Order now!",
+    searchLabel: "Find your diagnostics.."
+  });
 
   // Modal States
   const [selectedPkg, setSelectedPkg] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // ================= FETCH DYNAMIC CONTENT =================
+  useEffect(() => {
+    const fetchPageContent = async () => {
+      try {
+        const res = await getSearchTestData(); // API call to get dynamic text
+        if (res?.success && res?.data) {
+          setPageData({
+            miniTitle: res.data.miniTitle || pageData.miniTitle,
+            mainTitle: res.data.mainTitle || pageData.mainTitle,
+            description: res.data.description || pageData.description,
+            searchLabel: res.data.searchLabel || pageData.searchLabel
+          });
+        }
+      } catch (err) {
+        console.log("Error fetching dynamic content:", err);
+      }
+    };
+    fetchPageContent();
+  }, []);
+
+  // ================= RIGHT SIDE LOGIC (Filtering & Sorting) =================
   const processedPackages = useMemo(() => {
     let result = INITIAL_PACKAGES.filter((pkg) => {
       const searchLower = searchTerm.toLowerCase();
@@ -259,8 +215,6 @@ function BookYourDiseaseTest() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] py-10 px-4 sm:px-6 lg:px-8 font-sans">
-
-      {/* Modal Integration */}
       <TestDetailsModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -270,20 +224,36 @@ function BookYourDiseaseTest() {
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
 
-          {/* LEFT SIDE: HERO */}
+          {/* LEFT SIDE: HERO (Fully Dynamic Now) */}
           <div className="lg:col-span-5 space-y-8 lg:sticky lg:top-35">
             <div className="border-l-4 border-[#08B36A] pl-5 md:pl-6 space-y-4">
               <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black bg-[#08B36A]/10 text-[#08B36A] uppercase tracking-widest">
-                <FaMicroscope className="mr-2" /> 100% Verified Labs
+                <FaMicroscope className="mr-2" /> {pageData.miniTitle}
               </span>
+              
               <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-slate-900 leading-tight">
-                Search Test By <span className="text-[#08B36A] italic">Habits!</span>{" "}
-                <FaFlask className="inline text-[#08B36A] animate-bounce" />
+                {/* Dynamically handling the split title for styling */}
+                {pageData.mainTitle.split(" ").map((word, i, arr) => (
+                    <span key={i}>
+                        {word.toLowerCase().includes("habits") || i === arr.length - 1 ? (
+                            <span className="text-[#08B36A] italic">{word} </span>
+                        ) : (
+                            word + " "
+                        )}
+                    </span>
+                ))}
+                <FaFlask className="inline text-[#08B36A] animate-bounce ml-2" />
               </h1>
+
+              <p className="text-slate-600 leading-relaxed">
+                {pageData.description}
+              </p>
             </div>
 
             <div className="space-y-4 max-w-md">
-              <label className="text-[#08B36A] font-black text-xs uppercase tracking-widest">Find your diagnostics..</label>
+              <label className="text-[#08B36A] font-black text-xs uppercase tracking-widest">
+                {pageData.searchLabel}
+              </label>
               <div className="relative group">
                 <FaSearch className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${searchTerm ? 'text-[#08B36A]' : 'text-slate-400'}`} />
                 <input
@@ -297,7 +267,7 @@ function BookYourDiseaseTest() {
             </div>
           </div>
 
-          {/* RIGHT SIDE: LISTINGS */}
+          {/* RIGHT SIDE: LISTINGS (Logic Kept As Is) */}
           <div className="lg:col-span-7 space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm gap-4">
               <p className="text-slate-700 font-bold text-sm">
@@ -306,7 +276,7 @@ function BookYourDiseaseTest() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="bg-slate-50 border-none text-[11px] font-black text-slate-700 rounded-xl focus:ring-2 focus:ring-[#08B36A] p-2"
+                className="bg-slate-50 border-none text-[11px] font-black text-slate-700 rounded-xl focus:ring-2 focus:ring-[#08B36A] p-2 cursor-pointer"
               >
                 <option value="recommended">Recommended</option>
                 <option value="nearby">Nearest First</option>
@@ -347,7 +317,7 @@ function BookYourDiseaseTest() {
                           <div className="flex items-center justify-between pt-6 mt-6 border-t border-slate-50">
                             <p className="text-2xl font-black text-slate-900">{pkg.discountPrice}</p>
                             <button
-                              onClick={() => openModal(pkg)} // Click to open details
+                              onClick={() => openModal(pkg)} 
                               className="bg-[#08B36A] hover:bg-slate-900 text-white font-black px-8 py-3.5 rounded-xl transition-all active:scale-95 text-xs uppercase tracking-widest cursor-pointer"
                             >
                               Book Now
@@ -358,7 +328,6 @@ function BookYourDiseaseTest() {
                     </div>
                   ))}
 
-                  {/* SEE ALL BUTTON */}
                   {hasMore && (
                     <div className="pt-6 text-center">
                       <button

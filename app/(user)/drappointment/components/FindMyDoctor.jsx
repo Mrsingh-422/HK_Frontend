@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from "next/navigation";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   FaStar, FaFilter, FaSearch, FaMapMarkerAlt,
   FaVideo, FaHospital, FaChevronRight, FaUserMd, FaTimes, FaArrowRight
@@ -13,6 +13,26 @@ function FindMyDoctor() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("recommended");
   const router = useRouter()
+
+  const [content, setContent] = useState({
+    headerTag: "Book Your Personal Meeting",
+    titlePart1: "Find My",
+    titlePart2: "Doctor! 👩‍⚕️",
+    description: "Connect with top-rated specialists instantly. We prioritize your health by bringing certified medical professionals to your doorstep."
+  })
+
+  useEffect(() => {
+    const fetchContent = async () => {
+      try {
+        const res = await fetch('/api/settings/find-doctor')
+        if (res.ok) {
+          const data = await res.json()
+          setContent(data)
+        }
+      } catch (err) { console.error("Could not load dynamic text", err) }
+    }
+    fetchContent()
+  }, [])
 
   // 2. State management
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -41,7 +61,6 @@ function FindMyDoctor() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] py-6 md:py-12 px-4 sm:px-6 lg:px-8 font-sans">
-      {/* 3. Add the component once at the bottom of the JSX */}
       <DoctorDetailsModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -49,20 +68,19 @@ function FindMyDoctor() {
       />
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
 
-        {/* LEFT SECTION: HERO & SEARCH (Standard block on mobile, sticky on desktop) */}
+        {/* LEFT SECTION: HERO - NOW DYNAMIC */}
         <div className="lg:col-span-5 space-y-6 md:space-y-8 lg:sticky lg:top-35 h-fit">
           <div className="border-l-4 border-[#08B36A] pl-4 md:pl-6 space-y-2 md:space-y-4">
             <h4 className="text-[#08B36A] font-black uppercase tracking-widest text-[10px] sm:text-xs">
-              Book Your Personal Meeting
+              {content.headerTag}
             </h4>
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 leading-tight">
-              Find My <br className="hidden sm:block" /> Doctor! 👩‍⚕️
+              {content.titlePart1} <br className="hidden sm:block" /> {content.titlePart2}
             </h1>
           </div>
 
           <p className="text-slate-600 text-sm sm:text-base md:text-lg leading-relaxed max-w-xl">
-            Connect with top-rated specialists instantly. We prioritize your health
-            by bringing certified medical professionals to your doorstep.
+            {content.description}
           </p>
 
           <div className="space-y-3 max-w-md">

@@ -123,6 +123,308 @@ export const GlobalProvider = ({ children }) => {
         }
     }
 
+
+    // Lab Page functions 
+    const getSearchTestData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/labpage/search-test`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting search test data:", error);
+            throw error;
+        }
+    };
+
+    const getPrescriptionPageData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/labpage/prescription-test`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting prescription page data:", error);
+            throw error;
+        }
+    };
+
+    const getHowItWorksContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/labpage/how-it-works`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting how it works content:", error);
+            throw error;
+        }
+    };
+
+    const getLabCareContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/labpage/lab-care`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting lab care content:", error);
+            throw error;
+        }
+    };
+
+    const getAboutLabContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/labpage/about-lab`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting about lab content:", error);
+            throw error;
+        }
+    };
+
+    const getResearchContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/labpage/research`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting research content:", error);
+            throw error;
+        }
+    };
+
+    //doctor page starts
+    const getFindDoctorContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/finddoctor`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting find doctor content:", error);
+            throw error;
+        }
+    };
+
+    const getFindConsultantContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/findconsultant`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting find consultant content:", error);
+            throw error;
+        }
+    };
+
+    const getDoctorsPriorityContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/doctorspriority`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting doctors priority content:", error);
+            throw error;
+        }
+    };
+
+    const getHowToSecureContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/howtosecure`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting how to secure content:", error);
+            throw error;
+        }
+    };
+
+    //Online Pharmacy functions
+    const getPharmacyPageContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/pharmacypage`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting pharmacy page content:", error);
+            throw error;
+        }
+    };
+
+    const getFeaturedProductsContentPharmacy = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/featuredproducts`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting featured products content:", error);
+            throw error;
+        }
+    };
+    const getBestOfBestContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/bestofbest`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting best of best content:", error);
+            throw error;
+        }
+    };
+
+    const getRecommendedMedContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/recommendedmed`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting recommended med content:", error);
+            throw error;
+        }
+    };
+
+    const getAboutMedicineContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/aboutmedicine`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting about medicine content:", error);
+            throw error;
+        }
+    };
+
+
+    //Ambulance functions
+    const getAmbulancePageData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/ambulancepage/hero`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting ambulance page data:", error);
+            throw error;
+        }
+    };
+    const getReferralPageData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/ambulancepage/referral-hero`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting referral page data:", error);
+            throw error;
+        }
+    };
+    const getEmergencyFacilityData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/ambulancepage/emergency-facility`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting emergency facility data:", error);
+            throw error;
+        }
+    };
+    const getAccidentalEmergencyData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/ambulancepage/accidental-emergency`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting accidental emergency data:", error);
+            throw error;
+        }
+    };
+    const getMedicalEmergencyData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/ambulancepage/medical-emergency`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting medical emergency data:", error);
+            throw error;
+        }
+    };
+    const getReferralAmbulanceContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/ambulancepage/referral-services`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting referral ambulance content:", error);
+            throw error;
+        }
+    };
+
+    //Nursing functions 
+    const getNursePageData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/nursepage`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting nurse page data:", error);
+            throw error;
+        }
+    };
+    const getNursePrescriptionData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/nurseprescription`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting nurse prescription data:", error);
+            throw error;
+        }
+    };
+
+    const getNursingStepsData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/nursingsteps`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting nursing steps data:", error);
+            throw error;
+        }
+    };
+
+    const getOurNursingServicesContent = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/ournursingservices`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting our nursing services content:", error);
+            throw error;
+        }
+    };
+
+    const getExperiencedNursesData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/experiencednurses`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting experienced nurses data:", error);
+            throw error;
+        }
+    };
+
+    const getOnlyTheBestCareData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/homepage/onlybestcare`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting only the best care content:", error);
+            throw error;
+        }
+    };
+
+
+    //Hospital functions 
+    const getSingleHospitalPageData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/hospitalpage/hero`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting hospital page data:", error);
+            throw error;
+        }
+    };
+    const getHospitalFacilityData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/hospitalpage/facility`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting hospital facility data:", error);
+            throw error;
+        }
+    };
+    const getMainHowItWorksData = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/hospitalpage/how-it-works`);
+            return response.data;
+        } catch (error) {
+            console.error("Error getting main how it works data:", error);
+            throw error;
+        }
+    };
+
+
+
     return (
         <GlobalContext.Provider
             value={{
@@ -134,6 +436,7 @@ export const GlobalProvider = ({ children }) => {
                 closeModal,
                 sidebarOpen,
                 toggleSidebar,
+
                 getAboutUsContent,
                 getFeaturedProductsContent,
                 getHomePageContent,
@@ -144,6 +447,43 @@ export const GlobalProvider = ({ children }) => {
                 getNursingContent,
                 getAmbulanceContent,
                 getHospitalContent,
+
+                getSearchTestData,
+                getPrescriptionPageData,
+                getHowItWorksContent,
+                getLabCareContent,
+                getAboutLabContent,
+                getResearchContent,
+
+                getPharmacyPageContent,
+                getFeaturedProductsContentPharmacy,
+                getBestOfBestContent,
+                getRecommendedMedContent,
+                getAboutMedicineContent,
+
+                getFindDoctorContent,
+                getFindConsultantContent,
+                getDoctorsPriorityContent,
+                getHowToSecureContent,
+
+                getAmbulancePageData,
+                getReferralPageData,
+                getEmergencyFacilityData,
+                getAccidentalEmergencyData,
+                getMedicalEmergencyData,
+                getReferralAmbulanceContent,
+
+                getNursePageData,
+                getNursePrescriptionData,
+                getNursingStepsData,
+                getOurNursingServicesContent,
+                getExperiencedNursesData,
+                getOnlyTheBestCareData,
+
+                getSingleHospitalPageData,
+                getHospitalFacilityData,
+                getMainHowItWorksData,
+
             }}
         >
             {children}

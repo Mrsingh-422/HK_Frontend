@@ -262,6 +262,74 @@ export default function Sidebar() {
                     </div>
                 )}
 
+                {openMenu === "websitesetting" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/websitesetting/lab"
+                            className={`submenu-link ${isActive("/admind/websitesetting/lab") ? "sub-active" : ""}`}
+                        >
+                            Lab Page Setting
+                        </Link>
+                    </div>
+                )}
+
+                {openMenu === "websitesetting" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/websitesetting/buymedicine"
+                            className={`submenu-link ${isActive("/admind/websitesetting/buymedicine") ? "sub-active" : ""}`}
+                        >
+                            Buy Medicine Setting
+                        </Link>
+                    </div>
+                )}
+
+                {openMenu === "websitesetting" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/websitesetting/doctorscreens"
+                            className={`submenu-link ${isActive("/admind/websitesetting/doctorscreens") ? "sub-active" : ""}`}
+                        >
+                            Doctors Screen Setting
+                        </Link>
+                    </div>
+                )}
+
+
+
+                {openMenu === "websitesetting" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/websitesetting/nursing"
+                            className={`submenu-link ${isActive("/admind/websitesetting/nursing") ? "sub-active" : ""}`}
+                        >
+                            Nursing Screen Setting
+                        </Link>
+                    </div>
+                )}
+
+                {openMenu === "websitesetting" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/websitesetting/ambulancescreen"
+                            className={`submenu-link ${isActive("/admind/websitesetting/ambulancescreen") ? "sub-active" : ""}`}
+                        >
+                            Ambulance Screen Setting
+                        </Link>
+                    </div>
+                )}
+
+                {openMenu === "websitesetting" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/websitesetting/hospitalscreen"
+                            className={`submenu-link ${isActive("/admind/websitesetting/hospitalscreen") ? "sub-active" : ""}`}
+                        >
+                            Hospital Screen Setting
+                        </Link>
+                    </div>
+                )}
+
             </div>
         </div>
     );

@@ -1,37 +1,47 @@
-import { useRouter } from "next/navigation";
-import React from "react";
-import { FaUserNurse, FaClipboardList, FaHeartbeat } from "react-icons/fa";
+"use client";
 
-const steps = [
-  {
-    id: 1,
-    title: "Speak To care Advisor",
-    desc: "Our expert advisors are ready to listen and understand your specific home nursing requirements through a detailed initial consultation.",
-    icon: <FaUserNurse />,
-    color: "#08B36A",
-    bgColor: "bg-emerald-50",
-  },
-  {
-    id: 2,
-    title: "Make a Care Plan together",
-    desc: "We collaborate with your family and doctors to create a customized medical roadmap that ensures safety and rapid recovery.",
-    icon: <FaClipboardList />,
-    color: "#3b82f6", // Medical Blue
-    bgColor: "bg-blue-50",
-  },
-  {
-    id: 3,
-    title: "Your personalised care begins",
-    desc: "Experience professional, compassionate medical care in the comfort of your home with our certified nursing specialists.",
-    icon: <FaHeartbeat />,
-    color: "#ef4444", // Heart Red
-    bgColor: "bg-red-50",
-  },
+import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
+import { FaUserNurse, FaClipboardList, FaHeartbeat } from "react-icons/fa";
+import { useGlobalContext } from "@/app/context/GlobalContext";
+
+// --- STATIC ICON CONFIG ---
+const stepStyles = [
+  { id: 1, icon: <FaUserNurse />, color: "#08B36A", bgColor: "bg-emerald-50" },
+  { id: 2, icon: <FaClipboardList />, color: "#3b82f6", bgColor: "bg-blue-50" },
+  { id: 3, icon: <FaHeartbeat />, color: "#ef4444", bgColor: "bg-red-50" },
 ];
 
+// --- FALLBACK STATIC CONTENT ---
+const STATIC_DATA = {
+    headerTag: "Step-By-Step",
+    mainTitle: "How It Works",
+    steps: [
+      { title: "Speak To care Advisor", desc: "Our expert advisors are ready to listen and understand your specific home nursing requirements." },
+      { title: "Make a Care Plan together", desc: "We collaborate with your family and doctors to create a customized medical roadmap." },
+      { title: "Your personalised care begins", desc: "Experience professional, compassionate medical care in the comfort of your home." },
+    ]
+};
 
 function NursingPosts() {
-  const router = useRouter()
+  const router = useRouter();
+  const { getNursingStepsData } = useGlobalContext();
+  const [data, setData] = useState(STATIC_DATA);
+
+  useEffect(() => {
+    const fetchContent = async () => {
+        try {
+            const res = await getNursingStepsData();
+            if (res?.success && res?.data) {
+                setData(res.data);
+            }
+        } catch (err) {
+            console.error("Backend fetch failed, using static data.");
+        }
+    };
+    fetchContent();
+  }, [getNursingStepsData]);
+
   return (
     <section className="py-8 sm:py-10 lg:py-28 bg-[#f8fafc] font-sans overflow-hidden">
       <div className="max-w-7xl mx-auto px-5 sm:px-10">
@@ -39,24 +49,26 @@ function NursingPosts() {
         {/* HEADER SECTION */}
         <div className="text-center mb-16 md:mb-24">
           <h4 className="text-[#08B36A] font-black uppercase tracking-[0.3em] text-[10px] sm:text-xs mb-4">
-            Step-By-Step
+            {data.headerTag}
           </h4>
           <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 leading-tight">
-            How It <span className="text-[#08B36A]">Works</span>
+            {/* Logic to color 'Works' if title contains it, or just display dynamic title */}
+            {data.mainTitle.includes("Works") ? (
+                <>How It <span className="text-[#08B36A]">Works</span></>
+            ) : data.mainTitle}
           </h2>
           <div className="w-12 sm:w-20 h-1.5 bg-[#08B36A] mx-auto mt-6 rounded-full opacity-20"></div>
         </div>
 
         {/* STEPS GRID */}
-        {/* Mobile: 1 col | Tablet: 1 col (centered) | Desktop: 3 cols */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-16 lg:gap-10 xl:gap-20">
-          {steps.map((step, index) => (
+          {data.steps.map((step, index) => (
             <div 
-              key={step.id} 
+              key={index} 
               className="group relative flex flex-col items-center text-center"
             >
               {/* CONNECTING LINE (Desktop Only) */}
-              {index !== steps.length - 1 && (
+              {index !== data.steps.length - 1 && (
                 <div className="hidden lg:block absolute top-16 left-1/2 w-full h-[2px] bg-slate-100 -z-10">
                   <div className="h-full bg-[#08B36A] w-0 group-hover:w-full transition-all duration-700"></div>
                 </div>
@@ -69,12 +81,12 @@ function NursingPosts() {
                   <span className="text-[#08B36A] font-black text-sm">0{index + 1}</span>
                 </div>
                 
-                {/* Main Icon Container */}
+                {/* Main Icon Container - Merged from STATIC icon config */}
                 <div 
-                  className={`w-28 h-28 sm:w-32 sm:h-32 md:w-40 md:h-40 ${step.bgColor} rounded-[2.5rem] md:rounded-[3rem] flex items-center justify-center text-4xl sm:text-5xl md:text-6xl transition-all duration-500 group-hover:scale-110 group-hover:-rotate-6 shadow-sm group-hover:shadow-2xl group-hover:shadow-[#08B36A]/20`}
-                  style={{ color: step.color }}
+                  className={`w-28 h-28 sm:w-32 sm:h-32 md:w-40 md:h-40 ${stepStyles[index]?.bgColor || 'bg-slate-50'} rounded-[2.5rem] md:rounded-[3rem] flex items-center justify-center text-4xl sm:text-5xl md:text-6xl transition-all duration-500 group-hover:scale-110 group-hover:-rotate-6 shadow-sm group-hover:shadow-2xl group-hover:shadow-[#08B36A]/20`}
+                  style={{ color: stepStyles[index]?.color || '#08B36A' }}
                 >
-                  {step.icon}
+                  {stepStyles[index]?.icon || <FaUserNurse />}
                 </div>
               </div>
 
@@ -88,15 +100,15 @@ function NursingPosts() {
                 </p>
               </div>
 
-              {/* MOBILE DIVIDER (Visible only on mobile/tab between items) */}
-              {index !== steps.length - 1 && (
+              {/* MOBILE DIVIDER */}
+              {index !== data.steps.length - 1 && (
                 <div className="lg:hidden w-px h-12 bg-gradient-to-b from-[#08B36A] to-transparent mt-12 opacity-30"></div>
               )}
             </div>
           ))}
         </div>
 
-        {/* FOOTER ACTION (Optional but makes it look professional) */}
+        {/* FOOTER ACTION */}
         <div className="mt-10 md:mt-16 text-center">
             <button 
             onClick={() => router.push('/nursingservice/seeallnurses')}

@@ -1,9 +1,46 @@
+"use client";
 import { useRouter } from "next/navigation";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { FaUserNurse, FaChevronRight } from "react-icons/fa";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
+// --- FALLBACK STATIC DATA ---
+const STATIC_DATA = {
+    title: "We Have Experienced Nurses",
+    description: "Our team consists of highly qualified and compassionate nursing professionals dedicated to providing the highest standard of medical care. With years of experience in various specialties, they ensure that every patient receives personalized attention.",
+    buttonText: "Hire Now",
+    footerNote: "Available 24/7 for Emergency Support"
+};
+    
 function ExperiencedNurses() {
-    const router = useRouter()
+    const router = useRouter();
+    const { getExperiencedNursesData } = useGlobalContext();
+    const [data, setData] = useState(STATIC_DATA);
+
+    useEffect(() => {
+        const fetchContent = async () => {
+            try {
+                const res = await getExperiencedNursesData();
+                if (res?.success && res?.data) {
+                    setData(res.data);
+                }
+            } catch (err) {
+                console.error("Backend fetch failed, using static fallback.");
+            }
+        };
+        fetchContent();
+    }, [getExperiencedNursesData]);
+
+    // Logic to highlight the word "Experienced" in the title
+    const renderTitle = (title) => {
+        const parts = title.split(/(Experienced)/gi);
+        return parts.map((part, i) =>
+            part.toLowerCase() === "experienced"
+                ? <span key={i} className="text-[#08B36A]">{part}</span>
+                : part
+        );
+    };
+
     return (
         <section className="py-16 md:py-15 bg-[#f8fafc] relative overflow-hidden font-sans">
             {/* Subtle Background Decoration */}
@@ -20,22 +57,18 @@ function ExperiencedNurses() {
                         </span>
                     </div>
                     <h2 className="text-3xl md:text-5xl lg:text-6xl font-black text-slate-900 leading-tight">
-                        We Have <span className="text-[#08B36A]">Experienced</span> Nurses
+                        {renderTitle(data.title)}
                     </h2>
                     <div className="w-20 h-1.5 bg-[#08B36A] mx-auto rounded-full opacity-30"></div>
                 </div>
 
                 {/* Content Section */}
                 <div className="relative max-w-3xl mx-auto">
-                    {/* Replicating the right-side accent bar from your screenshot */}
+                    {/* Vertical accent bar */}
                     <div className="absolute -right-4 md:-right-8 top-0 bottom-0 w-1 md:w-1.5 bg-[#08B36A] rounded-full opacity-60"></div>
 
                     <p className="text-slate-600 text-sm md:text-lg leading-relaxed md:leading-loose">
-                        Our team consists of highly qualified and compassionate nursing professionals
-                        dedicated to providing the highest standard of medical care. With years of
-                        experience in various specialties, they ensure that every patient receives
-                        personalized attention, medical accuracy, and a path to faster recovery
-                        in the comfort of their home.
+                        {data.description}
                     </p>
                 </div>
 
@@ -44,12 +77,12 @@ function ExperiencedNurses() {
                     <button
                         onClick={() => router.push('/nursingservice/seeallnurses')}
                         className="cursor-pointer group bg-[#08B36A] hover:bg-slate-900 text-white font-black px-10 py-4 rounded-xl shadow-xl shadow-[#08B36A]/20 transition-all duration-300 active:scale-95 flex items-center justify-center gap-3 mx-auto uppercase tracking-widest text-sm">
-                        Hire Now
+                        {data.buttonText}
                         <FaChevronRight className="text-xs group-hover:translate-x-1 transition-transform" />
                     </button>
 
                     <p className="mt-6 text-slate-400 text-xs font-bold uppercase tracking-widest">
-                        Available 24/7 for Emergency Support
+                        {data.footerNote}
                     </p>
                 </div>
 
