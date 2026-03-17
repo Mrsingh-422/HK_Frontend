@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from "react";
 import { useAdminContext } from "@/app/context/AdminContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
-import { FaPlus, FaTrash } from "react-icons/fa";
+import { FaPlus, FaTrash, FaCloudUploadAlt, FaImage } from "react-icons/fa";
+
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 function SaveReferralAmbulanceAdmin() {
     const { saveReferralAmbulanceContent } = useAdminContext();
@@ -15,9 +17,10 @@ function SaveReferralAmbulanceAdmin() {
         description: "",
         buttonText: "Book Now",
         badgeText: "Inter-City Transport",
-        carouselImages: []
+        images: [] // Array to hold File objects for Multer
     });
 
+    const [previews, setPreviews] = useState([]);
     const [hasData, setHasData] = useState(false);
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState("");
@@ -31,16 +34,24 @@ function SaveReferralAmbulanceAdmin() {
     const fetchReferralContent = async () => {
         try {
             const res = await getReferralAmbulanceContent();
-            if (res?.data) {
+            if (res?.success && res?.data) {
+                const data = res.data;
                 setHasData(true);
+
                 setFormData({
-                    tagline: res.data.tagline || "",
-                    subHeader: res.data.subHeader || "",
-                    description: res.data.description || "",
-                    buttonText: res.data.buttonText || "Book Now",
-                    badgeText: res.data.badgeText || "Inter-City Transport",
-                    carouselImages: res.data.carouselImages || []
+                    tagline: data.tagline || "",
+                    subHeader: data.subHeader || "",
+                    description: data.description || "",
+                    buttonText: data.buttonText || "Book Now",
+                    badgeText: data.badgeText || "Inter-City Transport",
+                    images: [] // Reset local files on fetch
                 });
+
+                // Logic to handle existing image paths from server
+                const imageUrls = (data.carouselImages || []).map(
+                    (img) => img.startsWith('http') ? img : `${API_URL}${img}`
+                );
+                setPreviews(imageUrls);
             }
         } catch (err) {
             console.log("Error fetching data:", err);
@@ -55,27 +66,20 @@ function SaveReferralAmbulanceAdmin() {
         });
     };
 
-    const handleImageChange = (index, value) => {
-        const updated = [...formData.carouselImages];
-        updated[index] = value;
-        setFormData({ ...formData, carouselImages: updated });
-    };
+    const handleImages = (e) => {
+        const files = Array.from(e.target.files);
 
-    const addImage = () => {
         setFormData({
             ...formData,
-            carouselImages: [...formData.carouselImages, ""]
+            images: files,
         });
+
+        // Generate temporary local URLs for the UI
+        const previewUrls = files.map((file) => URL.createObjectURL(file));
+        setPreviews(previewUrls);
     };
 
-    const removeImage = (index) => {
-        setFormData({
-            ...formData,
-            carouselImages: formData.carouselImages.filter((_, i) => i !== index)
-        });
-    };
-
-    // ================= SAVE =================
+    // ================= SAVE (SUBMIT AS FORMDATA) =================
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -83,7 +87,22 @@ function SaveReferralAmbulanceAdmin() {
         setError("");
 
         try {
-            await saveReferralAmbulanceContent(formData);
+            const data = new FormData();
+
+            // Append text fields
+            data.append("tagline", formData.tagline);
+            data.append("subHeader", formData.subHeader);
+            data.append("description", formData.description);
+            data.append("buttonText", formData.buttonText);
+            data.append("badgeText", formData.badgeText);
+
+            // Append images (Multer expects 'carouselImages')
+            formData.images.forEach((img) => {
+                data.append("images", img);
+            });
+
+            await saveReferralAmbulanceContent(data);
+
             setSuccess(
                 hasData
                     ? "Referral Ambulance section updated successfully!"
@@ -100,28 +119,27 @@ function SaveReferralAmbulanceAdmin() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 flex justify-center items-start py-10">
+        <div className="min-h-screen bg-gray-100 flex justify-center items-start py-10 px-4">
             <div className="bg-white w-full max-w-5xl rounded-2xl shadow-lg p-8">
 
-                <h2 className="text-2xl font-semibold text-gray-700 mb-6">
+                <h2 className="text-2xl font-semibold text-gray-700 mb-6 font-sans">
                     Manage Referral Services Section
                 </h2>
 
                 {success && (
-                    <div className="mb-4 p-3 rounded-lg bg-green-100 text-green-700 border border-green-300">
+                    <div className="mb-4 p-3 rounded-lg bg-green-100 text-green-700 border border-green-300 text-sm">
                         {success}
                     </div>
                 )}
 
                 {error && (
-                    <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-700 border border-red-300">
+                    <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-700 border border-red-300 text-sm">
                         {error}
                     </div>
                 )}
 
                 <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                    {/* Tagline & SubHeader */}
                     <div className="flex flex-col gap-2">
                         <label className="text-sm font-medium text-gray-600">Main Tagline (Title)</label>
                         <input
@@ -146,7 +164,6 @@ function SaveReferralAmbulanceAdmin() {
                         />
                     </div>
 
-                    {/* Description */}
                     <div className="md:col-span-2 flex flex-col gap-2">
                         <label className="text-sm font-medium text-gray-600">Description</label>
                         <textarea
@@ -159,7 +176,6 @@ function SaveReferralAmbulanceAdmin() {
                         />
                     </div>
 
-                    {/* Button & Badge Settings */}
                     <div className="flex flex-col gap-2">
                         <label className="text-sm font-medium text-gray-600">Button Text</label>
                         <input
@@ -182,52 +198,44 @@ function SaveReferralAmbulanceAdmin() {
                         />
                     </div>
 
-                    {/* Carousel Images Section */}
-                    <div className="md:col-span-2 border-t pt-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold text-gray-700">Carousel Images</h3>
-                            <button
-                                type="button"
-                                onClick={addImage}
-                                className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-emerald-100 transition-colors"
-                            >
-                                <FaPlus /> Add Image
-                            </button>
+                    {/* MULTIPLE IMAGE UPLOAD SECTION */}
+                    <div className="md:col-span-2 p-6 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 mt-4">
+                        <div className="flex flex-col items-center justify-center mb-4">
+                            <FaCloudUploadAlt size={40} className="text-gray-400 mb-2" />
+                            <p className="text-gray-600 mb-4 font-medium">Upload Carousel Images</p>
+                            <input
+                                type="file"
+                                multiple
+                                accept="image/*"
+                                onChange={handleImages}
+                                className="w-full p-2 bg-white border rounded-lg text-sm"
+                            />
                         </div>
 
-                        <div className="space-y-3">
-                            {formData.carouselImages.map((img, index) => (
-                                <div key={index} className="flex gap-3 items-center bg-gray-50 p-3 rounded-xl border border-gray-200">
-                                    <div className="flex-1">
-                                        <input
-                                            value={img}
-                                            onChange={(e) => handleImageChange(index, e.target.value)}
-                                            placeholder="Enter Image URL..."
-                                            className="w-full p-2 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-emerald-400"
-                                        />
+                        {/* Previews Grid */}
+                        {previews.length > 0 && (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4 mt-4">
+                                {previews.map((src, index) => (
+                                    <div key={index} className="relative aspect-square rounded-lg border bg-white overflow-hidden shadow-sm">
+                                        <img src={src} alt="preview" className="h-full w-full object-cover" />
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => removeImage(index)}
-                                        className="bg-red-50 text-red-500 p-2.5 rounded-lg hover:bg-red-100 transition-colors flex justify-center"
-                                    >
-                                        <FaTrash size={14} />
-                                    </button>
-                                </div>
-                            ))}
-                            {formData.carouselImages.length === 0 && (
-                                <p className="text-center text-gray-400 py-4 italic text-sm">No images added to the carousel.</p>
-                            )}
-                        </div>
+                                ))}
+                            </div>
+                        )}
+                        {previews.length === 0 && (
+                            <div className="flex flex-col items-center text-gray-400 py-6">
+                                <FaImage size={24} className="mb-2" />
+                                <p className="text-xs italic">No images selected for this section.</p>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Submit Button */}
                     <button
                         type="submit"
                         disabled={loading}
                         className={`md:col-span-2 py-3 rounded-lg text-white shadow-md font-medium transition-all ${loading
-                                ? "bg-gray-400 cursor-not-allowed"
-                                : "bg-[#08B36A] hover:bg-[#079a5c]"
+                            ? "bg-gray-400 cursor-not-allowed"
+                            : "bg-[#08B36A] hover:bg-[#079a5c]"
                             }`}
                     >
                         {loading ? "Processing..." : "Save Referral Section Content"}

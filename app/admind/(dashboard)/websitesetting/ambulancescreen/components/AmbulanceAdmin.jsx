@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { useAdminContext } from "@/app/context/AdminContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
-import { FaPlus, FaTrash } from "react-icons/fa";
 
 function AmbulanceAdmin() {
     const { saveAmbulancePageData } = useAdminContext();
@@ -16,7 +15,6 @@ function AmbulanceAdmin() {
         description: "",
         searchLabel: "",
         searchPlaceholder: "",
-        categories: []
     });
 
     const [hasData, setHasData] = useState(false);
@@ -34,10 +32,13 @@ function AmbulanceAdmin() {
             const res = await getAmbulancePageData();
             if (res?.data) {
                 setHasData(true);
-                setFormData(res.data);
+                // We spread the data but ensure we don't accidentally 
+                // keep categories in the state if the API returns them
+                const { categories, ...rest } = res.data;
+                setFormData(rest);
             }
         } catch (err) {
-            console.log(err);
+            console.log("Error fetching data:", err);
         }
     };
 
@@ -46,26 +47,6 @@ function AmbulanceAdmin() {
         setFormData({
             ...formData,
             [e.target.name]: e.target.value,
-        });
-    };
-
-    const handleCategoryChange = (index, field, value) => {
-        const updated = [...formData.categories];
-        updated[index][field] = value;
-        setFormData({ ...formData, categories: updated });
-    };
-
-    const addCategory = () => {
-        setFormData({
-            ...formData,
-            categories: [...formData.categories, { id: Date.now(), label: "", img: "" }]
-        });
-    };
-
-    const removeCategory = (index) => {
-        setFormData({
-            ...formData,
-            categories: formData.categories.filter((_, i) => i !== index)
         });
     };
 
@@ -147,6 +128,7 @@ function AmbulanceAdmin() {
                             rows={2}
                             value={formData.mainTitle}
                             onChange={handleChange}
+                            placeholder="Main headline of the page"
                             className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
                         />
                     </div>
@@ -158,6 +140,7 @@ function AmbulanceAdmin() {
                             rows={3}
                             value={formData.description}
                             onChange={handleChange}
+                            placeholder="Short summary text"
                             className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
                         />
                     </div>
@@ -170,6 +153,7 @@ function AmbulanceAdmin() {
                             name="searchLabel"
                             value={formData.searchLabel}
                             onChange={handleChange}
+                            placeholder="Label above the search bar"
                             className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
                         />
                     </div>
@@ -181,63 +165,18 @@ function AmbulanceAdmin() {
                             name="searchPlaceholder"
                             value={formData.searchPlaceholder}
                             onChange={handleChange}
+                            placeholder="Inside search input"
                             className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
                         />
-                    </div>
-
-                    {/* Categories Section */}
-                    <div className="md:col-span-2 border-t pt-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold text-gray-700">Categories / Icons</h3>
-                            <button
-                                type="button"
-                                onClick={addCategory}
-                                className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-emerald-100 transition-colors"
-                            >
-                                <FaPlus /> Add Category
-                            </button>
-                        </div>
-
-                        <div className="space-y-4">
-                            {formData.categories.map((cat, index) => (
-                                <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                    <div className="md:col-span-4 flex flex-col gap-1">
-                                        <label className="text-xs font-bold text-gray-500 uppercase">Label</label>
-                                        <input
-                                            value={cat.label}
-                                            onChange={(e) => handleCategoryChange(index, "label", e.target.value)}
-                                            className="p-2 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-emerald-400"
-                                        />
-                                    </div>
-                                    <div className="md:col-span-7 flex flex-col gap-1">
-                                        <label className="text-xs font-bold text-gray-500 uppercase">Icon URL</label>
-                                        <input
-                                            value={cat.img}
-                                            onChange={(e) => handleCategoryChange(index, "img", e.target.value)}
-                                            className="p-2 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-emerald-400"
-                                        />
-                                    </div>
-                                    <div className="md:col-span-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => removeCategory(index)}
-                                            className="w-full bg-red-50 text-red-500 p-2.5 rounded-lg hover:bg-red-100 transition-colors flex justify-center"
-                                        >
-                                            <FaTrash />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
                     </div>
 
                     {/* Submit Button */}
                     <button
                         type="submit"
                         disabled={loading}
-                        className={`md:col-span-2 py-3 rounded-lg text-white shadow-md font-medium transition-all ${loading
-                                ? "bg-gray-400 cursor-not-allowed"
-                                : "bg-[#08B36A] hover:bg-[#079a5c]"
+                        className={`md:col-span-2 mt-4 py-3 rounded-lg text-white shadow-md font-medium transition-all ${loading
+                            ? "bg-gray-400 cursor-not-allowed"
+                            : "bg-[#08B36A] hover:bg-[#079a5c]"
                             }`}
                     >
                         {loading ? "Processing..." : "Save Ambulance Page Content"}

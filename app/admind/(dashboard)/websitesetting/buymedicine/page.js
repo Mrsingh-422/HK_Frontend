@@ -8,14 +8,14 @@ import ManageRecommendedMed from "./components/ManageRecommendedMed";
 import AboutMedicineAdmin from "./components/AboutMedicineAdmin";
 import ManageFeaturedProducts from "./components/ManageFeaturedProducts";
 import ManagePharmacyPage from "./components/ManagePharmacyPage";
+import SectionThree from "./components/SectionThree";
 
 function Page() {
     const [activeTab, setActiveTab] = useState("maintoppage");
 
     const tabs = [
         { id: "maintoppage", label: "Main Top Page" },
-        { id: "featuredmedicines", label: "Featured Medicines" },
-        { id: "booklab", label: "Book Lab" },
+        { id: "sectionthree", label: "Section Three" },
         { id: "bestofbest", label: "Best of Best" },
         { id: "recommendedmedicines", label: "Recommended Medicines" },
         { id: "aboutusmedicines", label: "About Us Medicines" },
@@ -25,10 +25,8 @@ function Page() {
         switch (activeTab) {
             case 'maintoppage':
                 return <ManagePharmacyPage />;
-            case "featuredmedicines":
-                return <ManageFeaturedProducts />;
-            case "booklab":
-                return <BookYourPrescriptionTestAdmin />;
+            case "sectionthree":
+                return <SectionThree />;
             case "bestofbest":
                 return <BestOfBestAdmin />;
             case "recommendedmedicines":

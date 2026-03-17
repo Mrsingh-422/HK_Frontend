@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from "react";
 import { useAdminContext } from "@/app/context/AdminContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
-import { FaPlus, FaTrash } from "react-icons/fa";
+import { FaPlus, FaTrash, FaCloudUploadAlt, FaImage } from "react-icons/fa";
+
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 function MedicalEmergencyAdmin() {
     const { saveMedicalEmergencyData } = useAdminContext();
@@ -14,9 +16,10 @@ function MedicalEmergencyAdmin() {
         description: "",
         highlightText: "",
         buttonText: "Book Now",
-        carouselImages: []
+        images: [] // To hold actual File objects
     });
 
+    const [previews, setPreviews] = useState([]);
     const [hasData, setHasData] = useState(false);
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState("");
@@ -30,15 +33,22 @@ function MedicalEmergencyAdmin() {
     const fetchMedicalContent = async () => {
         try {
             const res = await getMedicalEmergencyData();
-            if (res?.data) {
+            if (res?.success && res?.data) {
+                const data = res.data;
                 setHasData(true);
                 setFormData({
-                    title: res.data.title || "",
-                    description: res.data.description || "",
-                    highlightText: res.data.highlightText || "",
-                    buttonText: res.data.buttonText || "Book Now",
-                    carouselImages: res.data.carouselImages || []
+                    title: data.title || "",
+                    description: data.description || "",
+                    highlightText: data.highlightText || "",
+                    buttonText: data.buttonText || "Book Now",
+                    images: [] // Reset files on fetch
                 });
+
+                // Set previews from existing carouselImages in DB
+                const imageUrls = (data.carouselImages || []).map((img) =>
+                    img.startsWith("http") ? img : `${API_URL}${img}`
+                );
+                setPreviews(imageUrls);
             }
         } catch (err) {
             console.log("Error fetching data:", err);
@@ -53,27 +63,20 @@ function MedicalEmergencyAdmin() {
         });
     };
 
-    const handleImageChange = (index, value) => {
-        const updated = [...formData.carouselImages];
-        updated[index] = value;
-        setFormData({ ...formData, carouselImages: updated });
-    };
+    const handleImages = (e) => {
+        const files = Array.from(e.target.files);
 
-    const addImage = () => {
-        setFormData({ 
-            ...formData, 
-            carouselImages: [...formData.carouselImages, ""] 
+        setFormData({
+            ...formData,
+            images: files,
         });
+
+        // Generate temporary local URLs for previewing
+        const previewUrls = files.map((file) => URL.createObjectURL(file));
+        setPreviews(previewUrls);
     };
 
-    const removeImage = (index) => {
-        setFormData({ 
-            ...formData, 
-            carouselImages: formData.carouselImages.filter((_, i) => i !== index) 
-        });
-    };
-
-    // ================= SAVE =================
+    // ================= SAVE (SUBMIT AS FORMDATA) =================
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -81,7 +84,21 @@ function MedicalEmergencyAdmin() {
         setError("");
 
         try {
-            await saveMedicalEmergencyData(formData);
+            const data = new FormData();
+
+            // Append all text fields
+            data.append("title", formData.title);
+            data.append("description", formData.description);
+            data.append("highlightText", formData.highlightText);
+            data.append("buttonText", formData.buttonText);
+
+            // Append Images (Multer expects 'carouselImages')
+            formData.images.forEach((img) => {
+                data.append("images", img);
+            });
+
+            await saveMedicalEmergencyData(data);
+
             setSuccess(
                 hasData
                     ? "Medical Emergency section updated successfully!"
@@ -98,21 +115,21 @@ function MedicalEmergencyAdmin() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 flex justify-center items-start py-10">
+        <div className="min-h-screen bg-gray-100 flex justify-center items-start py-10 px-4">
             <div className="bg-white w-full max-w-5xl rounded-2xl shadow-lg p-8">
                 
-                <h2 className="text-2xl font-semibold text-gray-700 mb-6">
+                <h2 className="text-2xl font-semibold text-gray-700 mb-6 font-sans">
                     Manage Medical Emergency Section
                 </h2>
 
                 {success && (
-                    <div className="mb-4 p-3 rounded-lg bg-green-100 text-green-700 border border-green-300">
+                    <div className="mb-4 p-3 rounded-lg bg-green-100 text-green-700 border border-green-300 text-sm font-medium">
                         {success}
                     </div>
                 )}
 
                 {error && (
-                    <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-700 border border-red-300">
+                    <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-700 border border-red-300 text-sm font-medium">
                         {error}
                     </div>
                 )}
@@ -134,7 +151,7 @@ function MedicalEmergencyAdmin() {
                     </div>
 
                     <div className="flex flex-col gap-2">
-                        <label className="text-sm font-medium text-gray-600">Highlight Text (Icon Row)</label>
+                        <label className="text-sm font-medium text-gray-600">Highlight Text</label>
                         <input
                             type="text"
                             name="highlightText"
@@ -171,49 +188,38 @@ function MedicalEmergencyAdmin() {
                         />
                     </div>
 
-                    {/* Empty Space for Grid alignment */}
-                    <div className="hidden md:block"></div>
+                    {/* Image Upload Area */}
+                    <div className="md:col-span-2 p-6 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 mt-4">
+                        <div className="flex flex-col items-center justify-center mb-4">
+                            <FaCloudUploadAlt size={40} className="text-gray-400 mb-2" />
+                            <p className="text-gray-600 mb-4 font-medium">Upload Carousel Images</p>
+                            <input
+                                type="file"
+                                multiple
+                                accept="image/*"
+                                onChange={handleImages}
+                                className="w-full p-2 bg-white border rounded-lg text-sm"
+                            />
+                        </div>
 
-                    {/* Carousel Images Section */}
-                    <div className="md:col-span-2 border-t pt-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold text-gray-700">Carousel Images</h3>
-                            <button 
-                                type="button" 
-                                onClick={addImage} 
-                                className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-emerald-100 transition-colors"
-                            >
-                                <FaPlus /> Add Image
-                            </button>
-                        </div>
-                        
-                        <div className="space-y-3">
-                            {formData.carouselImages.map((img, index) => (
-                                <div key={index} className="flex gap-3 items-center bg-gray-50 p-3 rounded-xl border border-gray-200">
-                                    <div className="flex-1">
-                                        <input 
-                                            value={img} 
-                                            onChange={(e) => handleImageChange(index, e.target.value)} 
-                                            placeholder="Enter Image URL..."
-                                            className="w-full p-2 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-emerald-400" 
-                                        />
+                        {/* Previews Grid */}
+                        {previews.length > 0 && (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4 mt-4">
+                                {previews.map((src, index) => (
+                                    <div key={index} className="relative aspect-square rounded-lg border bg-white overflow-hidden shadow-sm">
+                                        <img src={src} alt="preview" className="h-full w-full object-cover" />
                                     </div>
-                                    <button 
-                                        type="button" 
-                                        onClick={() => removeImage(index)} 
-                                        className="bg-red-50 text-red-500 p-2.5 rounded-lg hover:bg-red-100 transition-colors flex justify-center"
-                                    >
-                                        <FaTrash size={14} />
-                                    </button>
-                                </div>
-                            ))}
-                            {formData.carouselImages.length === 0 && (
-                                <p className="text-center text-gray-400 py-4 italic text-sm">No images added yet.</p>
-                            )}
-                        </div>
+                                ))}
+                            </div>
+                        )}
+                        {previews.length === 0 && (
+                            <div className="flex flex-col items-center text-gray-400 py-4 italic">
+                                <FaImage size={24} className="mb-1" />
+                                <p className="text-xs">No images currently selected.</p>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Submit Button */}
                     <button
                         type="submit"
                         disabled={loading}

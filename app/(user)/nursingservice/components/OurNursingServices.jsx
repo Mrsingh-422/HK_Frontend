@@ -1,7 +1,11 @@
 "use client";
+
 import React, { useState, useEffect } from "react";
 import { FaCheck } from "react-icons/fa";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+
+// Ensure this matches your .env file
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 // --- FALLBACK STATIC DATA ---
 const STATIC_DATA = {
@@ -25,6 +29,7 @@ function OurNursingServices() {
       try {
         const res = await getOurNursingServicesContent();
         if (res?.success && res?.data) {
+          // Update state with backend data
           setData(res.data);
         }
       } catch (err) {
@@ -36,9 +41,10 @@ function OurNursingServices() {
 
   // CAROUSEL LOGIC
   useEffect(() => {
-    if (data.carouselImages?.length > 1) {
+    const images = data.carouselImages || [];
+    if (images.length > 1) {
         const timer = setInterval(() => {
-            setCurrentImg((prev) => (prev === data.carouselImages.length - 1 ? 0 : prev + 1));
+            setCurrentImg((prev) => (prev === images.length - 1 ? 0 : prev + 1));
         }, 2500);
         return () => clearInterval(timer);
     }
@@ -51,18 +57,28 @@ function OurNursingServices() {
         <div className="grid grid-cols-1 md:grid-cols-2 items-stretch gap-4 md:gap-0">
           
           {/* LEFT: IMAGE CAROUSEL */}
-          <div className="relative h-[220px] sm:h-[300px] md:h-auto min-h-[300px] md:min-h-[450px] overflow-hidden rounded-t-[2rem] md:rounded-t-none md:rounded-l-[2.5rem] shadow-xl md:shadow-none z-10">
-            {data.carouselImages?.map((img, index) => (
-              <div
-                key={index}
-                className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-                  index === currentImg ? "opacity-100 z-10" : "opacity-0 z-0"
-                }`}
-              >
-                <img src={img} alt="Nursing" className="h-full w-full object-cover" />
-                <div className="absolute inset-0 bg-black/10"></div>
-              </div>
-            ))}
+          <div className="relative h-[220px] sm:h-[300px] md:h-auto min-h-[300px] md:min-h-[450px] overflow-hidden rounded-t-[2rem] md:rounded-t-none md:rounded-l-[2.5rem] shadow-xl md:shadow-none z-10 bg-slate-200">
+            {data.carouselImages && data.carouselImages.length > 0 ? (
+              data.carouselImages.map((img, index) => (
+                <div
+                  key={index}
+                  className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+                    index === currentImg ? "opacity-100 z-10" : "opacity-0 z-0"
+                  }`}
+                >
+                  <img 
+                    // LOGIC: Check if path is relative from Multer or absolute URL
+                    src={img.startsWith('http') ? img : `${API_URL}${img}`} 
+                    alt="Nursing Service" 
+                    className="h-full w-full object-cover" 
+                    onError={(e) => { e.target.src = "https://via.placeholder.com/800x600?text=Service+Image"; }}
+                  />
+                  <div className="absolute inset-0 bg-black/10"></div>
+                </div>
+              ))
+            ) : (
+                <div className="flex items-center justify-center h-full bg-slate-100 text-slate-400">No Images</div>
+            )}
 
             <div className="absolute bottom-4 right-6 z-20 flex gap-1.5">
                {data.carouselImages?.map((_, i) => (

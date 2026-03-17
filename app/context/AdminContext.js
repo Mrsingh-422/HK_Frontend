@@ -325,7 +325,7 @@ export const AdminProvider = ({ children }) => {
     const saveFindDoctorContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/finddoctor`, data, {
+            const response = await axios.post(`${API_URL}/api/appointmentpage/find-doctor`, data, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -336,11 +336,10 @@ export const AdminProvider = ({ children }) => {
             throw error;
         }
     };
-
     const saveFindConsultantContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/findconsultant`, data, {
+            const response = await axios.post(`${API_URL}/api/appointmentpage/find-consultant`, data, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -351,11 +350,10 @@ export const AdminProvider = ({ children }) => {
             throw error;
         }
     };
-
     const saveDoctorsPriorityContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/doctorspriority`, data, {
+            const response = await axios.post(`${API_URL}/api/appointmentpage/doctors-priority`, data, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -366,11 +364,10 @@ export const AdminProvider = ({ children }) => {
             throw error;
         }
     };
-
     const saveHowToSecureContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/howtosecure`, data, {
+            const response = await axios.post(`${API_URL}/api/appointmentpage/how-to-secure`, data, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -382,13 +379,12 @@ export const AdminProvider = ({ children }) => {
         }
     };
 
-
     //Online Pharmacy functions
 
     const savePharmacyPageContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/pharmacypage`, data, {
+            const response = await axios.post(`${API_URL}/api/medicinepage/pharmacy-main`, data, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -415,10 +411,26 @@ export const AdminProvider = ({ children }) => {
         }
     };
 
+    const saveDeclarePastContent = async (data) => {
+    const token = localStorage.getItem("token");
+    try {
+        const response = await axios.post(`${API_URL}/api/medicinepage/declare-past`, data, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                // Axios handles Content-Type for FormData automatically
+            },
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Error saving DeclarePast content:", error);
+        throw error;
+    }
+};
+
     const saveBestOfBestContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/bestofbest`, data, {
+            const response = await axios.post(`${API_URL}/api/medicinepage/best-of-best`, data, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -428,12 +440,12 @@ export const AdminProvider = ({ children }) => {
             console.error("Error saving best of best content:", error);
             throw error;
         }
-    };
+    }; 
 
     const saveRecommendedMedContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/recommendedmed`, data, {
+            const response = await axios.post(`${API_URL}/api/medicinepage/recommended`, data, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -448,7 +460,7 @@ export const AdminProvider = ({ children }) => {
     const saveAboutMedicineContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/aboutmedicine`, data, {
+            const response = await axios.post(`${API_URL}/api/homepage/about`, data, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -460,16 +472,20 @@ export const AdminProvider = ({ children }) => {
         }
     };
 
+
+
     //Ambulance functions
     const saveAmbulancePageData = async (data) => {
         const token = localStorage.getItem("token");
         try {
             const response = await axios.post(`${API_URL}/api/ambulancepage/hero`, data, {
-                headers: { Authorization: `Bearer ${token}` },
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
             });
             return response.data;
         } catch (error) {
-            console.error("Error saving ambulance page data:", error);
+            console.error("Error saving ambulance page content:", error);
             throw error;
         }
     };
@@ -477,11 +493,13 @@ export const AdminProvider = ({ children }) => {
         const token = localStorage.getItem("token");
         try {
             const response = await axios.post(`${API_URL}/api/ambulancepage/referral-hero`, data, {
-                headers: { Authorization: `Bearer ${token}` },
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
             });
             return response.data;
         } catch (error) {
-            console.error("Error saving referral page data:", error);
+            console.error("Error saving referral ambulance content:", error);
             throw error;
         }
     };
@@ -489,11 +507,13 @@ export const AdminProvider = ({ children }) => {
         const token = localStorage.getItem("token");
         try {
             const response = await axios.post(`${API_URL}/api/ambulancepage/emergency-facility`, data, {
-                headers: { Authorization: `Bearer ${token}` },
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
             });
             return response.data;
         } catch (error) {
-            console.error("Error saving emergency facility data:", error);
+            console.error("Error saving emergency facility content:", error);
             throw error;
         }
     };
@@ -501,11 +521,13 @@ export const AdminProvider = ({ children }) => {
         const token = localStorage.getItem("token");
         try {
             const response = await axios.post(`${API_URL}/api/ambulancepage/accidental-emergency`, data, {
-                headers: { Authorization: `Bearer ${token}` },
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
             });
             return response.data;
         } catch (error) {
-            console.error("Error saving accidental emergency data:", error);
+            console.error("Error saving accidental emergency content:", error);
             throw error;
         }
     };
@@ -513,11 +535,13 @@ export const AdminProvider = ({ children }) => {
         const token = localStorage.getItem("token");
         try {
             const response = await axios.post(`${API_URL}/api/ambulancepage/medical-emergency`, data, {
-                headers: { Authorization: `Bearer ${token}` },
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
             });
             return response.data;
         } catch (error) {
-            console.error("Error saving medical emergency data:", error);
+            console.error("Error saving medical emergency content:", error);
             throw error;
         }
     };
@@ -540,7 +564,7 @@ export const AdminProvider = ({ children }) => {
     const saveNursePageData = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/nursepage`, data, {
+            const response = await axios.post(`${API_URL}/api/nursepage/hero`, data, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             return response.data;
@@ -549,11 +573,10 @@ export const AdminProvider = ({ children }) => {
             throw error;
         }
     };
-
     const saveNursePrescriptionData = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/nurseprescription`, data, {
+            const response = await axios.post(`${API_URL}/api/nursepage/prescription`, data, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             return response.data;
@@ -562,11 +585,10 @@ export const AdminProvider = ({ children }) => {
             throw error;
         }
     };
-
     const saveNursingStepsData = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/nursingsteps`, data, {
+            const response = await axios.post(`${API_URL}/api/nursepage/steps`, data, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             return response.data;
@@ -575,11 +597,10 @@ export const AdminProvider = ({ children }) => {
             throw error;
         }
     };
-
     const saveOurNursingServicesContent = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/ournursingservices`, data, {
+            const response = await axios.post(`${API_URL}/api/nursepage/services`, data, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             return response.data;
@@ -588,11 +609,10 @@ export const AdminProvider = ({ children }) => {
             throw error;
         }
     };
-
     const saveExperiencedNursesData = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/experiencednurses`, data, {
+            const response = await axios.post(`${API_URL}/api/nursepage/experienced-nurses`, data, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             return response.data;
@@ -601,11 +621,10 @@ export const AdminProvider = ({ children }) => {
             throw error;
         }
     };
-
     const saveOnlyTheBestCareData = async (data) => {
         const token = localStorage.getItem("token");
         try {
-            const response = await axios.post(`${API_URL}/api/homepage/onlybestcare`, data, {
+            const response = await axios.post(`${API_URL}/api/nursepage/best-care`, data, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             return response.data;
@@ -661,57 +680,21 @@ export const AdminProvider = ({ children }) => {
 
     return (
         <AdminContext.Provider value={{
-            saveHomePageContent,
-            addDoctorTeam,
-            saveIntroductionPageContent,
-            saveAboutUsContent,
-            saveFeaturedProductsContent,
-            saveLaboratoryContent,
-            saveOurAffiliatesContent,
-            saveNursingContent,
-            saveAmbulanceContent,
-            saveHospitalContent,
-            addDoctorInDoctorsTeam,
-            updateDoctorInDoctorsTeam,
-            deleteDoctorInDoctorsTeam,
+            saveHomePageContent, addDoctorTeam, saveIntroductionPageContent, saveAboutUsContent, saveFeaturedProductsContent, saveLaboratoryContent, saveOurAffiliatesContent, saveNursingContent, saveAmbulanceContent, saveHospitalContent, addDoctorInDoctorsTeam, updateDoctorInDoctorsTeam, deleteDoctorInDoctorsTeam,
 
 
-            saveSearchTestData,
-            savePrescriptionPageData,
-            saveHowItWorksContent,
-            saveLabCareContent,
-            saveAboutLabContent,
-            saveResearchContent,
+            saveSearchTestData, savePrescriptionPageData, saveHowItWorksContent, saveLabCareContent, saveAboutLabContent, saveResearchContent,
 
-            savePharmacyPageContent,
-            saveFeaturedProductsContentPharmacy,
-            saveBestOfBestContent,
-            saveRecommendedMedContent,
-            saveAboutMedicineContent,
+            savePharmacyPageContent, saveFeaturedProductsContentPharmacy, saveBestOfBestContent, saveRecommendedMedContent, saveAboutMedicineContent,saveDeclarePastContent,
 
 
-            saveFindDoctorContent,
-            saveFindConsultantContent,
-            saveDoctorsPriorityContent,
-            saveHowToSecureContent,
+            saveFindDoctorContent, saveFindConsultantContent, saveDoctorsPriorityContent, saveHowToSecureContent,
 
-            saveAmbulancePageData,
-            saveReferralPageData,
-            saveEmergencyFacilityData,
-            saveAccidentalEmergencyData,
-            saveMedicalEmergencyData,
-            saveReferralAmbulanceContent,
+            saveAmbulancePageData, saveReferralPageData, saveEmergencyFacilityData, saveAccidentalEmergencyData, saveMedicalEmergencyData, saveReferralAmbulanceContent,
 
-            saveNursePageData,
-            saveNursePrescriptionData,
-            saveNursingStepsData,
-            saveOurNursingServicesContent,
-            saveExperiencedNursesData,
-            saveOnlyTheBestCareData,
+            saveNursePageData, saveNursePrescriptionData, saveNursingStepsData, saveOurNursingServicesContent, saveExperiencedNursesData, saveOnlyTheBestCareData,
 
-            saveSingleHospitalPageData,
-            saveHospitalFacilityData,
-            saveMainHowItWorksData,
+            saveSingleHospitalPageData, saveHospitalFacilityData, saveMainHowItWorksData,
 
 
         }}>

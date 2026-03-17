@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -6,76 +5,57 @@ import {
     FaStar, FaFilter, FaSearch, FaMapMarkerAlt,
     FaVideo, FaHospital, FaTimes, FaArrowRight, FaUserMd
 } from "react-icons/fa";
-import { useGlobalContext } from "@/app/context/GlobalContext"; // Import context
+import { useGlobalContext } from "@/app/context/GlobalContext"; 
 import { useRouter } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-function FindMyConsultant() {
-    // 1. Context & State
-    const CONSULTANTS_DATA = [
-        { id: 1, name: "Dr. Abhi", specialty: "Heart Specialist", experience: "3 Years", speaks: "Hindi, English", address: "Mohali, Punjab", distance: 8.5, rating: 3, image: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=400&q=80", consultFee: 3000, clinicFee: 2500 },
-        { id: 2, name: "Dr. Sahib", specialty: "Neurologist", experience: "8 Years", speaks: "English, Punjabi", address: "Sector 62, Noida", distance: 12.2, rating: 5, image: "https://images.unsplash.com/photo-1559839734-2b71f1536783?auto=format&fit=crop&w=400&q=80", consultFee: 1500, clinicFee: 1000 },
-        { id: 3, name: "Dr. Ananya", specialty: "Dermatologist", experience: "10 Years", speaks: "English, Telugu", address: "Hitech City, Hyderabad", distance: 2.1, rating: 4, image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=400&q=80", consultFee: 800, clinicFee: 600 },
-        { id: 4, name: "Dr. Abhi", specialty: "Heart Specialist", experience: "3 Years", speaks: "Hindi, English", address: "Mohali, Punjab", distance: 8.5, rating: 3, image: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=400&q=80", consultFee: 3000, clinicFee: 2500 },
-        { id: 5, name: "Dr. Sahib", specialty: "Neurologist", experience: "8 Years", speaks: "English, Punjabi", address: "Sector 62, Noida", distance: 12.2, rating: 5, image: "https://images.unsplash.com/photo-1559839734-2b71f1536783?auto=format&fit=crop&w=400&q=80", consultFee: 1500, clinicFee: 1000 },
-        { id: 6, name: "Dr. Ananya", specialty: "Dermatologist", experience: "10 Years", speaks: "English, Telugu", address: "Hitech City, Hyderabad", distance: 2.1, rating: 4, image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=400&q=80", consultFee: 800, clinicFee: 600 },
-        { id: 7, name: "Dr. Abhi", specialty: "Heart Specialist", experience: "3 Years", speaks: "Hindi, English", address: "Mohali, Punjab", distance: 8.5, rating: 3, image: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=400&q=80", consultFee: 3000, clinicFee: 2500 },
-        { id: 8, name: "Dr. Sahib", specialty: "Neurologist", experience: "8 Years", speaks: "English, Punjabi", address: "Sector 62, Noida", distance: 12.2, rating: 5, image: "https://images.unsplash.com/photo-1559839734-2b71f1536783?auto=format&fit=crop&w=400&q=80", consultFee: 1500, clinicFee: 1000 },
-        { id: 9, name: "Dr. Ananya", specialty: "Dermatologist", experience: "10 Years", speaks: "English, Telugu", address: "Hitech City, Hyderabad", distance: 2.1, rating: 4, image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=400&q=80", consultFee: 800, clinicFee: 600 },
-    ];
-    const router = useRouter()
-    const { getConsultantPageData, getAllConsultants } = useGlobalContext();
+// --- FALLBACK STATIC DATA ---
+const STATIC_CONSULTANTS = [
+    { id: 1, name: "Dr. Abhi", specialty: "Heart Specialist", experience: "3 Years", speaks: "Hindi, English", address: "Mohali, Punjab", distance: 8.5, rating: 3, image: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=400&q=80", consultFee: 3000, clinicFee: 2500 },
+    { id: 2, name: "Dr. Sahib", specialty: "Neurologist", experience: "8 Years", speaks: "English, Punjabi", address: "Sector 62, Noida", distance: 12.2, rating: 5, image: "https://images.unsplash.com/photo-1559839734-2b71f1536783?auto=format&fit=crop&w=400&q=80", consultFee: 1500, clinicFee: 1000 },
+    { id: 3, name: "Dr. Ananya", specialty: "Dermatologist", experience: "10 Years", speaks: "English, Telugu", address: "Hitech City, Hyderabad", distance: 2.1, rating: 4, image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&w=400&q=80", consultFee: 800, clinicFee: 600 },
+];
 
+const STATIC_PAGE_DATA = {
+    miniTitle: "Book Your Personal Meeting",
+    mainTitle: "Find Your Consultant! 👩‍⚕️",
+    subTitle: "A doctor who saves life of the patients by his service.",
+    description: "Connect with top-rated specialists instantly. We prioritize your health by bringing certified medical professionals to your doorstep."
+};
+
+function FindMyConsultant() {
+    const router = useRouter();
+    const { getFindConsultantContent } = useGlobalContext();
+
+    // 1. DYNAMIC DATA STATE
+    const [pageData, setPageData] = useState(STATIC_PAGE_DATA);
     const [searchTerm, setSearchTerm] = useState("");
     const [sortBy, setSortBy] = useState("recommended");
+    const [loading, setLoading] = useState(true);
 
-    // Dynamic Page Content State
-    const [pageData, setPageData] = useState({
-        miniTitle: "Book Your Personal Meeting",
-        mainTitle: "Find Your Consultant! 👩‍⚕️",
-        subTitle: "A doctor who saves life of the patients by his service.",
-        description: "Connect with top-rated specialists instantly. We prioritize your health by bringing certified medical professionals to your doorstep."
-    });
-
-    // Dynamic Consultants State
-    const [consultants, setConsultants] = useState(CONSULTANTS_DATA);
-    const [loading, setLoading] = useState(false);
-
-    // 2. Fetch Data on Mount
-    // useEffect(() => {
-    //     const fetchInitialData = async () => {
-    //         setLoading(true);
-    //         try {
-    //             // Fetch text content (Titles/Description)
-    //             const pageRes = await getConsultantPageData();
-    //             if (pageRes?.success && pageRes?.data) {
-    //                 setPageData({
-    //                     miniTitle: pageRes.data.miniTitle || "",
-    //                     mainTitle: pageRes.data.mainTitle || "",
-    //                     subTitle: pageRes.data.subTitle || "",
-    //                     description: pageRes.data.description || ""
-    //                 });
-    //             }
-
-    //             // Fetch actual consultants list from database
-    //             const consultRes = await getAllConsultants();
-    //             if (consultRes?.success) {
-    //                 setConsultants(consultRes.data);
-    //             }
-    //         } catch (err) {
-    //             console.error("Error fetching data:", err);
-    //         } finally {
-    //             setLoading(false);
-    //         }
-    //     };
-
-    //     fetchInitialData();
-    // }, []);
+    // 2. FETCH DYNAMIC CONTENT
+    useEffect(() => {
+        const fetchContent = async () => {
+            try {
+                const res = await getFindConsultantContent();
+                if (res?.success && res?.data) {
+                    setPageData(res.data);
+                }
+            } catch (err) {
+                console.error("Backend fetch failed, using static fallback.");
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchContent();
+    }, [getFindConsultantContent]);
 
     // 3. Logic for filtering and sorting
+    // Note: Using static consultants for the list as they are usually managed separately 
+    // from the page text content, but keeping it dynamic-ready.
     const processedConsultants = useMemo(() => {
-        let filtered = consultants.filter(doc =>
+        let filtered = STATIC_CONSULTANTS.filter(doc =>
             doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             doc.specialty.toLowerCase().includes(searchTerm.toLowerCase())
         );
@@ -86,7 +66,7 @@ function FindMyConsultant() {
             if (sortBy === "distance-near") return a.distance - b.distance;
             return 0;
         });
-    }, [searchTerm, sortBy, consultants]);
+    }, [searchTerm, sortBy]);
 
     const visibleConsultants = processedConsultants.slice(0, 6);
     const hasMore = processedConsultants.length > 6;
@@ -126,9 +106,11 @@ function FindMyConsultant() {
                                         <div className="flex flex-col sm:flex-row gap-4 md:gap-8">
                                             <div className="w-full sm:w-40 md:w-48 h-56 sm:h-40 md:h-48 flex-shrink-0 relative">
                                                 <img
+                                                    // Logic: Handle Multer paths if images are provided by backend
                                                     src={doc.image?.startsWith('http') ? doc.image : `${API_URL}${doc.image}`}
                                                     alt={doc.name}
                                                     className="w-full h-full object-cover rounded-2xl md:rounded-3xl shadow-inner"
+                                                    onError={(e) => { e.target.src = "https://via.placeholder.com/400x400?text=Consultant"; }}
                                                 />
                                                 <div className="absolute top-2 left-2 bg-[#08B36A] text-white px-2 py-0.5 rounded-md text-[9px] font-black shadow-lg uppercase tracking-wider">
                                                     Verified

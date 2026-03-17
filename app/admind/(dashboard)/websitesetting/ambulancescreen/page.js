@@ -13,12 +13,12 @@ function Page() {
     const [activeTab, setActiveTab] = useState("home");
 
     const tabs = [
-        { id: "home", label: "Find My Doctor" },
-        { id: "findconsultant", label: "Find My Consultant" },
+        { id: "home", label: "Find Emergency Ambulance" },
+        { id: "findconsultant", label: "Find Referral Ambulance" },
         { id: "emergencyfacility", label: "Emergency Facility" },
-        { id: "howtosecure", label: "How To Secure" },
+        { id: "howtosecure", label: "Accidental Emergency" },
         { id: "medicalemergency", label: "Medical Emergency" },
-        { id: "savereferalambulance", label: "Save Referral Ambulance" },
+        { id: "savereferalambulance", label: "Referral Ambulance Services" },
     ];
 
     const renderTabContent = () => {

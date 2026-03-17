@@ -4,6 +4,9 @@ import { FaChevronRight, FaCheckCircle, FaClock } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
+// Ensure this matches your .env file
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
 // --- FALLBACK STATIC DATA ---
 const STATIC_DATA = {
   title: "Medical Emergency",
@@ -40,9 +43,10 @@ function MedicalEmergency() {
 
   // CAROUSEL LOGIC
   useEffect(() => {
-    if (data.carouselImages?.length > 1) {
+    const images = data.carouselImages || [];
+    if (images.length > 1) {
       const timer = setInterval(() => {
-        setCurrentImg((prev) => (prev === data.carouselImages.length - 1 ? 0 : prev + 1));
+        setCurrentImg((prev) => (prev === images.length - 1 ? 0 : prev + 1));
       }, 2500);
       return () => clearInterval(timer);
     }
@@ -58,7 +62,6 @@ function MedicalEmergency() {
           <div className="order-2 lg:order-1 space-y-6 md:space-y-8">
             <div className="space-y-4">
               <h2 className="text-4xl md:text-5xl lg:text-7xl font-black text-slate-900 leading-tight tracking-tight whitespace-pre-line">
-                {/* Logic to handle dynamic split for 'Emergency' if needed, or just display dynamic title */}
                 {data.title}
               </h2>
               <div className="w-20 h-1.5 bg-[#08B36A] rounded-full opacity-30"></div>
@@ -94,20 +97,27 @@ function MedicalEmergency() {
             <div className="absolute -inset-4 bg-slate-50 rounded-[2.5rem] rotate-2 hidden lg:block"></div>
 
             <div className="relative h-[280px] sm:h-[400px] md:h-[500px] w-full rounded-[2rem] md:rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white bg-slate-200">
-              {data.carouselImages?.map((img, index) => (
-                <div
-                  key={index}
-                  className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImg ? "opacity-100 z-10 scale-100" : "opacity-0 z-0 scale-105"
-                    }`}
-                >
-                  <img
-                    src={img}
-                    alt={`Emergency Facility ${index + 1}`}
-                    className="w-full h-full object-cover transition-transform duration-[3000ms]"
-                    style={{ transform: index === currentImg ? 'scale(1)' : 'scale(1.1)' }}
-                  />
-                </div>
-              ))}
+              {data.carouselImages && data.carouselImages.length > 0 ? (
+                data.carouselImages.map((img, index) => (
+                  <div
+                    key={index}
+                    className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImg ? "opacity-100 z-10 scale-100" : "opacity-0 z-0 scale-105"
+                      }`}
+                  >
+                    <img
+                      // DYNAMIC URL LOGIC: Prepend API_URL if path is relative (/uploads/...)
+                      src={img.startsWith("http") ? img : `${API_URL}${img}`}
+                      alt={`Emergency Facility ${index + 1}`}
+                      className="w-full h-full object-cover transition-transform duration-[3000ms]"
+                      style={{ transform: index === currentImg ? 'scale(1)' : 'scale(1.1)' }}
+                      // FALLBACK LOGIC: Shows placeholder if image fails to load
+                      onError={(e) => { e.target.src = "https://via.placeholder.com/1000x800?text=Medical+Image+Not+Found"; }}
+                    />
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-center justify-center h-full bg-slate-100 text-slate-400">No Images Available</div>
+              )}
 
               <div className="absolute bottom-6 right-8 z-20 flex gap-2">
                 {data.carouselImages?.map((_, idx) => (

@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import DashboardTopNavbar from "../../../components/topNavbar/DashboardTopNavbar";
 import { useAdminContext } from "@/app/context/AdminContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
-import { FaPlus, FaTrash } from "react-icons/fa";
+
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 function NursePrescriptionAdmin() {
     const { saveNursePrescriptionData } = useAdminContext();
@@ -17,9 +19,10 @@ function NursePrescriptionAdmin() {
         description: "",
         uploadLabel: "",
         uploadBtnText: "",
-        carouselImages: []
+        images: [],
     });
 
+    const [previews, setPreviews] = useState([]);
     const [hasData, setHasData] = useState(false);
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState("");
@@ -33,9 +36,29 @@ function NursePrescriptionAdmin() {
     const fetchPrescriptionContent = async () => {
         try {
             const res = await getNursePrescriptionData();
+
             if (res?.success && res?.data) {
+                const data = res.data;
+
                 setHasData(true);
-                setFormData(res.data);
+
+                setFormData({
+                    sectionTag: data.sectionTag || "",
+                    mainTitle: data.mainTitle || "",
+                    titleEmoji: data.titleEmoji || "👩‍⚕️",
+                    subTitle: data.subTitle || "",
+                    description: data.description || "",
+                    uploadLabel: data.uploadLabel || "",
+                    uploadBtnText: data.uploadBtnText || "",
+                    images: [],
+                });
+
+                // Mapping images using the backend URL logic from reference
+                const imageUrls = (data.carouselImages || []).map((img) =>
+                    img.startsWith("http") ? img : `${API_URL}${img}`
+                );
+
+                setPreviews(imageUrls);
             }
         } catch (err) {
             console.error("Error fetching prescription data:", err);
@@ -50,37 +73,51 @@ function NursePrescriptionAdmin() {
         });
     };
 
-    const handleImageChange = (index, value) => {
-        const updated = [...formData.carouselImages];
-        updated[index] = value;
-        setFormData({ ...formData, carouselImages: updated });
-    };
+    const handleImages = (e) => {
+        const files = Array.from(e.target.files);
 
-    const addImage = () => {
-        setFormData({ ...formData, carouselImages: [...formData.carouselImages, ""] });
-    };
-
-    const removeImage = (index) => {
         setFormData({
             ...formData,
-            carouselImages: formData.carouselImages.filter((_, i) => i !== index)
+            images: files,
         });
+
+        const previewUrls = files.map((file) => URL.createObjectURL(file));
+
+        setPreviews(previewUrls);
     };
 
-    // ================= SAVE =================
+    // ================= SAVE (AUTO CREATE / UPDATE) =================
     const handleSubmit = async (e) => {
         e.preventDefault();
+
         setLoading(true);
         setSuccess("");
         setError("");
 
         try {
-            await saveNursePrescriptionData(formData);
+            const data = new FormData();
+
+            data.append("sectionTag", formData.sectionTag);
+            data.append("mainTitle", formData.mainTitle);
+            data.append("titleEmoji", formData.titleEmoji);
+            data.append("subTitle", formData.subTitle);
+            data.append("description", formData.description);
+            data.append("uploadLabel", formData.uploadLabel);
+            data.append("uploadBtnText", formData.uploadBtnText);
+
+            // Append images to 'carouselImages' to match backend expectation
+            formData.images.forEach((img) => {
+                data.append("images", img);
+            });
+
+            await saveNursePrescriptionData(data);
+
             setSuccess(
                 hasData
-                    ? "Prescription section updated successfully!"
-                    : "Prescription section added successfully!"
+                    ? "Nurse prescription section updated successfully!"
+                    : "Nurse prescription section added successfully!"
             );
+
             fetchPrescriptionContent();
         } catch (err) {
             setError("Something went wrong. Please try again.");
@@ -91,150 +128,124 @@ function NursePrescriptionAdmin() {
 
     return (
         <>
+            {/* Added Top Navbar as per reference */}
             <div className="min-h-screen bg-gray-100 flex justify-center items-start py-10">
                 <div className="bg-white w-full max-w-5xl rounded-2xl shadow-lg p-8">
-
                     <h2 className="text-2xl font-semibold text-gray-700 mb-6">
                         Manage Nurse Prescription Section
                     </h2>
 
                     {success && (
-                        <div className="mb-4 p-3 rounded-lg bg-green-100 text-green-700 border border-green-300 text-sm">
+                        <div className="mb-4 p-3 rounded-lg bg-green-100 text-green-700 border border-green-300">
                             {success}
                         </div>
                     )}
 
                     {error && (
-                        <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-700 border border-red-300 text-sm">
+                        <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-700 border border-red-300">
                             {error}
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <form
+                        onSubmit={handleSubmit}
+                        className="grid grid-cols-1 md:grid-cols-2 gap-6"
+                    >
+                        <input
+                            type="text"
+                            name="sectionTag"
+                            placeholder="Section Tag (e.g. Prescription)"
+                            required
+                            value={formData.sectionTag}
+                            onChange={handleChange}
+                            className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
+                        />
 
-                        {/* Header Row */}
-                        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-gray-600">Section Tag</label>
-                                <input
-                                    type="text"
-                                    name="sectionTag"
-                                    placeholder="Section Tag"
-                                    value={formData.sectionTag}
-                                    onChange={handleChange}
-                                    className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-gray-600">Main Title</label>
-                                <input
-                                    type="text"
-                                    name="mainTitle"
-                                    placeholder="Main Title"
-                                    value={formData.mainTitle}
-                                    onChange={handleChange}
-                                    className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-gray-600">Emoji</label>
-                                <input
-                                    type="text"
-                                    name="titleEmoji"
-                                    placeholder="Emoji"
-                                    value={formData.titleEmoji}
-                                    onChange={handleChange}
-                                    className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="md:col-span-2 flex flex-col gap-2">
-                            <label className="text-sm font-medium text-gray-600">Sub Title</label>
+                        <div className="grid grid-cols-4 gap-2">
                             <input
                                 type="text"
-                                name="subTitle"
-                                placeholder="Sub Title"
-                                value={formData.subTitle}
+                                name="mainTitle"
+                                placeholder="Main Title"
+                                required
+                                value={formData.mainTitle}
                                 onChange={handleChange}
-                                className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
+                                className="col-span-3 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
                             />
-                        </div>
-
-                        <div className="md:col-span-2 flex flex-col gap-2">
-                            <label className="text-sm font-medium text-gray-600">Description</label>
-                            <textarea
-                                name="description"
-                                placeholder="Description"
-                                rows={3}
-                                value={formData.description}
-                                onChange={handleChange}
-                                className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
-                            />
-                        </div>
-
-                        <div className="flex flex-col gap-2">
-                            <label className="text-sm font-medium text-gray-600">Upload Field Label</label>
                             <input
                                 type="text"
-                                name="uploadLabel"
-                                placeholder="Upload Label"
-                                value={formData.uploadLabel}
+                                name="titleEmoji"
+                                placeholder="Emoji"
+                                value={formData.titleEmoji}
                                 onChange={handleChange}
-                                className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
+                                className="col-span-1 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none text-center"
                             />
                         </div>
 
-                        <div className="flex flex-col gap-2">
-                            <label className="text-sm font-medium text-gray-600">Button Text</label>
+                        <input
+                            type="text"
+                            name="subTitle"
+                            placeholder="Sub Title"
+                            required
+                            value={formData.subTitle}
+                            onChange={handleChange}
+                            className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
+                        />
+
+                        <textarea
+                            name="description"
+                            placeholder="Description"
+                            rows={3}
+                            required
+                            value={formData.description}
+                            onChange={handleChange}
+                            className="md:col-span-2 p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
+                        />
+
+                        <input
+                            type="text"
+                            name="uploadLabel"
+                            placeholder="Upload Label Text"
+                            required
+                            value={formData.uploadLabel}
+                            onChange={handleChange}
+                            className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
+                        />
+
+                        <input
+                            type="text"
+                            name="uploadBtnText"
+                            placeholder="Upload Button Text"
+                            required
+                            value={formData.uploadBtnText}
+                            onChange={handleChange}
+                            className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
+                        />
+
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-600 mb-2">
+                                Carousel Images
+                            </label>
                             <input
-                                type="text"
-                                name="uploadBtnText"
-                                placeholder="Button Text"
-                                value={formData.uploadBtnText}
-                                onChange={handleChange}
-                                className="p-3 border rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none"
+                                type="file"
+                                multiple
+                                accept="image/*"
+                                onChange={handleImages}
+                                className="w-full p-3 border rounded-lg bg-gray-50"
                             />
                         </div>
 
-                        {/* Carousel Images Section */}
-                        <div className="md:col-span-2 p-5 bg-gray-50 rounded-xl border border-gray-200">
-                            <div className="flex justify-between items-center mb-4">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                    Carousel Images
-                                </label>
-                                <button
-                                    type="button"
-                                    onClick={addImage}
-                                    className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-all shadow-sm"
-                                >
-                                    <FaPlus size={10} /> Add Image
-                                </button>
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-3">
-                                {formData.carouselImages.map((img, index) => (
-                                    <div key={index} className="flex gap-2 items-center">
-                                        <input
-                                            value={img}
-                                            onChange={(e) => handleImageChange(index, e.target.value)}
-                                            className="flex-1 p-2 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-emerald-400 bg-white"
-                                            placeholder="Image URL..."
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => removeImage(index)}
-                                            className="bg-red-50 text-red-500 p-3 rounded-lg hover:bg-red-100 transition-colors"
-                                        >
-                                            <FaTrash size={14} />
-                                        </button>
-                                    </div>
+                        {previews.length > 0 && (
+                            <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                {previews.map((src, index) => (
+                                    <img
+                                        key={index}
+                                        src={src}
+                                        alt="preview"
+                                        className="h-32 w-full object-cover rounded-lg border"
+                                    />
                                 ))}
-                                {formData.carouselImages.length === 0 && (
-                                    <p className="text-gray-400 text-xs text-center py-2">No images added yet.</p>
-                                )}
                             </div>
-                        </div>
+                        )}
 
                         <button
                             type="submit"
@@ -246,7 +257,6 @@ function NursePrescriptionAdmin() {
                         >
                             {loading ? "Processing..." : "Save Nurse Prescription Section"}
                         </button>
-
                     </form>
                 </div>
             </div>

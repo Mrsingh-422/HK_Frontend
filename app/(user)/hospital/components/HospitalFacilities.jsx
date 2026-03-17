@@ -5,6 +5,8 @@ import React, { useState, useEffect } from "react";
 import { FaArrowLeft, FaArrowRight, FaPlusCircle, FaHandHoldingHeart } from "react-icons/fa";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
 // --- FALLBACK STATIC DATA ---
 const STATIC_DATA = {
   tagline: "Hospitals",
@@ -35,7 +37,26 @@ function HospitalFacilities() {
       try {
         const res = await getHospitalFacilityData();
         if (res?.success && res?.data) {
-          setData(res.data);
+          const fetchedData = res.data;
+
+          // Process Carousel Images: Handle Multer relative paths
+          const processedImages = (fetchedData.carouselImages || []).map((img) =>
+            img.startsWith("http") ? img : `${API_URL}${img}`
+          );
+
+          // Process Partner Logos: Handle Multer relative paths
+          const processedPartners = (fetchedData.partners || []).map((partner) => ({
+            ...partner,
+            logo: partner.logo 
+              ? (partner.logo.startsWith("http") ? partner.logo : `${API_URL}${partner.logo}`)
+              : null
+          }));
+
+          setData({
+            ...fetchedData,
+            carouselImages: processedImages,
+            partners: processedPartners
+          });
         }
       } catch (err) {
         console.error("Backend error, using static fallback.");
@@ -46,9 +67,10 @@ function HospitalFacilities() {
 
   // CAROUSEL LOGIC
   useEffect(() => {
-    if (data.carouselImages?.length > 1) {
+    const imagesCount = data.carouselImages?.length || 0;
+    if (imagesCount > 1) {
       const timer = setInterval(() => {
-        setCurrentImg((prev) => (prev === data.carouselImages.length - 1 ? 0 : prev + 1));
+        setCurrentImg((prev) => (prev === imagesCount - 1 ? 0 : prev + 1));
       }, 2500);
       return () => clearInterval(timer);
     }
@@ -65,21 +87,26 @@ function HospitalFacilities() {
             <div className="absolute -inset-2 md:-inset-4 bg-slate-50 rounded-[2rem] md:rounded-[3rem] rotate-1 hidden sm:block"></div>
 
             <div className="relative h-[250px] sm:h-[400px] md:h-[450px] lg:h-[500px] w-full rounded-[2rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white bg-slate-200">
-              {data.carouselImages?.map((img, index) => (
-                <div
-                  key={index}
-                  className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImg ? "opacity-100 z-10 scale-100" : "opacity-0 z-0 scale-105"
-                    }`}
-                >
-                  <img
-                    src={img}
-                    alt={`Facility View ${index + 1}`}
-                    className="w-full h-full object-cover transition-transform duration-[4000ms]"
-                    style={{ transform: index === currentImg ? 'scale(1)' : 'scale(1.1)' }}
-                  />
-                  <div className="absolute inset-0 bg-black/10 z-20"></div>
-                </div>
-              ))}
+              {data.carouselImages && data.carouselImages.length > 0 ? (
+                data.carouselImages.map((img, index) => (
+                    <div
+                      key={index}
+                      className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImg ? "opacity-100 z-10 scale-100" : "opacity-0 z-0 scale-105"
+                        }`}
+                    >
+                      <img
+                        src={img}
+                        alt={`Facility View ${index + 1}`}
+                        className="w-full h-full object-cover transition-transform duration-[4000ms]"
+                        style={{ transform: index === currentImg ? 'scale(1)' : 'scale(1.1)' }}
+                        onError={(e) => { e.target.src = "https://via.placeholder.com/800x600?text=Facility+Image"; }}
+                      />
+                      <div className="absolute inset-0 bg-black/10 z-20"></div>
+                    </div>
+                ))
+              ) : (
+                <div className="flex items-center justify-center h-full bg-slate-100 text-slate-400 font-bold uppercase tracking-widest text-xs">No images available</div>
+              )}
 
               <div className="absolute top-6 right-6 z-30 bg-[#08B36A] text-white px-4 py-2 rounded-xl shadow-lg flex items-center gap-2">
                 <FaPlusCircle className="animate-pulse text-sm" />
@@ -145,6 +172,7 @@ function HospitalFacilities() {
                     alt={partner.name}
                     title={partner.name}
                     className="h-8 md:h-10 object-contain hover:grayscale-0 hover:opacity-100 transition-all cursor-pointer"
+                    onError={(e) => { e.target.style.display = 'none'; }}
                   />
                 ))}
               </div>

@@ -4,6 +4,9 @@ import { FaUserMd, FaHeartbeat, FaStethoscope, FaCheckCircle } from "react-icons
 import { useRouter } from "next/navigation";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
+// Ensure this matches your .env file
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
 // Fallback Icons Mapping
 const icons = [<FaStethoscope />, <FaHeartbeat />, <FaUserMd />];
 
@@ -40,9 +43,10 @@ function OnlyTheBestCare() {
   }, [getOnlyTheBestCareData]);
 
   useEffect(() => {
-    if (data.carouselImages?.length > 1) {
+    const imagesCount = data.carouselImages?.length || 0;
+    if (imagesCount > 1) {
       const timer = setInterval(() => {
-        setCurrentImg((prev) => (prev === data.carouselImages.length - 1 ? 0 : prev + 1));
+        setCurrentImg((prev) => (prev === imagesCount - 1 ? 0 : prev + 1));
       }, 2500);
       return () => clearInterval(timer);
     }
@@ -59,20 +63,25 @@ function OnlyTheBestCare() {
             <div className="absolute -inset-2 md:-inset-4 bg-slate-50 rounded-[2rem] md:rounded-[3rem] rotate-1 hidden sm:block"></div>
 
             <div className="relative h-[250px] sm:h-[350px] md:h-[450px] lg:h-[500px] w-full rounded-[2rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white bg-slate-200">
-              {data.carouselImages?.map((img, index) => (
-                <div
-                  key={index}
-                  className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImg ? "opacity-100 z-10 scale-100" : "opacity-0 z-0 scale-105"
-                    }`}
-                >
-                  <img
-                    src={img}
-                    alt="Care Service"
-                    className="w-full h-full object-cover transition-transform duration-[3000ms]"
-                    style={{ transform: index === currentImg ? 'scale(1)' : 'scale(1.1)' }}
-                  />
-                </div>
-              ))}
+              {data.carouselImages && data.carouselImages.length > 0 ? (
+                data.carouselImages.map((img, index) => (
+                  <div
+                    key={index}
+                    className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImg ? "opacity-100 z-10 scale-100" : "opacity-0 z-0 scale-105"}`}
+                  >
+                    <img
+                      // LOGIC: Prepend API_URL if the path is relative (/uploads/...)
+                      src={img.startsWith('http') ? img : `${API_URL}${img}`}
+                      alt="Care Service"
+                      className="w-full h-full object-cover transition-transform duration-[3000ms]"
+                      style={{ transform: index === currentImg ? 'scale(1)' : 'scale(1.1)' }}
+                      onError={(e) => { e.target.src = "https://via.placeholder.com/800x600?text=Care+Service+Image"; }}
+                    />
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-center justify-center h-full bg-slate-100 text-slate-400">No Images Available</div>
+              )}
 
               <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex gap-2">
                 {data.carouselImages?.map((_, idx) => (

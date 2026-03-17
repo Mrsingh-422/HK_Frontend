@@ -85,16 +85,16 @@ function AboutLabAdmin() {
 
     // ================= SKILLS HELPERS =================
     const addSkill = () => {
-        setFormData({ 
-            ...formData, 
-            skills: [...formData.skills, { name: "", percentage: 50 }] 
+        setFormData({
+            ...formData,
+            skills: [...formData.skills, { name: "", percentage: 50 }]
         });
     };
 
     const removeSkill = (idx) => {
-        setFormData({ 
-            ...formData, 
-            skills: formData.skills.filter((_, i) => i !== idx) 
+        setFormData({
+            ...formData,
+            skills: formData.skills.filter((_, i) => i !== idx)
         });
     };
 
@@ -221,28 +221,28 @@ function AboutLabAdmin() {
                                 {formData.skills.map((skill, idx) => (
                                     <div key={idx} className="flex flex-wrap md:flex-nowrap gap-4 items-center bg-gray-50 p-4 rounded-xl border border-gray-200">
                                         <div className="flex-1">
-                                            <input 
-                                                type="text" 
-                                                placeholder="Skill Name (e.g. Accurate Results)" 
+                                            <input
+                                                type="text"
+                                                placeholder="Skill Name (e.g. Accurate Results)"
                                                 required
-                                                value={skill.name} 
-                                                onChange={(e) => handleSkillChange(idx, 'name', e.target.value)} 
+                                                value={skill.name}
+                                                onChange={(e) => handleSkillChange(idx, 'name', e.target.value)}
                                                 className="w-full p-2.5 bg-white border rounded-lg text-sm focus:ring-2 focus:ring-emerald-400 outline-none"
                                             />
                                         </div>
                                         <div className="w-full md:w-64 flex gap-3 items-center">
-                                            <input 
-                                                type="range" 
-                                                min="0" max="100" 
-                                                value={skill.percentage} 
-                                                onChange={(e) => handleSkillChange(idx, 'percentage', e.target.value)} 
+                                            <input
+                                                type="range"
+                                                min="0" max="100"
+                                                value={skill.percentage}
+                                                onChange={(e) => handleSkillChange(idx, 'percentage', e.target.value)}
                                                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                                             />
                                             <span className="text-sm font-bold text-emerald-600 w-12 text-right">{skill.percentage}%</span>
                                         </div>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => removeSkill(idx)} 
+                                        <button
+                                            type="button"
+                                            onClick={() => removeSkill(idx)}
                                             className="text-gray-400 hover:text-red-500 transition-colors p-1"
                                         >
                                             <FaTrash size={16} />
@@ -281,8 +281,8 @@ function AboutLabAdmin() {
                             type="submit"
                             disabled={loading}
                             className={`md:col-span-2 py-3.5 rounded-lg text-white shadow-md font-medium transition-all ${loading
-                                    ? "bg-gray-400 cursor-not-allowed"
-                                    : "bg-[#08B36A] hover:bg-[#079a5c]"
+                                ? "bg-gray-400 cursor-not-allowed"
+                                : "bg-[#08B36A] hover:bg-[#079a5c]"
                                 }`}
                         >
                             {loading ? "Processing..." : "Save About Lab Content"}

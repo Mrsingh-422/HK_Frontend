@@ -4,6 +4,9 @@ import React, { useState, useEffect } from "react";
 import { FaUpload, FaFileMedical } from "react-icons/fa";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
+// Ensure this matches your .env file
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
 // --- FALLBACK STATIC DATA ---
 const STATIC_DATA = {
     sectionTag: "Find My Nurse!",
@@ -22,7 +25,6 @@ const STATIC_DATA = {
 function FindMyNurseTwo() {
     const { getNursePrescriptionData } = useGlobalContext();
 
-    // 1. DYNAMIC DATA STATE
     const [data, setData] = useState(STATIC_DATA);
     const [currentImg, setCurrentImg] = useState(0);
     const [fileName, setFileName] = useState("No file chosen");
@@ -34,6 +36,7 @@ function FindMyNurseTwo() {
             try {
                 const res = await getNursePrescriptionData();
                 if (res?.success && res?.data) {
+                    // Update state with backend data
                     setData(res.data);
                 }
             } catch (err) {
@@ -45,9 +48,10 @@ function FindMyNurseTwo() {
 
     // 3. CAROUSEL LOGIC
     useEffect(() => {
-        if (data.carouselImages?.length > 1) {
+        const images = data.carouselImages || [];
+        if (images.length > 1) {
             const timer = setInterval(() => {
-                setCurrentImg((prev) => (prev === data.carouselImages.length - 1 ? 0 : prev + 1));
+                setCurrentImg((prev) => (prev === images.length - 1 ? 0 : prev + 1));
             }, 3000);
             return () => clearInterval(timer);
         }
@@ -73,21 +77,30 @@ function FindMyNurseTwo() {
     return (
         <section className="py-6 md:py-16 px-4 sm:px-6 lg:px-8 font-sans bg-[#f8fafc]">
             <div className="max-w-6xl mx-auto">
-
                 <div className="bg-white rounded-[2rem] md:rounded-[3.5rem] shadow-2xl shadow-slate-200/50 overflow-hidden border border-slate-100 flex flex-col lg:flex-row lg:items-stretch">
 
                     {/* LEFT: IMAGE CAROUSEL SECTION */}
-                    <div className="lg:w-[45%] relative h-[250px] sm:h-[400px] lg:h-auto group overflow-hidden">
-                        {data.carouselImages?.map((img, index) => (
-                            <div
-                                key={index}
-                                className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImg ? "opacity-100 z-10" : "opacity-0 z-0"
-                                    }`}
-                            >
-                                <img src={img} alt="Nurse Support" className="h-full w-full object-cover" />
-                                <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/40 z-20"></div>
-                            </div>
-                        ))}
+                    <div className="lg:w-[45%] relative h-[250px] sm:h-[400px] lg:h-auto group overflow-hidden bg-slate-200">
+                        {data.carouselImages && data.carouselImages.length > 0 ? (
+                            data.carouselImages.map((img, index) => (
+                                <div
+                                    key={index}
+                                    className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImg ? "opacity-100 z-10" : "opacity-0 z-0"
+                                        }`}
+                                >
+                                    <img
+                                        // LOGIC: If path is relative (/uploads...), prepend API_URL
+                                        src={img.startsWith("http") ? img : `${API_URL}${img}`}
+                                        alt="Nurse Support"
+                                        className="h-full w-full object-cover"
+                                        onError={(e) => { e.target.src = "https://via.placeholder.com/800x600?text=Image+Not+Found"; }}
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/40 z-20"></div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="flex items-center justify-center h-full bg-slate-100 text-slate-400">No Images Available</div>
+                        )}
 
                         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-1.5">
                             {data.carouselImages?.map((_, i) => (
@@ -98,9 +111,7 @@ function FindMyNurseTwo() {
 
                     {/* RIGHT: CONTENT SECTION */}
                     <div className="lg:w-[55%] p-6 sm:p-10 md:p-12 lg:p-16 flex flex-col justify-center text-center lg:text-left">
-
                         <div className="space-y-5 md:space-y-8">
-                            {/* Header */}
                             <div className="space-y-2">
                                 <p className="text-[#08B36A] font-black uppercase tracking-[0.2em] text-[10px] sm:text-xs">
                                     {data.sectionTag}
@@ -163,10 +174,8 @@ function FindMyNurseTwo() {
                                 <p className="text-[9px] text-slate-400 font-medium italic">Max file size: 5MB (PDF, JPG, PNG)</p>
                             </div>
                         </div>
-
                     </div>
                 </div>
-
             </div>
         </section>
     );

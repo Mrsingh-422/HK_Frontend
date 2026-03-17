@@ -4,6 +4,9 @@ import { FaQuoteLeft, FaChevronRight, FaAmbulance } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
+// Ensure this matches your .env file logic from the reference
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
 const STATIC_DATA = {
   sectionTag: "Emergency Ambulance Service",
   mainTitle: "Accidental Emergency",
@@ -39,9 +42,10 @@ function AccidentalEmergency() {
 
   // CAROUSEL LOGIC
   useEffect(() => {
-    if (data.carouselImages?.length > 1) {
+    const images = data.carouselImages || [];
+    if (images.length > 1) {
       const timer = setInterval(() => {
-        setCurrentImg((prev) => (prev === data.carouselImages.length - 1 ? 0 : prev + 1));
+        setCurrentImg((prev) => (prev === images.length - 1 ? 0 : prev + 1));
       }, 2500);
       return () => clearInterval(timer);
     }
@@ -66,20 +70,27 @@ function AccidentalEmergency() {
             <div className="absolute -inset-4 bg-slate-50 rounded-[2.5rem] -rotate-1 hidden lg:block"></div>
 
             <div className="relative h-[250px] sm:h-[400px] md:h-[500px] w-full rounded-[2rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white bg-slate-100">
-              {data.carouselImages?.map((img, index) => (
-                <div
-                  key={index}
-                  className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImg ? "opacity-100 z-10 scale-100" : "opacity-0 z-0 scale-105"
-                    }`}
-                >
-                  <img
-                    src={img}
-                    alt={`Emergency View ${index + 1}`}
-                    className="w-full h-full object-cover transition-transform duration-[3000ms]"
-                    style={{ transform: index === currentImg ? 'scale(1)' : 'scale(1.1)' }}
-                  />
-                </div>
-              ))}
+              {data.carouselImages && data.carouselImages.length > 0 ? (
+                data.carouselImages.map((img, index) => (
+                  <div
+                    key={index}
+                    className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImg ? "opacity-100 z-10 scale-100" : "opacity-0 z-0 scale-105"
+                      }`}
+                  >
+                    <img
+                      // DYNAMIC URL LOGIC: Prepend API_URL if path is relative (/uploads/...)
+                      src={img.startsWith("http") ? img : `${API_URL}${img}`}
+                      alt={`Emergency View ${index + 1}`}
+                      className="w-full h-full object-cover transition-transform duration-[3000ms]"
+                      style={{ transform: index === currentImg ? 'scale(1)' : 'scale(1.1)' }}
+                      // FALLBACK LOGIC: If image fails to load
+                      onError={(e) => { e.target.src = "https://via.placeholder.com/1000x800?text=Image+Not+Found"; }}
+                    />
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-center justify-center h-full bg-slate-100 text-slate-400">No Images Available</div>
+              )}
 
               <div className="absolute top-6 left-6 z-20 bg-red-600 text-white px-4 py-2 rounded-xl shadow-lg flex items-center gap-2">
                 <FaAmbulance className="animate-bounce" />
