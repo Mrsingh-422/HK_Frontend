@@ -10,19 +10,19 @@ export const AuthProvider = ({ children }) => {
     const [hospital, setHospital] = useState(null);
     const [hospitalToken, setHospitalToken] = useState(null);
     const [user, setUser] = useState(null);
-    const [token, setToken] = useState(null);
+    const [userToken, setUserToken] = useState(null);
     const [admin, setAdmin] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const hydrateAuth = () => {
-            const storedToken = localStorage.getItem("token");
+            const storedToken = localStorage.getItem("userToken");
             const storedUser = localStorage.getItem("user");
             const storedAdmin = localStorage.getItem("admin");
             const storedHToken = localStorage.getItem("hospitalToken");
             const storedHospital = localStorage.getItem("hospital");
 
-            if (storedToken) setToken(storedToken);
+            if (storedToken) setUserToken(storedToken);
             if (storedUser) setUser(JSON.parse(storedUser));
             if (storedAdmin) setAdmin(JSON.parse(storedAdmin));
             if (storedHToken) setHospitalToken(storedHToken);
@@ -145,8 +145,6 @@ export const AuthProvider = ({ children }) => {
             setLoading(false);
         }
     };
-
-
 
     const registerAsDoctorAppointment = async (userData) => {
         try {
