@@ -75,8 +75,8 @@ function Page() {
                             key={tab}
                             onClick={() => setActiveTab(tab)}
                             className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === tab
-                                    ? "bg-white text-[#08B36A] shadow-sm"
-                                    : "text-gray-500 hover:text-gray-700"
+                                ? "bg-white text-[#08B36A] shadow-sm"
+                                : "text-gray-500 hover:text-gray-700"
                                 }`}
                         >
                             {tab}
