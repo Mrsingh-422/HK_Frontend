@@ -30,7 +30,7 @@ function Page() {
     });
 
     return (
-        <div className="min-h-screen p-4 bg-gray-50/50">
+        <div className="min-h-screen p-4 bg-gray-50/50">  
             <div className="max-w-[1400px] mx-auto space-y-6">
   
                 {/* 1. STATS SECTION */}
