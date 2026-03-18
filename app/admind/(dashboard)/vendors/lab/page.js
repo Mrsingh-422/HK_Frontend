@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import DashboardTopNavbar from "../../components/topNavbar/DashboardTopNavbar";
 import ManageLabVendorComponent from "./components/ManageLabVendorComponent";
 import LabTestReportComponent from "./components/LabTestReportComponent";
 import LabTestTypeComponent from "./components/LabTestTypeComponent";
@@ -82,8 +81,6 @@ function Page() {
 
     return (
         <>
-            <DashboardTopNavbar heading="Lab Vendors" />
-
             <div className="p-0 min-h-screen">
 
                 {/* ================= TABS ================= */}
