@@ -10,29 +10,51 @@ export const AuthProvider = ({ children }) => {
     const [hospital, setHospital] = useState(null);
     const [hospitalToken, setHospitalToken] = useState(null);
     const [user, setUser] = useState(null);
-    const [token, setToken] = useState(null);
+    const [userToken, setUserToken] = useState(null);
     const [admin, setAdmin] = useState(null);
+
+    // New states for specific vendors
+    const [provider, setProvider] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const hydrateAuth = () => {
-            const storedToken = localStorage.getItem("token");
+            const storedToken = localStorage.getItem("userToken");
             const storedUser = localStorage.getItem("user");
             const storedAdmin = localStorage.getItem("admin");
             const storedHToken = localStorage.getItem("hospitalToken");
             const storedHospital = localStorage.getItem("hospital");
 
-            if (storedToken) setToken(storedToken);
+            // Hydrate Vendor Specific Data
+            // We check for all possible provider types
+            const providerTypes = ["nursing", "pharmacy", "lab"];
+            // let foundProvider = null;
+
+            // providerTypes.forEach(type => {
+            //     const pData = localStorage.getItem(`${type}User`);
+            //     if (pData) foundProvider = JSON.parse(pData);
+            // });
+
+            if (storedToken) setUserToken(storedToken);
             if (storedUser) setUser(JSON.parse(storedUser));
             if (storedAdmin) setAdmin(JSON.parse(storedAdmin));
             if (storedHToken) setHospitalToken(storedHToken);
             if (storedHospital) setHospital(JSON.parse(storedHospital));
+            // if (foundProvider) setProvider(foundProvider);
 
             setLoading(false);
         };
 
         hydrateAuth();
     }, []);
+    // Helper to get the correct storage key prefix
+    const getProviderKey = (category) => {
+        const cat = category?.toLowerCase();
+        if (cat === "nursing") return "nursing";
+        if (cat === "pharmacy") return "pharmacy";
+        if (cat === "lab") return "lab";
+        return "provider"; // fallback
+    };
 
 
     const loginAsAdmin = async (userData) => {
@@ -65,7 +87,7 @@ export const AuthProvider = ({ children }) => {
             const { token, user } = response.data;
 
             // SAVE BOTH TO LOCAL STORAGE
-            localStorage.setItem("token", token);
+            localStorage.setItem("userToken", token);
             localStorage.setItem("user", JSON.stringify(user));
             setUser(user);
             return response.data;
@@ -85,7 +107,7 @@ export const AuthProvider = ({ children }) => {
             const { token, user } = response.data;
 
             // SAVE BOTH TO LOCAL STORAGE
-            localStorage.setItem("token", token);
+            localStorage.setItem("userToken", token);
             localStorage.setItem("user", JSON.stringify(user));
 
             setUser(user);
@@ -146,8 +168,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-
-
     const registerAsDoctorAppointment = async (userData) => {
         try {
             setLoading(true);
@@ -160,24 +180,6 @@ export const AuthProvider = ({ children }) => {
                 error.response?.data?.message || "Registration failed";
             return Promise.reject(message);
         } finally {
-            setLoading(false);
-        }
-    }
-
-    const registerAsServiceProvider = async (userData) => {
-        try {
-            setLoading(true);
-            const response = await axios.post(`${API_URL}/api/auth/provider/register`, userData);
-            const { token, user } = response.data;
-            setUser(user);
-            return response.data;
-        }
-        catch (error) {
-            const message =
-                error.response?.data?.message || "Registration failed";
-            return Promise.reject(message);
-        }
-        finally {
             setLoading(false);
         }
     }
@@ -222,18 +224,84 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    // ================= REGISTER SERVICE PROVIDER =================
+    const registerAsServiceProvider = async (userData) => {
+        try {
+            setLoading(true);
+            const response = await axios.post(`${API_URL}/api/auth/provider/register`, userData);
+            const { token, user } = response.data;
+
+            // Determine key (nursingToken, pharmacyToken, or labToken)
+            const key = getProviderKey(userData.category);
+
+            // SAVE TO LOCAL STORAGE WITH DYNAMIC KEYS
+            localStorage.setItem(`${key}Token`, token);
+            localStorage.setItem(`${key}User`, JSON.stringify(user));
+
+            setProvider(user);
+            return response.data;
+        }
+        catch (error) {
+            const message = error.response?.data?.message || "Registration failed";
+            return Promise.reject(message);
+        }
+        finally {
+            setLoading(false);
+        }
+    }
+
+
+    // ================= LOGIN SERVICE PROVIDER =================
     const loginAsServiceProvider = async (userData) => {
         try {
             setLoading(true);
-            const response = await axios.post(
-                `${API_URL}/auth/login/service-provider`,
-                userData
-            );
-            const { token, user } = response.data;
-            setUser(user);
+            const response = await axios.post(`${API_URL}/api/auth/provider/login`, userData);
+
+            // Extracting properties exactly like loginAsHospital
+            const { token, data, profileStatus, fullAccess } = response.data;
+
+            // Create a merged object so the state/storage always has the latest status
+            const providerData = { ...data, profileStatus, fullAccess };
+
+            // Identify the correct key (nursing, pharmacy, or lab)
+            const category = providerData?.category || userData.category;
+            const key = getProviderKey(category);
+
+            // SAVE TO LOCAL STORAGE WITH DYNAMIC KEYS (matching your hospital logic)
+            localStorage.setItem(`${key}Token`, token);
+            localStorage.setItem(`${key}Provider`, JSON.stringify(providerData));
+
+            // Update the state
+            setProvider(providerData);
+
             return response.data;
         } catch (error) {
             const message = error.response?.data?.message || "Login failed";
+            return Promise.reject(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const uploadLabDocuments = async (userData) => {
+        try {
+            setLoading(true);
+
+            // Retrieve the specific token for the Lab vendor
+            const labToken = localStorage.getItem("labToken");
+
+            const response = await axios.put(`${API_URL}/api/auth/provider/upload-docs/lab`,
+                userData,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${labToken}` // Send token as Bearer token
+                    }
+                }
+            );
+
+            return response.data;
+        } catch (error) {
+            const message = error.response?.data?.message || "Document upload failed";
             return Promise.reject(message);
         } finally {
             setLoading(false);
@@ -296,6 +364,7 @@ export const AuthProvider = ({ children }) => {
             loginAsUser,
             loginAsDoctorAppointment,
             loginAsServiceProvider,
+            uploadLabDocuments,
             loginAsAdmin,
             loginAsHospital,
             forgotPassword,

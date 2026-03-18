@@ -4,6 +4,7 @@ import { AdminProvider } from "./context/AdminContext";
 import { AuthProvider } from "./context/AuthContext";
 import { GlobalProvider } from "./context/GlobalContext";
 import { UserProvider } from "./context/UserContext";
+import { VendorProvider } from "./context/VendorContext";
 import "./globals.css";
 
 export default function RootLayout({ children }) {
@@ -12,11 +13,13 @@ export default function RootLayout({ children }) {
       <body>
         <GlobalProvider>
           <AuthProvider>
-            <UserProvider>
-              <AdminProvider>
-                {children}
-              </AdminProvider>
-            </UserProvider>
+            <VendorProvider>
+              <UserProvider>
+                <AdminProvider>
+                  {children}
+                </AdminProvider>
+              </UserProvider>
+            </VendorProvider>
           </AuthProvider>
         </GlobalProvider>
       </body>

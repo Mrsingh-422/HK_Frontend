@@ -63,7 +63,7 @@ body {
     display: flex;
     flex-direction: column;
     background: #f3f3f3;
-    padding: 10px 25px;
+    /* padding: 10px 25px; */
     overflow: hidden;
     /* prevent double scroll */
 }

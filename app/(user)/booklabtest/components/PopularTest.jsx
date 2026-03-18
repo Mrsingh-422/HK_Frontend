@@ -1,7 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { FaArrowRight } from "react-icons/fa";
+import {
+  FaArrowRight,
+  FaFlask,
+  FaRegClock,
+  FaShieldAlt,
+  FaPlus
+} from "react-icons/fa";
 import { SINGLE_TESTS } from "@/app/constants/constants";
 import SingleTestDetailModel from "./otherComponents/SingleTestDetailModel";
 
@@ -19,34 +25,41 @@ function PopularTest() {
   };
 
   return (
-    <div className="py-12 md:py-20 bg-[#f8fafc] overflow-hidden">
+    <div className="py-10 bg-slate-50 overflow-hidden relative">
       <SingleTestDetailModel
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         testData={selectedTest}
       />
 
-      {/* Header */}
-      <div className="max-w-7xl mx-auto px-4 mb-8 md:mb-16 text-center">
-        <h2 className="text-3xl sm:text-4xl md:text-6xl font-black text-slate-800 tracking-tight">
-          Popular Test
-        </h2>
-        <div className="flex justify-center gap-1 mt-3 md:mt-4">
-          <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-          <span className="w-10 md:w-16 h-2 bg-emerald-500 rounded-full"></span>
+      {/* Header with modern typography */}
+      <div className="max-w-7xl mx-auto px-6 mb-16">
+        <div className="flex flex-col items-center text-center">
+          <div className="bg-emerald-50 text-emerald-700 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
+            <FaShieldAlt className="text-emerald-500" />
+            NABL Accredited Labs
+          </div>
+          <h2 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tight mb-4">
+            Individual <span className="text-emerald-500 underline decoration-emerald-200 decoration-8 underline-offset-4">Tests</span>
+          </h2>
+          <p className="text-slate-500 max-w-lg text-lg">
+            Quick, accurate, and reliable diagnostic tests with smart digital reports.
+          </p>
         </div>
       </div>
 
-      {/* Marquee Wrapper */}
+      {/* Marquee Wrapper with Gradient Fades */}
       <div
-        className="relative w-full cursor-pointer touch-pan-y"
+        className="relative w-full group/marquee"
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
-        onTouchStart={() => setIsPaused(true)}
-        onTouchEnd={() => setIsPaused(false)}
       >
+        {/* Gradient Mask (Desktop Only) */}
+        <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none hidden md:block"></div>
+        <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none hidden md:block"></div>
+
         <div
-          className="flex gap-4 md:gap-8 animate-popular-marquee"
+          className="flex gap-6 animate-popular-marquee"
           style={{
             animationPlayState: isPaused ? "paused" : "running",
             width: "max-content",
@@ -55,60 +68,66 @@ function PopularTest() {
           {displayTests.map((test, index) => (
             <div
               key={`${test.id}-${index}`}
-              className="w-[240px] sm:w-[280px] md:w-[320px] flex-shrink-0 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden group"
+              className="w-[280px] md:w-[320px] flex-shrink-0 bg-white border border-slate-100 rounded-[2.5rem] p-6 hover:border-emerald-100 hover:shadow-[0_20px_50px_rgba(16,185,129,0.1)] transition-all duration-500 group"
             >
-              {/* Image Container */}
-              <div className="h-40 sm:h-48 md:h-56 p-4 bg-slate-50/50 flex items-center justify-center relative overflow-hidden">
+              {/* Image Section */}
+              <div className="relative h-40 w-full mb-6 bg-slate-50 rounded-3xl flex items-center justify-center group-hover:bg-emerald-50/50 transition-colors">
                 <img
                   src={test.image}
                   alt={test.name}
-                  className="h-full w-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-110"
+                  className="h-28 w-28 object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-110"
                 />
+                <div className="absolute top-3 right-3 bg-white p-2 rounded-xl shadow-sm">
+                  <FaFlask className="text-emerald-500 text-sm" />
+                </div>
               </div>
 
-              {/* Details */}
-              <div className="p-4 sm:p-6 text-center">
-                <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-[#10b981] mb-4 sm:mb-6 min-h-[40px] sm:min-h-[50px] leading-tight uppercase tracking-tight">
+              {/* Text Info */}
+              <div className="mb-6">
+                <h3 className="text-lg font-bold text-slate-800 leading-snug min-h-[50px] mb-2">
                   {test.name}
                 </h3>
-
-                {/* Price Box */}
-                <div
-                  onClick={() => handleBookClick(test)}
-                  className="bg-[#fde047] hover:bg-[#facc15] transition-colors py-2.5 sm:py-3 px-4 sm:px-5 rounded-lg flex items-center justify-between mb-3 sm:mb-4 group/price cursor-pointer"
-                >
-                  <span className="text-sm sm:text-base md:text-lg font-black text-slate-900">
-                    ₹{test.price}
+                <div className="flex items-center gap-3 text-slate-400 text-xs font-semibold">
+                  <span className="flex items-center gap-1">
+                    <FaRegClock className="text-emerald-500" /> 24h Result
                   </span>
-                  <FaArrowRight className="text-slate-900 text-xs sm:text-sm group-hover/price:translate-x-1 transition-transform" />
+                  <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                  <span>Certified Lab</span>
+                </div>
+              </div>
+
+              {/* Pricing & CTA */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">Starting at</p>
+                  <p className="text-2xl font-black text-slate-900 mt-1">
+                    ₹{test.price}
+                  </p>
                 </div>
 
-                {/* Action Button */}
                 <button
                   onClick={() => handleBookClick(test)}
-                  className="w-full bg-[#10b981] hover:bg-slate-900 text-white font-bold py-2 sm:py-3 rounded-lg transition-all shadow-md active:scale-95 text-[10px] sm:text-xs md:text-sm uppercase tracking-wider"
+                  className="h-12 w-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center hover:bg-emerald-500 transition-all duration-300 shadow-lg shadow-slate-200 active:scale-90"
                 >
-                  Book A Test
+                  <FaPlus />
                 </button>
               </div>
             </div>
           ))}
         </div>
       </div>
-
       <style dangerouslySetInnerHTML={{
         __html: `
         @keyframes popular-marquee {
           0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
+          100% { transform: translateX(calc(-50% - 1.5rem)); }
         }
-        /* Adjusted duration for better readability (wider view needs more time) */
         .animate-popular-marquee {
-          animation: popular-marquee 40s linear infinite;
+          animation: popular-marquee 60s linear infinite;
         }
         @media (max-width: 768px) {
           .animate-popular-marquee {
-            animation: popular-marquee 20s linear infinite;
+            animation: popular-marquee 40s linear infinite;
           }
         }
       `}} />

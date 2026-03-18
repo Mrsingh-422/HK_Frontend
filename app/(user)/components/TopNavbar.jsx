@@ -34,7 +34,7 @@ export default function TopNavbar() {
   const { openModal, modalType, closeModal } = useGlobalContext();
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("token");
+    const storedToken = localStorage.getItem("userToken");
     setToken(storedToken);
 
     // Prevent body scroll when profile is open
@@ -152,7 +152,7 @@ export default function TopNavbar() {
                 <FaChevronRight className="arrow-right" />
               </Link>
             ))}
-            <div className="profile-item-new logout-new" onClick={()=> localStorage.removeItem("token")}>
+            <div className="profile-item-new logout-new" onClick={() => localStorage.removeItem("token")}>
               <span className="item-icon"><FaSignOutAlt /></span>
               <span className="item-label">Logout</span>
             </div>

@@ -1,35 +1,77 @@
 "use client";
 import React, { useState } from "react";
+import { useAuth } from "@/app/context/AuthContext";
+import { useRouter } from "next/navigation";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
 function LoginAsServiceProvider() {
+  const { loginAsServiceProvider, loading } = useAuth();
   const { openModal, closeModal } = useGlobalContext();
+  const router = useRouter();
 
   // ✅ State for form inputs
+  const [category, setCategory] = useState("");
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   // ✅ Submit Handler
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+    setSuccess("");
 
-    const providerLoginData = {
-      mobile,
-      password,
-      remember,
-    };
+    // Validation
+    if (!category) {
+      setError("Please select a category.");
+      return;
+    }
+    if (!mobile || !password) {
+      setError("Please enter both mobile number and password.");
+      return;
+    }
 
-    console.log("Service Provider Login Data:", providerLoginData);
-    alert("Service Provider Login API called (dummy)!");
+    try {
+      const loginData = {
+        category, // Sent to backend and used for dynamic token storage keys
+        phone: mobile,
+        password,
+        remember,
+      };
+
+      await loginAsServiceProvider(loginData);
+
+      setSuccess("Login Successful! Redirecting...");
+
+      setTimeout(() => {
+        closeModal();
+
+        // DYNAMIC REDIRECTION BASED ON SELECTED CATEGORY
+        const path = category.toLowerCase();
+        if (path === "lab") {
+          router.push("/vendors/labvendor/documents");
+        } else if (path === "pharmacy") {
+          router.push("/vendors/pharmacyvendor/documents");
+        } else if (path === "nursing") {
+          router.push("/vendors/nursingvendor/documents");
+        } else {
+          router.push("/");
+        }
+      }, 1500);
+
+    } catch (err) {
+      setError(err || "Invalid credentials. Please try again.");
+    }
   };
 
   return (
     <div className="w-full bg-white">
       {/* TOP LOGIN BOX */}
       <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
-        
-        {/* LEFT IMAGE - Hidden on mobile, visible from md up */}
+
+        {/* LEFT IMAGE */}
         <div className="hidden md:block flex-shrink-0">
           <img
             src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692600659SMS-Hospital.jpeg"
@@ -44,75 +86,105 @@ function LoginAsServiceProvider() {
             Get Started
           </h2>
 
-          <input
-            type="text"
-            placeholder="Enter your mobile number"
-            className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
-            value={mobile}
-            onChange={(e) => setMobile(e.target.value)}
-          />
-          <p className="text-[13px] text-gray-500 mb-3 text-left">
-            We'll never share your mobile number with anyone else.
-          </p>
+          {/* Alert Messages */}
+          {success && (
+            <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-4 text-sm font-medium animate-in fade-in duration-300">
+              {success}
+            </div>
+          )}
+          {error && (
+            <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-4 text-sm font-medium animate-in fade-in duration-300">
+              {error}
+            </div>
+          )}
 
-          <input
-            type="password"
-            placeholder="Password"
-            className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <form onSubmit={handleSubmit}>
+            {/* CATEGORY DROPDOWN */}
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] bg-white"
+            >
+              <option value="">Login As</option>
+              <option value="Nursing">Nursing</option>
+              <option value="Pharmacy">Pharmacy</option>
+              <option value="Lab">Lab / Phlebotomist</option>
+            </select>
 
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-4 text-sm gap-2">
-            <label className="inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
-              <input
-                type="checkbox"
-                className="w-4 h-4 accent-[#2f8f5b]"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-              />
-              Remember Password
-            </label>
+            <input
+              type="text"
+              placeholder="Enter your mobile number"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
+              value={mobile}
+              onChange={(e) => setMobile(e.target.value)}
+            />
+            <p className="text-[13px] text-gray-500 mb-3 text-left">
+              We'll never share your mobile number with anyone else.
+            </p>
 
-            <span className="cursor-pointer hover:underline text-[#333]">
-              Forget Password?
-            </span>
-          </div>
+            <input
+              type="password"
+              placeholder="Password"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
 
-          <button
-            className="w-full md:w-auto mt-5 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-7 rounded text-base transition-colors"
-            onClick={handleSubmit}
-          >
-            Login →
-          </button>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-4 text-sm gap-2">
+              <label className="inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 accent-[#2f8f5b]"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                />
+                Remember Password
+              </label>
+
+              <span
+                className="cursor-pointer hover:underline text-[#333]"
+                onClick={() => openModal("forgotPassword")}
+              >
+                Forget Password?
+              </span>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full md:w-auto mt-5 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-10 rounded text-base transition-colors disabled:bg-gray-400"
+            >
+              {loading ? "Logging in..." : "Login →"}
+            </button>
+          </form>
 
           <p className="mt-4 text-[15px] text-gray-700">
-            Don't have an account{" "}
+            Don't have an account?{" "}
             <span
-              className="font-bold cursor-pointer hover:underline"
+              className="font-bold cursor-pointer hover:underline text-[#2f8f5b]"
               onClick={() => {
-                closeModal(); // Fixed: Added parentheses
+                closeModal();
                 openModal("register");
               }}
             >
-              Register?
+              Register
             </span>
           </p>
         </div>
       </div>
 
-      {/* DESCRIPTION SECTION */}
+      {/* FOOTER DESCRIPTION SECTION */}
       <div className="max-w-[1100px] mx-auto mt-10 px-4 md:px-0 pb-10">
         <h3 className="text-lg sm:text-xl md:text-[28px] font-bold mb-5">
-          Hospital
+          Service Provider
         </h3>
 
         <div className="flex gap-3 text-sm md:text-base leading-relaxed text-[#333]">
           <span className="text-[#2f8f5b] font-bold text-lg leading-none mt-1">✔</span>
           <p>
-            Lorem ipsum dolor sit amet consectetur adipisicing elit. Molestias
-            eius, quas ipsa quam maiores nobis eveniet quasi repellat aliquid
-            dolorem omnis nostrum quia hic facere nam ab quo consequatur quisquam!
+            Access your specialized dashboard. Whether you are providing Nursing care,
+            Pharmacy deliveries, or Laboratory diagnostics, log in to manage your
+            verified profile and patient interactions in one place.
           </p>
         </div>
       </div>
