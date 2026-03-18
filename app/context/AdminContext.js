@@ -412,20 +412,20 @@ export const AdminProvider = ({ children }) => {
     };
 
     const saveDeclarePastContent = async (data) => {
-    const token = localStorage.getItem("token");
-    try {
-        const response = await axios.post(`${API_URL}/api/medicinepage/declare-past`, data, {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                // Axios handles Content-Type for FormData automatically
-            },
-        });
-        return response.data;
-    } catch (error) {
-        console.error("Error saving DeclarePast content:", error);
-        throw error;
-    }
-};
+        const token = localStorage.getItem("token");
+        try {
+            const response = await axios.post(`${API_URL}/api/medicinepage/declare-past`, data, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    // Axios handles Content-Type for FormData automatically
+                },
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error saving DeclarePast content:", error);
+            throw error;
+        }
+    };
 
     const saveBestOfBestContent = async (data) => {
         const token = localStorage.getItem("token");
@@ -440,7 +440,7 @@ export const AdminProvider = ({ children }) => {
             console.error("Error saving best of best content:", error);
             throw error;
         }
-    }; 
+    };
 
     const saveRecommendedMedContent = async (data) => {
         const token = localStorage.getItem("token");
@@ -678,6 +678,27 @@ export const AdminProvider = ({ children }) => {
 
 
 
+    const addMedicineByAdminCSV = async (file) => {
+        const token = localStorage.getItem("token");
+
+        const formData = new FormData();
+        formData.append("file", file);
+        console.log(formData);
+
+        try {
+            const response = await axios.post(`${API_URL}/admin/pharmacy/medicine/upload`, formData, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error uploading medicine CSV:", error);
+            throw error.response?.data || error.message;
+        }
+    };
+
+
     return (
         <AdminContext.Provider value={{
             saveHomePageContent, addDoctorTeam, saveIntroductionPageContent, saveAboutUsContent, saveFeaturedProductsContent, saveLaboratoryContent, saveOurAffiliatesContent, saveNursingContent, saveAmbulanceContent, saveHospitalContent, addDoctorInDoctorsTeam, updateDoctorInDoctorsTeam, deleteDoctorInDoctorsTeam,
@@ -685,7 +706,7 @@ export const AdminProvider = ({ children }) => {
 
             saveSearchTestData, savePrescriptionPageData, saveHowItWorksContent, saveLabCareContent, saveAboutLabContent, saveResearchContent,
 
-            savePharmacyPageContent, saveFeaturedProductsContentPharmacy, saveBestOfBestContent, saveRecommendedMedContent, saveAboutMedicineContent,saveDeclarePastContent,
+            savePharmacyPageContent, saveFeaturedProductsContentPharmacy, saveBestOfBestContent, saveRecommendedMedContent, saveAboutMedicineContent, saveDeclarePastContent,
 
 
             saveFindDoctorContent, saveFindConsultantContent, saveDoctorsPriorityContent, saveHowToSecureContent,
@@ -696,6 +717,7 @@ export const AdminProvider = ({ children }) => {
 
             saveSingleHospitalPageData, saveHospitalFacilityData, saveMainHowItWorksData,
 
+            addMedicineByAdminCSV,
 
         }}>
             {children}

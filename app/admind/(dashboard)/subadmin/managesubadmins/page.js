@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import { FaEdit, FaTrash, FaSearch } from "react-icons/fa";
 import AddNewSubadmin from "./components/AddNewSubadmin";
 import EditSubadmin from "./components/EditSubadmin";
-import DashboardTopNavbar from "../../components/topNavbar/DashboardTopNavbar";
 
 const initialSubadminsData = [
   {
@@ -180,7 +179,6 @@ export default function Page() {
 
   return (
     <div className="bg-gray-100 min-h-screen relative">
-      <DashboardTopNavbar heading="Manage Subadmins" />
 
       <div className="pt-4">
         {/* Header */}
@@ -315,8 +313,8 @@ export default function Page() {
                     key={i}
                     onClick={() => setCurrentPage(i + 1)}
                     className={`px-4 py-2 rounded-md text-sm font-medium transition ${currentPage === i + 1
-                        ? "bg-[#08B36A]  text-white"
-                        : "bg-emerald-100 hover:bg-[#08b369d6]"
+                      ? "bg-[#08B36A]  text-white"
+                      : "bg-emerald-100 hover:bg-[#08b369d6]"
                       }`}
                   >
                     {i + 1}

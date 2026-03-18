@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import DashboardTopNavbar from "../../components/topNavbar/DashboardTopNavbar";
 import HospitalFacilityAdmin from "./components/HospitalFacilityAdmin";
 import MainHowItWorksAdmin from "./components/MainHowItWorksAdmin";
 import HospitalPageAdmin from "./components/HospitalPageAdmin";
@@ -30,8 +29,6 @@ function Page() {
 
     return (
         <>
-            <DashboardTopNavbar />
-
             <div className="min-h-screen">
                 <div className="max-w-7xl mx-auto">
 

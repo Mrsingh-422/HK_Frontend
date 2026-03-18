@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import DashboardTopNavbar from "../../components/topNavbar/DashboardTopNavbar";
 import HomeComponent from "./components/HomeComonent";
 import IntroductionComponent from "./components/IntroductionComponent";
 import AboutUsComponent from "./components/AboutUsComponent";
@@ -66,7 +65,6 @@ function Page() {
 
     return (
         <>
-            <DashboardTopNavbar />
 
             <div className="min-h-screen">
                 <div className="max-w-7xl mx-auto">
