@@ -22,13 +22,13 @@ export default function TrackPhlebotomist() {
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full p-4 md:p-8">
       
       {/* ========================================= */}
-      {/* 🗺️ MAP SECTION                             */}
+      {/* 🗺️ MAP SECTION (COMMENTED OUT)            */}
       {/* ========================================= */}
+      {/* 
       <div className="w-full h-[400px] mb-8 rounded-2xl overflow-hidden border border-gray-200 shadow-sm relative group">
-        {/* Placeholder Google Map (Chandigarh coordinates embedded) */}
         <iframe 
           src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d109741.02912911311!2d76.69348873658222!3d30.73506264436677!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390fed0be66ec96b%3A0xa5ff67da71cbc6dd!2sChandigarh!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin" 
           width="100%" 
@@ -40,11 +40,11 @@ export default function TrackPhlebotomist() {
           className="grayscale-[20%] group-hover:grayscale-0 transition-all duration-500"
         ></iframe>
 
-        {/* Custom Overlay Label (Optional: To make it look more like your app) */}
         <div className="absolute top-4 left-4 bg-white px-4 py-2 rounded-lg shadow-md border border-gray-100 flex items-center gap-2 text-sm font-bold text-blue-600 cursor-pointer hover:bg-gray-50">
           <FaMapMarkerAlt /> Open in Maps
         </div>
-      </div>
+      </div> 
+      */}
 
       {/* ========================================= */}
       {/* 📄 ORDER SUMMARY & TABLE SECTION          */}
@@ -55,7 +55,7 @@ export default function TrackPhlebotomist() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-4 gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-[#1e3a8a] mb-1">Your Order Summary</h1>
-            <h2 className="text-lg md:text-xl font-semibold text-[#1e3a8a]">Total Driver {driversList.length}</h2>
+            <h2 className="text-lg md:text-xl font-semibold text-[#1e3a8a]">Total Driver: {driversList.length}</h2>
           </div>
 
           <button 

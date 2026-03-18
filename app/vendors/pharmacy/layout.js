@@ -134,12 +134,11 @@ export default function PharmacyVendorLayout({ children }) {
         { name: 'Assign Driver', href: '/vendors/pharmacy/assign-driver', icon: FaClipboardList },
         { name: 'Track Driver', href: '/vendors/pharmacy/track-driver', icon: FaMapMarkedAlt },
         { name: 'Pharmacy Services', href: '/vendors/pharmacy/pharmacy-service', icon: FaPills },
-        { name: 'Promotion', href: '/vendors/pharmacy/promotion', icon: FaBullhorn },
-        { name: 'Manage Documents', href: '/vendors/pharmacy/documents', icon: FaFileAlt },
-        { name: 'Profile', href: '/vendors/pharmacy/profile', icon: FaUserCircle },
+        { name: 'Promotion', href: '/vendors/pharmacy/coupon', icon: FaBullhorn },
+        { name: 'Manage Documents', href: '/vendors/pharmacy/document', icon: FaFileAlt },
         { name: 'Manage Delivery Charges', href: '/vendors/pharmacy/delivery-charges', icon: FaMoneyBillWave },
         { name: 'Wallet & Earning', href: '/vendors/pharmacy/wallet', icon: FaWallet },
-        { name: 'FAQ', href: '/vendors/pharmacy/faq', icon: FaQuestionCircle },
+    
     ];
 
     return (
