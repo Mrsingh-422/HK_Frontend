@@ -32,7 +32,7 @@ function Page() {
     return (
         <div className="min-h-screen p-4 bg-gray-50/50">
             <div className="max-w-[1400px] mx-auto space-y-6">
-
+  
                 {/* 1. STATS SECTION */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <StatCard title="Total Medicines" value={initialMedicines.length} icon={<MdOutlineInventory2 size={24} />} color={themeColor} />
