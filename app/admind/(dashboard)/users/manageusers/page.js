@@ -4,7 +4,6 @@ import { FaEye } from "react-icons/fa";
 import { FiUsers } from "react-icons/fi";
 import { IoChevronDown } from "react-icons/io5";
 import { useRouter } from "next/navigation";
-import DashboardTopNavbar from "../../components/topNavbar/DashboardTopNavbar";
 
 export default function Page() {
     const router = useRouter();
@@ -57,8 +56,6 @@ export default function Page() {
 
     return (
         <>
-            <DashboardTopNavbar heading="Manage Users" />
-
             <div className="bg-gray-100 min-h-screen">
 
                 <div className="bg-white shadow rounded-xl overflow-hidden">

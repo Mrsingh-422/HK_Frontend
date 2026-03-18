@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import Sidebar from "./components/sidebar/Sidebar";
+import DashboardTopNavbar from "./components/topNavbar/DashboardTopNavbar";
 // Check path!
 
 export default function AdminDashboardLayout({ children }) {
@@ -28,6 +29,7 @@ export default function AdminDashboardLayout({ children }) {
       </aside>
       <div className="admin-main-wrapper">
         <main className="admin-content-area">
+          <DashboardTopNavbar heading="Dashboard" />
           {children}
         </main>
       </div>

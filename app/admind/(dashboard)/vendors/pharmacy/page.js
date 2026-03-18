@@ -1,6 +1,5 @@
 "use client";
 import React, { useState, useMemo } from "react";
-import DashboardTopNavbar from "../../components/topNavbar/DashboardTopNavbar";
 import { FaBuilding, FaEye, FaSearch } from "react-icons/fa";
 import { MdOutlineSwapVert } from "react-icons/md";
 import ViewPharmacyComponent from "./components/ViewPharmacyComponent";
@@ -13,7 +12,7 @@ function PharmacyVendorsPage() {
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // ✅ Dummy Data
+  // ✅ Dummy Data  
   const [vendors, setVendors] = useState([
     { id: 1, name: "New Pharmacy", phone: "7009106957", image: "https://via.placeholder.com/50", status: false, verified: "Pending", joinDate: "2025-03-25 12:06:58" },
     { id: 2, name: "PharmacyHk", phone: "7696591560", image: "https://via.placeholder.com/50", status: true, verified: "Approved", joinDate: "2024-05-14 14:55:55" },
@@ -52,7 +51,6 @@ function PharmacyVendorsPage() {
 
   return (
     <div className="min-h-screen">
-      <DashboardTopNavbar heading="Pharmacy Vendors" />
 
       <div className="max-w-[1600px] mx-auto">
         <div className="bg-white rounded-2xl shadow-md p-4 border border-gray-100">
