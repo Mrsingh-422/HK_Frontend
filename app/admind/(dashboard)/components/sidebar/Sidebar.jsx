@@ -295,8 +295,6 @@ export default function Sidebar() {
                     </div>
                 )}
 
-
-
                 {openMenu === "websitesetting" && (
                     <div className="submenu fade-in">
                         <Link
@@ -326,6 +324,40 @@ export default function Sidebar() {
                             className={`submenu-link ${isActive("/admind/websitesetting/hospitalscreen") ? "sub-active" : ""}`}
                         >
                             Hospital Screen Setting
+                        </Link>
+                    </div>
+                )}
+
+
+                <div
+                    className={`menu-item dropdown ${isParentActive("/admind/managemedicines") ? "active" : ""}`}
+                    onClick={() => toggleMenu("managemedicines")}
+                >
+                    <FaUser className="icon" />
+                    <span>Manage Medicines</span>
+                    {openMenu === "managemedicines"
+                        ? <FaChevronDown className="arrow rotate" />
+                        : <FaChevronRight className="arrow" />}
+                </div>
+
+                {openMenu === "managemedicines" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/managemedicines/manageallmedicines"
+                            className={`submenu-link ${isActive("/admind/managemedicines/manageallmedicines") ? "sub-active" : ""}`}
+                        >
+                            Manage All Medicines
+                        </Link>
+                    </div>
+                )}
+
+                {openMenu === "managemedicines" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/managemedicines/approvedmedicines"
+                            className={`submenu-link ${isActive("/admind/managemedicines/approvedmedicines") ? "sub-active" : ""}`}
+                        >
+                            Approved Medicines
                         </Link>
                     </div>
                 )}
