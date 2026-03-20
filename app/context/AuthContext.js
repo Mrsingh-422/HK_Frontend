@@ -7,53 +7,77 @@ const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-    const [hospital, setHospital] = useState(null);
-    const [hospitalToken, setHospitalToken] = useState(null);
+    // --- STATE ---
+    const [loading, setLoading] = useState(true);
+
+    // User & Admin
     const [user, setUser] = useState(null);
     const [userToken, setUserToken] = useState(null);
     const [admin, setAdmin] = useState(null);
 
-    // New states for specific vendors
-    const [provider, setProvider] = useState(null);
-    const [loading, setLoading] = useState(true);
+    // Hospital
+    const [hospital, setHospital] = useState(null);
+    const [hospitalToken, setHospitalToken] = useState(null);
 
+    // Vendors (Lab, Nursing, Pharmacy)
+    const [provider, setProvider] = useState(null);
+    const [labToken, setLabToken] = useState(null);
+    const [nursingToken, setNursingToken] = useState(null);
+    const [pharmacyToken, setPharmacyToken] = useState(null);
+
+    // --- HYDRATION (Load from LocalStorage on mount) ---
     useEffect(() => {
         const hydrateAuth = () => {
-            const storedToken = localStorage.getItem("userToken");
-            const storedUser = localStorage.getItem("user");
-            const storedAdmin = localStorage.getItem("admin");
-            const storedHToken = localStorage.getItem("hospitalToken");
-            const storedHospital = localStorage.getItem("hospital");
+            try {
+                // 1. Hospital Hydration
+                const storedHToken = localStorage.getItem("hospitalToken");
+                const storedHospital = localStorage.getItem("hospital");
+                if (storedHToken) setHospitalToken(storedHToken);
+                if (storedHospital) setHospital(JSON.parse(storedHospital));
 
-            // Hydrate Vendor Specific Data
-            // We check for all possible provider types
-            const providerTypes = ["nursing", "pharmacy", "lab"];
-            // let foundProvider = null;
+                // 2. User & Admin Hydration
+                const storedUToken = localStorage.getItem("userToken");
+                const storedUser = localStorage.getItem("user");
+                const storedAdmin = localStorage.getItem("admin");
+                if (storedUToken) setUserToken(storedUToken);
+                if (storedUser) setUser(JSON.parse(storedUser));
+                if (storedAdmin) setAdmin(JSON.parse(storedAdmin));
 
-            // providerTypes.forEach(type => {
-            //     const pData = localStorage.getItem(`${type}User`);
-            //     if (pData) foundProvider = JSON.parse(pData);
-            // });
+                // 3. Lab Vendor Hydration
+                const storedLToken = localStorage.getItem("labToken");
+                const storedLProvider = localStorage.getItem("labProvider");
+                if (storedLToken) setLabToken(storedLToken);
+                if (storedLProvider) setProvider(JSON.parse(storedLProvider));
 
-            if (storedToken) setUserToken(storedToken);
-            if (storedUser) setUser(JSON.parse(storedUser));
-            if (storedAdmin) setAdmin(JSON.parse(storedAdmin));
-            if (storedHToken) setHospitalToken(storedHToken);
-            if (storedHospital) setHospital(JSON.parse(storedHospital));
-            // if (foundProvider) setProvider(foundProvider);
+                // 4. Nursing Vendor Hydration
+                const storedNToken = localStorage.getItem("nursingToken");
+                const storedNProvider = localStorage.getItem("nursingProvider");
+                if (storedNToken) setNursingToken(storedNToken);
+                if (storedNProvider) setProvider(JSON.parse(storedNProvider));
 
-            setLoading(false);
+                // 5. Pharmacy Vendor Hydration
+                const storedPToken = localStorage.getItem("pharmacyToken");
+                const storedPProvider = localStorage.getItem("pharmacyProvider");
+                if (storedPToken) setPharmacyToken(storedPToken);
+                if (storedPProvider) setProvider(JSON.parse(storedPProvider));
+
+            } catch (error) {
+                console.error("Failed to hydrate auth state:", error);
+            } finally {
+                setLoading(false);
+            }
         };
 
         hydrateAuth();
     }, []);
+
     // Helper to get the correct storage key prefix
     const getProviderKey = (category) => {
         const cat = category?.toLowerCase();
         if (cat === "nursing") return "nursing";
         if (cat === "pharmacy") return "pharmacy";
         if (cat === "lab") return "lab";
-        return "provider"; // fallback
+        return "provider";
     };
 
 
@@ -146,23 +170,17 @@ export const AuthProvider = ({ children }) => {
         try {
             setLoading(true);
             const response = await axios.post(`${API_URL}/api/auth/hospital/login`, userData);
-
-            // The response you shared: { success, fullAccess, profileStatus, message, data, token }
             const { token, data, profileStatus, fullAccess } = response.data;
 
-            // Create a merged object so state always has the latest status
             const hospitalData = { ...data, profileStatus, fullAccess };
-
             localStorage.setItem("hospitalToken", token);
             localStorage.setItem("hospital", JSON.stringify(hospitalData));
 
             setHospitalToken(token);
             setHospital(hospitalData);
-
             return response.data;
         } catch (error) {
-            const message = error.response?.data?.message || "Login failed";
-            return Promise.reject(message);
+            return Promise.reject(error.response?.data?.message || "Login failed");
         } finally {
             setLoading(false);
         }
@@ -256,33 +274,28 @@ export const AuthProvider = ({ children }) => {
         try {
             setLoading(true);
             const response = await axios.post(`${API_URL}/api/auth/provider/login`, userData);
-
-            // Extracting properties exactly like loginAsHospital
             const { token, data, profileStatus, fullAccess } = response.data;
 
-            // Create a merged object so the state/storage always has the latest status
             const providerData = { ...data, profileStatus, fullAccess };
-
-            // Identify the correct key (nursing, pharmacy, or lab)
             const category = providerData?.category || userData.category;
             const key = getProviderKey(category);
 
-            // SAVE TO LOCAL STORAGE WITH DYNAMIC KEYS (matching your hospital logic)
+            // Set Specific Tokens based on category
+            if (key === 'lab') setLabToken(token);
+            if (key === 'nursing') setNursingToken(token);
+            if (key === 'pharmacy') setPharmacyToken(token);
+
             localStorage.setItem(`${key}Token`, token);
             localStorage.setItem(`${key}Provider`, JSON.stringify(providerData));
 
-            // Update the state
             setProvider(providerData);
-
             return response.data;
         } catch (error) {
-            const message = error.response?.data?.message || "Login failed";
-            return Promise.reject(message);
+            return Promise.reject(error.response?.data?.message || "Login failed");
         } finally {
             setLoading(false);
         }
     };
-
     const uploadLabDocuments = async (userData) => {
         try {
             setLoading(true);
@@ -338,14 +351,26 @@ export const AuthProvider = ({ children }) => {
 
 
     const logout = () => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("admin");
-        localStorage.removeItem("user");
-        localStorage.removeItem("hospitalToken");
-        localStorage.removeItem("hospital");
+        // Clear Local Storage
+        const keys = [
+            "token", "admin", "user", "userToken",
+            "hospitalToken", "hospital",
+            "labToken", "labProvider",
+            "nursingToken", "nursingProvider",
+            "pharmacyToken", "pharmacyProvider"
+        ];
+        keys.forEach(k => localStorage.removeItem(k));
+
+        // Clear State
         setAdmin(null);
         setUser(null);
-        setHospital(null)
+        setUserToken(null);
+        setHospital(null);
+        setHospitalToken(null);
+        setProvider(null);
+        setLabToken(null);
+        setNursingToken(null);
+        setPharmacyToken(null);
     };
 
 
@@ -357,6 +382,10 @@ export const AuthProvider = ({ children }) => {
             logout,
             hospital,
             hospitalToken,
+            provider,
+            labToken,
+            nursingToken,
+            pharmacyToken,
             registerAsUser,
             registerAsDoctorAppointment,
             registerAsServiceProvider,
@@ -370,8 +399,7 @@ export const AuthProvider = ({ children }) => {
             forgotPassword,
             verifyOtp,
             resetPassword,
-            uploadHospitalDocuments,
-            logout
+            uploadHospitalDocuments
         }}>
             {children}
         </AuthContext.Provider>
