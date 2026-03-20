@@ -53,9 +53,9 @@ function LoginAsServiceProvider() {
         if (path === "lab") {
           router.push("/vendors/labvendor/documents");
         } else if (path === "pharmacy") {
-          router.push("/vendors/pharmacyvendor/documents");
+          router.push("/vendors/pharmacy/documents");
         } else if (path === "nursing") {
-          router.push("/vendors/nursingvendor/documents");
+          router.push("/vendors/nursing/documents");
         } else {
           router.push("/");
         }
@@ -106,7 +106,7 @@ function LoginAsServiceProvider() {
               className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] bg-white"
             >
               <option value="">Login As</option>
-              <option value="Nursing">Nursing</option>
+              <option value="Nurse">Nursing</option>
               <option value="Pharmacy">Pharmacy</option>
               <option value="Lab">Lab / Phlebotomist</option>
             </select>

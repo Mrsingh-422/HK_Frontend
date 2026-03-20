@@ -321,6 +321,56 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const uploadPharmacyDocuments = async (userData) => {
+        try {
+            setLoading(true);
+
+            // Retrieve the specific token for the Pharmacy vendor
+            const pharmacyToken = localStorage.getItem("pharmacyToken");
+
+            const response = await axios.put(`${API_URL}/api/auth/provider/upload-docs/pharmacy`,
+                userData,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${pharmacyToken}` // Send token as Bearer token
+                    }
+                }
+            );
+
+            return response.data;
+        } catch (error) {
+            const message = error.response?.data?.message || "Document upload failed";
+            return Promise.reject(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const uploadNurseDocuments = async (userData) => {
+        try {
+            setLoading(true);
+
+            // Retrieve the specific token for the Nurse vendor
+            const nurseToken = localStorage.getItem("nurseToken");
+
+            const response = await axios.put(`${API_URL}/api/auth/provider/upload-docs/nurse`,
+                userData,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${nurseToken}` // Send token as Bearer token
+                    }
+                }
+            );
+
+            return response.data;
+        } catch (error) {
+            const message = error.response?.data?.message || "Document upload failed";
+            return Promise.reject(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     // 1️⃣ SEND OTP
     const forgotPassword = async (email) => {
         const res = await axios.post(
@@ -399,7 +449,9 @@ export const AuthProvider = ({ children }) => {
             forgotPassword,
             verifyOtp,
             resetPassword,
-            uploadHospitalDocuments
+            uploadHospitalDocuments,
+            uploadPharmacyDocuments,
+            uploadNurseDocuments
         }}>
             {children}
         </AuthContext.Provider>

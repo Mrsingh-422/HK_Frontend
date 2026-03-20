@@ -123,8 +123,8 @@ function RegisterAsServiceProvider() {
         closeModal();
         const path = formData.category.toLowerCase();
         if (path === "lab") router.push("/vendors/labvendor/documents");
-        else if (path === "pharmacy") router.push("/vendors/pharmacyvendor/documents");
-        else if (path === "nursing") router.push("/vendors/nursingvendor/documents");
+        else if (path === "pharmacy") router.push("/vendors/pharmacy/documents");
+        else if (path === "nursing") router.push("/vendors/nursevendor/documents");
         else router.push("/");
       }, 1500);
     } catch (err) {

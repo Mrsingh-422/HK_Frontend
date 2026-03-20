@@ -152,7 +152,7 @@ export default function TopNavbar() {
                 <FaChevronRight className="arrow-right" />
               </Link>
             ))}
-            <div className="profile-item-new logout-new" onClick={() => localStorage.removeItem("token")}>
+            <div className="profile-item-new logout-new" onClick={() => localStorage.removeItem("userToken")}>
               <span className="item-icon"><FaSignOutAlt /></span>
               <span className="item-label">Logout</span>
             </div>
