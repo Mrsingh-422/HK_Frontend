@@ -57,6 +57,7 @@ function UploadTest() {
 
         try {
             // API call logic here
+            
             await new Promise(res => setTimeout(res, 2000)); // Simulate
             setStatus({ type: "success", message: "Data synchronized successfully!" });
             setFile(null);

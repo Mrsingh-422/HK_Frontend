@@ -24,7 +24,7 @@ function Page() {
     ];
 
     return (
-        <div className="min-h-screen bg-gray-50/50 p-4 md:p-8">
+        <div className="min-h-screen bg-gray-50/50 p-4 md:p-3">
             <div className="max-w-7xl mx-auto">
 
                 {/* ================= TABS NAVIGATION ================= */}
@@ -57,7 +57,7 @@ function Page() {
                 </div>
 
                 {/* ================= TAB CONTENT AREA ================= */}
-                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 min-h-[500px] transition-all duration-500 ease-in-out">
+                <div className="rounded-3xl p-6 min-h-[500px] transition-all duration-500 ease-in-out">
                     {/* Animation wrapper */}
                     <div
                         key={activeTab}
