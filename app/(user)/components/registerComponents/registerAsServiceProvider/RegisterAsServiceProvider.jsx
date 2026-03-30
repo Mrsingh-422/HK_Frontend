@@ -124,7 +124,7 @@ function RegisterAsServiceProvider() {
         const path = formData.category.toLowerCase();
         if (path === "lab") router.push("/vendors/labvendor/documents");
         else if (path === "pharmacy") router.push("/vendors/pharmacy/documents");
-        else if (path === "nursing") router.push("/vendors/nursevendor/documents");
+        else if (path === "nurse") router.push("/vendors/nursevendor/documents");
         else router.push("/");
       }, 1500);
     } catch (err) {
@@ -160,7 +160,7 @@ function RegisterAsServiceProvider() {
               className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] bg-white"
             >
               <option value="">Register As</option>
-              <option value="Nursing">Nursing</option>
+              <option value="Nurse">Nursing</option>
               <option value="Pharmacy">Pharmacy</option>
               <option value="Lab">Lab / Phlebotomist</option>
             </select>

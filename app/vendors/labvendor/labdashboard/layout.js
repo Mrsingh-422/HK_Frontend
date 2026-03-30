@@ -4,74 +4,62 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-    FaFlask,
-    FaVials,
-    FaClipboardList,
-    FaFileMedical,
-    FaCog,
-    FaChevronLeft,
-    FaChevronRight,
-    FaUserMd,
-    FaMapMarkedAlt,
-    FaBoxOpen,
-    FaPlusSquare,
-    FaBullhorn,
-    FaFolderOpen,
-    FaHistory,
-    FaWallet,
-    FaCalendarCheck,
-    FaTruck
+    FaFlask, FaVials, FaClipboardList, FaFileMedical, FaCog,
+    FaChevronLeft, FaChevronRight, FaUserMd, FaMapMarkedAlt,
+    FaBoxOpen, FaPlusSquare, FaBullhorn, FaFolderOpen,
+    FaHistory, FaWallet, FaCalendarCheck, FaTruck
 } from "react-icons/fa";
-import { useAuth } from '@/app/context/AuthContext'; // Ensure this path is correct
+import { useAuth } from '@/app/context/AuthContext';
 import LabTopBar from './components/LabTopBar';
+
+// Move static data outside the component to prevent re-creation on every render
+const menuItems = [
+    { name: 'Dashboard', href: '/vendors/labvendor/labdashboard', icon: FaFlask },
+    { name: 'Orders', href: '/vendors/labvendor/labdashboard/laborders', icon: FaClipboardList },
+    { name: 'Manage Phlebotomist', href: '/vendors/labvendor/labdashboard/ManagePhlebotomist', icon: FaVials },
+    { name: 'Assign Phlebotomist', href: '/vendors/labvendor/labdashboard/assign-phlebotomist', icon: FaUserMd },
+    { name: 'Track Phlebotomist', href: '/vendors/labvendor/labdashboard/track-phlebotomist', icon: FaMapMarkedAlt },
+    { name: 'My Packages', href: '/vendors/labvendor/labdashboard/packages', icon: FaBoxOpen },
+    { name: 'Add Services', href: '/vendors/labvendor/labdashboard/addservices', icon: FaPlusSquare },
+    { name: 'Upload Reports', href: '/vendors/labvendor/labdashboard/upload-reports', icon: FaFileMedical },
+    { name: 'Manage Documents', href: '/vendors/labvendor/labdashboard/manage-documents', icon: FaFolderOpen },
+    { name: 'Promotions', href: '/vendors/labvendor/labdashboard/promotions', icon: FaBullhorn },
+    { name: 'Order History', href: '/vendors/labvendor/labdashboard/order-history', icon: FaHistory },
+    { name: 'Wallet & Earning', href: '/vendors/labvendor/labdashboard/wallet', icon: FaWallet },
+    { name: 'Availability', href: '/vendors/labvendor/labdashboard/availability', icon: FaCalendarCheck },
+    { name: 'Delivery Charges', href: '/vendors/labvendor/labdashboard/delivery-charge', icon: FaTruck },
+    { name: 'Settings', href: '/vendors/labvendor/labdashboard/settings', icon: FaCog },
+];
 
 export default function LabVendorLayout({ children }) {
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
 
-    // --- AUTH & ROUTING ---
-    const { labVendor, loading, labToken } = useAuth(); // Adjust names based on your AuthContext
+    const { labVendor, loading, labToken } = useAuth();
     const pathname = usePathname();
     const router = useRouter();
 
-    // --- PROTECTION & REDIRECT LOGIC ---
     useEffect(() => {
-        // 1. Wait until AuthContext finishes checking storage
+        // 1. Wait until loading is finished
         if (loading) return;
 
-        // 2. Check localStorage for immediate safety
-        const storedToken = localStorage.getItem("labToken");
-
-        if (!storedToken) {
-            router.push("/"); // Redirect to login/home
+        // 2. If no token is found in context, redirect to login
+        if (!labToken) {
+            router.push("/");
             return;
         }
 
-        // 3. If authenticated but profile isn't approved, force them to the documents page
+        // 3. Document Approval Check
+        // Ensure labVendor exists before checking profileStatus
         if (labVendor) {
-            if (labVendor.profileStatus !== 'Approved' && pathname !== '/vendors/labvendor/documents') {
+            const isNotApproved = labVendor.profileStatus !== 'Approved';
+            const isNotOnDocsPage = pathname !== '/vendors/labvendor/documents';
+
+            if (isNotApproved && isNotOnDocsPage) {
                 router.push('/vendors/labvendor/documents');
             }
         }
-    }, [labVendor, loading, pathname, router, labToken]);
-
-    const menuItems = [
-        { name: 'Dashboard', href: '/vendors/labvendor/labdashboard', icon: FaFlask },
-        { name: 'Orders', href: '/vendors/labvendor/labdashboard/laborders', icon: FaClipboardList },
-        { name: 'Manage Phlebotomist', href: '/vendors/labvendor/labdashboard/ManagePhlebotomist', icon: FaVials },
-        { name: 'Assign Phlebotomist', href: '/vendors/labvendor/labdashboard/assign-phlebotomist', icon: FaUserMd },
-        { name: 'Track Phlebotomist', href: '/vendors/labvendor/labdashboard/track-phlebotomist', icon: FaMapMarkedAlt },
-        { name: 'My Packages', href: '/vendors/labvendor/labdashboard/packages', icon: FaBoxOpen },
-        { name: 'Add Services', href: '/vendors/labvendor/labdashboard/addservices', icon: FaPlusSquare },
-        { name: 'Upload Reports', href: '/vendors/labvendor/labdashboard/upload-reports', icon: FaFileMedical },
-        { name: 'Manage Documents', href: '/vendors/labvendor/labdashboard/manage-documents', icon: FaFolderOpen },
-        { name: 'Promotions', href: '/vendors/labvendor/labdashboard/promotions', icon: FaBullhorn },
-        { name: 'Order History', href: '/vendors/labvendor/labdashboard/order-history', icon: FaHistory },
-        { name: 'Wallet & Earning', href: '/vendors/labvendor/labdashboard/wallet', icon: FaWallet },
-        { name: 'Availability', href: '/vendors/labvendor/labdashboard/availability', icon: FaCalendarCheck },
-        { name: 'Delivery Charges', href: '/vendors/labvendor/labdashboard/delivery-charge', icon: FaTruck },
-        { name: 'Settings', href: '/vendors/labvendor/labdashboard/settings', icon: FaCog },
-    ];
+    }, [labVendor, loading, labToken, pathname, router]);
 
     // --- FULL SCREEN LOADER ---
     if (loading) {
@@ -86,10 +74,8 @@ export default function LabVendorLayout({ children }) {
         );
     }
 
-    // Safety check: Don't render UI if no token exists
-    if (!labToken && typeof window !== "undefined" && !localStorage.getItem("labToken")) {
-        return null;
-    }
+    // Safety check: Prevent UI flickering if not authenticated
+    if (!labToken) return null;
 
     return (
         <div className="h-screen w-full bg-gray-50 flex overflow-hidden">
@@ -102,7 +88,7 @@ export default function LabVendorLayout({ children }) {
                 ${isCollapsed ? 'w-20' : 'w-64'} 
             `}>
                 <div className="p-4 border-b border-gray-50 flex items-center justify-center min-h-[70px] flex-shrink-0">
-                    <Link href="/vendors/labvendor" className="flex items-center justify-center overflow-hidden">
+                    <Link href="/vendors/labvendor/labdashboard" className="flex items-center justify-center overflow-hidden">
                         {isCollapsed ? (
                             <Image src="/logo.png" alt="Logo" width={40} height={40} className="object-contain" />
                         ) : (
@@ -146,10 +132,12 @@ export default function LabVendorLayout({ children }) {
                     })}
                 </nav>
 
-                <div className="p-4 border-t border-gray-100 flex justify-center lg:flex hidden bg-gray-50/50 flex-shrink-0">
+                {/* Collapse Toggle Button */}
+                <div className="p-4 border-t border-gray-100 hidden lg:flex justify-center bg-gray-50/50 flex-shrink-0">
                     <button
                         onClick={() => setIsCollapsed(!isCollapsed)}
                         className="p-2 rounded-full bg-white border border-gray-200 text-gray-500 hover:bg-[#08B36A] hover:text-white transition-colors"
+                        aria-label="Toggle Sidebar"
                     >
                         {isCollapsed ? <FaChevronRight size={14} /> : <FaChevronLeft size={14} />}
                     </button>

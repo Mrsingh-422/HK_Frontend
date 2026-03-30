@@ -1,109 +1,82 @@
 "use client";
 
 import React, { useState } from "react";
+// Assuming these are your component imports
 import ManageLabVendorComponent from "./components/ManageLabVendorComponent";
 import LabTestReportComponent from "./components/LabTestReportComponent";
 import LabTestTypeComponent from "./components/LabTestTypeComponent";
 import LabTestPackageComponent from "./components/LabTestPackagComponent";
 import ManageLabTestComponent from "./components/ManageLabTestComponent";
 
-/* ================= TAB COMPONENTS ================= */
-
-const ManageLabVendor = () => {
-    return (
-        <div>
-            <ManageLabVendorComponent />
-        </div>
-    );
-};
-
-const LabTestReport = () => {
-    return (
-        <div>
-            <LabTestReportComponent />
-        </div>
-    );
-};
-
-const LabTestType = () => {
-    return (
-        <div>
-            <LabTestTypeComponent />
-        </div>
-    );
-};
-
-const LabTestPackage = () => {
-    return (
-        <div>
-            <LabTestPackageComponent />
-        </div>
-    );
-};
-
-const ManageLabTest = () => {
-    return (
-        <div>
-            <ManageLabTestComponent />
-        </div>
-    );
-};
-
 /* ================= MAIN PAGE ================= */
 
 function Page() {
     const [activeTab, setActiveTab] = useState("vendor");
 
-    const renderComponent = () => {
-        switch (activeTab) {
-            case "vendor":
-                return <ManageLabVendor />;
-            case "report":
-                return <LabTestReport />;
-            case "type":
-                return <LabTestType />;
-            case "package":
-                return <LabTestPackage />;
-            case "test":
-                return <ManageLabTest />;
-            default:
-                return <ManageLabVendor />;
-        }
-    };
-
     const tabs = [
-        { id: "vendor", label: "Manage Lab Vendor" },
-        { id: "report", label: "Lab Test Report" },
-        { id: "type", label: "Lab Test Type" },
-        { id: "package", label: "Lab Test Package" },
-        { id: "test", label: "Manage Lab Test" },
+        { id: "vendor", label: "Manage Lab Vendor", component: <ManageLabVendorComponent /> },
+        { id: "report", label: "Lab Test Report", component: <LabTestReportComponent /> },
+        { id: "type", label: "Lab Test Type", component: <LabTestTypeComponent /> },
+        { id: "package", label: "Lab Test Package", component: <LabTestPackageComponent /> },
+        { id: "test", label: "Manage Lab Test", component: <ManageLabTestComponent /> },
     ];
 
     return (
-        <>
-            <div className="p-0 min-h-screen">
+        <div className="min-h-screen bg-gray-50/50 p-4 md:p-8">
+            <div className="max-w-7xl mx-auto">
 
-                {/* ================= TABS ================= */}
-                <div className="flex flex-wrap gap-2 mb-6 border-b pb-2">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer
-                ${activeTab === tab.id
-                                    ? "bg-emerald-500 text-white shadow"
-                                    : "bg-white text-gray-600 hover:bg-gray-100"
-                                }`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
+                {/* ================= TABS NAVIGATION ================= */}
+                <div className="relative mb-2">
+                    {/* Scrollable container for mobile */}
+                    <div className="flex items-center overflow-x-auto no-scrollbar bg-white p-1.5 rounded-2xl shadow-sm border border-gray-200 w-fit max-w-full">
+                        {tabs.map((tab) => {
+                            const isActive = activeTab === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`
+                    relative flex-shrink-0 px-6 py-2.5 text-sm font-semibold transition-all duration-300 rounded-xl cursor-pointer
+                    ${isActive
+                                            ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200"
+                                            : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                                        }
+                  `}
+                                >
+                                    {tab.label}
+                                    {/* Subtle active indicator dot for mobile/wide view */}
+                                    {isActive && (
+                                        <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full md:hidden"></span>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
 
-                {/* ================= TAB CONTENT ================= */}
-                {renderComponent()}
+                {/* ================= TAB CONTENT AREA ================= */}
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 min-h-[500px] transition-all duration-500 ease-in-out">
+                    {/* Animation wrapper */}
+                    <div
+                        key={activeTab}
+                        className="animate-in fade-in slide-in-from-bottom-2 duration-300"
+                    >
+                        {tabs.find((t) => t.id === activeTab)?.component}
+                    </div>
+                </div>
             </div>
-        </>
+
+            {/* Custom CSS for hiding scrollbars but keeping functionality */}
+            <style jsx global>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
+        </div>
     );
 }
 

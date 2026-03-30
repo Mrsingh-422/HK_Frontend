@@ -54,8 +54,8 @@ function LoginAsServiceProvider() {
           router.push("/vendors/labvendor/documents");
         } else if (path === "pharmacy") {
           router.push("/vendors/pharmacy/documents");
-        } else if (path === "nursing") {
-          router.push("/vendors/nursing/documents");
+        } else if (path === "nurse") {
+          router.push("/vendors/nursevendor/documents");
         } else {
           router.push("/");
         }

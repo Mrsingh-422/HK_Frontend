@@ -5,12 +5,23 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
     FaTachometerAlt,
-    FaMoneyBill,
-    FaUser,
+    FaMoneyBillWave,
+    FaUserCog,
     FaUsers,
     FaStore,
     FaChevronDown,
-    FaChevronRight
+    FaChevronRight,
+    FaCog,
+    FaPills,
+    FaTruck,
+    FaHospital,
+    FaFlask,
+    FaUserMd,
+    FaHandHoldingHeart,
+    FaBuilding,
+    FaUserShield,
+    FaUserTag,
+    FaTags, FaGift, FaAd
 } from "react-icons/fa";
 
 import "./Sidebar.css";
@@ -78,19 +89,21 @@ export default function Sidebar() {
                     <span>Dashboard</span>
                 </Link>
 
+                {/* Admin Earning */}
                 <Link
                     href="/admind/earning"
                     className={`menu-item ${isActive("/admind/earning") ? "active" : ""}`}
                 >
-                    <FaMoneyBill className="icon" />
+                    <FaMoneyBillWave className="icon" />
                     <span>Admin Earning</span>
                 </Link>
 
+                {/* Manage Subadmin */}
                 <div
                     className={`menu-item dropdown ${isParentActive("/admind/subadmin") ? "active" : ""}`}
                     onClick={() => toggleMenu("subadmin")}
                 >
-                    <FaUser className="icon" />
+                    <FaUserShield className="icon" />
                     <span>Sub Admin</span>
                     {openMenu === "subadmin"
                         ? <FaChevronDown className="arrow rotate" />
@@ -114,6 +127,7 @@ export default function Sidebar() {
                     </div>
                 )}
 
+                {/* Manage Users  */}
                 <div
                     className={`menu-item dropdown ${isParentActive("/admind/users") ? "active" : ""}`}
                     onClick={() => toggleMenu("users")}
@@ -136,6 +150,8 @@ export default function Sidebar() {
                     </div>
                 )}
 
+                {/* Manage Vendors  */}
+
                 <div
                     className={`menu-item dropdown ${isParentActive("/admind/vendors") ? "active" : ""}`}
                     onClick={() => toggleMenu("vendors")}
@@ -154,97 +170,39 @@ export default function Sidebar() {
                             href="/admind/vendors/pharmacy"
                             className={`submenu-link ${isActive("/admind/vendors/pharmacy") ? "sub-active" : ""}`}
                         >
-                            Pharmacy Vendors
+                            <FaPills className="sub-icon" /> Pharmacy Vendors
                         </Link>
 
                         <Link
                             href="/admind/vendors/lab"
                             className={`submenu-link ${isActive("/admind/vendors/lab") ? "sub-active" : ""}`}
                         >
-                            Lab Vendors
+                            <FaFlask className="sub-icon" /> Lab Vendors
                         </Link>
-
-                        {/* <div
-                            className={`submenu-item dropdown ${isParentActive("/admind/vendors/lab") ? "sub-active" : ""}`}
-                            onClick={() => toggleSubMenu("lab")}
-                        >
-                            <span>Lab Vendors</span>
-                            {openSubMenu === "lab"
-                                ? <FaChevronDown className="arrow rotate" />
-                                : <FaChevronRight className="arrow" />}
-                        </div> */}
-
-                        {/* {openSubMenu === "lab" && (
-                            <div className="submenu nested fade-in">
-
-                                <Link href="/admind/vendors/lab/manage" className="submenu-link">Manage Lab Vendor</Link>
-                                <Link href="/admind/vendors/lab/report" className="submenu-link">Lab Test Report</Link>
-                                <Link href="/admind/vendors/lab/type" className="submenu-link">Lab Test Type</Link>
-
-                                <div
-                                    className="submenu-item dropdown"
-                                    onClick={() => toggleNestedMenu("labPackage")}
-                                >
-                                    <span>Lab Test Package</span>
-                                    {openNestedMenu === "labPackage"
-                                        ? <FaChevronDown className="arrow rotate" />
-                                        : <FaChevronRight className="arrow" />}
-                                </div>
-
-                                {openNestedMenu === "labPackage" && (
-                                    <div className="submenu nested fade-in">
-                                        <Link href="/admind/vendors/lab/package/manage" className="submenu-link">Manage Lab Test Packages</Link>
-                                        <Link href="/admind/vendors/lab/package/pending" className="submenu-link">Pending Package Detail</Link>
-                                        <Link href="/admind/vendors/lab/package/approved" className="submenu-link">Approved Packages Detail</Link>
-                                        <Link href="/admind/vendors/lab/package/rejected" className="submenu-link">Rejected Packages Detail</Link>
-                                    </div>
-                                )}
-
-                                <div
-                                    className="submenu-item dropdown"
-                                    onClick={() => toggleNestedMenu("labTest")}
-                                >
-                                    <span>Manage Lab Test</span>
-                                    {openNestedMenu === "labTest"
-                                        ? <FaChevronDown className="arrow rotate" />
-                                        : <FaChevronRight className="arrow" />}
-                                </div>
-
-                                {openNestedMenu === "labTest" && (
-                                    <div className="submenu nested fade-in">
-                                        <Link href="/admind/vendors/lab/test/category" className="submenu-link">Manage Lab Test Category</Link>
-                                        <Link href="/admind/vendors/lab/test/subcategory" className="submenu-link">Manage Lab Test Sub Category</Link>
-                                        <Link href="/admind/vendors/lab/test/pending" className="submenu-link">Pending Lab Test</Link>
-                                        <Link href="/admind/vendors/lab/test/approved" className="submenu-link">Approved Lab Test</Link>
-                                        <Link href="/admind/vendors/lab/test/rejected" className="submenu-link">Rejected Lab Test</Link>
-                                    </div>
-                                )}
-
-                            </div>
-                        )} */}
 
                         <Link
                             href="/admind/vendors/nurse"
                             className={`submenu-link ${isActive("/admind/vendors/nurse") ? "sub-active" : ""}`}
                         >
-                            Nurse Vendors
+                            <FaHandHoldingHeart className="sub-icon" /> Nurse Vendors
                         </Link>
 
                         <Link
                             href="/admind/vendors/doctor"
                             className={`submenu-link ${isActive("/admind/vendors/doctor") ? "sub-active" : ""}`}
                         >
-                            Doctor Vendors
+                            <FaUserMd className="sub-icon" /> Doctor Vendors
                         </Link>
 
                     </div>
                 )}
 
+                {/* Manage website Setting */}
                 <div
                     className={`menu-item dropdown ${isParentActive("/admind/websitesetting") ? "active" : ""}`}
                     onClick={() => toggleMenu("websitesetting")}
                 >
-                    <FaUser className="icon" />
+                    <FaCog className="icon" />
                     <span>Website Setting</span>
                     {openMenu === "websitesetting"
                         ? <FaChevronDown className="arrow rotate" />
@@ -252,116 +210,162 @@ export default function Sidebar() {
                 </div>
 
                 {openMenu === "websitesetting" && (
-                    <div className="submenu fade-in">
-                        <Link
-                            href="/admind/websitesetting/home"
-                            className={`submenu-link ${isActive("/admind/websitesetting/home") ? "sub-active" : ""}`}
-                        >
-                            Home Page Setting
-                        </Link>
-                    </div>
+                    <>
+                        <div className="submenu fade-in">
+                            <Link
+                                href="/admind/websitesetting/home"
+                                className={`submenu-link ${isActive("/admind/websitesetting/home") ? "sub-active" : ""}`}
+                            > Home Page Setting
+                            </Link>
+                        </div>
+
+                        <div className="submenu fade-in">
+                            <Link
+                                href="/admind/websitesetting/lab"
+                                className={`submenu-link ${isActive("/admind/websitesetting/lab") ? "sub-active" : ""}`}
+                            > Lab Page Setting
+                            </Link>
+                        </div>
+
+                        <div className="submenu fade-in">
+                            <Link
+                                href="/admind/websitesetting/buymedicine"
+                                className={`submenu-link ${isActive("/admind/websitesetting/buymedicine") ? "sub-active" : ""}`}
+                            > Buy Medicine Setting
+                            </Link>
+                        </div>
+
+                        <div className="submenu fade-in">
+                            <Link
+                                href="/admind/websitesetting/doctorscreens"
+                                className={`submenu-link ${isActive("/admind/websitesetting/doctorscreens") ? "sub-active" : ""}`}
+                            > Doctors Screen Setting
+                            </Link>
+                        </div>
+
+                        <div className="submenu fade-in">
+                            <Link
+                                href="/admind/websitesetting/nursing"
+                                className={`submenu-link ${isActive("/admind/websitesetting/nursing") ? "sub-active" : ""}`}
+                            > Nursing Screen Setting
+                            </Link>
+                        </div>
+
+                        <div className="submenu fade-in">
+                            <Link
+                                href="/admind/websitesetting/ambulancescreen"
+                                className={`submenu-link ${isActive("/admind/websitesetting/ambulancescreen") ? "sub-active" : ""}`}
+                            > Ambulance Screen Setting
+                            </Link>
+                        </div>
+
+                        <div className="submenu fade-in">
+                            <Link
+                                href="/admind/websitesetting/hospitalscreen"
+                                className={`submenu-link ${isActive("/admind/websitesetting/hospitalscreen") ? "sub-active" : ""}`}
+                            > Hospital Screen Setting
+                            </Link>
+                        </div>
+                    </>
                 )}
 
-                {openMenu === "websitesetting" && (
-                    <div className="submenu fade-in">
-                        <Link
-                            href="/admind/websitesetting/lab"
-                            className={`submenu-link ${isActive("/admind/websitesetting/lab") ? "sub-active" : ""}`}
-                        >
-                            Lab Page Setting
-                        </Link>
-                    </div>
-                )}
-
-                {openMenu === "websitesetting" && (
-                    <div className="submenu fade-in">
-                        <Link
-                            href="/admind/websitesetting/buymedicine"
-                            className={`submenu-link ${isActive("/admind/websitesetting/buymedicine") ? "sub-active" : ""}`}
-                        >
-                            Buy Medicine Setting
-                        </Link>
-                    </div>
-                )}
-
-                {openMenu === "websitesetting" && (
-                    <div className="submenu fade-in">
-                        <Link
-                            href="/admind/websitesetting/doctorscreens"
-                            className={`submenu-link ${isActive("/admind/websitesetting/doctorscreens") ? "sub-active" : ""}`}
-                        >
-                            Doctors Screen Setting
-                        </Link>
-                    </div>
-                )}
-
-                {openMenu === "websitesetting" && (
-                    <div className="submenu fade-in">
-                        <Link
-                            href="/admind/websitesetting/nursing"
-                            className={`submenu-link ${isActive("/admind/websitesetting/nursing") ? "sub-active" : ""}`}
-                        >
-                            Nursing Screen Setting
-                        </Link>
-                    </div>
-                )}
-
-                {openMenu === "websitesetting" && (
-                    <div className="submenu fade-in">
-                        <Link
-                            href="/admind/websitesetting/ambulancescreen"
-                            className={`submenu-link ${isActive("/admind/websitesetting/ambulancescreen") ? "sub-active" : ""}`}
-                        >
-                            Ambulance Screen Setting
-                        </Link>
-                    </div>
-                )}
-
-                {openMenu === "websitesetting" && (
-                    <div className="submenu fade-in">
-                        <Link
-                            href="/admind/websitesetting/hospitalscreen"
-                            className={`submenu-link ${isActive("/admind/websitesetting/hospitalscreen") ? "sub-active" : ""}`}
-                        >
-                            Hospital Screen Setting
-                        </Link>
-                    </div>
-                )}
-
-
+                {/* Manage Medicines */}
                 <div
                     className={`menu-item dropdown ${isParentActive("/admind/managemedicines") ? "active" : ""}`}
                     onClick={() => toggleMenu("managemedicines")}
                 >
-                    <FaUser className="icon" />
+                    <FaPills className="icon" />
                     <span>Manage Medicine</span>
                     {openMenu === "managemedicines"
                         ? <FaChevronDown className="arrow rotate" />
                         : <FaChevronRight className="arrow" />}
                 </div>
 
-
                 {openMenu === "managemedicines" && (
-                    <div className="submenu fade-in">
-                        <Link
-                            href="/admind/managemedicines/approvedmedicines"
-                            className={`submenu-link ${isActive("/admind/managemedicines/approvedmedicines") ? "sub-active" : ""}`}
-                        >
-                            Approve Medicine
-                        </Link>
-                    </div>
+                    <>
+                        <div className="submenu fade-in">
+                            <Link
+                                href="/admind/managemedicines/approvedmedicines"
+                                className={`submenu-link ${isActive("/admind/managemedicines/approvedmedicines") ? "sub-active" : ""}`}
+                            >
+                                Approve Medicine
+                            </Link>
+                        </div>
+
+                        <div className="submenu fade-in">
+                            <Link
+                                href="/admind/managemedicines/manageallmedicines"
+                                className={`submenu-link ${isActive("/admind/managemedicines/manageallmedicines") ? "sub-active" : ""}`}
+                            >
+                                Manage All Medicines
+                            </Link>
+                        </div>
+                    </>
                 )}
 
-                {openMenu === "managemedicines" && (
-                    <div className="submenu fade-in">
-                        <Link
-                            href="/admind/managemedicines/manageallmedicines"
-                            className={`submenu-link ${isActive("/admind/managemedicines/manageallmedicines") ? "sub-active" : ""}`}
-                        >
-                            Manage All Medicines
-                        </Link>
-                    </div>
-                )}
+                {/* Manage Drivers */}
+                <Link
+                    href="/admind/managedrivers"
+                    className={`menu-item ${isActive("/admind/managedrivers") ? "active" : ""}`}
+                >
+                    <FaTruck className="icon" />
+                    <span>Manage Drivers</span>
+                </Link>
+
+                {/* Manage Hospital */}
+                <Link
+                    href="/admind/managehospital"
+                    className={`menu-item ${isActive("/admind/managehospital") ? "active" : ""}`}
+                >
+                    <FaHospital className="icon" />
+                    <span>Manage Hospital</span>
+                </Link>
+
+                {/* Manage Coupon */}
+                <Link
+                    href="/admind/managecoupon"
+                    className={`menu-item ${isActive("/admind/managecoupon") ? "active" : ""}`}
+                >
+                    <FaTags className="icon" />
+                    <span>Manage Coupon</span>
+                </Link>
+
+                {/* Vendor Offers */}
+                <Link
+                    href="/admind/vendoroffers"
+                    className={`menu-item ${isActive("/admind/vendoroffers") ? "active" : ""}`}
+                >
+                    <FaGift className="icon" />
+                    <span>Vendor Offers</span>
+                </Link>
+
+                {/* Manage Advertisements */}
+                <Link
+                    href="/admind/manageadvertisements"
+                    className={`menu-item ${isActive("/admind/manageadvertisements") ? "active" : ""}`}
+                >
+                    <FaAd className="icon" />
+                    <span>Manage Advertisements</span>
+                </Link>
+
+                {/* Manage Insurance Companies */}
+                <Link
+                    href="/admind/manageinsurancecompanies"
+                    className={`menu-item ${isActive("/admind/manageinsurancecompanies") ? "active" : ""}`}
+                >
+                    <FaAd className="icon" />
+                    <span>Manage Insurance Companies</span>
+                </Link>
+
+                {/* Manage Helpline */}
+                <Link
+                    href="/admind/managehelpline"
+                    className={`menu-item ${isActive("/admind/managehelpline") ? "active" : ""}`}
+                >
+                    <FaAd className="icon" />
+                    <span>Manage Helpline</span>
+                </Link>
+
 
             </div>
         </div>

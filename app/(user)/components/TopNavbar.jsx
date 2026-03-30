@@ -24,6 +24,7 @@ import { FiMessageCircle } from "react-icons/fi";
 import MainLogin from "./loginComponents/MainLogin";
 import MainRegister from "./registerComponents/MainRegister";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import { useAuth } from "@/app/context/AuthContext";
 
 export default function TopNavbar() {
   const [token, setToken] = useState(null);
@@ -32,6 +33,7 @@ export default function TopNavbar() {
   // Note: Using modalType from GlobalContext if that's where your state lives
   // Otherwise, keeping local state logic for the Login/Register visibility
   const { openModal, modalType, closeModal } = useGlobalContext();
+  const { logout } = useAuth();
 
   useEffect(() => {
     const storedToken = localStorage.getItem("userToken");
@@ -152,7 +154,7 @@ export default function TopNavbar() {
                 <FaChevronRight className="arrow-right" />
               </Link>
             ))}
-            <div className="profile-item-new logout-new" onClick={() => localStorage.removeItem("userToken")}>
+            <div className="profile-item-new logout-new" onClick={() => logout()}>
               <span className="item-icon"><FaSignOutAlt /></span>
               <span className="item-label">Logout</span>
             </div>
