@@ -163,7 +163,7 @@ function ManageLabTestComponent() {
         test={selectedTest}
         onClose={() => setIsEditOpen(false)}
         onSave={handleSaveUpdate}
-      />
+      /> 
     </div>
   );
 }
