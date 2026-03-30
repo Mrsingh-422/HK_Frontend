@@ -21,7 +21,14 @@ import {
     FaBuilding,
     FaUserShield,
     FaUserTag,
-    FaTags, FaGift, FaAd
+    FaTags, FaGift, FaAd,
+    FaBan,
+    FaUserTimes,
+    FaShieldAlt,
+    FaFire,
+    FaClipboardList,FaWallet ,
+
+    
 } from "react-icons/fa";
 
 import "./Sidebar.css";
@@ -366,6 +373,187 @@ export default function Sidebar() {
                     <span>Manage Helpline</span>
                 </Link>
 
+{/* ------------------Diamond Code Started--------------------------------------------- */}
+                  <Link
+                    href="/admind/manage-cancellation"
+                    className={`menu-item ${isActive("/admind/manage-cancellation") ? "active" : ""}`}
+                >
+                    <FaBan className="icon" />
+                    <span>Manage Cancellation</span>
+                </Link>
+ 
+                <Link
+                    href="/admind/noshow"
+                    className={`menu-item ${isActive("/admind/noshow") ? "active" : ""}`}
+                >
+                    <FaUserTimes className="icon" />
+                    <span>
+                        No Show Management
+                    </span>
+                </Link>
+ 
+                <div
+                    className={`menu-item dropdown ${isParentActive("/admind/manage-headquater") ? "active" : ""}`}
+                    onClick={() => toggleMenu("manage-headquater")}
+                >
+                    <FaShieldAlt className="icon" />
+                    <span>Police Headquarter</span>
+                    {openMenu === "manage-headquater"
+                        ? <FaChevronDown className="arrow rotate" />
+                        : <FaChevronRight className="arrow" />}
+                </div>
+ 
+ 
+                {openMenu === "manage-headquater" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/police-headquater"
+                            className={`submenu-link ${isActive("/admind/manage-headquater") ? "sub-active" : ""}`}
+                        >
+                            Manage Police Headquarter
+                        </Link>
+                    </div>
+                )}
+ 
+                {openMenu === "manage-headquater" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/police-station"
+                            className={`submenu-link ${isActive("/admind/manage-headquater") ? "sub-active" : ""}`}
+                        >
+                            Manage Police Station
+                        </Link>
+                    </div>
+                )}
+ 
+ 
+                <div
+                    className={`menu-item dropdown ${isParentActive("/admind/manage-firestation") ? "active" : ""}`}
+                    onClick={() => toggleMenu("manage-firestation")}
+                >
+                    <FaFire className="icon" />
+                    <span>Fire Station</span>
+                    {openMenu === "manage-firestation"
+                        ? <FaChevronDown className="arrow rotate" />
+                        : <FaChevronRight className="arrow" />}
+                </div>
+ 
+ 
+                {openMenu === "manage-firestation" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/firestation-headquater"
+                            className={`submenu-link ${isActive("/admind/firestation-headquater") ? "sub-active" : ""}`}
+                        >
+                            Fire Station Headquarter
+                        </Link>
+                    </div>
+                )}
+ 
+                {openMenu === "manage-firestation" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/firestation"
+                            className={`submenu-link ${isActive("/admind/firestation") ? "sub-active" : ""}`}
+                        >
+                            Fire Station
+                        </Link>
+                    </div>
+                )}
+ 
+ 
+ 
+                <div
+                    className={`menu-item dropdown ${isParentActive("/admind/manage-issues") ? "active" : ""}`}
+                    onClick={() => toggleMenu("/admind/manage-issues")}
+                >
+                    <FaClipboardList className="icon" />
+                    <span>Manage Issues</span>
+                    {openMenu === "/admind/manage-issues"
+                        ? <FaChevronDown className="arrow rotate" />
+                        : <FaChevronRight className="arrow" />}
+                </div>
+ 
+ 
+                {openMenu === "/admind/manage-issues" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/manage-issues/issuelists"
+                            className={`submenu-link ${isActive("/admind/manage-issues/issuelists") ? "sub-active" : ""}`}
+                        >
+                            Issue Lists
+                        </Link>
+                    </div>
+                )}
+ 
+                {openMenu === "/admind/manage-issues" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/manage-issues/user-issues"
+                            className={`submenu-link ${isActive("/admind/manage-issues/user-issues") ? "sub-active" : ""}`}
+                        >
+                            User Issues
+                        </Link>
+                    </div>
+                )}
+ 
+ 
+                <div
+                    className={`menu-item dropdown ${isParentActive("/admind/manage-withdraw") ? "active" : ""}`}
+                    onClick={() => toggleMenu("/admind/manage-withdraw")}
+                >
+                    <FaWallet className="icon" />
+                    <span>Withdraw Request</span>
+                    {openMenu === "/admind/manage-withdraw"
+                        ? <FaChevronDown className="arrow rotate" />
+                        : <FaChevronRight className="arrow" />}
+                </div>
+ 
+ 
+                {openMenu === "/admind/manage-withdraw" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/withdraw-request/vendorwithdraw"
+                            className={`submenu-link ${isActive("/admind/withdraw-request/vendorwithraw") ? "sub-active" : ""}`}
+                        >
+                            Vendor Withdraw Request
+                        </Link>
+                    </div>
+                )}
+ 
+                {openMenu === "/admind/manage-withdraw" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/withdraw-request/hospitalwithdraw"
+                            className={`submenu-link ${isActive("/admind/withdraw-request/hospitalwithdraw") ? "sub-active" : ""}`}
+                        >
+                            Hospital Withdraw Request
+                        </Link>
+                    </div>
+                )}
+                {openMenu === "/admind/manage-withdraw" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/withdraw-request/doctorwithdraw"
+                            className={`submenu-link ${isActive("/admind/withdraw-request/doctorwithdraw") ? "sub-active" : ""}`}
+                        >
+                            Doctor Withdraw Request
+                        </Link>
+                    </div>
+                )}
+                {openMenu === "/admind/manage-withdraw" && (
+                    <div className="submenu fade-in">
+                        <Link
+                            href="/admind/withdraw-request/withdrawlimit"
+                            className={`submenu-link ${isActive("/admind/withdraw-request/withdrawlimit") ? "sub-active" : ""}`}
+                        >
+                             Withdraw Limit
+                        </Link>
+                    </div>
+                )}
+ 
+ 
+{/* ------------------Diamond Code Ended--------------------------------------------- */}
 
             </div>
         </div>
