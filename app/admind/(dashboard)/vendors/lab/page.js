@@ -7,6 +7,7 @@ import LabTestReportComponent from "./components/LabTestReportComponent";
 import LabTestTypeComponent from "./components/LabTestTypeComponent";
 import LabTestPackageComponent from "./components/LabTestPackagComponent";
 import ManageLabTestComponent from "./components/ManageLabTestComponent";
+import UploadTest from "./components/UploadTest";
 
 /* ================= MAIN PAGE ================= */
 
@@ -15,6 +16,7 @@ function Page() {
 
     const tabs = [
         { id: "vendor", label: "Manage Lab Vendor", component: <ManageLabVendorComponent /> },
+        { id: "upload", label: "Upload Test", component: <UploadTest /> },
         { id: "report", label: "Lab Test Report", component: <LabTestReportComponent /> },
         { id: "type", label: "Lab Test Type", component: <LabTestTypeComponent /> },
         { id: "package", label: "Lab Test Package", component: <LabTestPackageComponent /> },
