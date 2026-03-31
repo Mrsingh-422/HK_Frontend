@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: "http://192.168.1.22:5002",
+    baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -28,7 +28,6 @@ const AdminAPI = {
         return response.data;
     },
 
-    // Updated to handle pagination and search
     getTestsByType: async (type, page = 1, limit = 20, search = "") => {
         const response = await api.get(`/admin/lab/tests/list/${type}`, {
             params: { page, limit, search }
@@ -41,15 +40,12 @@ const AdminAPI = {
         return response.data;
     },
 
-    // Add this to your UserAPI object
     approveHospital: async (hospitalId) => {
-        // Matches your route: router.patch('/hospitals/approve/:id', ...)
         const response = await api.patch(`/api/admin/approval/hospitals/approve/${hospitalId}`);
         return response.data;
     },
 
     rejectHospital: async (hospitalId) => {
-        // Matches your route: router.patch('/hospitals/reject/:id', ...)
         const response = await api.patch(`/api/admin/approval/hospitals/reject/${hospitalId}`);
         return response.data;
     },
@@ -65,12 +61,26 @@ const AdminAPI = {
     },
 
     rejectPharmacyByAdmin: async (pharmacyId, reason) => {
-        // Matches: router.patch('/pharmacy/reject/:id', ...)
         const response = await api.patch(`/api/admin/approval/pharmacy/reject/${pharmacyId}`, {
             rejectionReason: reason
         });
         return response.data;
     },
+
+    getLabsList: async () => {
+        const response = await api.get("/api/admin/approval/lab");
+        return response.data;
+    },
+    approveLab: async (labId) => {
+        const response = await api.patch(`/api/admin/approval/lab/approve/${labId}`);
+        return response.data;
+    },
+    rejectLab: async (labId, reason) => {
+        const response = await api.patch(`/api/admin/approval/lab/reject/${labId}`, {
+            rejectionReason: reason
+        });
+        return response.data;
+    }
 };
 
 export default AdminAPI;

@@ -554,7 +554,7 @@ export default function Sidebar() {
 
                 <Link
                     href="/admind/notifications"
-                    className={`menu-item ${isActive("/admind/notifications") ? "active" : ""}`}
+                    className={`menu-item ${isActive("/admind/manage-cancellation") ? "active" : ""}`}
                 >
                     <FaBan className="icon" />
                     <span>Notifications</span>
