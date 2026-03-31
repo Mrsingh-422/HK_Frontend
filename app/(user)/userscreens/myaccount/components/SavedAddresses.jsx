@@ -177,7 +177,7 @@ function SavedAddresses({ addresses = [], onUpdate, userPhone }) {
             {addresses.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {addresses.map((addr) => (
-                        <div key={addr.id || addr.houseNo} className="bg-white border border-gray-200 rounded-2xl p-5 hover:border-[#08b36a] transition-all group relative">
+                        <div key={addr.name} className="bg-white border border-gray-200 rounded-2xl p-5 hover:border-[#08b36a] transition-all group relative">
                             <div className="flex justify-between items-start mb-3">
                                 <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${addr.isDefault ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                                     {addr.addressType} {addr.isDefault && "• Default"}

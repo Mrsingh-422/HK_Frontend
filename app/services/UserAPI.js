@@ -27,6 +27,7 @@ const UserAPI = {
         const response = await api.put("/api/auth/user/update", profileData);
         return response.data;
     },
+    
 
 };
 
