@@ -9,6 +9,7 @@ import { MdVerified, MdOutlineLocationCity, MdPublic } from "react-icons/md";
 import ViewMembers from "./components/ViewMembers";
 import EmergencyContacts from "./components/EmergencyContacts";
 import SavedAddresses from "./components/SavedAddresses";
+import UserAPI from "@/app/services/UserAPI";
 
 function MyAccount() {
 
@@ -64,57 +65,8 @@ function MyAccount() {
         const fetchUserData = async () => {
             setIsLoading(true);
             try {
-                /*
-                const res = await axios.get("/api/user/getProfile");
+                const res = await UserAPI.getProfile();
                 const data = res.data;
-                */
-                // ----- Dummy Data -----
-                const data = {
-                    name: "John Doe",
-                    email: "johndoe@example.com",
-                    phone: "+91 9876543210",
-                    dob: "1995-08-15",
-                    gender: "Male",
-                    profilePic: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400",
-                    country: "India",
-                    state: "Punjab",
-                    city: "Mohali",
-                    userAddress: [
-                        {
-                            id: 1,
-                            addressType: "Home",
-                            phone: "+91 9876543210",
-                            pincode: "160055",
-                            houseNo: "Flat 402",
-                            sector: "Sector 118",
-                            landmark: "Opp. Park",
-                            city: "Mohali",
-                            state: "Punjab",
-                            country: "India",
-                            isDefault: true
-                        }
-                    ],
-                    familyMember: [
-                        {
-                            id: 1,
-                            memberName: "Jane Doe",
-                            relation: "Spouse",
-                            age: 28,
-                            phone: "+91 9876543211",
-                            gender: "Female",
-                            profilePic: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150"
-                        }
-                    ],
-                    emergencyContact: [
-                        {
-                            id: 1,
-                            contactName: "Robert Fox",
-                            phone: "+91 9988776655",
-                            relation: "Brother"
-                        }
-                    ]
-                };
-
                 setUserData(data);
                 setTempProfile(data);
 
@@ -131,10 +83,10 @@ function MyAccount() {
     const handleSaveProfile = async () => {
         setIsSaving(true);
         try {
-
-            const selectedCountry = countries.find(c => c.id == tempProfile.country);
-            const selectedState = states.find(s => s.id == tempProfile.state);
-            const selectedCity = cities.find(c => c.id == tempProfile.city);
+            // Find names for the IDs stored in tempProfile
+            const selectedCountry = countries.find(c => c.id == tempProfile.country || c.name === tempProfile.country);
+            const selectedState = states.find(s => s.id == tempProfile.state || s.name === tempProfile.state);
+            const selectedCity = cities.find(c => c.id == tempProfile.city || c.name === tempProfile.city);
 
             const finalData = {
                 ...tempProfile,
@@ -143,17 +95,12 @@ function MyAccount() {
                 city: selectedCity?.name || tempProfile.city
             };
 
-            /*
-            await axios.put("/api/user/updateProfile", {
-                type: "profile",
-                data: finalData
-            });
-            */
+            await UserAPI.updateProfile(finalData);
 
             setUserData(finalData);
-            setTempProfile(finalData);
+            setTempProfile(finalData); // Sync both
             setIsEditingProfile(false);
-
+            alert("Profile Updated Successfully");
         } catch (error) {
             console.error("Save failed:", error);
         } finally {
@@ -161,22 +108,26 @@ function MyAccount() {
         }
     };
 
-    // ------------------ GENERIC UPDATE ------------------
+    // ------------------ GENERIC UPDATE (Fixed Logic) ------------------
     const updateUserDataField = async (field, newData) => {
         try {
-            /*
-            await axios.put("/api/user/updateProfile", {
-                type: field,
-                data: newData
-            });
-            */
-
-            setUserData(prev => ({
-                ...prev,
+            // Create the updated payload by using the latest userData
+            const updatedPayload = {
+                ...userData,
                 [field]: newData
-            }));
+            };
+
+            // Send to backend
+            await UserAPI.updateProfile(updatedPayload);
+
+            // Update BOTH states so they stay in sync
+            setUserData(updatedPayload);
+            setTempProfile(updatedPayload);
+
+            console.log(`Updated ${field} successfully`);
         } catch (error) {
             console.error("Update failed", error);
+            alert(`Failed to update ${field}`);
         }
     };
 

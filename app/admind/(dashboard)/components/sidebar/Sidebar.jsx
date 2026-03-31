@@ -26,9 +26,9 @@ import {
     FaUserTimes,
     FaShieldAlt,
     FaFire,
-    FaClipboardList,FaWallet ,
+    FaClipboardList, FaWallet,
 
-    
+
 } from "react-icons/fa";
 
 import "./Sidebar.css";
@@ -373,15 +373,15 @@ export default function Sidebar() {
                     <span>Manage Helpline</span>
                 </Link>
 
-{/* ------------------Diamond Code Started--------------------------------------------- */}
-                  <Link
+                {/* ------------------Diamond Code Started--------------------------------------------- */}
+                <Link
                     href="/admind/manage-cancellation"
                     className={`menu-item ${isActive("/admind/manage-cancellation") ? "active" : ""}`}
                 >
                     <FaBan className="icon" />
                     <span>Manage Cancellation</span>
                 </Link>
- 
+
                 <Link
                     href="/admind/noshow"
                     className={`menu-item ${isActive("/admind/noshow") ? "active" : ""}`}
@@ -391,7 +391,7 @@ export default function Sidebar() {
                         No Show Management
                     </span>
                 </Link>
- 
+
                 <div
                     className={`menu-item dropdown ${isParentActive("/admind/manage-headquater") ? "active" : ""}`}
                     onClick={() => toggleMenu("manage-headquater")}
@@ -402,8 +402,8 @@ export default function Sidebar() {
                         ? <FaChevronDown className="arrow rotate" />
                         : <FaChevronRight className="arrow" />}
                 </div>
- 
- 
+
+
                 {openMenu === "manage-headquater" && (
                     <div className="submenu fade-in">
                         <Link
@@ -414,7 +414,7 @@ export default function Sidebar() {
                         </Link>
                     </div>
                 )}
- 
+
                 {openMenu === "manage-headquater" && (
                     <div className="submenu fade-in">
                         <Link
@@ -425,8 +425,8 @@ export default function Sidebar() {
                         </Link>
                     </div>
                 )}
- 
- 
+
+
                 <div
                     className={`menu-item dropdown ${isParentActive("/admind/manage-firestation") ? "active" : ""}`}
                     onClick={() => toggleMenu("manage-firestation")}
@@ -437,8 +437,8 @@ export default function Sidebar() {
                         ? <FaChevronDown className="arrow rotate" />
                         : <FaChevronRight className="arrow" />}
                 </div>
- 
- 
+
+
                 {openMenu === "manage-firestation" && (
                     <div className="submenu fade-in">
                         <Link
@@ -449,7 +449,7 @@ export default function Sidebar() {
                         </Link>
                     </div>
                 )}
- 
+
                 {openMenu === "manage-firestation" && (
                     <div className="submenu fade-in">
                         <Link
@@ -460,9 +460,9 @@ export default function Sidebar() {
                         </Link>
                     </div>
                 )}
- 
- 
- 
+
+
+
                 <div
                     className={`menu-item dropdown ${isParentActive("/admind/manage-issues") ? "active" : ""}`}
                     onClick={() => toggleMenu("/admind/manage-issues")}
@@ -473,8 +473,8 @@ export default function Sidebar() {
                         ? <FaChevronDown className="arrow rotate" />
                         : <FaChevronRight className="arrow" />}
                 </div>
- 
- 
+
+
                 {openMenu === "/admind/manage-issues" && (
                     <div className="submenu fade-in">
                         <Link
@@ -485,7 +485,7 @@ export default function Sidebar() {
                         </Link>
                     </div>
                 )}
- 
+
                 {openMenu === "/admind/manage-issues" && (
                     <div className="submenu fade-in">
                         <Link
@@ -496,8 +496,8 @@ export default function Sidebar() {
                         </Link>
                     </div>
                 )}
- 
- 
+
+
                 <div
                     className={`menu-item dropdown ${isParentActive("/admind/manage-withdraw") ? "active" : ""}`}
                     onClick={() => toggleMenu("/admind/manage-withdraw")}
@@ -508,8 +508,8 @@ export default function Sidebar() {
                         ? <FaChevronDown className="arrow rotate" />
                         : <FaChevronRight className="arrow" />}
                 </div>
- 
- 
+
+
                 {openMenu === "/admind/manage-withdraw" && (
                     <div className="submenu fade-in">
                         <Link
@@ -520,7 +520,7 @@ export default function Sidebar() {
                         </Link>
                     </div>
                 )}
- 
+
                 {openMenu === "/admind/manage-withdraw" && (
                     <div className="submenu fade-in">
                         <Link
@@ -547,13 +547,18 @@ export default function Sidebar() {
                             href="/admind/withdraw-request/withdrawlimit"
                             className={`submenu-link ${isActive("/admind/withdraw-request/withdrawlimit") ? "sub-active" : ""}`}
                         >
-                             Withdraw Limit
+                            Withdraw Limit
                         </Link>
                     </div>
                 )}
- 
- 
-{/* ------------------Diamond Code Ended--------------------------------------------- */}
+
+                <Link
+                    href="/admind/notifications"
+                    className={`menu-item ${isActive("/admind/notifications") ? "active" : ""}`}
+                >
+                    <FaBan className="icon" />
+                    <span>Notifications</span>
+                </Link>
 
             </div>
         </div>

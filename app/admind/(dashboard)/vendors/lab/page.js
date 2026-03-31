@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-// Assuming these are your component imports
 import ManageLabVendorComponent from "./components/ManageLabVendorComponent";
 import LabTestReportComponent from "./components/LabTestReportComponent";
 import LabTestTypeComponent from "./components/LabTestTypeComponent";
