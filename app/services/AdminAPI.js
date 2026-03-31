@@ -47,6 +47,30 @@ const AdminAPI = {
         const response = await api.patch(`/api/admin/approval/hospitals/approve/${hospitalId}`);
         return response.data;
     },
+
+    rejectHospital: async (hospitalId) => {
+        // Matches your route: router.patch('/hospitals/reject/:id', ...)
+        const response = await api.patch(`/api/admin/approval/hospitals/reject/${hospitalId}`);
+        return response.data;
+    },
+
+    getAllPharmacyInAdmin: async () => {
+        const response = await api.get("/api/admin/approval/pharmacy");
+        return response.data;
+    },
+
+    approvePharmacyByAdmin: async (pharmacyId) => {
+        const response = await api.patch(`/api/admin/approval/pharmacy/approve/${pharmacyId}`);
+        return response.data;
+    },
+
+    rejectPharmacyByAdmin: async (pharmacyId, reason) => {
+        // Matches: router.patch('/pharmacy/reject/:id', ...)
+        const response = await api.patch(`/api/admin/approval/pharmacy/reject/${pharmacyId}`, {
+            rejectionReason: reason
+        });
+        return response.data;
+    },
 };
 
 export default AdminAPI;
