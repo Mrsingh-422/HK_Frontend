@@ -31,13 +31,20 @@ const AdminAPI = {
     // Updated to handle pagination and search
     getTestsByType: async (type, page = 1, limit = 20, search = "") => {
         const response = await api.get(`/admin/lab/tests/list/${type}`, {
-            params: { page, limit, search } // Axios converts this to ?page=1&limit=20&search=...
+            params: { page, limit, search }
         });
         return response.data;
     },
 
     getAllHospitals: async () => {
-        const response = await api.get("/admin/hospitals");
+        const response = await api.get("/api/admin/approval/hospitals");
+        return response.data;
+    },
+
+    // Add this to your UserAPI object
+    approveHospital: async (hospitalId) => {
+        // Matches your route: router.patch('/hospitals/approve/:id', ...)
+        const response = await api.patch(`/api/admin/approval/hospitals/approve/${hospitalId}`);
         return response.data;
     },
 };

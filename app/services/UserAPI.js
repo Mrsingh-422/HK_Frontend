@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: "http://192.168.1.22:5002",
+    baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -20,11 +20,6 @@ api.interceptors.request.use((config) => {
 const UserAPI = {
     getProfile: async () => {
         const response = await api.get("/api/auth/user/profile");
-        return response.data;
-    },
-
-    addProfileData: async (profileData) => {
-        const response = await api.put("/api/auth/user/update", profileData);
         return response.data;
     },
 
