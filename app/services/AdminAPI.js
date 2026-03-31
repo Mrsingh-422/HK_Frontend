@@ -80,6 +80,21 @@ const AdminAPI = {
             rejectionReason: reason
         });
         return response.data;
+    },
+
+    getDoctorsList: async () => {
+        const response = await api.get("/api/admin/approval/doctors");
+        return response.data;
+    },
+    approveDoctor: async (doctorId) => {
+        const response = await api.patch(`/api/admin/approval/doctors/approve/${doctorId}`);
+        return response.data;
+    },
+    rejectDoctor: async (doctorId, reason) => {
+        const response = await api.patch(`/api/admin/approval/doctors/reject/${doctorId}`, {
+            rejectionReason: reason
+        });
+        return response.data;
     }
 };
 

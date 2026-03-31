@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import {
     FaTimes, FaCheckCircle, FaSpinner, FaMapMarkerAlt,
     FaCalendarAlt, FaTruck, FaClock, FaBan,
-    FaExclamationTriangle, FaSearchPlus, FaFileAlt, 
+    FaExclamationTriangle, FaSearchPlus, FaFileAlt,
     FaGlobe, FaEnvelope, FaPhoneAlt, FaIdBadge, FaShieldAlt
 } from "react-icons/fa";
 
@@ -11,7 +11,7 @@ function ViewPharmacyComponent({ vendor, onClose, onApprove, onReject }) {
     const [submitting, setSubmitting] = useState(false);
     const [showRejectInput, setShowRejectInput] = useState(false);
     const [reason, setReason] = useState("");
-    
+
     // State for Full Screen Image Preview (Lightbox)
     const [previewImage, setPreviewImage] = useState(null);
 
