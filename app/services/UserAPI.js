@@ -23,11 +23,23 @@ const UserAPI = {
         return response.data;
     },
 
+    addProfileData: async (profileData) => {
+        const response = await api.put("/api/auth/user/update", profileData);
+        return response.data;
+    },
+
+    // Add this to your UserAPI object
+    updateSubItem: async (type, itemId, data) => {
+        // type should be 'address', 'family', or 'emergency' based on your logic
+        const response = await api.put(`/api/auth/user/edit-sub-item/${type}/${itemId}`, data);
+        return response.data;
+    },
+
     updateProfile: async (profileData) => {
         const response = await api.put("/api/auth/user/update", profileData);
         return response.data;
     },
-    
+
 
 };
 

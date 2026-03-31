@@ -166,47 +166,61 @@ function MyAccount() {
         }
     };
 
-    // ------------------ GENERIC UPDATE ------------------
-    const updateUserDataField = async (field, newData) => {
+    const updateUserDataField = async (fieldType, itemId, singleItemData) => {
         try {
-            /*
-            await axios.put("/api/user/updateProfile", {
-                type: field,
-                data: newData
-            });
-            */
-            await UserAPI.updateProfile({
-                [field]: newData
-            });
+            // Map the field names to the "type" expected by your backend route
+            const typeMapping = {
+                userAddress: "address",
+                familyMember: "family",
+                emergencyContact: "emergency"
+            };
 
-            setUserData(prev => ({
-                ...prev,
-                [field]: newData
-            }));
+            const backendType = typeMapping[fieldType];
+
+            // If itemId exists, it's an EDIT. If not, it's an ADD.
+            // Note: If your backend route ONLY handles edits, 
+            // you might still use the general updateProfile for new additions.
+
+            if (itemId) {
+                // Call the specific sub-item edit API
+                const res = await UserAPI.updateSubItem(backendType, itemId, singleItemData);
+                // The server usually returns the full updated user profile
+                setUserData(res.data);
+                setTempProfile(res.data);
+            } else {
+                // If it's a new item without an ID, use the general update
+                // This sends the whole array including the new item
+                const payload = { [fieldType]: [...userData[fieldType], singleItemData] };
+                const res = await UserAPI.updateProfile(payload);
+                setUserData(res.data);
+                setTempProfile(res.data);
+            }
+
+            alert("Updated successfully");
         } catch (error) {
             console.error("Update failed", error);
+            alert("Error updating item");
         }
     };
 
-    // ------------------ GENERIC DELETE ------------------
-    const deleteItem = async (type, id) => {
+    // ------------------ UPDATED DELETE ------------------
+    const deleteItem = async (fieldType, itemId) => {
+        if (!window.confirm("Are you sure you want to delete this?")) return;
+
         try {
-            /*
-            await axios.delete("/api/user/delete", {
-                data: {
-                    type: type,
-                    id: id
-                }
-            });
-            */
-            setUserData(prev => ({
-                ...prev,
-                [type]: prev[type].filter(item => item.id !== id)
-            }));
+            // Filter the item out locally first for the payload
+            const updatedList = userData[fieldType].filter(item => (item._id !== itemId && item.id !== itemId));
+
+            // Send the updated array to the general update API
+            const res = await UserAPI.updateProfile({ [fieldType]: updatedList });
+
+            setUserData(res.data);
+            setTempProfile(res.data);
         } catch (error) {
             console.error("Delete failed", error);
         }
     };
+
 
     // ------------------ INPUT HANDLERS ------------------
     const handleInputChange = (e) => {
@@ -290,7 +304,8 @@ function MyAccount() {
                                 >
 
                                     <img
-                                        src={isEditingProfile ? tempProfile.profilePic : userData.profilePic}
+                                        // src={isEditingProfile ? tempProfile.profilePic : userData.profilePic}
+                                        src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQoFRQjM-wM_nXMA03AGDXgJK3VeX7vtD3ctA&s"
                                         alt="Profile"
                                         className="w-28 h-28 rounded-3xl border-4 border-white object-cover bg-white"
                                     />
@@ -501,22 +516,23 @@ function MyAccount() {
                 </section>
 
                 <SavedAddresses
-                    addresses={userData.userAddress}
-                    onUpdate={(newList) => updateUserDataField("userAddress", newList)}
-                    userName={userData.name}
+                    addresses={userData.userAddress || []}
+                    onUpdate={(itemId, data) => updateUserDataField("userAddress", itemId, data)}
+                    onDelete={(itemId) => deleteItem("userAddress", itemId)}
                     userPhone={userData.phone}
                 />
 
                 <ViewMembers
-                    members={userData.familyMember}
-                    onUpdate={(newList) => updateUserDataField("familyMember", newList)}
+                    members={userData.familyMember || []}
+                    onUpdate={(itemId, data) => updateUserDataField("familyMember", itemId, data)}
+                    onDelete={(itemId) => deleteItem("familyMember", itemId)}
                 />
 
                 <EmergencyContacts
-                    contacts={userData.emergencyContact}
-                    onUpdate={(newList) => updateUserDataField("emergencyContact", newList)}
+                    contacts={userData.emergencyContact || []}
+                    onUpdate={(itemId, data) => updateUserDataField("emergencyContact", itemId, data)}
+                    onDelete={(itemId) => deleteItem("emergencyContact", itemId)}
                 />
-
             </div>
         </div>
     );

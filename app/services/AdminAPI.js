@@ -35,6 +35,11 @@ const AdminAPI = {
         });
         return response.data;
     },
+
+    getAllHospitals: async () => {
+        const response = await api.get("/admin/hospitals");
+        return response.data;
+    },
 };
 
 export default AdminAPI;

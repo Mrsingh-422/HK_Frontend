@@ -118,7 +118,6 @@ function SavedAddresses({ addresses = [], onUpdate, userPhone }) {
         setIsSubmitting(true);
 
         try {
-
             const selectedCountry = countries.find(c => c.id == formData.country);
             const selectedState = states.find(s => s.id == formData.state);
             const selectedCity = cities.find(c => c.id == formData.city);
@@ -130,33 +129,22 @@ function SavedAddresses({ addresses = [], onUpdate, userPhone }) {
                 city: selectedCity?.name || formData.city
             };
 
-            let updatedList;
+            // Pass the ID and the single object instead of the whole list
+            // If editing, use _id or id. If new, pass null.
+            const targetId = isEditing ? (finalData._id || finalData.id) : null;
 
-            const baseList = finalData.isDefault
-                ? addresses.map(a => ({ ...a, isDefault: false }))
-                : [...addresses];
-
-            if (isEditing) {
-                updatedList = baseList.map(a => a.id === finalData.id ? finalData : a);
-            } else {
-                updatedList = [...baseList, { ...finalData, id: Date.now() }];
-            }
-
-            await onUpdate(updatedList);
+            await onUpdate(targetId, finalData);
             setIsModalOpen(false);
-
         } catch (error) {
-            console.error("Failed to save address:", error);
+            console.error(error);
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const deleteAddress = (id) => {
-        if (window.confirm("Delete this address?")) {
-            const updatedList = addresses.filter(a => a.id !== id);
-            onUpdate(updatedList);
-        }
+    // Use the new onDelete prop
+    const handleDelete = (item) => {
+        onDelete(item._id || item.id);
     };
 
     return (
@@ -166,8 +154,8 @@ function SavedAddresses({ addresses = [], onUpdate, userPhone }) {
                     <h2 className="text-xl font-extrabold text-gray-900 tracking-tight">Saved Addresses</h2>
                     <p className="text-gray-500 text-xs">Manage your delivery locations</p>
                 </div>
-                <button 
-                    onClick={() => openModal()} 
+                <button
+                    onClick={() => openModal()}
                     className="flex items-center gap-2 border border-[#08b36a] text-[#08b36a] px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-green-50 transition-all active:scale-95"
                 >
                     <HiPlus /> Add New
@@ -177,7 +165,7 @@ function SavedAddresses({ addresses = [], onUpdate, userPhone }) {
             {addresses.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {addresses.map((addr) => (
-                        <div key={addr.name} className="bg-white border border-gray-200 rounded-2xl p-5 hover:border-[#08b36a] transition-all group relative">
+                        <div className="bg-white border border-gray-200 rounded-2xl p-5 hover:border-[#08b36a] transition-all group relative">
                             <div className="flex justify-between items-start mb-3">
                                 <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${addr.isDefault ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                                     {addr.addressType} {addr.isDefault && "• Default"}
