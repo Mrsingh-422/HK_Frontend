@@ -95,7 +95,9 @@ const AdminAPI = {
             rejectionReason: reason
         });
         return response.data;
-    }
+    },
+
+    
 };
 
 export default AdminAPI;
