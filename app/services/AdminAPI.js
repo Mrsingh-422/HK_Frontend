@@ -97,7 +97,39 @@ const AdminAPI = {
         return response.data;
     },
 
-    
+    viewDoctorSpecialties: async () => {
+        const response = await api.get('/admin/doctor-data/specializations');
+        return response.data;
+    },
+    addDoctorSpecialty: async (specialtyData) => {
+        const response = await api.post('/admin/doctor-data/add-specialization', specialtyData);
+        return response.data;
+    },
+    updateDoctorSpecialty: async (id, specialtyData) => {
+        const response = await api.put(`/admin/doctor-data/update-specialization/${id}`, specialtyData);
+        return response.data;
+    },
+    deleteDoctorSpecialty: async (id) => {
+        const response = await api.delete(`/admin/doctor-data/delete-specialization/${id}`);
+        return response.data;
+    },
+
+    viewDoctorQualifications: async () => {
+        const response = await api.get('/admin/doctor-data/qualifications');
+        return response.data;
+    },
+    addDoctorQualification: async (qualificationData) => {
+        const response = await api.post('/admin/doctor-data/add-qualification', qualificationData);
+        return response.data;
+    },
+    updateDoctorQualification: async (id, qualificationData) => {
+        const response = await api.put(`/admin/doctor-data/update-qualification/${id}`, qualificationData);
+        return response.data;
+    },
+    deleteDoctorQualification: async (id) => {
+        const response = await api.delete(`/admin/doctor-data/delete-qualification/${id}`);
+        return response.data;
+    },
 };
 
 export default AdminAPI;
