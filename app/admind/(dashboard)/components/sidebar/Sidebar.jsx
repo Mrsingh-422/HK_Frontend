@@ -311,8 +311,9 @@ export default function Sidebar() {
                 </div>
                 {openMenu === "manage-headquater" && (
                     <div className="submenu fade-in">
-                        <Link href="/admind/police-headquater" className={`submenu-link ${isActive("/admind/police-headquater") ? "sub-active" : ""}`}>Manage Police Headquarter</Link>
-                        <Link href="/admind/police-station" className={`submenu-link ${isActive("/admind/police-station") ? "sub-active" : ""}`}>Manage Police Station</Link>
+                        <Link href="/admind/managepolice/police-headquater" className={`submenu-link ${isActive("/admind/managepolice/police-headquater") ? "sub-active" : ""}`}>Manage Police Headquarter</Link>
+                        <Link href="/admind/managepolice/police-station" className={`submenu-link ${isActive("/admind/managepolice/police-station") ? "sub-active" : ""}`}>Manage Police Station</Link>
+                        <Link href="/admind/managepolice/policestaff" className={`submenu-link ${isActive("/admind/managepolice/policestaff") ? "sub-active" : ""}`}>Manage Police Staff</Link>
                     </div>
                 )}
 
@@ -324,8 +325,9 @@ export default function Sidebar() {
                 </div>
                 {openMenu === "manage-firestation" && (
                     <div className="submenu fade-in">
-                        <Link href="/admind/firestation-headquater" className={`submenu-link ${isActive("/admind/firestation-headquater") ? "sub-active" : ""}`}>Fire Station Headquarter</Link>
-                        <Link href="/admind/firestation" className={`submenu-link ${isActive("/admind/firestation") ? "sub-active" : ""}`}>Fire Station</Link>
+                        <Link href="/admind/managefirestation/firestation-headquater" className={`submenu-link ${isActive("/admind/managefirestation/firestation-headquater") ? "sub-active" : ""}`}>Fire Station Headquarter</Link>
+                        <Link href="/admind/managefirestation/firestation" className={`submenu-link ${isActive("/admind/managefirestation/firestation") ? "sub-active" : ""}`}>Fire Station</Link>
+                        <Link href="/admind/managefirestation/firestationstaff" className={`submenu-link ${isActive("/admind/managefirestation/firestationstaff") ? "sub-active" : ""}`}>Fire Station Staff</Link>
                     </div>
                 )}
 
@@ -374,7 +376,7 @@ export default function Sidebar() {
                     <FaCog className="icon" />
                     <span>Settings</span>
                     {openMenu === "settings" ? <FaChevronDown className="arrow rotate" /> : <FaChevronRight className="arrow" />}
-                </div>
+                </div>``
                 {openMenu === "settings" && (
                     <div className="submenu fade-in">
                         <Link href="/admind/settings/managecommission" className={`submenu-link ${isActive("/admind/settings/managecommission") ? "sub-active" : ""}`}>Manage Commission</Link>
