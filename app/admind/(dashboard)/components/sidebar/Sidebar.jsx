@@ -376,7 +376,7 @@ export default function Sidebar() {
                     <FaCog className="icon" />
                     <span>Settings</span>
                     {openMenu === "settings" ? <FaChevronDown className="arrow rotate" /> : <FaChevronRight className="arrow" />}
-                </div>``
+                </div>
                 {openMenu === "settings" && (
                     <div className="submenu fade-in">
                         <Link href="/admind/settings/managecommission" className={`submenu-link ${isActive("/admind/settings/managecommission") ? "sub-active" : ""}`}>Manage Commission</Link>
