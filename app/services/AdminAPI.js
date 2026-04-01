@@ -80,6 +80,22 @@ const AdminAPI = {
         return response.data;
     },
 
+    //Nurse APIS in Admin
+    getAllNursesInAdmin: async () => {
+        const response = await api.get("/api/admin/approval/nursing");
+        return response.data;
+    },
+    approveNurseByAdmin: async (nurseId) => {
+        const response = await api.patch(`/api/admin/approval/nursing/approve/${nurseId}`);
+        return response.data;
+    },
+    rejectNurseByAdmin: async (nurseId, reason) => {
+        const response = await api.patch(`/api/admin/approval/nursing/reject/${nurseId}`, {
+            rejectionReason: reason
+        });
+        return response.data;
+    },
+
     //Doctor APIS in Admin
     getDoctorsList: async () => {
         const response = await api.get("/api/admin/approval/doctors");
@@ -131,7 +147,7 @@ const AdminAPI = {
         return response.data;
     },
 
-    
+
 
 };
 

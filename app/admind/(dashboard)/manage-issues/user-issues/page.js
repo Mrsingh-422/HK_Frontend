@@ -1,262 +1,226 @@
 'use client'
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { FaClipboardList, FaSort, FaSearch, FaArrowLeft, FaExclamationCircle } from 'react-icons/fa'
+import {
+    FaSearch, FaArrowLeft, FaExclamationCircle,
+    FaChevronLeft, FaChevronRight, FaRegEnvelope, FaPhoneAlt, FaUserCircle,
+    FaTimes, FaCheckCircle, FaHistory, FaUserShield
+} from 'react-icons/fa'
+import { MdOutlineErrorOutline, MdOutlineFactCheck } from "react-icons/md";
 
 export default function ManageUserIssues() {
-    const router = useRouter(); 
+    const router = useRouter();
 
     // ==========================================
-    // 🌟 MOCK DATA (Extended slightly to show pagination)
+    // 🌟 STATES
     // ==========================================
-    const [userIssues] = useState([
-        { id: 1, username: "-", issue: "Booking Hospital bed issue.", details: "Enter issue", email: "foqakiku.q.ab.47.0@gmail.com", phone: "-" },
-        { id: 2, username: "-", issue: "Booking Hospital bed issue.", details: "Enter issue", email: "foqakiku.q.ab.47.0@gmail.com", phone: "-" },
-        { id: 3, username: "-", issue: "Booking Hospital bed issue.", details: "Enter issue", email: "foqakiku.q.ab.47.0@gmail.com", phone: "-" },
-        { id: 4, username: "-", issue: "Booking Hospital bed issue.", details: "Enter issue", email: "a.jam.in.ivi5.52@gmail.com", phone: "-" },
-        { id: 5, username: "Khanday", issue: "-", details: "Enter issue", email: "-", phone: "-" },
-        { id: 6, username: "-", issue: "Health locker update issue.", details: "Enter issue", email: "xaco.wa.xu8.60@gmail.com", phone: "-" },
-        { id: 7, username: "-", issue: "Health locker update issue.", details: "Enter issue", email: "aroyu.l.ifih.i.j.6.3@gmail.com", phone: "-" },
-        { id: 8, username: "-", issue: "Service booking problem.", details: "Enter issue", email: "u.q.ec.ol.a.gore1.9@gmail.com", phone: "-" },
-        { id: 9, username: "-", issue: "medicine buying issue.", details: "Enter issue", email: "hof.e.yog.onaki16@gmail.com", phone: "-" },
-        { id: 10, username: "-", issue: "medicine buying issue.", details: "Enter issue", email: "sic.u.r.ohi.q.oq43@gmail.com", phone: "-" },
-        { id: 11, username: "Rahul", issue: "Payment Failed", details: "Money deducted but appointment not confirmed", email: "rahul@example.com", phone: "9876543210" },
-        { id: 12, username: "Amit", issue: "App crashing", details: "App crashes on login screen", email: "amit.kumar@gmail.com", phone: "7894561230" },
+    const [userIssues, setUserIssues] = useState([
+        { id: 1, username: null, issue: "Booking Hospital bed issue.", details: "User unable to select specific ward during the final payment step. Browser console shows 404 on ward-api.", email: "foqakiku.q.ab.47.0@gmail.com", phone: null, status: "Critical", date: "2023-10-24 10:30 AM", solvedBy: null },
+        { id: 2, username: "Khanday", issue: "Locker Sync Error", details: "Health locker not updating after upload. Files appear in list but won't open.", email: "khanday@provider.com", phone: "+91 9876543210", status: "Pending", date: "2023-10-25 11:15 AM", solvedBy: null },
+        { id: 3, username: "Rahul", issue: "Payment Failed", details: "Money deducted via UPI but appointment not confirmed in the app dashboard.", email: "rahul@example.com", phone: "9876543210", status: "Critical", date: "2023-10-26 09:45 AM", solvedBy: null },
+        { id: 4, username: "Amit", issue: "App crashing", details: "App crashes on login screen specifically for iOS 17 users using face ID.", email: "amit.kumar@gmail.com", phone: "7894561230", status: "Resolved", date: "2023-10-22 08:20 PM", solvedBy: "Admin_Sarah" },
     ]);
 
-    // ==========================================
-    // 🌟 FUNCTIONAL STATES (Search & Pagination)
-    // ==========================================
+    const [selectedIssue, setSelectedIssue] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [entriesPerPage, setEntriesPerPage] = useState(10);
     const [currentPage, setCurrentPage] = useState(1);
 
-    // 1. Handling Search Logic
-    const handleSearch = (e) => {
-        setSearchTerm(e.target.value);
-        setCurrentPage(1); // Reset to page 1 on new search
+    // ==========================================
+    // 🌟 HANDLERS
+    // ==========================================
+    const handleResolve = (id) => {
+        const adminName = "Super_Admin"; // Usually from Auth Context
+        setUserIssues(prev => prev.map(item =>
+            item.id === id ? { ...item, status: "Resolved", solvedBy: adminName } : item
+        ));
+        setSelectedIssue(null); // Close modal
     };
 
-    // Filter Data based on Search Term
     const filteredIssues = userIssues.filter(item => {
         const searchLower = searchTerm.toLowerCase();
         return (
-            (item.username && item.username.toLowerCase().includes(searchLower)) ||
-            (item.issue && item.issue.toLowerCase().includes(searchLower)) ||
-            (item.email && item.email.toLowerCase().includes(searchLower)) ||
-            (item.details && item.details.toLowerCase().includes(searchLower))
+            (item.username?.toLowerCase().includes(searchLower)) ||
+            (item.issue?.toLowerCase().includes(searchLower)) ||
+            (item.email?.toLowerCase().includes(searchLower))
         );
     });
 
-    // 2. Handling Pagination Logic
-    const totalEntries = filteredIssues.length;
-    const totalPages = Math.ceil(totalEntries / entriesPerPage);
-    
-    // Get current items for the current page
-    const indexOfLastItem = currentPage * entriesPerPage;
-    const indexOfFirstItem = indexOfLastItem - entriesPerPage;
-    const currentItems = filteredIssues.slice(indexOfFirstItem, indexOfLastItem);
-
-    // Handlers for Page Changes
-    const paginate = (pageNumber) => setCurrentPage(pageNumber);
-    const goToNextPage = () => setCurrentPage((prev) => Math.min(prev + 1, totalPages));
-    const goToPrevPage = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
-    const goToFirstPage = () => setCurrentPage(1);
-    const goToLastPage = () => setCurrentPage(totalPages);
-
-    // Handle Entries Per Page Change
-    const handleEntriesChange = (e) => {
-        setEntriesPerPage(Number(e.target.value));
-        setCurrentPage(1); // Reset to page 1 when changing entries limit
-    };
+    const totalPages = Math.ceil(filteredIssues.length / entriesPerPage);
+    const currentItems = filteredIssues.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
 
     return (
-        <div className="w-full min-h-screen bg-[#F4F7F6] p-4 md:p-8 font-sans">
-            
-            {/* ========================================== */}
-            {/* 🌟 PREMIUM HEADER SECTION                  */}
-            {/* ========================================== */}
-            <div className="max-w-[1500px] mx-auto bg-white rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 p-5 md:p-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="bg-[#eefcf5] p-3 md:p-4 rounded-xl border border-[#2EBE7E]/20">
-                        <FaExclamationCircle className="text-[#2EBE7E] text-xl md:text-2xl" />
+        <div className="min-h-screen bg-[#F8FAFC] p-4 lg:p-10 font-sans text-slate-900">
+
+            {/* --- TOP HEADER --- */}
+            <div className="max-w-[1400px] mx-auto mb-10 flex flex-col md:flex-row justify-between items-end gap-6">
+                <div className="space-y-2">
+                    <div className="flex items-center gap-3 text-emerald-600">
+                        <FaExclamationCircle size={14} />
+                        <span className="text-[10px] font-black uppercase tracking-[0.3em]">Support Tickets</span>
                     </div>
-                    <div>
-                        <h1 className="text-xl md:text-2xl font-bold text-gray-800 tracking-wide">Manage User Issues</h1>
-                        <p className="text-[13px] text-gray-500 font-medium mt-0.5">Track and resolve problems reported by users</p>
-                    </div>
+                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter">User Support</h1>
+                    <p className="text-slate-400 font-medium">Monitoring and resolving user-reported platform bottlenecks.</p>
                 </div>
-                
-                <div className="flex w-full md:w-auto items-center gap-3">
-                    <button 
-                        onClick={() => router.back()} 
-                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-white border border-[#2EBE7E] text-[#2EBE7E] hover:bg-[#eefcf5] text-[13px] font-bold rounded-xl transition-all shadow-sm"
-                    >
-                        <FaArrowLeft size={12} /> Go Back
-                    </button>
-                </div>
+
+                <button onClick={() => router.back()} className="flex items-center gap-2 px-6 py-3 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 text-xs font-black uppercase tracking-widest rounded-2xl transition-all shadow-sm active:scale-95">
+                    <FaArrowLeft /> Go Back
+                </button>
             </div>
 
-            {/* ========================================== */}
-            {/* 🌟 TABLE SECTION                           */}
-            {/* ========================================== */}
-            <div className="max-w-[1500px] mx-auto bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.02)] border border-gray-100 overflow-hidden">
-                
-                {/* Search & Entries Controls */}
-                <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50/50">
-                    <div className="flex items-center gap-2 text-[13px] text-gray-600 font-medium">
-                        Show 
-                        <select 
-                            value={entriesPerPage} 
-                            onChange={handleEntriesChange}
-                            className="border border-gray-200 rounded-md px-3 py-1.5 outline-none focus:border-[#2EBE7E] bg-white cursor-pointer shadow-sm"
-                        >
-                            <option value={5}>5</option>
-                            <option value={10}>10</option>
-                            <option value={25}>25</option>
-                            <option value={50}>50</option>
-                        </select> 
-                        entries
-                    </div>
-
-                    <div className="relative w-full sm:w-auto">
-                        <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-[13px]" />
-                        <input 
-                            type="text" 
+            {/* --- MAIN TABLE --- */}
+            <div className="max-w-[1400px] mx-auto bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                <div className="p-8 flex flex-col md:flex-row justify-between items-center gap-6 border-b border-slate-50">
+                    <div className="relative w-full md:w-[400px]">
+                        <FaSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
+                        <input
+                            type="text"
                             value={searchTerm}
-                            onChange={handleSearch}
-                            placeholder="Search by email, issue or username..." 
-                            className="w-full sm:w-72 pl-9 pr-4 py-2.5 text-[13px] border border-gray-200 rounded-xl outline-none focus:border-[#2EBE7E] focus:ring-1 focus:ring-[#2EBE7E] transition-all bg-white shadow-sm"
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Search by email, issue or name..."
+                            className="w-full pl-12 pr-6 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold text-slate-700 placeholder:text-slate-300 focus:ring-2 focus:ring-emerald-500/10 outline-none"
                         />
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">Total: {filteredIssues.length} Entries</span>
                     </div>
                 </div>
 
-                {/* Data Table */}
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse min-w-[1000px]">
+                    <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-white border-b border-gray-100 text-[13px] text-gray-500 font-bold tracking-wide uppercase">
-                                <th className="p-5 cursor-pointer hover:bg-gray-50 transition-colors group">
-                                    <div className="flex items-center gap-2">S No. <FaSort className="text-gray-300 group-hover:text-[#2EBE7E] transition-colors" /></div>
-                                </th>
-                                <th className="p-5 cursor-pointer hover:bg-gray-50 transition-colors group">
-                                    <div className="flex items-center gap-2">Username <FaSort className="text-gray-300 group-hover:text-[#2EBE7E] transition-colors" /></div>
-                                </th>
-                                <th className="p-5 cursor-pointer hover:bg-gray-50 transition-colors group">
-                                    <div className="flex items-center gap-2">Issue <FaSort className="text-gray-300 group-hover:text-[#2EBE7E] transition-colors" /></div>
-                                </th>
-                                <th className="p-5 cursor-pointer hover:bg-gray-50 transition-colors group">
-                                    <div className="flex items-center gap-2">Issue Details <FaSort className="text-gray-300 group-hover:text-[#2EBE7E] transition-colors" /></div>
-                                </th>
-                                <th className="p-5 cursor-pointer hover:bg-gray-50 transition-colors group">
-                                    <div className="flex items-center gap-2">Email <FaSort className="text-gray-300 group-hover:text-[#2EBE7E] transition-colors" /></div>
-                                </th>
-                                <th className="p-5 cursor-pointer hover:bg-gray-50 transition-colors group">
-                                    <div className="flex items-center gap-2">Phone <FaSort className="text-gray-300 group-hover:text-[#2EBE7E] transition-colors" /></div>
-                                </th>
+                            <tr className="bg-slate-50/50 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                                <th className="px-10 py-6">User Identity</th>
+                                <th className="px-10 py-6">Incident Summary</th>
+                                <th className="px-10 py-6 text-center">Status</th>
+                                <th className="px-10 py-6 text-right">Action</th>
                             </tr>
                         </thead>
-                        <tbody className="text-[14px] text-gray-700">
-                            {currentItems.length > 0 ? (
-                                currentItems.map((item, index) => (
-                                    <tr key={item.id} className="border-b border-gray-50 hover:bg-[#f8fdfa] transition-colors">
-                                        <td className="p-5 font-medium text-gray-500">
-                                            {/* S.No dynamically calculated across pages */}
-                                            {indexOfFirstItem + index + 1}
-                                        </td>
-                                        <td className="p-5 font-bold text-gray-800">
-                                            {item.username || '-'}
-                                        </td>
-                                        <td className="p-5 font-medium text-gray-700 max-w-[250px] truncate" title={item.issue}>
-                                            {item.issue || '-'}
-                                        </td>
-                                        <td className="p-5 text-gray-500 max-w-[200px] truncate" title={item.details}>
-                                            {item.details}
-                                        </td>
-                                        <td className="p-5 font-medium text-[#2EBE7E]">
-                                            {item.email || '-'}
-                                        </td>
-                                        <td className="p-5 font-semibold text-gray-600">
-                                            {item.phone || '-'}
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan="6" className="p-12 text-center">
-                                        <div className="flex flex-col items-center justify-center text-gray-400">
-                                            <FaSearch className="text-4xl mb-3 text-gray-200" />
-                                            <p className="text-[15px] font-medium text-gray-500">No issues found matching "{searchTerm}"</p>
+                        <tbody className="divide-y divide-slate-50">
+                            {currentItems.map((item) => (
+                                <tr key={item.id} className="group hover:bg-slate-50/30 transition-all">
+                                    <td className="px-10 py-7">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg ${item.username ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                {item.username ? item.username.charAt(0) : <FaUserCircle />}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-black text-slate-800">{item.username || 'Anonymous User'}</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{item.email || 'No email'}</p>
+                                            </div>
                                         </div>
                                     </td>
+                                    <td className="px-10 py-7 max-w-xs">
+                                        <p className="text-[14px] font-black text-slate-700 leading-snug truncate">{item.issue}</p>
+                                        <p className="text-[11px] text-slate-400 mt-1 font-medium italic">{item.date}</p>
+                                    </td>
+                                    <td className="px-10 py-7 text-center">
+                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border 
+                                            ${item.status === 'Critical' ? 'bg-rose-50 text-rose-500 border-rose-100' :
+                                                item.status === 'Resolved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                    'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                            {item.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-10 py-7 text-right">
+                                        <button
+                                            onClick={() => setSelectedIssue(item)}
+                                            className="h-10 px-5 bg-slate-900 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all active:scale-95"
+                                        >
+                                            Review
+                                        </button>
+                                    </td>
                                 </tr>
-                            )}
+                            ))}
                         </tbody>
                     </table>
                 </div>
-
-                {/* ========================================== */}
-                {/* 🌟 FUNCTIONAL PAGINATION CONTROLS          */}
-                {/* ========================================== */}
-                <div className="p-5 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white">
-                    <p className="text-[13px] text-gray-500 font-medium">
-                        Showing {totalEntries === 0 ? 0 : indexOfFirstItem + 1} to {Math.min(indexOfLastItem, totalEntries)} of {totalEntries} entries
-                    </p>
-                    
-                    {/* Hide pagination buttons if there is no data or only 1 page */}
-                    {totalPages > 1 && (
-                        <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-                            
-                            <button 
-                                onClick={goToFirstPage} disabled={currentPage === 1}
-                                className="px-3 py-2 text-[11px] font-bold text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors border-r border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                FIRST
-                            </button>
-                            
-                            <button 
-                                onClick={goToPrevPage} disabled={currentPage === 1}
-                                className="px-3 py-2 text-[11px] font-bold text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors border-r border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                PREVIOUS
-                            </button>
-                            
-                            {/* Dynamic Page Numbers */}
-                            <div className="flex items-center px-1">
-                                {[...Array(totalPages)].map((_, index) => (
-                                    <button 
-                                        key={index}
-                                        onClick={() => paginate(index + 1)}
-                                        className={`w-8 h-8 flex items-center justify-center text-[12px] font-bold mx-0.5 rounded-full transition-all ${
-                                            currentPage === index + 1 
-                                            ? 'bg-[#2EBE7E] text-white shadow-md' 
-                                            : 'text-gray-600 hover:bg-gray-100'
-                                        }`}
-                                    >
-                                        {index + 1}
-                                    </button>
-                                ))}
-                            </div>
-                            
-                            <button 
-                                onClick={goToNextPage} disabled={currentPage === totalPages}
-                                className="px-3 py-2 text-[11px] font-bold text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors border-l border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                NEXT
-                            </button>
-                            
-                            <button 
-                                onClick={goToLastPage} disabled={currentPage === totalPages}
-                                className="px-3 py-2 text-[11px] font-bold text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors border-l border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                LAST
-                            </button>
-
-                        </div>
-                    )}
-                </div>
-
             </div>
+
+            {/* --- REVIEW MODAL --- */}
+            {selectedIssue && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setSelectedIssue(null)}></div>
+
+                    <div className="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+                        {/* Modal Header */}
+                        <div className="bg-slate-900 p-8 text-white flex justify-between items-center">
+                            <div>
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">Incident Report</span>
+                                <h3 className="text-xl font-black tracking-tight mt-1">Ticket #TIC-{selectedIssue.id + 5000}</h3>
+                            </div>
+                            <button onClick={() => setSelectedIssue(null)} className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-all">
+                                <FaTimes />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-8 space-y-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-slate-400 text-xl shadow-sm">
+                                    <FaUserCircle />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-black text-slate-800">{selectedIssue.username || 'Anonymous User'}</p>
+                                    <p className="text-xs font-medium text-slate-400">{selectedIssue.email}</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-300">Issue Title</label>
+                                <p className="text-lg font-black text-slate-800 leading-tight">{selectedIssue.issue}</p>
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-300">Full Description</label>
+                                <div className="p-5 bg-slate-50 border border-slate-100 rounded-2xl italic text-slate-600 text-sm leading-relaxed">
+                                    "{selectedIssue.details}"
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-300">Reported On</label>
+                                    <p className="text-xs font-bold text-slate-600 flex items-center gap-2"><FaHistory /> {selectedIssue.date}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-300">Contact</label>
+                                    <p className="text-xs font-bold text-slate-600 flex items-center gap-2"><FaPhoneAlt /> {selectedIssue.phone || 'N/A'}</p>
+                                </div>
+                            </div>
+
+                            {selectedIssue.status === "Resolved" && (
+                                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-3">
+                                    <FaCheckCircle className="text-emerald-600" />
+                                    <div>
+                                        <p className="text-xs font-black text-emerald-800 uppercase tracking-tight">Issue Resolved</p>
+                                        <p className="text-[11px] font-bold text-emerald-600">Action taken by {selectedIssue.solvedBy}</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-8 bg-slate-50 border-t border-slate-100">
+                            {selectedIssue.status !== "Resolved" ? (
+                                <button
+                                    onClick={() => handleResolve(selectedIssue.id)}
+                                    className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-100 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <MdOutlineFactCheck size={18} /> Mark as Resolved
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => setSelectedIssue(null)}
+                                    className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all"
+                                >
+                                    Close Record
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

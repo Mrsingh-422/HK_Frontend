@@ -3,12 +3,13 @@
 import React, { useState } from 'react';
 import {
     FaPlus, FaTrash, FaEdit, FaTicketAlt,
-    FaCalendarAlt, FaShoppingBag, FaTag, FaTimes, FaCut
+    FaCalendarAlt, FaShoppingBag, FaTag, FaTimes, FaCut, FaLayerGroup,
+    FaStethoscope, FaUserMd, FaFlask, FaHospital
 } from 'react-icons/fa';
 import { MdOutlineLocalOffer, MdOutlineAttachMoney } from 'react-icons/md';
 
 const CouponAdmin = () => {
-    // Initial State with expanded fields
+    // Initial State
     const [coupons, setCoupons] = useState([
         {
             id: 1,
@@ -16,63 +17,73 @@ const CouponAdmin = () => {
             discount: '500',
             minOrder: '2000',
             type: 'Fixed Amount',
-            endDate: '2024-12-31'
+            startDate: '2024-01-01',
+            endDate: '2024-12-31',
+            category: 'Nurse'
         },
         {
             id: 2,
             code: 'SAVE20',
-            discount: '20%',
+            discount: '20',
             minOrder: '1000',
             type: 'Percentage',
-            endDate: '2024-11-15'
+            startDate: '2024-05-10',
+            endDate: '2024-11-15',
+            category: 'Doctor'
         }
     ]);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editId, setEditId] = useState(null); // Tracks if we are editing
+    const [editId, setEditId] = useState(null);
     const [formData, setFormData] = useState({
         code: '',
         discount: '',
         minOrder: '',
         type: 'Percentage',
-        endDate: ''
+        startDate: '',
+        endDate: '',
+        category: 'Nurse'
     });
 
-    // Handle Form Input Change
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: name === 'code' ? value.toUpperCase() : value });
     };
 
-    // Open Modal for Add or Edit
     const openModal = (coupon = null) => {
         if (coupon) {
             setEditId(coupon.id);
             setFormData({ ...coupon });
         } else {
             setEditId(null);
-            setFormData({ code: '', discount: '', minOrder: '', type: 'Percentage', endDate: '' });
+            setFormData({ code: '', discount: '', minOrder: '', type: 'Percentage', startDate: '', endDate: '', category: 'Nurse' });
         }
         setIsModalOpen(true);
     };
 
-    // Submit Logic (Add & Edit)
     const handleSubmit = (e) => {
         e.preventDefault();
         if (editId) {
-            // Update existing
             setCoupons(coupons.map(c => (c.id === editId ? { ...formData, id: editId } : c)));
         } else {
-            // Add new
             setCoupons([...coupons, { ...formData, id: Date.now() }]);
         }
         setIsModalOpen(false);
     };
 
-    // Delete Logic
     const handleDelete = (id) => {
         if (window.confirm("Are you sure you want to delete this coupon?")) {
             setCoupons(coupons.filter(c => c.id !== id));
+        }
+    };
+
+    // Helper to get Category Icon
+    const getCategoryIcon = (cat) => {
+        switch (cat) {
+            case 'Doctor': return <FaUserMd />;
+            case 'Lab': return <FaFlask />;
+            case 'Hospital': return <FaHospital />;
+            default: return <FaStethoscope />;
         }
     };
 
@@ -107,9 +118,8 @@ const CouponAdmin = () => {
                             </div>
                             <span className="text-[10px] mt-2 opacity-70 uppercase tracking-widest font-bold">OFF</span>
 
-                            {/* Ticket Cutouts */}
-                            <div className="absolute -right-3 -top-3 w-6 h-6 bg-gray-50 rounded-full border-b border-gray-100"></div>
-                            <div className="absolute -right-3 -bottom-3 w-6 h-6 bg-gray-50 rounded-full border-t border-gray-100"></div>
+                            <div className="absolute -right-3 -top-3 w-6 h-6 bg-gray-50 rounded-full"></div>
+                            <div className="absolute -right-3 -bottom-3 w-6 h-6 bg-gray-50 rounded-full"></div>
                         </div>
 
                         {/* Perforation Line */}
@@ -119,11 +129,16 @@ const CouponAdmin = () => {
                         <div className="flex-1 p-5 flex flex-col justify-between">
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <h3 className="text-xl font-mono font-black text-gray-800 tracking-tighter uppercase mb-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="bg-[#08b36a]/10 text-[#08b36a] text-[10px] font-black px-2 py-0.5 rounded uppercase flex items-center gap-1">
+                                            {getCategoryIcon(coupon.category)} {coupon.category}
+                                        </span>
+                                    </div>
+                                    <h3 className="text-xl font-mono font-black text-gray-800 tracking-tighter uppercase">
                                         {coupon.code}
                                     </h3>
-                                    <div className="flex items-center gap-2 text-[#08b36a] text-xs font-bold uppercase">
-                                        <FaTag size={10} /> {coupon.type}
+                                    <div className="flex items-center gap-2 text-gray-400 text-[10px] font-bold uppercase mt-1">
+                                        <FaTag size={8} /> {coupon.type}
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
@@ -132,19 +147,15 @@ const CouponAdmin = () => {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2 mt-4">
-                                <div className="flex items-center gap-2 text-gray-500 text-sm italic">
+                            <div className="grid grid-cols-1 gap-1 mt-4">
+                                <div className="flex items-center gap-2 text-gray-500 text-xs italic">
                                     <FaShoppingBag size={12} className="text-[#08b36a]" />
                                     <span>Min Order: <b>₹{coupon.minOrder}</b></span>
                                 </div>
-                                <div className="flex items-center gap-2 text-gray-500 text-sm italic">
+                                <div className="flex items-center gap-2 text-gray-500 text-xs italic">
                                     <FaCalendarAlt size={12} className="text-[#08b36a]" />
-                                    <span>Ends: <b>{coupon.endDate}</b></span>
+                                    <span>Duration: <b>{coupon.startDate}</b> to <b>{coupon.endDate}</b></span>
                                 </div>
-                            </div>
-
-                            <div className="mt-4 flex items-center gap-2 text-[10px] text-gray-300 font-bold uppercase tracking-widest">
-                                <FaCut /> Apply at checkout
                             </div>
                         </div>
                     </div>
@@ -166,7 +177,6 @@ const CouponAdmin = () => {
                         </div>
 
                         <form onSubmit={handleSubmit} className="p-8 grid grid-cols-1 md:grid-cols-2 gap-5">
-                            {/* Coupon Code */}
                             <div className="md:col-span-2">
                                 <label className="text-xs font-bold text-gray-400 uppercase ml-1">Coupon Code</label>
                                 <div className="relative mt-1">
@@ -179,7 +189,6 @@ const CouponAdmin = () => {
                                 </div>
                             </div>
 
-                            {/* Discount Amount */}
                             <div>
                                 <label className="text-xs font-bold text-gray-400 uppercase ml-1">Discount Value</label>
                                 <div className="relative mt-1">
@@ -192,7 +201,6 @@ const CouponAdmin = () => {
                                 </div>
                             </div>
 
-                            {/* Min Order Amount */}
                             <div>
                                 <label className="text-xs font-bold text-gray-400 uppercase ml-1">Min Order Amount (₹)</label>
                                 <div className="relative mt-1">
@@ -205,7 +213,19 @@ const CouponAdmin = () => {
                                 </div>
                             </div>
 
-                            {/* Coupon Type */}
+                            <div>
+                                <label className="text-xs font-bold text-gray-400 uppercase ml-1">Category</label>
+                                <select
+                                    name="category" value={formData.category} onChange={handleChange} required
+                                    className="w-full mt-1 p-2.5 bg-gray-50 border-2 border-transparent focus:border-[#08b36a] rounded-xl outline-none font-semibold text-gray-700"
+                                >
+                                    <option value="Nurse">Nurse</option>
+                                    <option value="Doctor">Doctor</option>
+                                    <option value="Lab">Lab</option>
+                                    <option value="Hospital">Hospital</option>
+                                </select>
+                            </div>
+
                             <div>
                                 <label className="text-xs font-bold text-gray-400 uppercase ml-1">Coupon Type</label>
                                 <select
@@ -217,7 +237,15 @@ const CouponAdmin = () => {
                                 </select>
                             </div>
 
-                            {/* End Date */}
+                            <div>
+                                <label className="text-xs font-bold text-gray-400 uppercase ml-1">Start Date</label>
+                                <input
+                                    name="startDate" value={formData.startDate} onChange={handleChange} required
+                                    type="date"
+                                    className="w-full mt-1 p-2.5 bg-gray-50 border-2 border-transparent focus:border-[#08b36a] rounded-xl outline-none font-semibold"
+                                />
+                            </div>
+
                             <div>
                                 <label className="text-xs font-bold text-gray-400 uppercase ml-1">End Date</label>
                                 <input
@@ -227,7 +255,6 @@ const CouponAdmin = () => {
                                 />
                             </div>
 
-                            {/* Submit Button */}
                             <button
                                 type="submit"
                                 className="md:col-span-2 bg-[#08b36a] hover:bg-[#079d5d] text-white py-4 rounded-2xl font-black uppercase tracking-widest mt-4 shadow-lg transition-all active:scale-95"
