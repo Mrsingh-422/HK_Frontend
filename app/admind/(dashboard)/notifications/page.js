@@ -1,39 +1,107 @@
 'use client';
 
-import React, { useState } from 'react';
-// React Icons (Font Awesome) imports
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-    FaBell,
     FaHospital,
     FaUserPlus,
-    FaChevronLeft,
     FaCheckDouble,
     FaClock,
     FaTrashAlt,
     FaCalendarAlt,
-    FaEllipsisH
+    FaSpinner,
+    FaBell,
+    FaFilter
 } from 'react-icons/fa';
+import AdminAPI from '@/app/services/AdminAPI';
 
 export default function NotificationsPage() {
+    const [notifications, setNotifications] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('unread');
 
-    const unreadNotifications = [
-        { id: 1, type: 'hospital', message: 'RoRUVEBfxAggbATDygqxwC Hospital Registered Now!!!', time: '13:26 PM', date: 'Today' },
-        { id: 2, type: 'user', message: 'New User Registered Now!!!', time: '17:08 PM', date: 'Yesterday' },
-        { id: 3, type: 'hospital', message: 'dSbhguijWwfBhQEOXpaMn Hospital Registered Now!!!', time: '19:05 PM', date: '15 March' },
-        { id: 7, type: 'user', message: 'Premium Subscription activated for user "Alex"', time: '10:00 AM', date: 'Today' },
-        { id: 8, type: 'hospital', message: 'City General Hospital updated their profile.', time: '11:20 AM', date: 'Today' },
-        { id: 9, type: 'user', message: 'New Verification request from Rahul Sharma.', time: '09:45 AM', date: 'Yesterday' },
+    // Fetch notifications from Backend
+    const fetchNotifications = async () => {
+        setIsLoading(true);
+        try {
+            const res = await AdminAPI.getNotifications();
+            setNotifications(res.data || []);
+        } catch (error) {
+            console.error("Failed to load notifications:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        // Load data from the backend
+        fetchNotifications();
+    }, []);
+
+    // Dummy Data (Remove this after testing)
+    const dummyData = [
+        { _id: '1', type: 'hospital', message: 'RoRUVEBfxAggbATDygqxwC Hospital Registered Now!!!', isRead: false, createdAt: new Date().toISOString() },
+        { _id: '2', type: 'user', message: 'New User Registered Now!!!', isRead: false, createdAt: new Date(Date.now() - 86400000).toISOString() }, // Yesterday
     ];
 
-    const oldNotifications = [
-        ...unreadNotifications,
-        { id: 4, type: 'hospital', message: 'MIBGnigixAAruatDx Hospital Registered Now!!!', time: '08:43 AM', date: '04 March' },
-        { id: 5, type: 'user', message: 'New User Registered Now!!!', time: '11:35 AM', date: '02 March' },
-        { id: 6, type: 'user', message: 'New User Registered Now!!!', time: '09:12 AM', date: '02 March' },
-    ];
+    // Use dummy data only when you cannot get real data from the backend
+    const finalNotifications = notifications.length > 0 ? notifications : dummyData;
 
-    const notifications = activeTab === 'unread' ? unreadNotifications : oldNotifications;
+    // Filter notifications based on tab
+    const filteredNotifications = useMemo(() => {
+        if (activeTab === 'unread') {
+            return finalNotifications.filter(n => !n.isRead);
+        }
+        return finalNotifications;
+    }, [finalNotifications, activeTab]);
+
+    // Action: Mark Single Read
+    const handleMarkRead = async (id) => {
+        try {
+            await AdminAPI.markAsRead(id);
+            setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
+        } catch (error) {
+            alert("Error updating notification");
+        }
+    };
+
+    // Action: Mark All Read
+    const handleMarkAllRead = async () => {
+        try {
+            await AdminAPI.markAllRead();
+            setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+        } catch (error) {
+            alert("Error marking all as read");
+        }
+    };
+
+    // Action: Delete Single
+    const handleDelete = async (id) => {
+        if (!window.confirm("Delete this notification?")) return;
+        try {
+            await AdminAPI.deleteNotification(id);
+            setNotifications(prev => prev.filter(n => n._id !== id));
+        } catch (error) {
+            alert("Error deleting notification");
+        }
+    };
+
+    // Action: Clear All
+    const handleClearAll = async () => {
+        if (!window.confirm("Clear your entire notification history?")) return;
+        try {
+            await AdminAPI.clearAllNotifications();
+            setNotifications([]);
+        } catch (error) {
+            alert("Error clearing notifications");
+        }
+    };
+
+    if (isLoading) return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+            <FaSpinner className="animate-spin text-[#08b36a] text-4xl mb-4" />
+            <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">Syncing alerts...</p>
+        </div>
+    );
 
     return (
         <div className="min-h-screen bg-[#f8fafc] py-10 px-4 md:px-12 font-sans">
@@ -41,115 +109,119 @@ export default function NotificationsPage() {
 
                 {/* Header Section */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-                    <div className="flex items-center gap-5">
-                        <button className="p-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50 transition-all text-gray-600">
-                            <FaChevronLeft className="w-4 h-4" />
-                        </button>
-                        <div>
-                            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Notifications</h1>
-                            <p className="text-gray-500 font-medium mt-1">Manage your alerts and activity logs</p>
-                        </div>
+                    <div>
+                        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+                            Alert Center <FaBell className="text-amber-400 text-2xl" />
+                        </h1>
+                        <p className="text-gray-500 font-medium mt-1">Real-time registration and system activity logs</p>
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <button className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all">
+                        <button
+                            onClick={handleClearAll}
+                            className="bg-white border border-red-100 text-red-500 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-red-50 transition-all"
+                        >
                             Clear All
                         </button>
-                        <button className="flex items-center gap-2 bg-[#08b36a] hover:bg-[#079d5c] text-white px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-lg shadow-[#08b36a]/30 active:scale-95">
-                            <FaCheckDouble className="w-4 h-4" />
-                            Mark All Read
+                        <button
+                            onClick={handleMarkAllRead}
+                            className="flex items-center gap-2 bg-[#08b36a] hover:bg-[#079d5c] text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-[#08b36a]/20"
+                        >
+                            <FaCheckDouble /> Mark All Read
                         </button>
                     </div>
                 </div>
 
-                {/* Tab Switcher */}
-                <div className="inline-flex p-1.5 bg-gray-200/50 backdrop-blur-md rounded-2xl mb-10">
+                {/* Filter Tabs */}
+                <div className="flex gap-4 mb-6 border-b border-gray-200">
                     <button
                         onClick={() => setActiveTab('unread')}
-                        className={`px-8 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === 'unread'
-                            ? 'bg-white text-[#08b36a] shadow-sm'
-                            : 'text-gray-500 hover:text-gray-700'
-                            }`}
+                        className={`pb-4 px-2 text-sm font-black uppercase tracking-widest transition-all ${activeTab === 'unread' ? 'border-b-2 border-[#08b36a] text-[#08b36a]' : 'text-gray-400'}`}
                     >
-                        Unread <span className="ml-1 bg-[#08b36a]/10 px-2 py-0.5 rounded-md text-[10px]">{unreadNotifications.length}</span>
+                        Unread ({notifications.filter(n => !n.isRead).length})
                     </button>
                     <button
-                        onClick={() => setActiveTab('old')}
-                        className={`px-8 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === 'old'
-                            ? 'bg-white text-[#08b36a] shadow-sm'
-                            : 'text-gray-500 hover:text-gray-700'
-                            }`}
+                        onClick={() => setActiveTab('all')}
+                        className={`pb-4 px-2 text-sm font-black uppercase tracking-widest transition-all ${activeTab === 'all' ? 'border-b-2 border-[#08b36a] text-[#08b36a]' : 'text-gray-400'}`}
                     >
-                        Archive
+                        History ({notifications.length})
                     </button>
                 </div>
 
-                {/* Grid Notifications - 3 Cards per row on Desktop */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {notifications.map((item) => (
-                        <div
-                            key={item.id}
-                            className="group relative bg-white rounded-[10px] border-t-[4px] border-[#22c55e] p-6 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 flex flex-col"
-                        >
-                            {/* Top Row: Icon and Quick Action */}
-                            <div className="flex justify-between items-start mb-5">
-                                <div className={`p-4 rounded-xl ${item.type === 'hospital'
-                                    ? 'bg-orange-50 text-orange-500'
-                                    : 'bg-emerald-50 text-[#08b36a]'
-                                    }`}>
-                                    {item.type === 'hospital' ? <FaHospital size={24} /> : <FaUserPlus size={24} />}
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    {/* Mark as read indicator for unread tab */}
-                                    {activeTab === 'unread' && (
-                                        <div className="h-2.5 w-2.5 bg-[#08b36a] rounded-full animate-pulse"></div>
-                                    )}
-                                    <button className="p-2 opacity-0 group-hover:opacity-100 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg transition-all">
-                                        <FaTrashAlt size={14} />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Body Content */}
-                            <div className="flex-grow">
-                                <h3 className={`text-[11px] font-black uppercase tracking-[0.1em] mb-2 ${item.type === 'hospital' ? 'text-orange-600' : 'text-emerald-600'
-                                    }`}>
-                                    {item.type === 'hospital' ? 'Hospital Update' : 'New User'}
-                                </h3>
-                                <p className="text-gray-700 font-bold text-[15px] leading-snug line-clamp-2">
-                                    {item.message}
-                                </p>
-                            </div>
-
-                            {/* Divider */}
-                            <div className="my-5 border-t border-gray-100" />
-
-                            {/* Footer Meta Info */}
-                            <div className="flex items-center justify-between mt-auto">
-                                <div className="flex items-center gap-2 text-gray-400">
-                                    <FaClock size={12} />
-                                    <span className="text-[11px] font-bold">{item.time}</span>
-                                </div>
-                                <div className="flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-md text-gray-500">
-                                    <FaCalendarAlt size={10} />
-                                    <span className="text-[10px] font-bold">{item.date}</span>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Empty State */}
-                {notifications.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-32 bg-white rounded-2xl border-2 border-dashed border-gray-100">
-                        <div className="bg-gray-50 p-8 rounded-full mb-6">
-                            <FaBell className="w-12 h-12 text-gray-200" />
-                        </div>
-                        <h3 className="text-xl font-bold text-gray-400">No Notifications Yet</h3>
+                {/* Table View */}
+                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-gray-50/50">
+                                <tr>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest">Type</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest">Message</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest text-center">Time/Date</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase text-gray-400 tracking-widest text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {filteredNotifications.map((item) => (
+                                    <tr key={item._id} className={`group hover:bg-gray-50/80 transition-colors ${!item.isRead ? 'bg-emerald-50/30' : ''}`}>
+                                        <td className="px-6 py-5">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${item.type === 'hospital' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                {item.type === 'hospital' ? <FaHospital size={16} /> : <FaUserPlus size={16} />}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <div className="flex flex-col">
+                                                <span className={`text-[10px] font-black uppercase mb-1 ${item.type === 'hospital' ? 'text-orange-500' : 'text-blue-500'}`}>
+                                                    {item.type} Activity
+                                                </span>
+                                                <p className={`text-sm font-bold ${!item.isRead ? 'text-gray-900' : 'text-gray-500'}`}>
+                                                    {item.message}
+                                                </p>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <div className="flex flex-col items-center gap-1 text-gray-400">
+                                                <div className="flex items-center gap-1 text-[11px] font-bold">
+                                                    <FaClock size={10} /> {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </div>
+                                                <div className="flex items-center gap-1 text-[10px] font-medium italic">
+                                                    <FaCalendarAlt size={10} /> {new Date(item.createdAt).toLocaleDateString()}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-5 text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                {!item.isRead && (
+                                                    <button
+                                                        onClick={() => handleMarkRead(item._id)}
+                                                        className="p-2 text-[#08b36a] hover:bg-emerald-100 rounded-lg transition-all" title="Mark as Read"
+                                                    >
+                                                        <FaCheckDouble size={14} />
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => handleDelete(item._id)}
+                                                    className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all" title="Delete"
+                                                >
+                                                    <FaTrashAlt size={14} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
-                )}
 
+                    {/* Empty State inside table */}
+                    {filteredNotifications.length === 0 && (
+                        <div className="flex flex-col items-center justify-center py-24">
+                            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4 text-gray-200">
+                                <FaBell size={30} />
+                            </div>
+                            <h3 className="text-sm font-black text-gray-300 uppercase tracking-widest">Workspace is clear</h3>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
