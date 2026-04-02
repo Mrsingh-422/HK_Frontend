@@ -147,8 +147,39 @@ const AdminAPI = {
         return response.data;
     },
 
+    // --- Insurance Management ---
+    addInsuranceType: async (typeData) => {
+        const response = await api.post('/admin/user/insurance/add-type', typeData);
+        return response.data;
+    },
+    getInsuranceTypes: async () => {
+        const response = await api.get('/admin/user/insurance/insurance-types');
+        return response.data; // Accessing the array: ["RGHS", "CGHS", ...]
+    },
+    addInsurance: async (insuranceData) => {
+        const response = await api.post('/admin/user/insurance/add-insurance', insuranceData);
+        return response.data;
+    },
+    getInsuranceList: async (page = 1, limit = 10, search = "") => {
+        const response = await api.get('/admin/user/insurance/insurance-list', {
+            params: { page, limit, search }
+        });
+        return response.data; // Returns { data: [...], totalPages: X, etc }
+    },
+    updateInsurance: async (id, insuranceData) => {
+        const response = await api.put(`/admin/user/insurance/update/${id}`, insuranceData);
+        return response.data;
+    },
+    updateInsuranceStatus: async (id, statusData) => {
+        const response = await api.patch(`/admin/user/insurance/update-status/${id}`, statusData);
+        return response.data;
+    },
+    deleteInsurance: async (id) => {
+        const response = await api.delete(`/admin/user/insurance/delete/${id}`);
+        return response.data;
+    },
 
-
+ 
 };
 
 export default AdminAPI;
