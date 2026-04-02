@@ -10,6 +10,7 @@ import {
     FaUserNurse,
     FaAmbulance,
     FaHospital,
+    FaPhoneAlt
 } from "react-icons/fa";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
@@ -38,11 +39,11 @@ function HeroSection() {
                         title: data.title || "",
                         subtitle: data.subtitle || "",
                         images: (data.images || []).map(
-                            (img) => `${API_URL}${img}`   // ✅ fixed path
+                            (img) => `${API_URL}${img}`
                         ),
                     });
 
-                    setCurrent(0); // reset index if images change
+                    setCurrent(0); 
                 }
             } catch (error) {
                 console.error("Error fetching hero content:", error);
@@ -76,13 +77,33 @@ function HeroSection() {
             >
                 <div className="hero-overlay">
                     <div className="hero-content">
+                        {/* ✅ NEW: Emergency CTA */}
+                        <div className="emergency-badge">
+                            <div className="pulse-icon">
+                                <FaAmbulance />
+                            </div>
+                            <div className="emergency-text">
+                                <span className="free-tag">Free Service</span>
+                                <h4>Emergency Ambulance</h4>
+                                <p>No Login Required • 24/7 Available</p>
+                            </div>
+                            <Link href="/ambulance" className="emergency-btn">
+                                Book Now
+                            </Link>
+                        </div>
+
                         <h1>
-                            {heroData.title || "Health Kangaroo "}
+                            {heroData.title || "Health Kangaroo"}
                         </h1>
                         <p>
                             {heroData.subtitle ||
                                 "Here you will order medicines, book tests, consultations and many more"}
                         </p>
+
+                        {/* ✅ Mobile Quick Action for Ambulance (only shows on small screens) */}
+                        <Link href="/ambulance" className="mobile-emergency-trigger">
+                           <FaPhoneAlt /> Book Free Ambulance
+                        </Link>
                     </div>
                 </div>
             </div>
