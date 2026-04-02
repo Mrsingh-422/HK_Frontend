@@ -196,15 +196,44 @@ const AdminAPI = {
         const response = await api.patch(`/provider/coupons/admin/toggle/${id}`);
         return response.data;
     },
-    adminUpdateCoupon: async (id) => {
-        const response = await api.put(`/provider/coupons/admin/update/${id}`);
+    adminUpdateCoupon: async (id, couponData) => {
+        const response = await api.put(`/provider/coupons/admin/update/${id}`, couponData);
         return response.data;
     },
     adminDeleteCoupon: async (id) => {
         const response = await api.delete(`/provider/coupons/admin/delete/${id}`);
         return response.data;
-    }
- 
+    },
+
+    //Manage Medicines in Admin
+    adminUploadMedicinesExcel: async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return (await api.post('/admin/pharmacy/medicine/upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        })).data;
+    },
+    adminCreateMedicine: async (data) => {
+        return (await api.post('/admin/pharmacy/medicine/create', data)).data;
+    },
+    adminGetMedicinesList: async (page = 1) => {
+        return (await api.get(`/admin/pharmacy/medicine/list`, { params: { page } })).data;
+    },
+    adminGetMedicineDetails: async (id) => {
+        return (await api.get(`/admin/pharmacy/medicine/details/${id}`)).data;
+    },
+    adminSearchMedicines: async (search, page = 1) => {
+        return (await api.post('/admin/pharmacy/medicine/search', { search, page })).data;
+    },
+    adminUpdateMedicine: async (id, data) => {
+        return (await api.put(`/admin/pharmacy/medicine/update/${id}`, data)).data;
+    },
+    adminDeleteMedicine: async (id) => {
+        return (await api.delete(`/admin/pharmacy/medicine/delete/${id}`)).data;
+    },
+
+    
+
 };
 
 export default AdminAPI;

@@ -1,324 +1,253 @@
 "use client";
-import React, { useState, useMemo, useRef } from 'react';
-import { HiOutlineSearch, HiCheckCircle, HiXCircle, HiOutlineRefresh } from 'react-icons/hi';
-import { AiOutlineEye, AiOutlineCloudUpload, AiOutlineLoading3Quarters } from 'react-icons/ai';
-import { MdOutlineMedicalServices, MdOutlineWarningAmber, MdOutlineInventory2 } from 'react-icons/md';
+import React, { useState, useEffect, useRef } from 'react';
+import { HiOutlineSearch, HiOutlineRefresh, HiChevronLeft, HiChevronRight } from 'react-icons/hi';
+import { AiOutlineEye, AiOutlineCloudUpload, AiOutlineLoading3Quarters, AiOutlinePlus, AiOutlineDelete, AiOutlineEdit } from 'react-icons/ai';
+import { MdOutlineMedicalServices, MdOutlineInventory2, MdOutlineStorefront } from 'react-icons/md';
 
-// Dummy Data
-const initialMedicines = [
-    { id: "#MED-001", name: "Paracetamol", category: "Analgesic", stock: 120, price: "$5.00", verificationStatus: "Approved" },
-    { id: "#MED-002", name: "Amoxicillin", category: "Antibiotic", stock: 45, price: "$12.50", verificationStatus: "Approved" },
-    { id: "#MED-003", name: "Ibuprofen", category: "Analgesic", stock: 0, price: "$8.00", verificationStatus: "Rejected" },
-    { id: "#MED-004", name: "Metformin", category: "Antidiabetic", stock: 85, price: "$15.00", verificationStatus: "Approved" },
-    { id: "#MED-005", name: "Atorvastatin", category: "Statins", stock: 60, price: "$20.00", verificationStatus: "Rejected" },
-    { id: "#MED-006", name: "Cetirizine", category: "Antihistamine", stock: 200, price: "$3.00", verificationStatus: "Approved" },
-];
+import AdminAPI from '@/app/services/AdminAPI';
+import MedicineDetailsModal from './components/MedicineDetailsModal';
+import AddMedicineModal from './components/AddMedicineModal';
 
 function Page() {
     const themeColor = "#08B36A";
     const fileInputRef = useRef(null);
 
-    // States for filtering
-    const [activeTab, setActiveTab] = useState("All");
-    const [searchTerm, setSearchTerm] = useState("");
-    const [categoryFilter, setCategoryFilter] = useState("All");
-    const [stockFilter, setStockFilter] = useState("All");
-
-    // State for CSV Upload
+    // States
+    const [medicines, setMedicines] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [isUploading, setIsUploading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalDocs, setTotalDocs] = useState(0);
 
-    // --- CSV LOGIC START ---
+    // Modals
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [selectedMedicine, setSelectedMedicine] = useState(null);
+    const [editData, setEditData] = useState(null);
 
-    /**
-     * This function is designed to be moved to your Context/Service layer later.
-     */
-    const addMedicineByAdminCSV = async (file) => {
-        // Here you would typically use your Context API function
-        // Example: const response = await uploadCSV(file);
+    useEffect(() => {
+        fetchData();
+    }, [page, searchTerm]);
 
-        console.log("Attempting to upload:", file.name);
-
-        // Simulating a backend multipart/form-data request
-        const formData = new FormData();
-        formData.append('file', file);
-
-        return new Promise((resolve, reject) => {
-            setTimeout(() => {
-                // Simulate success
-                resolve({ success: true, message: "File uploaded successfully" });
-                // reject(new Error("Upload failed")); // For testing error states
-            }, 2000);
-        });
-    };
-
-    const handleFileUpload = async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        // Validate extension
-        if (!file.name.endsWith('.csv')) {
-            alert("Please select a valid CSV file.");
-            return;
-        }
-
-        setIsUploading(true);
+    const fetchData = async () => {
         try {
-            // Calling the API function
-            const result = await addMedicineByAdminCSV(file);
-
-            // Success feedback
-            alert(result.message || "Medicines imported successfully!");
-
-            // OPTIONAL: Refresh your local medicine list here 
-            // fetchMedicines(); 
-
+            setLoading(true);
+            let res;
+            if (searchTerm) {
+                res = await AdminAPI.adminSearchMedicines(searchTerm, page);
+            } else {
+                res = await AdminAPI.adminGetMedicinesList(page);
+            }
+            setMedicines(res.data || []);
+            setTotalPages(res.totalPages || 1);
+            setTotalDocs(res.totalDocs || 0);
         } catch (error) {
-            // Error feedback
-            console.error("Upload failed:", error);
-            alert(error.message || "Failed to upload CSV. Please try again.");
+            console.error("Fetch Error:", error);
         } finally {
-            setIsUploading(false);
-            // Reset the input so the same file can be uploaded again if needed
-            if (fileInputRef.current) fileInputRef.current.value = "";
+            setLoading(false);
         }
     };
 
-    // --- CSV LOGIC END ---
+    const handleSaveMedicine = async (formData) => {
+        try {
+            if (editData) {
+                await AdminAPI.adminUpdateMedicine(editData._id, formData);
+                alert("Medicine Updated!");
+            } else {
+                await AdminAPI.adminCreateMedicine(formData);
+                alert("Medicine Created!");
+            }
+            fetchData();
+        } catch (error) {
+            alert("Failed to save medicine");
+            throw error;
+        }
+    };
 
-    // Filter Logic
-    const categories = ["All", ...new Set(initialMedicines.map(m => m.category))];
+    const handleDelete = async (id) => {
+        if (window.confirm("Are you sure you want to delete this medicine?")) {
+            try {
+                await AdminAPI.adminDeleteMedicine(id);
+                alert("Deleted successfully");
+                fetchData();
+            } catch (error) { alert("Delete failed"); }
+        }
+    };
 
-    const filteredMedicines = useMemo(() => {
-        return initialMedicines.filter((med) => {
-            const matchesTab = activeTab === "All" || med.verificationStatus === activeTab;
-            const matchesSearch = med.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                med.id.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesCategory = categoryFilter === "All" || med.category === categoryFilter;
-
-            let matchesStock = true;
-            if (stockFilter === "Low") matchesStock = med.stock > 0 && med.stock < 50;
-            if (stockFilter === "Out") matchesStock = med.stock === 0;
-            if (stockFilter === "In") matchesStock = med.stock >= 50;
-
-            return matchesTab && matchesSearch && matchesCategory && matchesStock;
-        });
-    }, [searchTerm, categoryFilter, stockFilter, activeTab]);
+    const openEditModal = (med) => {
+        setEditData(med);
+        setIsAddModalOpen(true);
+    };
 
     const resetFilters = () => {
         setSearchTerm("");
-        setCategoryFilter("All");
-        setStockFilter("All");
-        setActiveTab("All");
+        setPage(1);
     };
 
     return (
-        <div className="min-h-screen p-4 bg-gray-50/50">
-            <div className="max-w-[1400px] mx-auto space-y-6">
+        <div className="min-h-screen bg-gray-50/50 w-full overflow-x-hidden">
+            <div className="max-w-full px-4 py-6 md:px-8 md:py-8 space-y-6">
 
-                {/* STATS SECTION */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <StatCard title="Total Medicines" value={initialMedicines.length} icon={<MdOutlineInventory2 size={24} />} color={themeColor} />
-                    <StatCard title="Low Stock Alert" value="12" icon={<MdOutlineWarningAmber size={24} />} color="#F59E0B" />
-                    <StatCard title="Categories" value={categories.length - 1} icon={<MdOutlineMedicalServices size={24} />} color="#3B82F6" />
+                {/* HEADER SECTION */}
+                <div className="flex flex-col gap-1">
+                    <h1 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tight">Inventory Management</h1>
                 </div>
 
-                {/* ADVANCED FILTER BAR */}
-                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-4">
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                        <h2 className="text-lg font-bold text-gray-800">Inventory Management</h2>
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={resetFilters}
-                                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-500 hover:text-red-500 transition-colors"
-                            >
-                                <HiOutlineRefresh size={18} />
-                                Reset
-                            </button>
+                {/* STATS - Responsive Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <StatCard title="Total Docs" value={totalDocs} icon={<MdOutlineInventory2 size={22} />} color={themeColor} />
+                    <StatCard title="Current View" value={searchTerm ? "Search" : "Standard"} icon={<HiOutlineSearch size={22} />} color="#F59E0B" />
+                    <StatCard title="Page Sync" value={`${page}/${totalPages}`} icon={<MdOutlineMedicalServices size={22} />} color="#3B82F6" />
+                </div>
 
-                            {/* HIDDEN FILE INPUT */}
-                            <input
-                                type="file"
-                                accept=".csv"
-                                ref={fileInputRef}
-                                onChange={handleFileUpload}
-                                className="hidden"
-                            />
-
-                            <button
-                                disabled={isUploading}
-                                onClick={() => fileInputRef.current.click()}
-                                style={{ backgroundColor: themeColor }}
-                                className={`flex items-center gap-2 text-white px-5 py-2 rounded-lg shadow-lg shadow-green-900/10 hover:brightness-110 transition-all font-semibold text-sm ${isUploading ? 'opacity-70 cursor-not-allowed' : ''}`}
-                            >
-                                {isUploading ? (
-                                    <AiOutlineLoading3Quarters className="animate-spin" size={20} />
-                                ) : (
-                                    <AiOutlineCloudUpload size={20} />
-                                )}
-                                {isUploading ? "Uploading..." : "Import CSV"}
-                            </button>
-                        </div>
+                {/* SEARCH & ACTIONS - Better Screen Fit */}
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
+                    <div className="relative flex-grow max-w-full xl:max-w-xl">
+                        <HiOutlineSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <input
+                            type="text"
+                            placeholder="Search records..."
+                            value={searchTerm}
+                            onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                            className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[#08B36A] font-bold text-sm transition-all"
+                        />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {/* Search Input */}
-                        <div className="relative">
-                            <label className="text-[11px] font-bold text-gray-400 uppercase mb-1 block ml-1">Search Medicine</label>
-                            <div className="relative">
-                                <HiOutlineSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                                <input
-                                    type="text"
-                                    placeholder="Name or ID..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#08B36A] focus:bg-white transition-all text-sm"
-                                />
-                            </div>
-                        </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <input type="file" accept=".xlsx, .xls, .csv" ref={fileInputRef} className="hidden" onChange={async (e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            setIsUploading(true);
+                            try { await AdminAPI.adminUploadMedicinesExcel(file); alert("Excel Uploaded!"); fetchData(); }
+                            catch (err) { alert("Upload error"); }
+                            finally { setIsUploading(false); e.target.value = ""; }
+                        }} />
 
-                        {/* Category Dropdown */}
-                        <div>
-                            <label className="text-[11px] font-bold text-gray-400 uppercase mb-1 block ml-1">Category</label>
-                            <select
-                                value={categoryFilter}
-                                onChange={(e) => setCategoryFilter(e.target.value)}
-                                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#08B36A] focus:bg-white transition-all text-sm appearance-none cursor-pointer"
-                            >
-                                {categories.map(cat => (
-                                    <option key={cat} value={cat}>{cat}</option>
-                                ))}
-                            </select>
-                        </div>
+                        <button
+                            onClick={() => fileInputRef.current.click()}
+                            className="flex-1 md:flex-none justify-center bg-white border-2 border-gray-100 text-gray-500 px-5 py-3 rounded-xl font-black text-[11px] flex items-center gap-2 hover:bg-gray-50 transition-all uppercase tracking-widest"
+                        >
+                            {isUploading ? <AiOutlineLoading3Quarters className="animate-spin" /> : <AiOutlineCloudUpload size={18} />}
+                            Import
+                        </button>
 
-                        {/* Stock Status Dropdown */}
-                        <div>
-                            <label className="text-[11px] font-bold text-gray-400 uppercase mb-1 block ml-1">Stock Status</label>
-                            <select
-                                value={stockFilter}
-                                onChange={(e) => setStockFilter(e.target.value)}
-                                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#08B36A] focus:bg-white transition-all text-sm appearance-none cursor-pointer"
-                            >
-                                <option value="All">All Stock Levels</option>
-                                <option value="In">In Stock (50+)</option>
-                                <option value="Low">Low Stock (&lt; 50)</option>
-                                <option value="Out">Out of Stock (0)</option>
-                            </select>
-                        </div>
-
-                        {/* Verification Status */}
-                        <div>
-                            <label className="text-[11px] font-bold text-gray-400 uppercase mb-1 block ml-1">Verification</label>
-                            <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200">
-                                {["All", "Approved", "Rejected"].map((tab) => (
-                                    <button
-                                        key={tab}
-                                        onClick={() => setActiveTab(tab)}
-                                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === tab
-                                            ? "bg-white text-[#08B36A] shadow-sm"
-                                            : "text-gray-500 hover:text-gray-700"
-                                            }`}
-                                    >
-                                        {tab}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                        <button
+                            onClick={() => { setEditData(null); setIsAddModalOpen(true); }}
+                            style={{ backgroundColor: themeColor }}
+                            className="flex-1 md:flex-none justify-center text-white px-6 py-3 rounded-xl font-black text-[11px] flex items-center gap-2 shadow-lg shadow-green-100 hover:brightness-110 active:scale-95 transition-all uppercase tracking-widest"
+                        >
+                            <AiOutlinePlus size={18} /> Add New
+                        </button>
                     </div>
                 </div>
 
-                {/* TABLE SECTION */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                {/* TABLE CONTAINER - This handles the "out of screen" issue */}
+                <div className="bg-white rounded-[1.5rem] shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="overflow-x-auto w-full">
+                        <table className="w-full min-w-[800px] border-collapse">
                             <thead>
-                                <tr className="bg-gray-50/50 border-b border-gray-100">
-                                    <th className="px-6 py-4 text-[13px] font-bold text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th className="px-6 py-4 text-[13px] font-bold text-gray-500 uppercase tracking-wider">Medicine Name</th>
-                                    <th className="px-6 py-4 text-[13px] font-bold text-gray-500 uppercase tracking-wider">Category</th>
-                                    <th className="px-6 py-4 text-[13px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-4 text-[13px] font-bold text-gray-500 uppercase tracking-wider">Stock</th>
-                                    <th className="px-6 py-4 text-[13px] font-bold text-gray-500 uppercase tracking-wider">Price</th>
-                                    <th className="px-6 py-4 text-[13px] font-bold text-gray-500 uppercase tracking-wider text-center">Actions</th>
+                                <tr className="bg-gray-50 border-b border-gray-100">
+                                    <th className="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-left">Medicine Info</th>
+                                    <th className="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-left">Manufacturer</th>
+                                    <th className="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-left">Price</th>
+                                    <th className="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {filteredMedicines.length > 0 ? (
-                                    filteredMedicines.map((med) => (
-                                        <tr key={med.id} className="hover:bg-green-50/30 transition-colors group">
-                                            <td className="px-6 py-4 text-sm font-medium text-gray-400">{med.id}</td>
-                                            <td className="px-6 py-4 font-semibold text-gray-800">{med.name}</td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded font-medium">{med.category}</span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider ${med.verificationStatus === 'Approved' ? 'text-green-600' : 'text-red-500'
-                                                    }`}>
-                                                    {med.verificationStatus === 'Approved' ? <HiCheckCircle size={16} /> : <HiXCircle size={16} />}
-                                                    {med.verificationStatus}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-20 bg-gray-200 rounded-full h-1.5 hidden lg:block">
-                                                        <div
-                                                            className="h-1.5 rounded-full transition-all duration-500"
-                                                            style={{
-                                                                width: `${Math.min(med.stock / 2, 100)}%`,
-                                                                backgroundColor: med.stock === 0 ? '#EF4444' : med.stock < 50 ? '#F59E0B' : themeColor
-                                                            }}
-                                                        ></div>
-                                                    </div>
-                                                    <span className={`text-sm font-bold ${med.stock === 0 ? 'text-red-500' : 'text-gray-700'}`}>
-                                                        {med.stock}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 font-bold text-gray-700">{med.price}</td>
-                                            <td className="px-6 py-4 text-center">
-                                                <button
-                                                    className="p-2 rounded-lg bg-gray-50 text-gray-400 group-hover:bg-white group-hover:text-[#08B36A] group-hover:shadow-md transition-all"
-                                                    title="View Details"
-                                                >
-                                                    <AiOutlineEye size={20} />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
+                                {loading ? (
                                     <tr>
-                                        <td colSpan="7" className="px-6 py-12 text-center text-gray-400 font-medium">
-                                            No medicines found matching your current filters.
+                                        <td colSpan="4" className="text-center py-24">
+                                            <div className="flex flex-col items-center gap-2">
+                                                <AiOutlineLoading3Quarters className="animate-spin text-green-500" size={24} />
+                                                <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Fetching Data...</span>
+                                            </div>
                                         </td>
                                     </tr>
-                                )}
+                                ) : medicines.length === 0 ? (
+                                    <tr><td colSpan="4" className="text-center py-20 text-xs font-bold text-gray-400 uppercase tracking-widest">No matching records found</td></tr>
+                                ) : medicines.map((med) => (
+                                    <tr key={med._id} className="hover:bg-gray-50/50 transition-all group">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 bg-white rounded-xl border border-gray-100 p-1.5 shrink-0 flex items-center justify-center">
+                                                    {med.image_url?.[0] ? (
+                                                        <img src={med.image_url?.[0]} className="max-w-full max-h-full object-contain" alt="" />
+                                                    ) : (
+                                                        <MdOutlineStorefront size={20} className="text-gray-200" />
+                                                    )}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-black text-gray-800 text-sm uppercase truncate max-w-[200px]">{med.name}</p>
+                                                    <p className="text-[10px] text-gray-400 font-bold uppercase truncate">{med.packaging}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase italic">
+                                            {med.manufacturers || "N/A"}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <p className="font-black text-gray-900 text-sm">₹{med.best_price}</p>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex justify-center items-center gap-1">
+                                                <button onClick={() => { setSelectedMedicine(med); setIsDetailModalOpen(true); }} className="p-2 text-gray-400 hover:text-green-600 transition-colors" title="View"><AiOutlineEye size={18} /></button>
+                                                <button onClick={() => openEditModal(med)} className="p-2 text-gray-400 hover:text-blue-500 transition-colors" title="Edit"><AiOutlineEdit size={18} /></button>
+                                                <button onClick={() => handleDelete(med._id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors" title="Delete"><AiOutlineDelete size={18} /></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
 
-                    {/* FOOTER */}
-                    <div className="px-6 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500 font-medium">
-                        <span>Showing {filteredMedicines.length} of {initialMedicines.length} medicines</span>
-                        <div className="flex gap-2">
-                            <button className="px-3 py-1 border rounded hover:bg-gray-50 transition-colors">Previous</button>
-                            <button className="px-3 py-1 border rounded bg-white text-[#08B36A] shadow-sm font-bold border-[#08B36A]/20">1</button>
-                            <button className="px-3 py-1 border rounded hover:bg-gray-50 transition-colors">Next</button>
+                    {/* PAGINATION - Mobile Friendly */}
+                    {!loading && totalPages > 1 && (
+                        <div className="px-6 py-4 bg-gray-50/50 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-100">
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                {totalDocs} Total Records
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    disabled={page === 1}
+                                    onClick={() => setPage(p => p - 1)}
+                                    className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-black uppercase tracking-widest disabled:opacity-30 shadow-sm transition-all active:scale-95"
+                                >
+                                    <HiChevronLeft size={16} />
+                                </button>
+                                <div className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-[10px] font-black text-gray-700 shadow-sm">
+                                    PAGE {page} / {totalPages}
+                                </div>
+                                <button
+                                    disabled={page === totalPages}
+                                    onClick={() => setPage(p => p + 1)}
+                                    className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-black uppercase tracking-widest disabled:opacity-30 shadow-sm transition-all active:scale-95"
+                                >
+                                    <HiChevronRight size={16} />
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
+
+            <MedicineDetailsModal isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} medicine={selectedMedicine} themeColor={themeColor} />
+            <AddMedicineModal isOpen={isAddModalOpen} onClose={() => { setIsAddModalOpen(false); setEditData(null); }} onSave={handleSaveMedicine} themeColor={themeColor} initialData={editData} />
         </div>
     );
 }
 
 function StatCard({ title, value, icon, color }) {
     return (
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-            <div className="p-3 rounded-lg" style={{ backgroundColor: `${color}15`, color: color }}>
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 flex items-center gap-4 shadow-sm">
+            <div className="p-3.5 rounded-xl shrink-0" style={{ backgroundColor: `${color}10`, color: color }}>
                 {icon}
             </div>
-            <div>
-                <p className="text-sm font-medium text-gray-500">{title}</p>
-                <p className="text-2xl font-bold text-gray-800">{value}</p>
+            <div className="min-w-0">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1 truncate">{title}</p>
+                <p className="text-xl font-black text-gray-800 truncate">{value}</p>
             </div>
         </div>
     );
