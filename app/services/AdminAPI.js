@@ -179,6 +179,31 @@ const AdminAPI = {
         return response.data;
     },
 
+    //Manage Coupons in Admin
+    adminGetCouponsList: async () => {
+        const response = await api.get("/provider/coupons/admin/list");
+        return response.data;
+    },
+    adminGetVendorTypes: async () => {
+        const response = await api.get("/provider/coupons/enum-types");
+        return response.data;
+    },
+    adminAddCoupon: async (couponData) => {
+        const response = await api.post("/provider/coupons/admin/add", couponData);
+        return response.data;
+    },
+    adminToggleCouponStatus: async (id) => {
+        const response = await api.patch(`/provider/coupons/admin/toggle/${id}`);
+        return response.data;
+    },
+    adminUpdateCoupon: async (id) => {
+        const response = await api.put(`/provider/coupons/admin/update/${id}`);
+        return response.data;
+    },
+    adminDeleteCoupon: async (id) => {
+        const response = await api.delete(`/provider/coupons/admin/delete/${id}`);
+        return response.data;
+    }
  
 };
 
