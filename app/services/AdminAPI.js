@@ -232,7 +232,55 @@ const AdminAPI = {
         return (await api.delete(`/admin/pharmacy/medicine/delete/${id}`)).data;
     },
 
-    
+    //Manage Banners in Admin
+    adminCreateBanner: async (formData) => {
+        const response = await api.post('/admin/banners/add', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data;
+    },
+    adminUpdateBanner: async (id, formData) => {
+        const response = await api.put(`/admin/banners/update/${id}`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data;
+    },
+    adminGetAllBanners: async () => {
+        const response = await api.get('/admin/banners/list');
+        return response.data;
+    },
+    adminDeleteBanner: async (id) => {
+        const response = await api.delete(`/admin/banners/delete/${id}`);
+        return response.data;
+    },
+
+    getAppBanners: async () => {
+        const response = await api.get('/admin/banners/display');
+        return response.data;
+    },
+
+    //EMERGENCY CONTACTS ADMIN FUNCTIONS ---
+    adminCreateEmergencyContact: async (contactData) => {
+        const response = await api.post('/admin/emergency-contacts/add', contactData);
+        return response.data;
+    },
+    adminGetEmergencyContacts: async () => {
+        const response = await api.get('/admin/emergency-contacts/list');
+        return response.data;
+    },
+    adminUpdateEmergencyContact: async (id, contactData) => {
+        const response = await api.put(`/admin/emergency-contacts/update/${id}`, contactData);
+        return response.data;
+    },
+    adminDeleteEmergencyContact: async (id) => {
+        const response = await api.delete(`/admin/emergency-contacts/delete/${id}`);
+        return response.data;
+    }
+
 
 };
 
