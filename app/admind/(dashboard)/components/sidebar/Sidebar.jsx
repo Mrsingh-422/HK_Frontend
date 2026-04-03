@@ -234,24 +234,17 @@ export default function Sidebar() {
                     <span>Manage Hospital</span>
                 </Link>
 
-                    {/* Manage App Banners */}
+                {/* Manage App Banners */}
                 <Link href="/admind/appbanners" className={`menu-item ${isActive("/admind/appbanners") ? "active" : ""}`}>
                     <FaImages className="icon" />
                     <span>App Banners</span>
                 </Link>
 
-                {/* Articles */}
-                <div className={`menu-item dropdown ${isParentActive("/admind/articles") ? "active" : ""}`} onClick={() => toggleMenu("articles")}>
-                    <FaNewspaper className="icon" />
+                {/* Manage Articles */}
+                <Link href="/admind/articles" className={`menu-item ${isActive("/admind/articles") ? "active" : ""}`}>
+                    <FaImages className="icon" />
                     <span>Articles</span>
-                    {openMenu === "articles" ? <FaChevronDown className="arrow rotate" /> : <FaChevronRight className="arrow" />}
-                </div>
-                {openMenu === "articles" && (
-                    <div className="submenu fade-in">
-                        <Link href="/admind/articles/health" className={`submenu-link ${isActive("/admind/articles/health") ? "sub-active" : ""}`}>Health Articles</Link>
-                        <Link href="/admind/articles/medical" className={`submenu-link ${isActive("/admind/articles/medical") ? "sub-active" : ""}`}>Medical Articles</Link>
-                    </div>
-                )}
+                </Link>
 
                 {/* Manage Coupon */}
                 <Link href="/admind/managecoupon" className={`menu-item ${isActive("/admind/managecoupon") ? "active" : ""}`}>

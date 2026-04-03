@@ -257,7 +257,6 @@ const AdminAPI = {
         const response = await api.delete(`/admin/banners/delete/${id}`);
         return response.data;
     },
-
     getAppBanners: async () => {
         const response = await api.get('/admin/banners/display');
         return response.data;
@@ -279,8 +278,63 @@ const AdminAPI = {
     adminDeleteEmergencyContact: async (id) => {
         const response = await api.delete(`/admin/emergency-contacts/delete/${id}`);
         return response.data;
-    }
+    },
 
+    // --- ARTICLES ADMIN FUNCTIONS --
+    adminCreateArticle: async (formData) => {
+        const response = await api.post('/admin/articles/add', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data;
+    },
+    adminGetArticles: async () => {
+        const response = await api.get('/admin/articles/list');
+        return response.data;
+    },
+    adminUpdateArticle: async (id, formData) => {
+        const response = await api.put(`/admin/articles/update/${id}`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data;
+    },
+    adminDeleteArticle: async (id) => {
+        const response = await api.delete(`/admin/articles/delete/${id}`);
+        return response.data;
+    },
+
+    // --- AD MANAGER ADMIN FUNCTIONS ---
+    adminCreateAd: async (formData) => {
+        const response = await api.post('/admin/ads/add', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data;
+    },
+    adminGetAllAds: async () => {
+        const response = await api.get('/admin/ads/list');
+        return response.data;
+    },
+    adminUpdateAd: async (id, formData) => {
+        const response = await api.put(`/admin/ads/update/${id}`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data;
+    },
+    adminDeleteAd: async (id) => {
+        const response = await api.delete(`/admin/ads/delete/${id}`);
+        return response.data;
+    },
+    getAdsByPage: async (pageName) => {
+        const response = await api.get(`/admin/ads/display?page=${pageName}`);
+        return response.data;
+    }
 
 };
 
