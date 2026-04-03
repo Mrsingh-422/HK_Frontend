@@ -1,24 +1,49 @@
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import AdminAPI from '@/app/services/AdminAPI'; // Ensure this path is correct
 import {
     FaMicroscope, FaPills, FaUserNurse, FaHospital, FaUserMd,
-    FaChevronRight, FaTicketAlt
+    FaChevronRight, FaTicketAlt, FaSpinner
 } from 'react-icons/fa';
 
 // --- MAIN PAGE COMPONENT ---
 const VendorManagementPage = () => {
     const [activeTab, setActiveTab] = useState('Lab Vendor');
+    const [coupons, setCoupons] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     const vendorConfigs = [
-        { id: 'Lab Vendor', icon: <FaMicroscope /> },
-        { id: 'Pharmacy Vendor', icon: <FaPills /> },
-        { id: 'Nurse Vendor', icon: <FaUserNurse /> },
-        { id: 'Hospital Vendor', icon: <FaHospital /> },
-        { id: 'Doctor Vendor', icon: <FaUserMd /> },
+        { id: 'Lab Vendor', apiKey: 'Lab', icon: <FaMicroscope /> },
+        { id: 'Pharmacy Vendor', apiKey: 'Pharmacy', icon: <FaPills /> },
+        { id: 'Nurse Vendor', apiKey: 'Nurse', icon: <FaUserNurse /> },
+        { id: 'Hospital Vendor', apiKey: 'Hospital', icon: <FaHospital /> },
+        { id: 'Doctor Vendor', apiKey: 'Doctor', icon: <FaUserMd /> },
     ];
 
     const activeConfig = vendorConfigs.find(v => v.id === activeTab);
+
+    // 1. Fetch Data on Mount
+    useEffect(() => {
+        const getCoupons = async () => {
+            try {
+                setLoading(true);
+                const response = await AdminAPI.adminGetCouponsList();
+                // Based on your response: { "data": [...] }
+                setCoupons(response.data || []);
+            } catch (error) {
+                console.error("Error fetching coupons:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        getCoupons();
+    }, []);
+
+    // 2. Filter coupons based on active tab
+    const filteredCoupons = coupons.filter(coupon => 
+        coupon.vendorType === activeConfig.apiKey
+    );
 
     return (
         <div className="min-h-screen bg-[#f8fafc]">
@@ -76,27 +101,55 @@ const VendorManagementPage = () => {
                             <thead>
                                 <tr className="bg-gray-50/50">
                                     <th className="px-6 py-5 text-[13px] font-bold text-gray-600 uppercase tracking-wider border-b">S No.</th>
-                                    <th className="px-6 py-5 text-[13px] font-bold text-gray-600 uppercase tracking-wider border-b">Vendor Name</th>
                                     <th className="px-6 py-5 text-[13px] font-bold text-gray-600 uppercase tracking-wider border-b">Coupon Code</th>
-                                    <th className="px-6 py-5 text-[13px] font-bold text-gray-600 uppercase tracking-wider border-b">Discount Amount</th>
-                                    <th className="px-6 py-5 text-[13px] font-bold text-gray-600 uppercase tracking-wider border-b">Minimum Order Amount</th>
-                                    <th className="px-6 py-5 text-[13px] font-bold text-gray-600 uppercase tracking-wider border-b">Coupon Type</th>
-                                    <th className="px-6 py-5 text-[13px] font-bold text-gray-600 uppercase tracking-wider border-b">End Date</th>
+                                    <th className="px-6 py-5 text-[13px] font-bold text-gray-600 uppercase tracking-wider border-b">Discount</th>
+                                    <th className="px-6 py-5 text-[13px] font-bold text-gray-600 uppercase tracking-wider border-b">Min Order</th>
+                                    <th className="px-6 py-5 text-[13px] font-bold text-gray-600 uppercase tracking-wider border-b">Status</th>
+                                    <th className="px-6 py-5 text-[13px] font-bold text-gray-600 uppercase tracking-wider border-b">Expiry Date</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {/* Sample Data Rows - These would normally come from your API based on activeTab */}
-                                <CouponRow sno="1" vendor="Prime Healthcare" code="HEALTH25" discount="25%" minOrder="1,200" type="Percentage" date="2024-12-31" />
-                                <CouponRow sno="2" vendor="Global Diagnostics" code="LABSAVE" discount="500" minOrder="2,500" type="Fixed Amount" date="2024-11-15" />
-                                <CouponRow sno="3" vendor="MediLife Services" code="WELCOME10" discount="10%" minOrder="500" type="Percentage" date="2024-10-20" />
-                                <CouponRow sno="4" vendor="Wellness Hub" code="FLAT200" discount="200" minOrder="1,000" type="Fixed Amount" date="2024-09-05" />
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan="7" className="px-6 py-20 text-center">
+                                            <div className="flex flex-col items-center gap-2 text-gray-400">
+                                                <FaSpinner className="animate-spin text-2xl text-[#08b36a]" />
+                                                <span className="font-bold text-xs uppercase tracking-widest">Loading Coupons...</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : filteredCoupons.length > 0 ? (
+                                    filteredCoupons.map((coupon, index) => (
+                                        <CouponRow 
+                                            key={coupon._id}
+                                            sno={index + 1} 
+                                            // If vendorId is null, it's an Admin Created Category Coupon
+                                            vendor={coupon.isAdminCreated ? "Admin (Global)" : (coupon.vendorId || "Individual Vendor")} 
+                                            code={coupon.couponName} 
+                                            discount={coupon.discountPercentage} 
+                                            minOrder={coupon.minOrderAmount} 
+                                            isActive={coupon.isActive} 
+                                            date={new Date(coupon.expiryDate).toLocaleDateString('en-GB', {
+                                                day: '2-digit', month: 'short', year: 'numeric'
+                                            })} 
+                                        />
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="7" className="px-6 py-20 text-center text-gray-400 font-bold uppercase text-xs tracking-widest">
+                                            No Coupons found for {activeTab}
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
 
                     {/* Empty state footer hint */}
                     <div className="p-6 bg-gray-50/30 text-center">
-                        <p className="text-xs text-gray-400 font-medium italic">Showing all active records for the selected vendor category.</p>
+                        <p className="text-xs text-gray-400 font-medium italic">
+                            Showing {filteredCoupons.length} active records for the {activeTab} category.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -109,23 +162,24 @@ const VendorManagementPage = () => {
     );
 };
 
-// Reusable Row Component for clean code
-const CouponRow = ({ sno, vendor, code, discount, minOrder, type, date }) => (
-    <tr className="hover:bg-gray-50/80 transition-colors">
+// Reusable Row Component
+const CouponRow = ({ sno, vendor, code, discount, minOrder, isActive, date }) => (
+    <tr className={`hover:bg-gray-50/80 transition-colors ${!isActive ? 'opacity-50' : ''}`}>
         <td className="px-6 py-4 text-sm font-medium text-gray-400">{sno}</td>
-        <td className="px-6 py-4 text-sm font-bold text-gray-800">{vendor}</td>
         <td className="px-6 py-4">
             <span className="bg-green-50 text-[#08b36a] px-3 py-1 rounded-lg font-mono font-bold text-xs border border-green-100 uppercase">
                 {code}
             </span>
         </td>
         <td className="px-6 py-4 text-sm font-black text-gray-700">
-            {type === 'Percentage' ? `${discount}` : `₹${discount}`}
+            {discount}%
         </td>
-        <td className="px-6 py-4 text-sm text-gray-600 font-medium">₹{minOrder}</td>
+        <td className="px-6 py-4 text-sm text-gray-600 font-medium">₹{minOrder.toLocaleString()}</td>
         <td className="px-6 py-4">
-            <span className="text-[10px] font-black uppercase px-2 py-1 bg-gray-100 text-gray-500 rounded tracking-tighter">
-                {type}
+            <span className={`text-[10px] font-black uppercase px-2 py-1 rounded tracking-tighter ${
+                isActive ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+            }`}>
+                {isActive ? "Active" : "Inactive"}
             </span>
         </td>
         <td className="px-6 py-4 text-sm text-gray-500 font-medium italic">{date}</td>
