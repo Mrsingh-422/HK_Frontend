@@ -121,17 +121,11 @@ export default function Sidebar() {
                     </div>
                 )}
 
-                {/* Users */}
-                <div className={`menu-item dropdown ${isParentActive("/admind/users") ? "active" : ""}`} onClick={() => toggleMenu("users")}>
+                {/* Manage Users */}
+                <Link href="/admind/users" className={`menu-item ${isActive("/admind/managedrivers") ? "active" : ""}`}>
                     <FaUsers className="icon" />
-                    <span>Users</span>
-                    {openMenu === "users" ? <FaChevronDown className="arrow rotate" /> : <FaChevronRight className="arrow" />}
-                </div>
-                {openMenu === "users" && (
-                    <div className="submenu fade-in">
-                        <Link href="/admind/users/manageusers" className={`submenu-link ${isActive("/admind/users/manageusers") ? "sub-active" : ""}`}>Manage Users</Link>
-                    </div>
-                )}
+                    <span>Manage Users</span>
+                </Link>
 
                 {/* Vendors */}
                 <div className={`menu-item dropdown ${isParentActive("/admind/vendors") ? "active" : ""}`} onClick={() => toggleMenu("vendors")}>

@@ -353,7 +353,29 @@ const AdminAPI = {
         const response = await api.delete(`/admin/drivers/vendor/delete/${id}`);
         return response.data;
     },
-    
+
+    // --- USER MANAGEMENT ADMIN FUNCTIONS ---
+    adminGetUsers: async (page = 1) => {
+        const response = await api.get(`/admin/users/list?page=${page}`);
+        return response.data;
+    },
+    adminSearchUsers: async (query) => {
+        const response = await api.get(`/admin/users/search?query=${query}`);
+        return response.data;
+    },
+    adminGetUserDetails: async (id) => {
+        const response = await api.get(`/admin/users/details/${id}`);
+        return response.data;
+    },
+    adminToggleUserStatus: async (id) => {
+        const response = await api.patch(`/admin/users/toggle-status/${id}`);
+        return response.data;
+    },
+    adminDeleteUser: async (id) => {
+        const response = await api.delete(`/admin/users/delete/${id}`);
+        return response.data;
+    }
+
 
 };
 
