@@ -234,19 +234,11 @@ export default function Sidebar() {
                     <span>Manage Hospital</span>
                 </Link>
 
-                {/* App Banners */}
-                <div className={`menu-item dropdown ${isParentActive("/admind/appbanners") ? "active" : ""}`} onClick={() => toggleMenu("appbanners")}>
+                    {/* Manage App Banners */}
+                <Link href="/admind/appbanners" className={`menu-item ${isActive("/admind/appbanners") ? "active" : ""}`}>
                     <FaImages className="icon" />
                     <span>App Banners</span>
-                    {openMenu === "appbanners" ? <FaChevronDown className="arrow rotate" /> : <FaChevronRight className="arrow" />}
-                </div>
-                {openMenu === "appbanners" && (
-                    <div className="submenu fade-in">
-                        <Link href="/admind/appbanners/homescreen" className={`submenu-link ${isActive("/admind/appbanners/homescreen") ? "sub-active" : ""}`}>App Home Banners</Link>
-                        <Link href="/admind/appbanners/nurse" className={`submenu-link ${isActive("/admind/appbanners/nurse") ? "sub-active" : ""}`}>App Nurse Banners</Link>
-                        <Link href="/admind/appbanners/medicine" className={`submenu-link ${isActive("/admind/appbanners/medicine") ? "sub-active" : ""}`}>App Medicine Banners</Link>
-                    </div>
-                )}
+                </Link>
 
                 {/* Articles */}
                 <div className={`menu-item dropdown ${isParentActive("/admind/articles") ? "active" : ""}`} onClick={() => toggleMenu("articles")}>
