@@ -334,7 +334,26 @@ const AdminAPI = {
     getAdsByPage: async (pageName) => {
         const response = await api.get(`/admin/ads/display?page=${pageName}`);
         return response.data;
-    }
+    },
+
+    // --- DRIVER / VENDOR ADMIN FUNCTIONS ---
+    adminGetAllDrivers: async () => {
+        const response = await api.get('/admin/drivers/vendor/list');
+        return response.data;
+    },
+    adminGetDriverDetails: async (id) => {
+        const response = await api.get(`/admin/drivers/vendor/details/${id}`);
+        return response.data;
+    },
+    adminToggleDriverStatus: async (id) => {
+        const response = await api.patch(`/admin/drivers/vendor/toggle/${id}`);
+        return response.data;
+    },
+    adminDeleteDriver: async (id) => {
+        const response = await api.delete(`/admin/drivers/vendor/delete/${id}`);
+        return response.data;
+    },
+    
 
 };
 

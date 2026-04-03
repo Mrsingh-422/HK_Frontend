@@ -15,9 +15,9 @@ function Page() {
 
     const tabs = [
         { id: "vendor", label: "Manage Lab Vendor", component: <ManageLabVendorComponent /> },
-        { id: "upload", label: "Upload Test", component: <UploadTest /> },
+        { id: "upload", label: "Upload Test/Package", component: <UploadTest /> },
         { id: "report", label: "Lab Test Report", component: <LabTestReportComponent /> },
-        { id: "type", label: "Lab Test Type", component: <LabTestTypeComponent /> },
+        // { id: "type", label: "Lab Test Type", component: <LabTestTypeComponent /> },
         { id: "package", label: "Lab Test Package", component: <LabTestPackageComponent /> },
         { id: "test", label: "Manage Lab Test", component: <ManageLabTestComponent /> },
     ];
