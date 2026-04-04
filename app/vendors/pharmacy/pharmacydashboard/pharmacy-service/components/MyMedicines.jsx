@@ -1,8 +1,8 @@
 "use client";
 import React, { useState } from 'react';
-import { 
-    FaPlus, FaCapsules, FaTimes, FaRupeeSign, FaTrash, 
-    FaEdit, FaSearch, FaExclamationTriangle, FaCheckCircle, FaLayerGroup 
+import {
+    FaPlus, FaCapsules, FaTimes, FaRupeeSign, FaTrash,
+    FaEdit, FaSearch, FaExclamationTriangle, FaCheckCircle, FaLayerGroup
 } from 'react-icons/fa';
 
 export default function MyMedicines() {
@@ -46,29 +46,22 @@ export default function MyMedicines() {
 
     return (
         <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
-            
-            {/* --- STATS --- */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard label="Total Items" value={medicines.length} icon={<FaLayerGroup />} color="emerald" />
-                <StatCard label="Low Stock" value={medicines.filter(m => m.stock < 20).length} icon={<FaExclamationTriangle />} color="amber" />
-                <StatCard label="Inventory Value" value={`₹${medicines.reduce((acc, curr) => acc + (parseFloat(curr.price) * curr.stock), 0).toLocaleString()}`} icon={<FaRupeeSign />} color="blue" />
-            </div>
 
             {/* --- TOOLBAR --- */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                 <div className="relative w-full sm:w-80">
                     <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input 
-                        type="text" placeholder="Search my stock..." 
+                    <input
+                        type="text" placeholder="Search my stock..."
                         value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
                     />
                 </div>
-                <button 
+                <button
                     onClick={handleOpenAddModal}
                     className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-emerald-500 text-white rounded-xl font-bold text-sm hover:bg-emerald-600 transition-all shadow-md shadow-emerald-100"
                 >
-                    <FaPlus size={12}/> Add New Medicine
+                    <FaPlus size={12} /> Add New Medicine
                 </button>
             </div>
 
@@ -114,10 +107,10 @@ export default function MyMedicines() {
                                     <td className="p-5 pr-8 text-center">
                                         <div className="flex items-center justify-center gap-2">
                                             <button onClick={(e) => handleOpenEditModal(e, med)} className="p-2 bg-gray-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg transition-all border border-gray-200">
-                                                <FaEdit size={14}/>
+                                                <FaEdit size={14} />
                                             </button>
                                             <button onClick={() => setMedicines(medicines.filter(m => m.id !== med.id))} className="p-2 bg-gray-50 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-all border border-gray-200">
-                                                <FaTrash size={14}/>
+                                                <FaTrash size={14} />
                                             </button>
                                         </div>
                                     </td>
@@ -143,28 +136,28 @@ export default function MyMedicines() {
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div>
                                 <label className="block text-xs font-bold text-gray-700 mb-1">Medicine Name</label>
-                                <input type="text" required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                                <input type="text" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-700 mb-1">Category</label>
-                                    <select value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                                    <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
                                         <option>Fever & Pain</option><option>Antibiotics</option><option>Supplements</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-700 mb-1">Price (₹)</label>
-                                    <input type="number" step="0.01" required value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                                    <input type="number" step="0.01" required value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-700 mb-1">Stock Qty</label>
-                                    <input type="number" required value={formData.stock} onChange={(e) => setFormData({...formData, stock: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                                    <input type="number" required value={formData.stock} onChange={(e) => setFormData({ ...formData, stock: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-700 mb-1">Expiry Date</label>
-                                    <input type="date" required value={formData.expiry} onChange={(e) => setFormData({...formData, expiry: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                                    <input type="date" required value={formData.expiry} onChange={(e) => setFormData({ ...formData, expiry: e.target.value })} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
                                 </div>
                             </div>
                             <div className="pt-4 flex justify-end gap-3">
@@ -177,25 +170,6 @@ export default function MyMedicines() {
                     </div>
                 </div>
             )}
-        </div>
-    );
-}
-
-function StatCard({ label, value, icon, color }) {
-    const colors = {
-        emerald: "bg-emerald-50 text-emerald-600 border-emerald-100",
-        amber: "bg-amber-50 text-amber-600 border-amber-100",
-        blue: "bg-blue-50 text-blue-600 border-blue-100"
-    };
-    return (
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-5">
-            <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl border ${colors[color]}`}>
-                {icon}
-            </div>
-            <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
-                <p className="text-2xl font-bold text-gray-800 tracking-tight">{value}</p>
-            </div>
         </div>
     );
 }

@@ -18,8 +18,8 @@ api.interceptors.request.use((config) => {
 });
 
 const PharmacyAPI = {
-    getPharmacies: async () => {
-        const response = await api.get("/api/pharmacy");
+    pharmacyDrivers: async () => {
+        const response = await api.get('/admin/drivers/vendor/list');
         return response.data;
     },
 };

@@ -30,8 +30,8 @@ export default function MedicineRegistryPage() {
                         <button
                             onClick={() => setActiveTab('all')}
                             className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 ${activeTab === 'all'
-                                    ? "bg-white text-emerald-600 shadow-sm"
-                                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                                ? "bg-white text-emerald-600 shadow-sm"
+                                : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
                                 }`}
                         >
                             <FaDatabase size={14} />
@@ -40,8 +40,8 @@ export default function MedicineRegistryPage() {
                         <button
                             onClick={() => setActiveTab('mine')}
                             className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 ${activeTab === 'mine'
-                                    ? "bg-white text-emerald-600 shadow-sm"
-                                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                                ? "bg-white text-emerald-600 shadow-sm"
+                                : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
                                 }`}
                         >
                             <FaPrescriptionBottleAlt size={14} />

@@ -20,8 +20,8 @@ export default function AllMedicines() {
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
                 <div className="relative w-full max-w-md">
                     <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input 
-                        type="text" placeholder="Search global database..." 
+                    <input
+                        type="text" placeholder="Search global database..."
                         value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
                     />
@@ -45,7 +45,7 @@ export default function AllMedicines() {
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                         {filtered.map(med => (
-                            <tr key={med.id} className="hover:bg-emerald-50/40 transition-all group cursor-pointer" onClick={() => {setSelectedMed(med); setIsModalOpen(true);}}>
+                            <tr key={med.id} className="hover:bg-emerald-50/40 transition-all group cursor-pointer" onClick={() => { setSelectedMed(med); setIsModalOpen(true); }}>
                                 <td className="p-5 pl-8">
                                     <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 bg-white border border-gray-100 text-emerald-500 rounded-xl flex items-center justify-center shadow-sm">
@@ -63,11 +63,11 @@ export default function AllMedicines() {
                                     </span>
                                 </td>
                                 <td className="p-5">
-                                    <span className="text-sm font-bold text-gray-800 flex items-center gap-1"><FaRupeeSign size={11} className="text-gray-400"/> {med.price}</span>
+                                    <span className="text-sm font-bold text-gray-800 flex items-center gap-1"><FaRupeeSign size={11} className="text-gray-400" /> {med.price}</span>
                                 </td>
                                 <td className="p-5 pr-8 text-center">
                                     <button className="px-4 py-2 bg-gray-900 text-white rounded-lg text-xs font-bold hover:bg-emerald-600 transition-all flex items-center gap-2 mx-auto shadow-md shadow-gray-200">
-                                        <FaEye size={12}/> View Profile
+                                        <FaEye size={12} /> View Profile
                                     </button>
                                 </td>
                             </tr>
@@ -101,7 +101,7 @@ export default function AllMedicines() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                     <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">MSRP Price</p>
-                                    <p className="text-lg font-bold text-gray-800 flex items-center gap-1"><FaRupeeSign size={14}/> {selectedMed.price}</p>
+                                    <p className="text-lg font-bold text-gray-800 flex items-center gap-1"><FaRupeeSign size={14} /> {selectedMed.price}</p>
                                 </div>
                                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                     <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">ID Code</p>
@@ -112,7 +112,7 @@ export default function AllMedicines() {
                                 "{selectedMed.description}"
                             </div>
                             <div className="flex items-center gap-3 p-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 text-[10px] font-bold uppercase tracking-widest justify-center">
-                                <FaShieldAlt size={16}/> Verified Pharmaceutical Data
+                                <FaShieldAlt size={16} /> Verified Pharmaceutical Data
                             </div>
                         </div>
                         <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 text-right">
