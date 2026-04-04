@@ -4,9 +4,9 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
-    FaBars, FaUserCircle, FaSignOutAlt, FaChevronDown, 
-    FaHome, FaBoxOpen, FaMotorcycle, FaClipboardList, 
-    FaMapMarkedAlt, FaPills, FaBullhorn, FaFileAlt, 
+    FaBars, FaUserCircle, FaSignOutAlt, FaChevronDown,
+    FaHome, FaBoxOpen, FaMotorcycle, FaClipboardList,
+    FaMapMarkedAlt, FaPills, FaBullhorn, FaFileAlt,
     FaMoneyBillWave, FaWallet, FaQuestionCircle
 } from "react-icons/fa";
 import { MdMenuOpen, MdMenu } from "react-icons/md";
@@ -15,7 +15,7 @@ import { MdMenuOpen, MdMenu } from "react-icons/md";
 // 🌟 1. PHARMACY TOPBAR COMPONENT 🌟
 // ==========================================
 const PharmacyTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) => {
-    const[isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
 
     // Close dropdown when clicked outside
@@ -27,28 +27,28 @@ const PharmacyTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) =>
         };
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
-    },[]);
+    }, []);
 
-    const menuItems =[
-        { name: 'My Profile', href: '/vendors/pharmacy/profile', icon: FaUserCircle },
+    const menuItems = [
+        { name: 'My Profile', href: '/vendors/pharmacy/pharmacydashboard/profile', icon: FaUserCircle },
     ];
 
     return (
         <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-8 flex-shrink-0 z-40 transition-all duration-300">
-            
+
             {/* Left Side: Menu Buttons */}
             <div className="flex items-center gap-4">
                 {/* Mobile Hamburger Button */}
-                <button 
-                    onClick={onMobileMenuClick} 
+                <button
+                    onClick={onMobileMenuClick}
                     className="lg:hidden p-2 text-gray-500 hover:text-[#08B36A] hover:bg-green-50 rounded-lg transition-colors"
                 >
                     <FaBars size={20} />
                 </button>
 
                 {/* Desktop Minimize/Expand Button */}
-                <button 
-                    onClick={onToggleCollapse} 
+                <button
+                    onClick={onToggleCollapse}
                     className="hidden lg:flex p-2 text-gray-500 hover:text-[#08B36A] hover:bg-green-50 rounded-lg transition-colors items-center justify-center"
                     title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
                 >
@@ -61,7 +61,7 @@ const PharmacyTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) =>
                 {/* Profile Dropdown Area */}
                 <div className="relative" ref={dropdownRef}>
                     {/* Profile Trigger Button */}
-                    <button 
+                    <button
                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                         className="flex items-center gap-2 hover:bg-gray-50 p-1.5 pr-2 rounded-xl transition-all text-left border border-transparent hover:border-gray-200"
                     >
@@ -70,11 +70,10 @@ const PharmacyTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) =>
                             <p className="text-sm font-bold text-gray-700 leading-tight">Apollo Pharmacy</p>
                             <p className="text-xs font-medium text-gray-500">Pharmacy Vendor</p>
                         </div>
-                        <FaChevronDown 
-                            size={12} 
-                            className={`hidden md:block text-gray-400 transition-transform duration-300 ml-1 ${
-                                isDropdownOpen ? "rotate-180 text-[#08B36A]" : ""
-                            }`} 
+                        <FaChevronDown
+                            size={12}
+                            className={`hidden md:block text-gray-400 transition-transform duration-300 ml-1 ${isDropdownOpen ? "rotate-180 text-[#08B36A]" : ""
+                                }`}
                         />
                     </button>
 
@@ -87,7 +86,7 @@ const PharmacyTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) =>
                             </div>
 
                             {menuItems.map((item, index) => (
-                                <Link 
+                                <Link
                                     key={index}
                                     href={item.href}
                                     onClick={() => setIsDropdownOpen(false)}
@@ -100,7 +99,7 @@ const PharmacyTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) =>
 
                             <div className="my-1 border-t border-gray-100"></div>
 
-                            <button 
+                            <button
                                 onClick={() => {
                                     setIsDropdownOpen(false);
                                     alert("Logged out successfully!");
@@ -122,28 +121,28 @@ const PharmacyTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) =>
 // 🌟 2. MAIN PHARMACY LAYOUT COMPONENT 🌟
 // ==========================================
 export default function PharmacyVendorLayout({ children }) {
-    const [isSidebarOpen, setSidebarOpen] = useState(false); 
-    const[isCollapsed, setIsCollapsed] = useState(false);   
+    const [isSidebarOpen, setSidebarOpen] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false);
     const pathname = usePathname()
 
     // 🌟 Sidebar Menu Items (According to Pharmacy Dashboard image) 🌟
-    const menuItems =[
-        { name: 'Dashboard', href: '/vendors/pharmacy', icon: FaHome },
-        { name: 'Orders', href: '/vendors/pharmacy/orders', icon: FaBoxOpen },
-        { name: 'Manage Driver', href: '/vendors/pharmacy/manage-driver', icon: FaMotorcycle },
-        { name: 'Assign Driver', href: '/vendors/pharmacy/assign-driver', icon: FaClipboardList },
-        { name: 'Track Driver', href: '/vendors/pharmacy/track-driver', icon: FaMapMarkedAlt },
-        { name: 'Pharmacy Services', href: '/vendors/pharmacy/pharmacy-service', icon: FaPills },
-        { name: 'Promotion', href: '/vendors/pharmacy/coupon', icon: FaBullhorn },
-        { name: 'Manage Documents', href: '/vendors/pharmacy/document', icon: FaFileAlt },
-        { name: 'Manage Delivery Charges', href: '/vendors/pharmacy/delivery-charges', icon: FaMoneyBillWave },
-        { name: 'Wallet & Earning', href: '/vendors/pharmacy/wallet', icon: FaWallet },
-    
+    const menuItems = [
+        { name: 'Dashboard', href: '/vendors/pharmacy/pharmacydashboard', icon: FaHome },
+        { name: 'Orders', href: '/vendors/pharmacy/pharmacydashboard/orders', icon: FaBoxOpen },
+        // { name: 'Manage Medicine', href: '/vendors/pharmacy/pharmacydashboard/manage-medicine', icon: FaPills },
+        { name: 'Manage Driver', href: '/vendors/pharmacy/pharmacydashboard/manage-driver', icon: FaMotorcycle },
+        { name: 'Assign Driver', href: '/vendors/pharmacy/pharmacydashboard/assign-driver', icon: FaClipboardList },
+        { name: 'Track Driver', href: '/vendors/pharmacy/pharmacydashboard/track-driver', icon: FaMapMarkedAlt },
+        { name: 'Pharmacy Services', href: '/vendors/pharmacy/pharmacydashboard/pharmacy-service', icon: FaPills },
+        { name: 'Promotion', href: '/vendors/pharmacy/pharmacydashboard/coupon', icon: FaBullhorn },
+        { name: 'Manage Documents', href: '/vendors/pharmacy/pharmacydashboard/document', icon: FaFileAlt },
+        { name: 'Manage Delivery Charges', href: '/vendors/pharmacy/pharmacydashboard/delivery-charges', icon: FaMoneyBillWave },
+        { name: 'Wallet & Earning', href: '/vendors/pharmacy/pharmacydashboard/wallet', icon: FaWallet },
     ];
 
     return (
         <div className="h-screen w-full bg-gray-50 flex overflow-hidden">
-            
+
             {/* --- SIDEBAR --- */}
             <aside className={`
                 fixed inset-y-0 left-0 z-50 bg-white border-r border-gray-200 flex flex-col h-full
@@ -156,19 +155,19 @@ export default function PharmacyVendorLayout({ children }) {
                 <div className="p-4 border-b border-gray-50 flex items-center justify-center min-h-[64px] flex-shrink-0">
                     <Link href="/vendors/pharmacy" className="flex items-center justify-center overflow-hidden">
                         {isCollapsed ? (
-                            <Image 
-                                src="/logo.png" 
-                                alt="Logo" 
-                                width={40} 
-                                height={40} 
+                            <Image
+                                src="/logo.png"
+                                alt="Logo"
+                                width={40}
+                                height={40}
                                 className="object-contain transition-all duration-300"
                             />
                         ) : (
-                            <Image 
-                                src="/logo.png" 
-                                alt="Health Kangaroo Logo" 
-                                width={140} 
-                                height={50} 
+                            <Image
+                                src="/logo.png"
+                                alt="Health Kangaroo Logo"
+                                width={140}
+                                height={50}
                                 className="object-contain transition-all duration-300"
                             />
                         )}
@@ -183,14 +182,14 @@ export default function PharmacyVendorLayout({ children }) {
                             <Link
                                 key={item.name}
                                 href={item.href}
-                                onClick={() => setSidebarOpen(false)} 
+                                onClick={() => setSidebarOpen(false)}
                                 title={isCollapsed ? item.name : ""}
                                 className={`
                                     flex items-center rounded-xl transition-all duration-200 group
                                     ${isCollapsed ? 'justify-center p-3' : 'gap-3 px-4 py-2.5'}
                                     ${isActive
                                         ? 'bg-[#08B36A] text-white shadow-md shadow-green-100 font-medium'
-                                        : 'text-gray-500 hover:bg-[#08B36A] hover:text-white' 
+                                        : 'text-gray-500 hover:bg-[#08B36A] hover:text-white'
                                     }
                                 `}
                             >
@@ -209,10 +208,10 @@ export default function PharmacyVendorLayout({ children }) {
 
             {/* --- MAIN CONTENT SECTION --- */}
             <div className="flex-1 flex flex-col h-screen min-w-0 transition-all duration-300 bg-gray-50">
-                
+
                 {/* 🌟 TopBar integrated here 🌟 */}
-                <PharmacyTopBar 
-                    onMobileMenuClick={() => setSidebarOpen(true)} 
+                <PharmacyTopBar
+                    onMobileMenuClick={() => setSidebarOpen(true)}
                     onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
                     isCollapsed={isCollapsed}
                 />
