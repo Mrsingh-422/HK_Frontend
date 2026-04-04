@@ -33,10 +33,10 @@ const PharmacyAPI = {
         const response = await api.post('/provider/driver/search', searchCriteria);
         return response.data;
     },
-    getPharmacyDriverById: async (id) => {
-        const response = await api.get(`/provider/driver/details/${id}`);
-        return response.data;
-    },
+    // getPharmacyDriverById: async (id) => {
+    //     const response = await api.get(`/provider/driver/details/${id}`);
+    //     return response.data;
+    // },
     updatePharmacyDriver: async (id, formData) => {
         const response = await api.put(`/provider/driver/update/${id}`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }

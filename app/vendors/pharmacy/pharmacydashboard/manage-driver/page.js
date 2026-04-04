@@ -29,7 +29,7 @@ export default function ManageDriversPage() {
     const [isInfoOpen, setIsInfoOpen] = useState(false);
     const [selectedDriver, setSelectedDriver] = useState(null);
 
-    // --- API Fetching ---
+    // --- 1. Fetch Drivers ---
     const fetchDrivers = useCallback(async () => {
         try {
             setLoading(true);
@@ -39,7 +39,6 @@ export default function ManageDriversPage() {
                     ...driver,
                     id: driver._id,
                     image: getImageUrl(driver.profilePic),
-                    // vehicleType mapping for UI consistency
                     vehicleType: driver.vehicleNumber || 'Not Assigned'
                 }));
                 setDrivers(mappedDrivers);
@@ -55,21 +54,60 @@ export default function ManageDriversPage() {
         fetchDrivers();
     }, [fetchDrivers]);
 
-    // --- 🌟 Updated Status Change Logic 🌟 ---
+    // --- 2. Update Status (Dropdown) ---
     const handleStatusUpdate = async (id, newStatus) => {
         try {
-            // Explicitly sending the new status string to the backend
             const response = await PharmacyAPI.togglePharmacyDriverStatus(id, newStatus);
-
             if (response.success) {
-                // Update local state so UI reflects change immediately
                 setDrivers(prev => prev.map(d =>
                     d.id === id ? { ...d, status: newStatus } : d
                 ));
             }
         } catch (error) {
             console.error("Status update failed:", error);
-            alert("Failed to update status on server.");
+            alert("Failed to update status.");
+        }
+    };
+
+    // --- 3. Add Driver ---
+    const handleAddDriver = async (formData) => {
+        try {
+            const response = await PharmacyAPI.addPharmacyDriver(formData);
+            if (response.success) {
+                fetchDrivers();
+                setIsAddOpen(false);
+            }
+        } catch (error) {
+            alert("Failed to add driver. Check console.");
+        }
+    };
+
+    // --- 4. Update Driver Details (The Edit Function) ---
+    const handleUpdateDriver = async (id, formData) => {
+        try {
+            // formData is a FormData object from the Modal
+            const response = await PharmacyAPI.updatePharmacyDriver(id, formData);
+            if (response.success) {
+                fetchDrivers(); // Refresh list to see updates
+                setIsEditOpen(false);
+                setSelectedDriver(null);
+            }
+        } catch (error) {
+            console.error("Update failed:", error);
+            alert("Failed to update driver details.");
+        }
+    };
+
+    // --- 5. Delete Driver ---
+    const handleDelete = async (e, id) => {
+        e.stopPropagation();
+        if (window.confirm("Are you sure you want to remove this driver?")) {
+            try {
+                const response = await PharmacyAPI.deletePharmacyDriver(id);
+                if (response.success) fetchDrivers();
+            } catch (error) {
+                console.error("Delete failed:", error);
+            }
         }
     };
 
@@ -88,20 +126,8 @@ export default function ManageDriversPage() {
         d.phone?.includes(searchTerm)
     );
 
-    const handleDelete = async (e, id) => {
-        e.stopPropagation();
-        if (window.confirm("Are you sure you want to remove this driver?")) {
-            try {
-                const response = await PharmacyAPI.deletePharmacyDriver(id);
-                if (response.success) fetchDrivers();
-            } catch (error) {
-                console.error("Delete failed:", error);
-            }
-        }
-    };
-
     return (
-        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500 pb-10 max-w-7xl mx-auto p-4 sm:p-6">
+        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500 pb-10 max-w-7xl mx-auto p-4 sm:p-0">
 
             {/* --- HEADER --- */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
@@ -166,7 +192,6 @@ export default function ManageDriversPage() {
                                             </div>
                                         </td>
 
-                                        {/* STATUS DROPDOWN PILL */}
                                         <td className="p-5">
                                             <div
                                                 className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-300 ${getStatusStyles(driver.status)}`}
@@ -188,8 +213,12 @@ export default function ManageDriversPage() {
 
                                         <td className="p-5 pr-8">
                                             <div className="flex items-center justify-center gap-2">
-                                                <button onClick={(e) => { e.stopPropagation(); setSelectedDriver(driver); setIsEditOpen(true); }} className="p-2 bg-gray-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg border border-gray-100 shadow-sm transition-all"><FaEdit size={14} /></button>
-                                                <button onClick={(e) => handleDelete(e, driver.id)} className="p-2 bg-gray-50 text-red-500 hover:bg-red-500 hover:text-white rounded-lg border border-gray-100 shadow-sm transition-all"><FaTrash size={14} /></button>
+                                                <button onClick={(e) => { e.stopPropagation(); setSelectedDriver(driver); setIsEditOpen(true); }} className="p-2 bg-gray-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg border border-gray-100 shadow-sm transition-all">
+                                                    <FaEdit size={14} />
+                                                </button>
+                                                <button onClick={(e) => handleDelete(e, driver.id)} className="p-2 bg-gray-50 text-red-500 hover:bg-red-500 hover:text-white rounded-lg border border-gray-100 shadow-sm transition-all">
+                                                    <FaTrash size={14} />
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -203,9 +232,24 @@ export default function ManageDriversPage() {
             </div>
 
             {/* --- MODALS --- */}
-            <AddDriverModal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} onAdd={fetchDrivers} />
-            <EditDriverModal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} driver={selectedDriver} onUpdate={fetchDrivers} />
-            <DriverInfoModal isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} driver={selectedDriver} />
+            <AddDriverModal 
+                isOpen={isAddOpen} 
+                onClose={() => setIsAddOpen(false)} 
+                onAdd={handleAddDriver} 
+            />
+
+            <EditDriverModal 
+                isOpen={isEditOpen} 
+                onClose={() => setIsEditOpen(false)} 
+                driver={selectedDriver} 
+                onUpdate={handleUpdateDriver} 
+            />
+
+            <DriverInfoModal 
+                isOpen={isInfoOpen} 
+                onClose={() => setIsInfoOpen(false)} 
+                driver={selectedDriver} 
+            />
         </div>
     );
 }
