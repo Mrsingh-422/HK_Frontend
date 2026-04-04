@@ -19,6 +19,8 @@ api.interceptors.request.use((config) => {
 });
 
 const PharmacyAPI = {
+
+    //Pharmacy Drivers APIs 
     getPharmacyDrivers: async (page = 1) => {
         const response = await api.get(`/provider/driver/list?page=${page}`);
         return response.data;
