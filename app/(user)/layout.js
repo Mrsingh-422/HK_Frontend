@@ -1,4 +1,5 @@
 import { AuthProvider } from "../context/AuthContext";
+import { CartProvider } from "../context/CartContext";
 import { GlobalProvider } from "../context/GlobalContext";
 import { UserProvider } from "../context/UserContext";
 import "../globals.css";
@@ -17,12 +18,14 @@ export default function RootLayout({ children }) {
       <body>
         <AuthProvider >
           <UserProvider >
-            <GlobalProvider>
-              <TopNavbar />
-              {children}
-              <Footer />
-              <GlobalModal />
-            </GlobalProvider>
+            <CartProvider>
+              <GlobalProvider>
+                <TopNavbar />
+                {children}
+                <Footer />
+                <GlobalModal />
+              </GlobalProvider>
+            </CartProvider>
           </UserProvider>
         </AuthProvider>
       </body>

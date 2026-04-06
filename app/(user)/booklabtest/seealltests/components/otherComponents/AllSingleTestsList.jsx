@@ -1,27 +1,28 @@
 "use client";
+
 import React, { useState, useEffect, useMemo } from "react";
 import UserAPI from "@/app/services/UserAPI";
-import { FaStar, FaFlask, FaShoppingCart, FaTrashAlt } from "react-icons/fa";
+import { FaStar, FaFlask, FaChevronRight, FaVial, FaCheckCircle, FaPrescriptionBottleAlt } from "react-icons/fa";
 import TestDetailsModal from "./TestDetailsModal";
+import { useCart } from "@/app/context/CartContext";
 
 const CATEGORY_IMAGES = {
-    Radiology: "https://images.unsplash.com/photo-1516062423079-7ca13cdc7f5a?auto=format&fit=crop&q=80&w=500",
-    Pathology: "https://images.unsplash.com/photo-1579152276532-535c21af30b0?auto=format&fit=crop&q=80&w=500",
-    Default: "https://images.unsplash.com/photo-1582719202047-76d3432ee323?auto=format&fit=crop&q=80&w=500"
+    Radiology: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR2lytqry1YYLSNxtpI-zSkQAtuOmDzscJlcg&s",
+    Pathology: "https://www.news-medical.net/images/Article_Images/ImageForArticle_2146_1734704718618352.jpg",
+    Default: "https://img.freepik.com/free-photo/medicine-uniform-healthcare-medical-workers-day-concept_185193-108329.jpg?semt=ais_hybrid&w=740&q=80"
 };
 
 const AllSingleTestsList = ({ searchTerm = "" }) => {
+    const { cartItemIds } = useCart(); // Consume global cart state
     const [tests, setTests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedTest, setSelectedTest] = useState(null);
-    const [cartItems, setCartItems] = useState([]);
 
     useEffect(() => {
         const fetchTests = async () => {
             try {
                 setLoading(true);
-                let response;
-                response = await UserAPI.getStandardTestCatalog();
+                let response = await UserAPI.getStandardTestCatalog();
                 if (response.success) {
                     setTests(response.data || response.tests || []);
                 }
@@ -43,65 +44,115 @@ const AllSingleTestsList = ({ searchTerm = "" }) => {
         );
     }, [tests, searchTerm]);
 
-    const toggleCart = (test, e) => {
-        if (e) e.stopPropagation();
-        setCartItems(prev => prev.includes(test._id)
-            ? prev.filter(id => id !== test._id)
-            : [...prev, test._id]
-        );
+    const handleCardClick = (test) => {
+        setSelectedTest(test);
     };
 
     if (loading) return (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
-            {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-48 md:h-72 bg-slate-50 animate-pulse rounded-xl" />)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} className="h-72 bg-slate-50 animate-pulse rounded-[2rem] border border-slate-100" />
+            ))}
         </div>
     );
 
     return (
-        <div className="bg-white">
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
+        <div className="bg-transparent">
+            {/* Details Modal */}
+            <TestDetailsModal
+                isOpen={!!selectedTest}
+                onClose={() => setSelectedTest(null)}
+                test={selectedTest}
+            />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredTests.map((test) => {
+                    const isAdded = cartItemIds.includes(test._id);
                     const displayPrice = test.offerPrice || test.minPrice || test.mrp || test.standardMRP;
+                    const strikePrice = test.standardMRP || test.mrp;
                     const testImage = CATEGORY_IMAGES[test.mainCategory] || CATEGORY_IMAGES.Default;
-                    const isAdded = cartItems.includes(test._id);
 
                     return (
                         <div
                             key={test._id}
-                            onClick={() => setSelectedTest(test)}
-                            className="group cursor-pointer bg-white border border-slate-100 rounded-2xl overflow-hidden hover:border-[#08B36A] hover:shadow-xl transition-all duration-300 flex flex-col"
+                            onClick={() => handleCardClick(test)}
+                            className="group relative bg-white rounded-[2rem] border border-slate-100 hover:border-emerald-500/30 hover:shadow-[0_20px_50px_rgba(8,179,106,0.12)] transition-all duration-500 flex flex-col overflow-hidden cursor-pointer"
                         >
-                            <div className="relative h-28 sm:h-44 md:h-52 overflow-hidden">
-                                <img src={testImage} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt={test.testName} />
-                                <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-md text-[8px] md:text-[10px] font-black text-slate-700 uppercase border border-slate-100 shadow-sm">
+                            {/* Category Badge */}
+                            <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-2xl shadow-sm flex items-center gap-2 border border-slate-100">
+                                <FaVial className="text-emerald-500 text-[10px]" />
+                                <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">
                                     {test.mainCategory || 'Diagnostic'}
-                                </div>
+                                </span>
                             </div>
 
-                            <div className="p-3 md:p-5 flex-1 flex flex-col">
-                                <h3 className="text-[11px] md:text-sm font-black text-slate-900 line-clamp-2 h-8 md:h-10 group-hover:text-[#08B36A] transition-colors leading-tight">
+                            {/* Image Section */}
+                            <div className="relative h-40 w-full overflow-hidden">
+                                <img
+                                    src={testImage}
+                                    className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                                    alt={test.testName}
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                                
+                                {strikePrice > displayPrice && (
+                                    <div className="absolute bottom-4 right-4 bg-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg">
+                                        SAVE {Math.round(((strikePrice - displayPrice) / strikePrice) * 100)}%
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Content Section */}
+                            <div className="p-6 flex-1 flex flex-col">
+                                <div className="flex justify-between items-start mb-3">
+                                    <div className="flex items-center gap-1.5 bg-blue-50 px-2 py-1 rounded-lg">
+                                        <FaCheckCircle className="text-blue-500 text-[10px]" />
+                                        <span className="text-[10px] font-bold text-blue-600 uppercase">Verified</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
+                                        <FaStar className="text-amber-400 text-[10px]" />
+                                        <span className="text-slate-700 font-bold text-[10px]">4.8</span>
+                                    </div>
+                                </div>
+
+                                <h3 className="text-base font-bold text-slate-800 line-clamp-2 h-12 leading-tight mb-4 group-hover:text-emerald-600 transition-colors">
                                     {test.testName}
                                 </h3>
 
-                                <div className="mt-2 md:mt-3 flex items-center gap-2 md:gap-3 text-[9px] md:text-[11px] text-slate-500 font-bold uppercase tracking-tighter">
-                                    <div className="flex items-center gap-1"><FaFlask className="text-[#08B36A]" /> {test.sampleType || 'Blood'}</div>
-                                    <div className="flex items-center gap-1"><FaStar className="text-yellow-400" /> 4.8</div>
+                                <div className="flex items-center gap-4 mb-5">
+                                    <div className="flex items-center gap-1.5">
+                                        <FaFlask className="text-emerald-500 text-xs" />
+                                        <span className="text-xs font-medium text-slate-500">{test.sampleType || 'Blood'}</span>
+                                    </div>
+                                    <div className="w-px h-3 bg-slate-200" />
+                                    <span className="text-xs font-medium text-slate-500">Fast Reports</span>
                                 </div>
 
-                                <div className="mt-auto pt-3 md:pt-4 border-t border-slate-50 flex items-center justify-between">
+                                {/* Footer: Price & Action */}
+                                <div className="mt-auto pt-5 border-t border-slate-50 flex items-center justify-between gap-4">
                                     <div>
-                                        <span className="block text-[8px] md:text-[10px] text-slate-400 line-through font-bold">₹{test.standardMRP || test.mrp}</span>
-                                        <span className="text-sm md:text-xl font-black text-slate-900">₹{displayPrice}</span>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Test Price</p>
+                                        <div className="flex items-baseline gap-1.5">
+                                            <span className="text-xl font-black text-slate-900">₹{displayPrice}</span>
+                                            {strikePrice > displayPrice && (
+                                                <span className="text-xs text-slate-300 line-through font-medium">₹{strikePrice}</span>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <button
-                                        onClick={(e) => toggleCart(test, e)}
-                                        className={`p-2 md:p-3 rounded-xl transition-all border flex items-center justify-center ${isAdded
-                                            ? "bg-rose-50 text-rose-500 border-rose-100 hover:bg-rose-500 hover:text-white"
-                                            : "bg-[#08B36A] text-white border-[#08B36A] hover:bg-slate-900 shadow-md active:scale-90"
-                                            }`}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCardClick(test);
+                                        }}
+                                        className={`px-5 py-2.5 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all duration-300 shadow-md active:scale-95 ${
+                                            isAdded 
+                                            ? "bg-slate-100 text-slate-500 cursor-default" 
+                                            : "bg-emerald-600 text-white hover:bg-slate-900 shadow-emerald-200"
+                                        }`}
                                     >
-                                        {isAdded ? <FaTrashAlt className="text-xs md:text-sm" /> : <FaShoppingCart className="text-xs md:text-sm" />}
+                                        {isAdded ? "Selected" : "Book Now"}
+                                        {!isAdded && <FaChevronRight size={10} />}
                                     </button>
                                 </div>
                             </div>
@@ -110,17 +161,14 @@ const AllSingleTestsList = ({ searchTerm = "" }) => {
                 })}
             </div>
 
-            <TestDetailsModal
-                isOpen={!!selectedTest}
-                onClose={() => setSelectedTest(null)}
-                test={selectedTest}
-                onAddToCart={(test) => toggleCart(test)}
-                isAdded={selectedTest && cartItems.includes(selectedTest._id)}
-            />
-
+            {/* Empty State */}
             {filteredTests.length === 0 && !loading && (
-                <div className="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
-                    <p className="text-slate-400 font-black text-xs uppercase tracking-widest">No tests found.</p>
+                <div className="text-center py-24 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200 mx-4">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                        <FaPrescriptionBottleAlt size={24} className="text-slate-300" />
+                    </div>
+                    <h3 className="text-slate-800 font-bold text-lg">No tests found</h3>
+                    <p className="text-slate-400 text-sm max-w-xs mx-auto">Try searching for a different health parameter or category.</p>
                 </div>
             )}
         </div>
