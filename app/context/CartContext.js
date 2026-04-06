@@ -9,17 +9,14 @@ export const CartProvider = ({ children }) => {
     const [cartItemIds, setCartItemIds] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    const fetchCart = async () => {
+    const fetchCart = async (isBackground = false) => {
         try {
-            setLoading(true);
+            if (!isBackground) setLoading(true); // ONLY set global loading if it's NOT a background update
+
             const response = await UserAPI.getMyCart();
             if (response.success && response.data?.labCart) {
                 setCart(response.data.labCart);
-                // IDs to check for "isAdded" status
-                const ids = response.data.labCart.items.map(i =>
-                    i.itemId?._id || i.itemId
-                );
-                setCartItemIds(ids);
+                setCartItemIds(response.data.labCart.items.map(i => i.itemId._id || i.itemId));
             } else {
                 setCart(null);
                 setCartItemIds([]);
@@ -28,6 +25,29 @@ export const CartProvider = ({ children }) => {
             console.error("Fetch Cart Error:", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const updateQuantity = async (itemId, action) => {
+        try {
+            // Option 1: Optimistic Update (Update local UI instantly)
+            setCart(prev => {
+                const newItems = prev.items.map(item => {
+                    if (item.itemId._id === itemId) {
+                        return { ...item, quantity: action === 'inc' ? item.quantity + 1 : item.quantity - 1 };
+                    }
+                    return item;
+                });
+                return { ...prev, items: newItems };
+            });
+
+            // Option 2: Server Update
+            const response = await UserAPI.updateCartQuantity({ itemId, action });
+            if (response.success) {
+                await fetchCart(true); // Pass 'true' to fetch in background without reload/spinner
+            }
+        } catch (error) {
+            fetchCart(); // Revert on error
         }
     };
 
@@ -81,16 +101,16 @@ export const CartProvider = ({ children }) => {
         }
     };
 
-    const updateQuantity = async (itemId, action) => {
-        try {
-            const response = await UserAPI.updateCartQuantity({ itemId, action });
-            if (response.success) {
-                await fetchCart();
-            }
-        } catch (error) {
-            console.error("Update Quantity Error:", error);
-        }
-    };
+    // const updateQuantity = async (itemId, action) => {
+    //     try {
+    //         const response = await UserAPI.updateCartQuantity({ itemId, action });
+    //         if (response.success) {
+    //             await fetchCart();
+    //         }
+    //     } catch (error) {
+    //         console.error("Update Quantity Error:", error);
+    //     }
+    // };
 
     const clearFullCart = async () => {
         try {

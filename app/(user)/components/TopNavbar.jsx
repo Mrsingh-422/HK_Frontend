@@ -16,7 +16,6 @@ import {
   FaHospital,
   FaAmbulance,
   FaFilePrescription,
-  FaAddressBook,
   FaTimes,
 } from "react-icons/fa";
 import { FiMessageCircle } from "react-icons/fi";
@@ -25,13 +24,14 @@ import MainLogin from "./loginComponents/MainLogin";
 import MainRegister from "./registerComponents/MainRegister";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import { useAuth } from "@/app/context/AuthContext";
+import { useCart } from "@/app/context/CartContext"; // 1. Import useCart
 
 export default function TopNavbar() {
   const [token, setToken] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
 
-  // Note: Using modalType from GlobalContext if that's where your state lives
-  // Otherwise, keeping local state logic for the Login/Register visibility
+  // 2. Consume cartItemIds from Context
+  const { cartItemIds } = useCart();
   const { openModal, modalType, closeModal } = useGlobalContext();
   const { logout } = useAuth();
 
@@ -39,7 +39,6 @@ export default function TopNavbar() {
     const storedToken = localStorage.getItem("userToken");
     setToken(storedToken);
 
-    // Prevent body scroll when profile is open
     if (profileOpen) {
       document.body.style.overflow = 'hidden';
     } else {
@@ -108,10 +107,15 @@ export default function TopNavbar() {
               <span className="link-text">Offers</span>
             </Link>
 
+            {/* 3. Updated Live Cart Count */}
             <Link href="/userscreens/usercart" className="tnav-link-iconic">
               <div className="icon-badge-wrapper">
                 <FaShoppingCart />
-                <span className="badge-count">0</span>
+                {cartItemIds.length > 0 && (
+                  <span className="badge-count animate-bounce-subtle">
+                    {cartItemIds.length}
+                  </span>
+                )}
               </div>
               <span className="link-text">Cart</span>
             </Link>
@@ -119,7 +123,7 @@ export default function TopNavbar() {
         </div>
       </nav>
 
-      {/* LOGIN / REGISTER MODAL (Controlled by Global Context) */}
+      {/* LOGIN / REGISTER MODAL */}
       {modalType && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
@@ -154,7 +158,10 @@ export default function TopNavbar() {
                 <FaChevronRight className="arrow-right" />
               </Link>
             ))}
-            <div className="profile-item-new logout-new" onClick={() => logout()}>
+            <div className="profile-item-new logout-new" onClick={() => {
+              setProfileOpen(false);
+              logout();
+            }}>
               <span className="item-icon"><FaSignOutAlt /></span>
               <span className="item-label">Logout</span>
             </div>
