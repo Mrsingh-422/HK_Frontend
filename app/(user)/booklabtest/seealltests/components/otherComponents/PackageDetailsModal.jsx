@@ -7,15 +7,15 @@ import {
     FaHistory, FaClinicMedical, FaShieldAlt, FaArrowLeft
 } from "react-icons/fa";
 import { useCart } from "@/app/context/CartContext";
+import toast from "react-hot-toast";
 
 const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
-    // Consume functions from your CartContext
-    const { cartItemIds, addItem, removeItem } = useCart();
+    // Consume functions and current cart state from Context
+    const { cartItemIds, addItem, removeItem, cart } = useCart();
 
     const [selectedLab, setSelectedLab] = useState(null);
 
-    // To check if this package is already in the cart, we check if 
-    // any of the IDs in the vendorList exist in our cartItemIds array.
+    // Identify if this specific package is already in the cart
     const addedLabPackage = pkg?.vendorList?.find(lab => cartItemIds.includes(lab._id));
     const isAdded = !!addedLabPackage;
 
@@ -37,21 +37,60 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
         if (e) e.stopPropagation();
 
         if (isAdded) {
-            // Remove the specific lab-package ID currently in the cart
-            await removeItem(addedLabPackage._id);
+            // 1. Handle Removal
+            try {
+                await removeItem(addedLabPackage._id);
+                toast.success("Item removed from cart.");
+            } catch (error) {
+                toast.error("Failed to remove from cart.");
+            }
         } else {
+            // 2. Category Restriction Logic (Pathology vs Radiology)
+            // If cart already has items, check if the category matches
+            if (cart && cart.items?.length > 0 && cart.categoryType) {
+                const currentCartType = cart.categoryType; // 'Pathology' or 'Radiology'
+                const newItemType = pkg.mainCategory;
+
+                if (currentCartType !== newItemType) {
+                    toast.error(
+                        `Cannot mix ${currentCartType} and ${newItemType} in one booking. Please clear your cart or finish your current booking first.`,
+                        {
+                            duration: 5000,
+                            icon: '⚠️',
+                            style: {
+                                borderRadius: '12px',
+                                background: '#333',
+                                color: '#fff',
+                            }
+                        }
+                    );
+                    return; // Stop the execution
+                }
+            }
+
+            // 3. Validation: Lab selection
             if (!selectedLab) {
+                toast.error("Please choose a laboratory first!", {
+                    icon: '🏥',
+                    style: {
+                        borderRadius: '12px',
+                        background: '#333',
+                        color: '#fff',
+                    },
+                });
                 document.getElementById('lab-selection-area')?.scrollIntoView({ behavior: 'smooth' });
                 return;
             }
 
-            /**
-             * PAYLOAD LOGIC:
-             * labId: The diagnostic center's ID (selectedLab.labId)
-             * itemId: The unique package offering ID (selectedLab._id)
-             * productType: 'LabPackage' (Matches your Mongoose refPath)
-             */
-            await addItem(selectedLab.labId, selectedLab._id, 'LabPackage');
+            // 4. Add to Cart
+            try {
+                // addItem internally handles the "Replace Lab" logic
+                await addItem(selectedLab.labId, selectedLab._id, 'LabPackage');
+                // Success toast is usually handled in context, but adding here if needed:
+                // toast.success("Added to cart!");
+            } catch (error) {
+                toast.error("Something went wrong while adding to cart.");
+            }
         }
     };
 
@@ -104,8 +143,8 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                         {/* Specs Grid */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
                             <ClinicalSpec icon={<FaClock />} label="Reports" value={pkg.reportTime} />
-                            <ClinicalSpec icon={<FaVial />} label="Sample" value={pkg.sampleTypes?.join(", ")} />
-                            <ClinicalSpec icon={<FaHistory />} label="Fasting" value={pkg.isFastingRequired ? "Required" : "Not Required"} />
+                            <ClinicalSpec icon={<FaVial />} label="Sample" value={pkg.sampleTypes?.join(", ") || "N/A"} />
+                            <ClinicalSpec icon={<FaHistory />} label="Fasting" value={pkg.isFastingRequired ? pkg.fastingDuration : "Not Required"} />
                             <ClinicalSpec icon={<FaClinicMedical />} label="Providers" value={`${pkg.vendorCount} Labs`} />
                         </div>
 

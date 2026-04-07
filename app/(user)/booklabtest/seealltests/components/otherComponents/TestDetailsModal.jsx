@@ -6,19 +6,20 @@ import {
   FaCheckCircle, FaInfoCircle, FaClock, FaVial,
   FaShieldAlt, FaClinicMedical, FaArrowLeft
 } from "react-icons/fa";
-import { useCart } from "@/app/context/CartContext"; // Import your Cart Context
+import { useCart } from "@/app/context/CartContext";
+import toast from "react-hot-toast";
 
 const TestDetailsModal = ({ isOpen, onClose, test }) => {
   // Consume Cart Context
   const { cart, cartItemIds, addItem, removeItem } = useCart();
-  
+
   const [selectedLab, setSelectedLab] = useState(null);
 
-  // 1. Logic: Check if this test (via any of its vendors) is already in the cart
+  // Identify if any offering from this specific test is already in the cart
   const addedOffering = test?.vendorList?.find(v => cartItemIds.includes(v._id));
   const isAdded = !!addedOffering;
 
-  // 2. Logic: Sync Modal State with Cart
+  // Sync Modal state with Cart on open or cart change
   useEffect(() => {
     if (isOpen && isAdded) {
       // If already added, auto-select the lab that was picked in the cart
@@ -37,25 +38,71 @@ const TestDetailsModal = ({ isOpen, onClose, test }) => {
 
   const strikePrice = selectedLab ? selectedLab.mrp : test.standardMRP;
 
-  // 3. Final Action Handler (Add or Remove)
+  // Final Action Handler
   const handleAction = async () => {
     if (isAdded) {
-      // Remove the specific offering ID from cart
-      await removeItem(addedOffering._id);
+      // 1. Handle Removal
+      try {
+        await removeItem(addedOffering._id);
+        toast.success("Test removed from cart");
+      } catch (error) {
+        toast.error("Failed to remove test from cart");
+      }
     } else {
-      // If not added, check if a lab is selected
+      // 2. Category Restriction Logic (Pathology vs Radiology)
+      // We check if the cart already has a different category type
+      if (cart && cart.items?.length > 0 && cart.categoryType) {
+        const currentCartType = cart.categoryType; // 'Pathology' or 'Radiology'
+        const newItemType = test.mainCategory;
+
+        if (currentCartType !== newItemType) {
+          toast.error(
+            `Your cart contains ${currentCartType} tests. You cannot mix ${currentCartType} and ${newItemType} in a single booking.`,
+            {
+              duration: 6000,
+              icon: '⚠️',
+              style: {
+                borderRadius: '12px',
+                background: '#333',
+                color: '#fff',
+                fontSize: '13px'
+              }
+            }
+          );
+          return; // Exit function
+        }
+      }
+
+      // 3. Validation: Check if lab is selected
       if (!selectedLab) {
+        toast.error("Please choose a laboratory first!", {
+          icon: '🏥',
+          style: {
+            borderRadius: '12px',
+            background: '#333',
+            color: '#fff',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          },
+        });
+
         document.getElementById('lab-selection-area')?.scrollIntoView({ behavior: 'smooth' });
         return;
       }
-      
-      /**
-       * PAYLOAD:
-       * labId: selectedLab.labId (The Center's ID)
-       * itemId: selectedLab._id (The unique Test-Offering ID)
-       * productType: 'LabTest'
-       */
-      await addItem(selectedLab.labId, selectedLab._id, 'LabTest');
+
+      // 4. Add to Cart
+      try {
+        /**
+         * Payload:
+         * labId: selectedLab.labId (Center ID)
+         * itemId: selectedLab._id (Test Instance ID)
+         * productType: 'LabTest'
+         */
+        await addItem(selectedLab.labId, selectedLab._id, 'LabTest');
+        // Success toast is usually handled globally in context
+      } catch (error) {
+        toast.error("An error occurred while adding to cart.");
+      }
     }
   };
 
@@ -122,16 +169,15 @@ const TestDetailsModal = ({ isOpen, onClose, test }) => {
               <div className="grid gap-4">
                 {test.vendorList?.map((vendor) => {
                   const isSelected = selectedLab?._id === vendor._id;
-                  
+
                   return (
                     <div
                       key={vendor._id}
-                      onClick={() => !isAdded && setSelectedLab(vendor)} // Disable selection if already in cart
-                      className={`p-5 rounded-2xl border-2 transition-all flex items-center justify-between ${
-                        isSelected 
-                        ? "border-emerald-500 bg-emerald-50/30 shadow-md" 
+                      onClick={() => !isAdded && setSelectedLab(vendor)}
+                      className={`p-5 rounded-2xl border-2 transition-all flex items-center justify-between ${isSelected
+                        ? "border-emerald-500 bg-emerald-50/30 shadow-md"
                         : isAdded ? "border-slate-100 opacity-50 cursor-not-allowed" : "border-slate-100 bg-white hover:border-slate-200 cursor-pointer"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${isSelected ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"}`}>
@@ -144,10 +190,10 @@ const TestDetailsModal = ({ isOpen, onClose, test }) => {
                       </div>
                       <div className="text-right">
                         <div className="flex items-center gap-2 justify-end">
-                            {vendor.mrp > vendor.discountPrice && (
-                                <span className="text-xs text-slate-400 line-through">₹{vendor.mrp}</span>
-                            )}
-                            <p className="text-lg font-black text-slate-900">₹{vendor.discountPrice}</p>
+                          {vendor.mrp > vendor.discountPrice && (
+                            <span className="text-xs text-slate-400 line-through">₹{vendor.mrp}</span>
+                          )}
+                          <p className="text-lg font-black text-slate-900">₹{vendor.discountPrice}</p>
                         </div>
                         <p className="text-[10px] text-emerald-600 font-bold uppercase">{vendor.discountPercent}% Off</p>
                       </div>
@@ -160,19 +206,19 @@ const TestDetailsModal = ({ isOpen, onClose, test }) => {
 
             {/* Test Parameters */}
             {test.parameters?.length > 0 && (
-                <section className="mb-12">
+              <section className="mb-12">
                 <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-                    <span className="w-1 h-6 bg-emerald-500 rounded-full"></span>
-                    2. Clinical Parameters Tested
+                  <span className="w-1 h-6 bg-emerald-500 rounded-full"></span>
+                  2. Clinical Parameters Tested
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {test.parameters.map((p, i) => (
+                  {test.parameters.map((p, i) => (
                     <div key={i} className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl text-[11px] font-bold text-slate-600 uppercase border border-slate-100 shadow-sm">
-                        <FaCheckCircle className="text-emerald-500 flex-shrink-0" /> {p}
+                      <FaCheckCircle className="text-emerald-500 flex-shrink-0" /> {p}
                     </div>
-                    ))}
+                  ))}
                 </div>
-                </section>
+              </section>
             )}
           </div>
 
@@ -200,12 +246,11 @@ const TestDetailsModal = ({ isOpen, onClose, test }) => {
 
               <button
                 onClick={handleAction}
-                className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${
-                    isAdded
-                    ? "bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-600 hover:text-white shadow-md"
-                    : !selectedLab
-                        ? "bg-slate-100 text-slate-400 cursor-pointer"
-                        : "bg-emerald-600 text-white hover:bg-slate-900 shadow-xl shadow-emerald-200"
+                className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${isAdded
+                  ? "bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-600 hover:text-white shadow-md"
+                  : !selectedLab
+                    ? "bg-slate-100 text-slate-400 cursor-pointer"
+                    : "bg-emerald-600 text-white hover:bg-slate-900 shadow-xl shadow-emerald-200"
                   }`}
               >
                 {!selectedLab ? (
