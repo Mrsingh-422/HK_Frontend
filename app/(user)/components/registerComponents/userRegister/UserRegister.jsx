@@ -1,13 +1,24 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/app/context/AuthContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import { useUserContext } from "@/app/context/UserContext";
+
+// Import libphonenumber-js functions
+import { getCountries, getCountryCallingCode, parsePhoneNumberFromString } from "libphonenumber-js";
 
 function UserRegister() {
   const { registerAsUser, loading } = useAuth();
   const { closeModal, openModal } = useGlobalContext();
   const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
+
+  // 1. Generate the list of Country Dialing Codes using libphonenumber-js
+  const countryCallingCodes = useMemo(() => {
+    return getCountries().map((country) => ({
+      country, // e.g., "US"
+      callingCode: `+${getCountryCallingCode(country)}`, // e.g., "+1"
+    })).sort((a, b) => a.callingCode.localeCompare(b.callingCode, undefined, { numeric: true }));
+  }, []);
 
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
@@ -16,6 +27,7 @@ function UserRegister() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    countryDialCode: "+91", // Default calling code
     phone: "",
     country: "",
     state: "",
@@ -39,7 +51,7 @@ function UserRegister() {
       }
     };
     fetchCountries();
-  }, []);
+  }, [getAllCountries]);
 
   const fetchStates = async (countryId) => {
     try {
@@ -73,8 +85,19 @@ function UserRegister() {
   };
 
   const validateForm = () => {
-    const { name, email, phone, country, state, city, password, confirmPassword, termsAccepted } = formData;
-    if (!name || !email || !phone || !country || !state || !city || !password || !confirmPassword) return "All fields are required";
+    const { name, email, phone, countryDialCode, country, state, city, password, confirmPassword, termsAccepted } = formData;
+    
+    if (!name || !email || !phone || !country || !state || !city || !password || !confirmPassword) {
+      return "All fields are required";
+    }
+
+    // Validate phone format using libphonenumber-js
+    const fullNumber = `${countryDialCode}${phone}`;
+    const phoneNumber = parsePhoneNumberFromString(fullNumber);
+    if (!phoneNumber || !phoneNumber.isValid()) {
+      return "Please enter a valid mobile number for the selected country code";
+    }
+
     if (password.length < 6) return "Password must be at least 6 characters";
     if (password !== confirmPassword) return "Passwords do not match";
     if (!termsAccepted) return "You must accept terms & conditions";
@@ -97,8 +120,13 @@ function UserRegister() {
       const selectedState = states.find((s) => s.id == formData.state);
       const selectedCity = cities.find((c) => c.id == formData.city);
 
+      // PREPARING DATA FOR BACKEND WITH SEPARATE KEYS
       const finalData = {
-        ...formData,
+        name: formData.name,
+        email: formData.email,
+        countryCode: formData.countryDialCode, // Separate Key (e.g. +91)
+        phone: formData.phone.replace(/\s+/g, ""), // Separate Key (the number)
+        password: formData.password,
         country: selectedCountry?.name || "",
         state: selectedState?.name || "",
         city: selectedCity?.name || "",
@@ -114,10 +142,9 @@ function UserRegister() {
 
   return (
     <div className="w-full bg-white">
-      {/* TOP REGISTER BOX */}
       <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
 
-        {/* LEFT IMAGE - Hidden on mobile, matches Login reference */}
+        {/* LEFT IMAGE */}
         <div className="hidden md:block flex-shrink-0">
           <img
             src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602393service.png"
@@ -132,14 +159,12 @@ function UserRegister() {
             Get Started
           </h2>
 
-          {/* Success Message - Exact same style as Login */}
           {success && (
             <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-4 text-sm font-medium animate-in fade-in duration-300">
               {success}
             </div>
           )}
 
-          {/* Error Message - Exact same style as Login */}
           {error && (
             <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-4 text-sm font-medium animate-in fade-in duration-300">
               {error}
@@ -165,14 +190,29 @@ function UserRegister() {
               className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
             />
 
-            <input
-              type="text"
-              placeholder="Mobile Number"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
-            />
+            {/* PHONE ROW WITH SEPARATE COUNTRY CODE DROPDOWN */}
+            <div className="flex gap-2">
+              <select
+                name="countryDialCode"
+                value={formData.countryDialCode}
+                onChange={handleChange}
+                className="w-[110px] p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883] bg-white cursor-pointer"
+              >
+                {countryCallingCodes.map((item, index) => (
+                  <option key={`${item.country}-${index}`} value={item.callingCode}>
+                    {item.country} ({item.callingCode})
+                  </option>
+                ))}
+              </select>
+              <input
+                type="tel"
+                placeholder="Mobile Number"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                className="flex-1 p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
+              />
+            </div>
 
             {/* LOCATION ROW */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -227,7 +267,6 @@ function UserRegister() {
               className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
             />
 
-            {/* TERMS */}
             <div className="flex items-center gap-2 mt-2">
               <input
                 type="checkbox"
@@ -236,16 +275,15 @@ function UserRegister() {
                 onChange={handleChange}
                 className="w-4 h-4 accent-[#2f8f5b] cursor-pointer"
               />
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-700">
                 Allow All Terms & Conditions on this site
               </span>
             </div>
 
-            {/* BUTTON - Matches Login reference */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full md:w-auto mt-4 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-8 rounded text-base transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className="w-full md:w-auto mt-4 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-8 rounded text-base transition-colors disabled:bg-gray-300"
             >
               {loading ? "Registering..." : "Register →"}
             </button>
@@ -266,7 +304,6 @@ function UserRegister() {
         </div>
       </div>
 
-      {/* FOOTER DESCRIPTION - Matches Login reference */}
       <div className="max-w-[1100px] mx-auto mt-10 px-4 md:px-0 pb-10">
         <h3 className="text-lg sm:text-xl md:text-[28px] font-bold mb-5">
           User Registration

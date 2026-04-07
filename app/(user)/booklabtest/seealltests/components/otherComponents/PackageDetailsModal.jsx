@@ -4,14 +4,14 @@ import React, { useState, useEffect } from "react";
 import {
     FaStar, FaShoppingCart, FaTrashAlt,
     FaCheckCircle, FaInfoCircle, FaClock, FaVial,
-    FaHistory, FaClinicMedical, FaShieldAlt, FaArrowLeft
+    FaHistory, FaClinicMedical, FaShieldAlt, FaArrowLeft, FaExclamationTriangle
 } from "react-icons/fa";
 import { useCart } from "@/app/context/CartContext";
 import toast from "react-hot-toast";
 
 const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
     // Consume functions and current cart state from Context
-    const { cartItemIds, addItem, removeItem, cart } = useCart();
+    const { cart, cartItemIds, addItem, removeItem } = useCart();
 
     const [selectedLab, setSelectedLab] = useState(null);
 
@@ -45,26 +45,54 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                 toast.error("Failed to remove from cart.");
             }
         } else {
-            // 2. Category Restriction Logic (Pathology vs Radiology)
-            // If cart already has items, check if the category matches
+            // 2. Premium Category Restriction Logic (Pathology vs Radiology)
             if (cart && cart.items?.length > 0 && cart.categoryType) {
-                const currentCartType = cart.categoryType; // 'Pathology' or 'Radiology'
+                const currentCartType = cart.categoryType;
                 const newItemType = pkg.mainCategory;
 
                 if (currentCartType !== newItemType) {
-                    toast.error(
-                        `Cannot mix ${currentCartType} and ${newItemType} in one booking. Please clear your cart or finish your current booking first.`,
-                        {
-                            duration: 5000,
-                            icon: '⚠️',
-                            style: {
-                                borderRadius: '12px',
-                                background: '#333',
-                                color: '#fff',
-                            }
-                        }
-                    );
-                    return; // Stop the execution
+                    // Modern Custom Designed Popup
+                    toast.custom((t) => (
+                        <div className={`${t.visible ? 'animate-in fade-in slide-in-from-bottom-4' : 'animate-out fade-out slide-out-to-bottom-4'} max-w-md w-full bg-white shadow-2xl rounded-[1.5rem] pointer-events-auto flex flex-col overflow-hidden border border-slate-100`}>
+                            <div className="p-6">
+                                <div className="flex items-start gap-4">
+                                    <div className="flex-shrink-0 w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500">
+                                        <FaExclamationTriangle size={20} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-base font-bold text-slate-900 leading-tight">Order Mismatch</p>
+                                        <p className="mt-1 text-sm text-slate-500 leading-relaxed">
+                                            Your cart has <span className="font-bold text-slate-700">{currentCartType}</span> items. You cannot mix them with <span className="font-bold text-slate-700">{newItemType}</span>.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-slate-50 px-6 py-4 flex items-center justify-end gap-3">
+                                <button 
+                                    onClick={() => toast.dismiss(t.id)}
+                                    className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    onClick={async () => {
+                                        toast.dismiss(t.id);
+                                        // We need the lab selection to clear and add
+                                        if (selectedLab) {
+                                            await addItem(selectedLab.labId, selectedLab._id, 'LabPackage', true);
+                                        } else {
+                                            toast.error("Please select a lab first");
+                                            document.getElementById('lab-selection-area')?.scrollIntoView({ behavior: 'smooth' });
+                                        }
+                                    }}
+                                    className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-slate-200 hover:bg-emerald-600 transition-all active:scale-95"
+                                >
+                                    Clear & Add Package
+                                </button>
+                            </div>
+                        </div>
+                    ), { position: 'bottom-center', duration: 6000 });
+                    return; 
                 }
             }
 
@@ -82,12 +110,9 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                 return;
             }
 
-            // 4. Add to Cart
+            // 4. Add to Cart ( addItem in context handles success toast)
             try {
-                // addItem internally handles the "Replace Lab" logic
                 await addItem(selectedLab.labId, selectedLab._id, 'LabPackage');
-                // Success toast is usually handled in context, but adding here if needed:
-                // toast.success("Added to cart!");
             } catch (error) {
                 toast.error("Something went wrong while adding to cart.");
             }
@@ -125,7 +150,7 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                     <div className="flex-1">
                         <div className="mb-10">
                             <div className="flex items-center gap-2 mb-3">
-                                <span className="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wide border border-emerald-100">
+                                <span className="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase border border-emerald-100">
                                     {pkg.mainCategory} • {pkg.category}
                                 </span>
                                 <div className="flex items-center gap-1 text-amber-500 text-xs font-bold">
@@ -173,7 +198,7 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                                                     <FaClinicMedical size={20} />
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-bold text-slate-800 text-sm">Partner Laboratory</h4>
+                                                    <h4 className="font-bold text-slate-800 text-sm tracking-tight uppercase">Partner Laboratory</h4>
                                                     <p className="text-[11px] text-slate-500 font-medium">Expected Report: {lab.reportTime}</p>
                                                 </div>
                                             </div>
@@ -220,8 +245,8 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                                         <span className="text-slate-400 line-through text-xl">₹{strikePrice}</span>
                                     )}
                                 </div>
-                                <p className="text-[10px] text-emerald-600 font-bold mt-4 flex items-center gap-2">
-                                    <FaCheckCircle /> Taxes and Collection Fees Included
+                                <p className="text-[10px] text-emerald-600 font-bold mt-4 flex items-center gap-2 uppercase tracking-tighter">
+                                    <FaCheckCircle /> Inclusive of all taxes and fees
                                 </p>
                             </div>
 
@@ -233,12 +258,13 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
 
                             <button
                                 onClick={handleFinalAction}
-                                className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${isAdded
-                                        ? "bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-600 hover:text-white"
-                                        : !selectedLab
-                                            ? "bg-slate-100 text-slate-400 cursor-pointer"
-                                            : "bg-emerald-600 text-white hover:bg-slate-900 shadow-xl shadow-emerald-200"
-                                    }`}
+                                className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${
+                                    isAdded 
+                                    ? "bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-600 hover:text-white" 
+                                    : !selectedLab
+                                        ? "bg-slate-100 text-slate-400 cursor-pointer"
+                                        : "bg-emerald-600 text-white hover:bg-slate-900 shadow-xl shadow-emerald-200"
+                                }`}
                             >
                                 {isAdded ? (
                                     <><FaTrashAlt /> Remove from Cart</>
@@ -268,9 +294,9 @@ const ClinicalSpec = ({ icon, label, value }) => (
 );
 
 const SummaryItem = ({ icon, text, active }) => (
-    <div className="flex items-center gap-4 text-sm">
+    <div className="flex items-center gap-4 text-sm font-bold uppercase tracking-tight">
         <span className={active ? "text-emerald-500" : "text-slate-200"}>{icon}</span>
-        <span className={`font-bold ${active ? "text-slate-700" : "text-slate-300"}`}>{text}</span>
+        <span className={active ? "text-slate-700" : "text-slate-300"}>{text}</span>
     </div>
 );
 
