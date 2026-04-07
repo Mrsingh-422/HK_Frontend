@@ -13,6 +13,7 @@ import EmergencyContacts from "./components/EmergencyContacts";
 import SavedAddresses from "./components/SavedAddresses";
 import UserAPI from "@/app/services/UserAPI";
 import UpdateUserInsurance from "./components/UpdateUserInsurance";
+import WorkDetailUser from "./components/WorkDetailUser";
 
 function MyAccount() {
     const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
@@ -377,6 +378,7 @@ function MyAccount() {
                 <ViewMembers members={userData.familyMember || []} />
                 <UpdateUserInsurance insurance={userData.insuranceDetails || []} />
                 <EmergencyContacts contacts={userData.emergencyContact || []} />
+                <WorkDetailUser work={userData.workDetails || []} />
             </div>
         </div>
     );

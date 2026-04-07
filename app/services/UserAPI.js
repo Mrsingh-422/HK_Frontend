@@ -93,6 +93,10 @@ const UserAPI = {
         const response = await authApi.put("/api/auth/user/update-insurance", insuranceData);
         return response.data;
     },
+    updateWorkDetailsUser: async (workData) => {
+        const response = await authApi.put("/api/auth/user/update-work", workData);
+        return response.data;
+    },
     getInsuranceTypes: async () => {
         const response = await authApi.get('/admin/user/insurance/insurance-types');
         return response.data; // Accessing the array: ["RGHS", "CGHS", ...]
