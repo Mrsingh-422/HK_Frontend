@@ -11,7 +11,7 @@ import { useCart } from "@/app/context/CartContext";
 const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
     // Consume functions from your CartContext
     const { cartItemIds, addItem, removeItem } = useCart();
-    
+
     const [selectedLab, setSelectedLab] = useState(null);
 
     // To check if this package is already in the cart, we check if 
@@ -44,7 +44,7 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                 document.getElementById('lab-selection-area')?.scrollIntoView({ behavior: 'smooth' });
                 return;
             }
-            
+
             /**
              * PAYLOAD LOGIC:
              * labId: The diagnostic center's ID (selectedLab.labId)
@@ -124,11 +124,10 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                                         <div
                                             key={lab._id}
                                             onClick={() => !isAdded && setSelectedLab(lab)}
-                                            className={`p-5 rounded-2xl border-2 transition-all flex items-center justify-between ${
-                                                isSelected 
-                                                ? "border-emerald-500 bg-emerald-50/30" 
-                                                : isAdded ? "border-slate-100 opacity-50 cursor-not-allowed" : "border-slate-100 bg-white hover:border-slate-200 cursor-pointer"
-                                            }`}
+                                            className={`p-5 rounded-2xl border-2 transition-all flex items-center justify-between ${isSelected
+                                                    ? "border-emerald-500 bg-emerald-50/30"
+                                                    : isAdded ? "border-slate-100 opacity-50 cursor-not-allowed" : "border-slate-100 bg-white hover:border-slate-200 cursor-pointer"
+                                                }`}
                                         >
                                             <div className="flex items-center gap-4">
                                                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${isSelected ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"}`}>
@@ -195,13 +194,12 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
 
                             <button
                                 onClick={handleFinalAction}
-                                className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${
-                                    isAdded 
-                                    ? "bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-600 hover:text-white" 
-                                    : !selectedLab
-                                        ? "bg-slate-100 text-slate-400 cursor-pointer"
-                                        : "bg-emerald-600 text-white hover:bg-slate-900 shadow-xl shadow-emerald-200"
-                                }`}
+                                className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${isAdded
+                                        ? "bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-600 hover:text-white"
+                                        : !selectedLab
+                                            ? "bg-slate-100 text-slate-400 cursor-pointer"
+                                            : "bg-emerald-600 text-white hover:bg-slate-900 shadow-xl shadow-emerald-200"
+                                    }`}
                             >
                                 {isAdded ? (
                                     <><FaTrashAlt /> Remove from Cart</>
