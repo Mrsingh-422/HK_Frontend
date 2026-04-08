@@ -101,6 +101,22 @@ const UserAPI = {
         const response = await authApi.get('/admin/user/insurance/insurance-types');
         return response.data; // Accessing the array: ["RGHS", "CGHS", ...]
     },
+    getAllergyList: async () => {
+        const response = await authApi.get('/admin/medical-masters/allergies');
+        return response.data; // Accessing the array of allergies
+    },
+    getConditionList: async () => {
+        const response = await authApi.get('/admin/medical-masters/conditions');
+        return response.data; // Accessing the array of conditions
+    },
+    getMajorConditions: async () => {
+        const response = await authApi.get('/admin/medical-masters/major-conditions');
+        return response.data; // Accessing the array of major conditions
+    },
+    updateConditionsAndAllergies: async (data) => {
+        const response = await authApi.put("/api/auth/user/update-medical-conditions", data);
+        return response.data;
+    },
 
 
     // --- Master Details & Comparison ---

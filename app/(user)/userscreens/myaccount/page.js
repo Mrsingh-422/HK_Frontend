@@ -14,6 +14,7 @@ import SavedAddresses from "./components/SavedAddresses";
 import UserAPI from "@/app/services/UserAPI";
 import UpdateUserInsurance from "./components/UpdateUserInsurance";
 import WorkDetailUser from "./components/WorkDetailUser";
+import ConditionAndAllergy from "./components/ConditionAndAllergy";
 
 function MyAccount() {
     const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
@@ -28,6 +29,7 @@ function MyAccount() {
 
     const [userData, setUserData] = useState(null);
     const [tempProfile, setTempProfile] = useState({});
+    const [imageFile, setImageFile] = useState(null);
 
     const fileInputRef = useRef(null);
 
@@ -106,28 +108,55 @@ function MyAccount() {
     }, []);
 
     // ------------------ UPDATE PROFILE ------------------
+    // 2. Updated Save Handler
     const handleSaveProfile = async () => {
         setIsSaving(true);
         try {
+            // A. Get location names
             const selectedCountry = countries.find(c => c.id == tempProfile.country);
             const selectedState = states.find(s => s.id == tempProfile.state);
             const selectedCity = cities.find(c => c.id == tempProfile.city);
 
-            const finalData = {
-                ...tempProfile,
+            // B. CLEAN THE DATA (Remove MongoDB internals that cause 500 errors)
+            // We only send the fields the user can actually change
+            const profileToSave = {
+                name: tempProfile.name,
+                fatherName: tempProfile.fatherName,
+                email: tempProfile.email,
+                phone: tempProfile.phone,
+                countryCode: tempProfile.countryCode,
+                dob: tempProfile.dob,
+                gender: tempProfile.gender,
+                weight: tempProfile.weight,
+                height: tempProfile.height,
                 country: selectedCountry?.name || tempProfile.country,
                 state: selectedState?.name || tempProfile.state,
-                city: selectedCity?.name || tempProfile.city
+                city: selectedCity?.name || tempProfile.city,
             };
-            await UserAPI.updateInsurnceUser(finalData);
 
-            setUserData(finalData);
-            setTempProfile(finalData);
-            setIsEditingProfile(false);
+            // C. DECIDE SEND METHOD (FormData is safer for images)
+            let payload;
+
+            // If there's a new image file, use FormData to avoid "500 Payload Too Large"
+            if (imageFile) {
+                payload = new FormData();
+                Object.keys(profileToSave).forEach(key => payload.append(key, profileToSave[key]));
+                payload.append("profilePic", imageFile);
+            } else {
+                // If no new image, send as clean JSON
+                payload = profileToSave;
+            }
+
+            // D. Call API
+            await UserAPI.updateProfile(payload);
+
             alert("Profile updated successfully!");
+            setIsEditingProfile(false);
+            // window.location.reload();
         } catch (error) {
-            console.error("Save failed:", error);
-            alert("Failed to update profile.");
+            console.error("Save failed:", error.response?.data || error.message);
+            // Alert the specific error from the server if available
+            alert(error.response?.data?.message || "Failed to update profile (Server Error 500).");
         } finally {
             setIsSaving(false);
         }
@@ -150,6 +179,7 @@ function MyAccount() {
     const handleImageChange = (e) => {
         const file = e.target.files[0];
         if (file) {
+            setImageFile(file); // Store the actual file for FormData
             const reader = new FileReader();
             reader.onloadend = () => setTempProfile(p => ({ ...p, profilePic: reader.result }));
             reader.readAsDataURL(file);
@@ -379,6 +409,7 @@ function MyAccount() {
                 <UpdateUserInsurance insurance={userData.insuranceDetails || []} />
                 <EmergencyContacts contacts={userData.emergencyContact || []} />
                 <WorkDetailUser work={userData.workDetails || []} />
+                <ConditionAndAllergy userMedicalData={userData.conditionStatus || []} />
             </div>
         </div>
     );
