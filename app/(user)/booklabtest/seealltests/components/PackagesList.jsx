@@ -153,8 +153,8 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                                             handleCardClick(pkg);
                                         }}
                                         className={`px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all duration-300 shadow-md active:scale-95 ${isAdded
-                                                ? "bg-slate-100 text-slate-500 cursor-default"
-                                                : "bg-emerald-600 text-white hover:bg-slate-900 shadow-emerald-200"
+                                            ? "bg-slate-100 text-slate-500 cursor-default"
+                                            : "bg-emerald-600 text-white hover:bg-slate-900 shadow-emerald-200"
                                             }`}
                                     >
                                         {isAdded ? "Selected" : "Book Now"}

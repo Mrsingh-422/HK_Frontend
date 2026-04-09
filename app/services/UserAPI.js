@@ -38,8 +38,9 @@ const UserAPI = {
         const response = await publicApi.get("/user/labs/standard-tests");
         return response.data;
     },
-    getStandardPackageCatalog: async () => {
-        const response = await publicApi.get("/user/labs/standard-packages");
+    getStandardPackageCatalog: async (params = {}) => {
+        // params can include { page, limit, search, category }
+        const response = await publicApi.get("/user/labs/standard-packages", { params });
         return response.data;
     },
     getLabsList: async (params) => {
@@ -117,6 +118,96 @@ const UserAPI = {
         const response = await authApi.put("/api/auth/user/update-medical-conditions", data);
         return response.data;
     },
+    verifyLockerPin: async (pin) => {
+        const response = await authApi.post("/api/user/locker/verify-pin", { pin });
+        return response.data;
+    },
+    getLockerContent: async (parentId = null) => {
+        const url = parentId
+            ? `/api/user/locker/content?parentId=${parentId}`
+            : "/api/user/locker/content";
+        const response = await authApi.get(url);
+        return response.data;
+    },
+    createFolder: async (data) => {
+        const response = await authApi.post("/api/user/locker/create-folder", data);
+        return response.data;
+    },
+    uploadLockerFile: async (formData) => {
+        // formData contains 'name', 'images', and optional 'parentId'
+        const response = await authApi.post("/api/user/locker/upload-file", formData, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
+        return response.data;
+    },
+    renameLockerItem: async (id, newName) => {
+        const response = await authApi.patch(`/api/user/locker/rename/${id}`, { newName });
+        return response.data;
+    },
+    deleteLockerItem: async (id) => {
+        const response = await authApi.delete(`/api/user/locker/delete/${id}`);
+        return response.data;
+    },
+    addPagesToRecord: async (id, formData) => {
+        const response = await authApi.put(`/api/user/locker/add-pages/${id}`, formData, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
+        return response.data;
+    },
+    checkAbhaStatus: async () => {
+        const response = await authApi.get(`/api/user/abha/details`);
+        return response.data;
+    },
+    abhaGenerateOtp: async (aadhaarNumber) => {
+        const response = await authApi.post(`/api/user/abha/step3-generate-otp`, {
+            aadhaarNumber,
+            consent: true
+        });
+        return response.data;
+    },
+    abhaVerifyOtp: async (otp, txnId) => {
+        const response = await authApi.post(`/api/user/abha/step4-verify-otp`, { otp, txnId });
+        return response.data;
+    },
+    abhaFinalize: async (txnId) => {
+        const response = await authApi.post(`/api/user/abha/step5-finalize`, { txnId });
+        return response.data;
+    },
+    addEmergencyContact: async (data) => {
+        const response = await authApi.post("/api/auth/user/add-emergency", data);
+        return response.data;
+    },
+    getEmergencyContacts: async () => {
+        const response = await authApi.get("/api/auth/user/emergency-contacts");
+        return response.data;
+    },
+    deleteEmergencyContact: async (contactId) => {
+        const response = await authApi.delete(`/api/auth/user/remove-emergency/${contactId}`);
+        return response.data;
+    },
+    addUserAddress: async (data) => {
+        const response = await authApi.post("/api/auth/user/add-address", data);
+        return response.data;
+    },
+    getUserAddresses: async () => {
+        const response = await authApi.get("/api/auth/user/addresses");
+        return response.data;
+    },
+    setDefaultAddress: async (addressId) => {
+        const response = await authApi.patch(`/api/auth/user/set-default-address/${addressId}`);
+        return response.data;
+    },
+    deleteAddress: async (addressId) => {
+        const response = await authApi.delete(`/api/auth/user/remove-address/${addressId}`);
+        return response.data;
+    },
+
+
+
 
 
     // --- Master Details & Comparison ---

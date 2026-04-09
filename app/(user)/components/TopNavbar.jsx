@@ -24,25 +24,68 @@ import MainLogin from "./loginComponents/MainLogin";
 import MainRegister from "./registerComponents/MainRegister";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import { useAuth } from "@/app/context/AuthContext";
-import { useCart } from "@/app/context/CartContext"; // 1. Import useCart
+import { useCart } from "@/app/context/CartContext";
 
 export default function TopNavbar() {
   const [token, setToken] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
 
-  // 2. Consume cartItemIds from Context
+  // --- LOCATION STATES ---
+  const [locationName, setLocationName] = useState("Detecting...");
+  const [coords, setCoords] = useState({ lat: null, lng: null });
+
   const { cartItemIds } = useCart();
   const { openModal, modalType, closeModal } = useGlobalContext();
   const { logout } = useAuth();
 
   useEffect(() => {
+    // 1. Get Auth Token
     const storedToken = localStorage.getItem("userToken");
     setToken(storedToken);
 
+    // 2. Handle Body Scroll
     if (profileOpen) {
-      document.body.style.overflow = 'hidden';
+      document.body.style.overflow = "hidden";
     } else {
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = "unset";
+    }
+
+    // 3. GET USER LATITUDE AND LONGITUDE
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const latitude = position.coords.latitude;
+          const longitude = position.coords.longitude;
+
+          setCoords({ lat: latitude, lng: longitude });
+
+          // OPTIONAL: Store in localStorage for use in other components (like HeroSection)
+          localStorage.setItem("userCoords", JSON.stringify({ lat: latitude, lng: longitude }));
+
+          // 4. REVERSE GEOCODE (Turn Lat/Lng into a readable City/Area name)
+          try {
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+            );
+            const data = await response.json();
+
+            // Extract City or Neighborhood or Postcode
+            const city = data.address.city || data.address.town || data.address.village || data.address.suburb || "Unknown Location";
+            const pincode = data.address.postcode || "";
+
+            setLocationName(`${city}${pincode ? ", " + pincode : ""}`);
+          } catch (error) {
+            console.error("Geocoding error:", error);
+            setLocationName("Location Found");
+          }
+        },
+        (error) => {
+          console.error("Geolocation denied or error:", error);
+          setLocationName("Location Denied");
+        }
+      );
+    } else {
+      setLocationName("Not Supported");
     }
   }, [profileOpen]);
 
@@ -54,19 +97,21 @@ export default function TopNavbar() {
     { icon: <FiMessageCircle />, label: "Chats", link: "/userscreens/mychats" },
     { icon: <FaFilePrescription />, label: "My Prescriptions", link: "/userscreens/myprescriptions" },
     { icon: <FaWallet />, label: "Wallet", link: "/" },
+    { icon: <FaTimes />, label: "Health Locker", link: "/userscreens/lockerScreens" },
+    { icon: <FaTimes />, label: "Verify AHBA", link: "/userscreens/abhascreen" },
   ];
 
   return (
     <>
       <nav className="tnav-wrapper">
         <div className="tnav-container">
-          {/* LEFT: Location */}
+          {/* LEFT: Dynamic Location */}
           <div className="tnav-left">
             <div className="location-badge">
               <FaMapMarkerAlt className="tnav-icon-marker" />
               <div className="location-texts">
                 <span className="loc-label">Deliver to</span>
-                <span className="tnav-location-text">Khanday, 190001</span>
+                <span className="tnav-location-text">{locationName}</span>
               </div>
             </div>
           </div>
@@ -107,7 +152,6 @@ export default function TopNavbar() {
               <span className="link-text">Offers</span>
             </Link>
 
-            {/* 3. Updated Live Cart Count */}
             <Link href="/userscreens/usercart" className="tnav-link-iconic">
               <div className="icon-badge-wrapper">
                 <FaShoppingCart />
@@ -123,7 +167,7 @@ export default function TopNavbar() {
         </div>
       </nav>
 
-      {/* LOGIN / REGISTER MODAL */}
+      {/* MODALS (Login/Register) */}
       {modalType && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>

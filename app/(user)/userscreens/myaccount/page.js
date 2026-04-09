@@ -404,10 +404,10 @@ function MyAccount() {
                     </div>
                 </section>
 
-                <SavedAddresses addresses={userData.userAddress || []} userPhone={userData.phone} />
+                <SavedAddresses userPhone={userData.phone} />
                 <ViewMembers members={userData.familyMember || []} />
                 <UpdateUserInsurance insurance={userData.insuranceDetails || []} />
-                <EmergencyContacts contacts={userData.emergencyContact || []} />
+                <EmergencyContacts/>
                 <WorkDetailUser work={userData.workDetails || []} />
                 <ConditionAndAllergy userMedicalData={userData.conditionStatus || []} />
             </div>

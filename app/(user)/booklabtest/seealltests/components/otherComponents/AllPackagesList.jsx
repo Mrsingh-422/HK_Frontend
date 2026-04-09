@@ -1,48 +1,64 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
-import { FaStar, FaFlask, FaChevronRight, FaClinicMedical, FaCheckCircle } from "react-icons/fa";
+import React, { useEffect, useState, useCallback } from "react";
+import { FaStar, FaFlask, FaChevronRight, FaClinicMedical, FaCheckCircle, FaChevronLeft } from "react-icons/fa";
 import PackageDetailsModal from "./PackageDetailsModal";
 import UserAPI from "@/app/services/UserAPI";
 import { useCart } from "@/app/context/CartContext";
 
 function AllPackagesList({ searchTerm = "" }) {
-    const { cartItemIds } = useCart(); 
+    const { cartItemIds } = useCart();
     const [packages, setPackages] = useState([]);
     const [selectedPackage, setSelectedPackage] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchPackages = async () => {
-            try {
-                setLoading(true);
-                let response = await UserAPI.getStandardPackageCatalog();
-                if (response.success) {
-                    setPackages(response.data || response.packages || []);
-                }
-            } catch (err) {
-                console.error("Packages Fetch Error:", err);
-                setPackages([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchPackages();
-    }, []);
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const limit = 12; // Items per page
 
-    const filteredPackages = useMemo(() => {
-        const term = searchTerm?.toLowerCase() || "";
-        return packages.filter((pkg) =>
-            pkg.packageName?.toLowerCase().includes(term) ||
-            pkg.mainCategory?.toLowerCase().includes(term) ||
-            pkg.category?.toLowerCase().includes(term)
-        );
-    }, [packages, searchTerm]);
+    const fetchPackages = useCallback(async () => {
+        try {
+            setLoading(true);
+            const response = await UserAPI.getStandardPackageCatalog({
+                page: currentPage,
+                limit: limit,
+                search: searchTerm
+            });
+
+            if (response.success) {
+                setPackages(response.data || []);
+                setTotalPages(response.totalPages || 1);
+            }
+        } catch (err) {
+            console.error("Packages Fetch Error:", err);
+            setPackages([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [currentPage, searchTerm]);
+
+    // Reset to page 1 when search term changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    // Fetch data when page or search term changes
+    useEffect(() => {
+        fetchPackages();
+    }, [fetchPackages]);
 
     const handleCardClick = (pkg) => {
         setSelectedPackage(pkg);
         setIsModalOpen(true);
+    };
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     };
 
     if (loading) return (
@@ -54,7 +70,7 @@ function AllPackagesList({ searchTerm = "" }) {
     );
 
     return (
-        <div className="bg-transparent">
+        <div className="bg-transparent space-y-10">
             <PackageDetailsModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
@@ -62,7 +78,7 @@ function AllPackagesList({ searchTerm = "" }) {
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredPackages.map((pkg) => {
+                {packages.map((pkg) => {
                     const isAdded = cartItemIds.includes(pkg._id);
                     const displayPrice = pkg.offerPrice || pkg.minPrice || pkg.mrp;
                     const strikePrice = pkg.mrp || pkg.standardMRP;
@@ -91,7 +107,7 @@ function AllPackagesList({ searchTerm = "" }) {
                                     alt={pkg.packageName}
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                                
+
                                 {strikePrice > displayPrice && (
                                     <div className="absolute bottom-4 right-4 bg-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg">
                                         SAVE {Math.round(((strikePrice - displayPrice) / strikePrice) * 100)}%
@@ -103,7 +119,7 @@ function AllPackagesList({ searchTerm = "" }) {
                             <div className="p-6 flex-1 flex flex-col">
                                 <div className="flex justify-between items-start mb-3">
                                     <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg uppercase tracking-wider">
-                                        {pkg.mainCategory || 'Wellness'}
+                                        {pkg.mainCategory || pkg.category || 'Wellness'}
                                     </span>
                                     <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
                                         <FaStar className="text-amber-400 text-[10px]" />
@@ -147,11 +163,10 @@ function AllPackagesList({ searchTerm = "" }) {
                                             e.stopPropagation();
                                             handleCardClick(pkg);
                                         }}
-                                        className={`px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all duration-300 shadow-md active:scale-95 ${
-                                            isAdded 
-                                            ? "bg-slate-100 text-slate-500 cursor-default" 
-                                            : "bg-emerald-600 text-white hover:bg-slate-900 shadow-emerald-200"
-                                        }`}
+                                        className={`px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all duration-300 shadow-md active:scale-95 ${isAdded
+                                                ? "bg-slate-100 text-slate-500 cursor-default"
+                                                : "bg-emerald-600 text-white hover:bg-slate-900 shadow-emerald-200"
+                                            }`}
                                     >
                                         {isAdded ? "In Cart" : "Book Now"}
                                         {!isAdded && <FaChevronRight size={10} />}
@@ -163,8 +178,48 @@ function AllPackagesList({ searchTerm = "" }) {
                 })}
             </div>
 
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 pt-8">
+                    <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="p-3 rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                    >
+                        <FaChevronLeft className="text-slate-600 text-xs" />
+                    </button>
+
+                    {[...Array(totalPages)].map((_, i) => {
+                        const pageNum = i + 1;
+                        // Basic logic to show limited page numbers if totalPages is huge
+                        if (totalPages > 5 && Math.abs(pageNum - currentPage) > 2) return null;
+
+                        return (
+                            <button
+                                key={pageNum}
+                                onClick={() => handlePageChange(pageNum)}
+                                className={`w-10 h-10 rounded-xl text-xs font-bold transition-all ${currentPage === pageNum
+                                        ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200"
+                                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                                    }`}
+                            >
+                                {pageNum}
+                            </button>
+                        );
+                    })}
+
+                    <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="p-3 rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                    >
+                        <FaChevronRight className="text-slate-600 text-xs" />
+                    </button>
+                </div>
+            )}
+
             {/* Empty State */}
-            {filteredPackages.length === 0 && !loading && (
+            {packages.length === 0 && !loading && (
                 <div className="text-center py-24 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200 mx-4">
                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                         <FaFlask className="text-slate-300 text-xl" />

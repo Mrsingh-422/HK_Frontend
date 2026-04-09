@@ -1,8 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import UserAPI from "@/app/services/UserAPI";
-import { FaStar, FaFlask, FaChevronRight, FaVial, FaCheckCircle, FaPrescriptionBottleAlt } from "react-icons/fa";
+import { 
+    FaStar, 
+    FaFlask, 
+    FaChevronRight, 
+    FaChevronLeft, 
+    FaVial, 
+    FaCheckCircle, 
+    FaPrescriptionBottleAlt 
+} from "react-icons/fa";
 import TestDetailsModal from "./TestDetailsModal";
 import { useCart } from "@/app/context/CartContext";
 
@@ -13,39 +21,58 @@ const CATEGORY_IMAGES = {
 };
 
 const AllSingleTestsList = ({ searchTerm = "" }) => {
-    const { cartItemIds } = useCart(); // Consume global cart state
+    const { cartItemIds } = useCart();
     const [tests, setTests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedTest, setSelectedTest] = useState(null);
 
-    useEffect(() => {
-        const fetchTests = async () => {
-            try {
-                setLoading(true);
-                let response = await UserAPI.getStandardTestCatalog();
-                if (response.success) {
-                    setTests(response.data || response.tests || []);
-                }
-            } catch (err) {
-                console.error("Tests Fetch Error:", err);
-                setTests([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchTests();
-    }, []);
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const limit = 12; // Items per page
 
-    const filteredTests = useMemo(() => {
-        const term = searchTerm?.toLowerCase() || "";
-        return tests.filter((test) =>
-            test.testName?.toLowerCase().includes(term) ||
-            test.mainCategory?.toLowerCase().includes(term)
-        );
-    }, [tests, searchTerm]);
+    const fetchTests = useCallback(async () => {
+        try {
+            setLoading(true);
+            const response = await UserAPI.getStandardTestCatalog({
+                page: currentPage,
+                limit: limit,
+                search: searchTerm
+            });
+
+            if (response.success) {
+                // Adjusting to handle both your possible backend keys (data or tests)
+                setTests(response.data || response.tests || []);
+                setTotalPages(response.totalPages || 1);
+            }
+        } catch (err) {
+            console.error("Tests Fetch Error:", err);
+            setTests([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [currentPage, searchTerm]);
+
+    // Reset to page 1 when user types in search
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    // Fetch data when page or search term changes
+    useEffect(() => {
+        fetchTests();
+    }, [fetchTests]);
 
     const handleCardClick = (test) => {
         setSelectedTest(test);
+    };
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+            // Scroll to top of list smoothly
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     };
 
     if (loading) return (
@@ -57,7 +84,7 @@ const AllSingleTestsList = ({ searchTerm = "" }) => {
     );
 
     return (
-        <div className="bg-transparent">
+        <div className="bg-transparent space-y-10">
             {/* Details Modal */}
             <TestDetailsModal
                 isOpen={!!selectedTest}
@@ -66,7 +93,7 @@ const AllSingleTestsList = ({ searchTerm = "" }) => {
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredTests.map((test) => {
+                {tests.map((test) => {
                     const isAdded = cartItemIds.includes(test._id);
                     const displayPrice = test.offerPrice || test.minPrice || test.mrp || test.standardMRP;
                     const strikePrice = test.standardMRP || test.mrp;
@@ -161,8 +188,49 @@ const AllSingleTestsList = ({ searchTerm = "" }) => {
                 })}
             </div>
 
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 pt-8">
+                    <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="p-3 rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                    >
+                        <FaChevronLeft className="text-slate-600 text-xs" />
+                    </button>
+                    
+                    {[...Array(totalPages)].map((_, i) => {
+                        const pageNum = i + 1;
+                        // Show current page, and two pages around it
+                        if (totalPages > 5 && Math.abs(pageNum - currentPage) > 2) return null;
+
+                        return (
+                            <button
+                                key={pageNum}
+                                onClick={() => handlePageChange(pageNum)}
+                                className={`w-10 h-10 rounded-xl text-xs font-bold transition-all ${
+                                    currentPage === pageNum
+                                        ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200"
+                                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                                }`}
+                            >
+                                {pageNum}
+                            </button>
+                        );
+                    })}
+
+                    <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="p-3 rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                    >
+                        <FaChevronRight className="text-slate-600 text-xs" />
+                    </button>
+                </div>
+            )}
+
             {/* Empty State */}
-            {filteredTests.length === 0 && !loading && (
+            {tests.length === 0 && !loading && (
                 <div className="text-center py-24 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200 mx-4">
                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                         <FaPrescriptionBottleAlt size={24} className="text-slate-300" />

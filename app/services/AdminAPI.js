@@ -305,6 +305,10 @@ const AdminAPI = {
         const response = await api.delete(`/admin/articles/delete/${id}`);
         return response.data;
     },
+    getDropdownArticlesSubcategories: async () => {
+        const response = await api.get('/admin/articles/enum');
+        return response.data;
+    },
 
     // --- AD MANAGER ADMIN FUNCTIONS ---
     adminCreateAd: async (formData) => {
