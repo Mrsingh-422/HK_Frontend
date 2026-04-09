@@ -43,13 +43,39 @@ const UserAPI = {
         const response = await publicApi.get("/user/labs/standard-packages", { params });
         return response.data;
     },
-    getLabsList: async (params) => {
-        // params could include search, lat, long, etc.
-        const response = await publicApi.get("/user/labs/list", { params });
+    getLabsList: async (payload) => {
+        // payload should be { lat, lng, search, etc. }
+        const response = await publicApi.post("/user/labs/list", payload);
         return response.data;
     },
     getLabDetails: async (labId) => {
         const response = await publicApi.get(`/user/labs/details/${labId}`);
+        return response.data;
+    },
+    getLabInventoryTests: async (labId, params) => {
+        // params example: { page: 1, limit: 10 }
+        const response = await publicApi.get(`/user/labs/${labId}/inventory-tests`, { params });
+        return response.data;
+    },
+
+    // 2. Search Lab Inventory Tests
+    searchLabInventoryTests: async (labId, payload) => {
+        // payload example: { query: "Sugar" }
+        const response = await publicApi.post(`/user/labs/${labId}/inventory-tests/search`, payload);
+        return response.data;
+    },
+
+    // 3. Get Lab Inventory Packages (Paginated)
+    getLabInventoryPackages: async (labId, params) => {
+        // params example: { page: 1, limit: 10 }
+        const response = await publicApi.get(`/user/labs/${labId}/inventory-packages`, { params });
+        return response.data;
+    },
+
+    // 4. Search Lab Inventory Packages
+    searchLabInventoryPackages: async (labId, payload) => {
+        // payload example: { query: "Full Body" }
+        const response = await publicApi.post(`/user/labs/${labId}/inventory-packages/search`, payload);
         return response.data;
     },
 

@@ -72,6 +72,7 @@ export default function Sidebar() {
         if (pathname.includes("/withdraw-request")) setOpenMenu("/admind/manage-withdraw");
         if (pathname.includes("/settings")) setOpenMenu("settings");
 
+
         if (pathname.includes("/vendors/lab")) {
             setOpenMenu("vendors");
             setOpenSubMenu("lab");
@@ -100,6 +101,11 @@ export default function Sidebar() {
                 <Link href="/admind" className={`menu-item ${isActive("/admind") ? "active" : ""}`}>
                     <FaTachometerAlt className="icon" />
                     <span>Dashboard</span>
+                </Link>
+
+                <Link href="/admind/locationfilter" className={`menu-item ${isActive("/admind/locationfilter") ? "active" : ""}`}>
+                    <FaTachometerAlt className="icon" />
+                    <span>Location Filter</span>
                 </Link>
 
                 {/* Admin Earning */}

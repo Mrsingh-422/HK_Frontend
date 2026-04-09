@@ -378,8 +378,20 @@ const AdminAPI = {
     adminDeleteUser: async (id) => {
         const response = await api.delete(`/admin/users/delete/${id}`);
         return response.data;
-    }
+    },
 
+    // Set a KM limit for a specific vendor or global setting
+    adminSetVendorKMLimit: async (data) => {
+        // data usually contains { vendorId, kmLimit } or similar
+        const response = await api.post('/admin/vendor-km-limit/set-km-limit', data);
+        return response.data;
+    },
+
+    // Fetch all vendor KM limits
+    adminGetVendorKMLimits: async () => {
+        const response = await api.get('/admin/vendor-km-limit/get-km-limits');
+        return response.data;
+    }
 
 };
 

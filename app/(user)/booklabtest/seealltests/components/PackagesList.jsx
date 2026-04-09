@@ -1,75 +1,142 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
-import { FaStar, FaFlask, FaChevronRight, FaClinicMedical, FaCheckCircle } from "react-icons/fa";
+import React, { useEffect, useState, useCallback } from "react";
+import { FaStar, FaFlask, FaChevronRight, FaClinicMedical, FaCheckCircle, FaChevronLeft } from "react-icons/fa";
 import PackageDetailsModal from "./otherComponents/PackageDetailsModal";
 import UserAPI from "@/app/services/UserAPI";
 import { useCart } from "@/app/context/CartContext";
 
+// Fallback image URL for medical/lab packages
+const FALLBACK_IMAGE = "https://www.pathofast.com/images/packages/cro/renamed/hero/full-body-health-checkup-vitamins-and-screening-tests.png";
+
 function PackagesList({ searchTerm = "", selectedLabId = null }) {
-    const { cartItemIds } = useCart(); // Consume context to show 'Added' state
+    const { cartItemIds } = useCart();
+    
+    // Data State
     const [packages, setPackages] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [selectedPackage, setSelectedPackage] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchPackages = async () => {
-            try {
-                setLoading(true);
-                let response;
-                if (selectedLabId && selectedLabId !== "undefined") {
-                    response = await UserAPI.getLabDetails(selectedLabId);
-                    if (response.success) setPackages(response.packages || []);
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalResults, setTotalResults] = useState(0);
+
+    const fetchPackages = useCallback(async () => {
+        try {
+            setLoading(true);
+            let response;
+
+            // Logic to determine which API to call based on selectedLabId
+            if (selectedLabId && selectedLabId !== "undefined") {
+                if (searchTerm) {
+                    // Search within a specific lab's inventory
+                    response = await UserAPI.searchLabInventoryPackages(selectedLabId, { 
+                        query: searchTerm,
+                        page: currentPage 
+                    });
                 } else {
-                    response = await UserAPI.getStandardPackageCatalog();
-                    if (response.success) setPackages(response.data || response.packages || []);
+                    // Fetch full inventory for a specific lab
+                    response = await UserAPI.getLabInventoryPackages(selectedLabId, { 
+                        page: currentPage,
+                        limit: 12 
+                    });
                 }
-            } catch (err) {
-                console.error("Packages Fetch Error:", err);
-                setPackages([]);
-            } finally {
-                setLoading(false);
+            } else {
+                // Global Discovery (Standard Packages)
+                response = await UserAPI.getStandardPackageCatalog({
+                    search: searchTerm,
+                    page: currentPage,
+                    limit: 12
+                });
             }
-        };
-        fetchPackages();
-    }, [selectedLabId]);
 
-    const filteredPackages = useMemo(() => {
-        const term = searchTerm?.toLowerCase() || "";
-        return packages.filter((pkg) =>
-            pkg.packageName?.toLowerCase().includes(term) ||
-            pkg.mainCategory?.toLowerCase().includes(term) ||
-            pkg.category?.toLowerCase().includes(term)
-        );
-    }, [packages, searchTerm]);
+            if (response.success) {
+                // Mapping the response keys (data or packages depending on endpoint)
+                setPackages(response.data || response.packages || []);
+                
+                // Pagination mapping from backend response
+                setTotalPages(response.pages || response.totalPages || 1);
+                setTotalResults(response.total || 0);
+                
+                // Sync current page if backend sends it
+                if (response.page) {
+                    setCurrentPage(response.page);
+                }
+            }
+        } catch (err) {
+            console.error("Packages Fetch Error:", err);
+            setPackages([]);
+            setTotalResults(0);
+            setTotalPages(1);
+        } finally {
+            setLoading(false);
+        }
+    }, [selectedLabId, searchTerm, currentPage]);
+
+    // Reset to page 1 whenever search or lab filter changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, selectedLabId]);
+
+    // Fetch data when page or filters change
+    useEffect(() => {
+        fetchPackages();
+    }, [fetchPackages]);
 
     const handleCardClick = (pkg) => {
         setSelectedPackage(pkg);
         setIsModalOpen(true);
     };
 
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+            // Scroll to the top of the results section
+            window.scrollTo({ top: 200, behavior: 'smooth' });
+        }
+    };
+
     if (loading) return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map(i => (
-                <div key={i} className="h-80 bg-slate-50 animate-pulse rounded-3xl border border-slate-100" />
+                <div key={i} className="h-80 bg-slate-50 animate-pulse rounded-[2rem] border border-slate-100" />
             ))}
         </div>
     );
 
     return (
-        <div className="bg-transparent">
+        <div className="bg-transparent space-y-10">
             <PackageDetailsModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 pkg={selectedPackage}
             />
 
+            {/* Total Results Counter */}
+            {totalResults > 0 && (
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        Showing {packages.length} of {totalResults} packages
+                    </span>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredPackages.map((pkg) => {
+                {packages.map((pkg) => {
                     const isAdded = cartItemIds.includes(pkg._id);
-                    const displayPrice = pkg.offerPrice || pkg.minPrice || pkg.mrp;
-                    const strikePrice = pkg.mrp || pkg.standardMRP;
+                    
+                    // NORMALIZE PRICING FOR BOTH APIS
+                    const displayPrice = pkg.discountPrice ?? pkg.offerPrice ?? pkg.minPrice ?? pkg.amount;
+                    const strikePrice = pkg.amount ?? pkg.mrp ?? pkg.standardMRP;
+
+                    // NORMALIZE NAMES & PARAMETERS COUNT
+                    const displayName = pkg.testName || pkg.packageName;
+                    const testCount = pkg.masterTestId?.parameters?.length || pkg.testCount || pkg.totalTestsIncluded || 1;
+
+                    // NORMALIZE IMAGE
+                    const imageSrc = pkg.image && pkg.image !== "" ? pkg.image : FALLBACK_IMAGE;
 
                     return (
                         <div
@@ -77,26 +144,28 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                             onClick={() => handleCardClick(pkg)}
                             className="group relative bg-white rounded-[2rem] border border-slate-100 hover:border-emerald-500/30 hover:shadow-[0_20px_50px_rgba(8,179,106,0.12)] transition-all duration-500 flex flex-col overflow-hidden cursor-pointer"
                         >
-                            {/* Top Badge: Labs Count */}
-                            {pkg.vendorCount > 0 && (
+                            {/* Labs Count Badge (Only show if no specific lab is selected) */}
+                            {!selectedLabId && pkg.vendorCount > 0 && (
                                 <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-2xl shadow-sm flex items-center gap-2 border border-slate-100">
                                     <FaClinicMedical className="text-emerald-500 text-xs" />
                                     <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">
-                                        {pkg.vendorCount} Labs
+                                        {pkg.vendorCount} Labs Available
                                     </span>
                                 </div>
                             )}
 
                             {/* Image Section */}
-                            <div className="relative h-48 w-full overflow-hidden">
+                            <div className="relative h-48 w-full overflow-hidden bg-slate-100">
                                 <img
-                                    src={pkg.image || `https://images.unsplash.com/photo-1579152276532-535c21af30b0?q=80&w=800`}
+                                    src={imageSrc}
                                     className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-                                    alt={pkg.packageName}
+                                    alt={displayName}
+                                    onError={(e) => {
+                                        e.target.src = FALLBACK_IMAGE; // Secondary fallback if URL is broken
+                                    }}
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
 
-                                {/* Discount Tag */}
                                 {strikePrice > displayPrice && (
                                     <div className="absolute bottom-4 right-4 bg-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg">
                                         SAVE {Math.round(((strikePrice - displayPrice) / strikePrice) * 100)}%
@@ -108,7 +177,7 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                             <div className="p-6 flex-1 flex flex-col">
                                 <div className="flex justify-between items-start mb-3">
                                     <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg uppercase tracking-wider">
-                                        {pkg.mainCategory || 'Full Body'}
+                                        {pkg.mainCategory || pkg.category || 'Wellness'}
                                     </span>
                                     <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
                                         <FaStar className="text-amber-400 text-[10px]" />
@@ -117,7 +186,7 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                                 </div>
 
                                 <h3 className="text-lg font-bold text-slate-800 line-clamp-2 h-14 leading-tight mb-4 group-hover:text-emerald-600 transition-colors">
-                                    {pkg.packageName}
+                                    {displayName}
                                 </h3>
 
                                 <div className="flex items-center gap-4 mb-6">
@@ -125,20 +194,24 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                                         <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center">
                                             <FaFlask className="text-emerald-500 text-[10px]" />
                                         </div>
-                                        <span className="text-xs font-medium text-slate-500">{pkg.testCount || pkg.tests?.length} Tests</span>
+                                        <span className="text-xs font-medium text-slate-500">
+                                            {testCount} {testCount > 1 ? 'Tests' : 'Test'}
+                                        </span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                         <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center">
                                             <FaCheckCircle className="text-blue-500 text-[10px]" />
                                         </div>
-                                        <span className="text-xs font-medium text-slate-500">Certified</span>
+                                        <span className="text-xs font-medium text-slate-500">Verified</span>
                                     </div>
                                 </div>
 
-                                {/* Footer: Price & Button */}
+                                {/* Pricing & Action */}
                                 <div className="mt-auto pt-5 border-t border-slate-50 flex items-center justify-between gap-4">
                                     <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Starts From</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
+                                            {selectedLabId ? "Offer Price" : "Starts From"}
+                                        </p>
                                         <div className="flex items-baseline gap-1.5">
                                             <span className="text-2xl font-black text-slate-900">₹{displayPrice}</span>
                                             {strikePrice > displayPrice && (
@@ -152,12 +225,13 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                                             e.stopPropagation();
                                             handleCardClick(pkg);
                                         }}
-                                        className={`px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all duration-300 shadow-md active:scale-95 ${isAdded
-                                            ? "bg-slate-100 text-slate-500 cursor-default"
+                                        className={`px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all duration-300 shadow-md active:scale-95 ${
+                                            isAdded 
+                                            ? "bg-slate-100 text-slate-500 cursor-default" 
                                             : "bg-emerald-600 text-white hover:bg-slate-900 shadow-emerald-200"
-                                            }`}
+                                        }`}
                                     >
-                                        {isAdded ? "Selected" : "Book Now"}
+                                        {isAdded ? "In Cart" : "Book Now"}
                                         {!isAdded && <FaChevronRight size={10} />}
                                     </button>
                                 </div>
@@ -167,14 +241,54 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                 })}
             </div>
 
+            {/* PAGINATION CONTROLS */}
+            {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 pt-8">
+                    <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="p-3 rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                    >
+                        <FaChevronLeft className="text-slate-600 text-xs" />
+                    </button>
+                    
+                    {[...Array(totalPages)].map((_, i) => {
+                        const pageNum = i + 1;
+                        if (totalPages > 5 && Math.abs(pageNum - currentPage) > 2) return null;
+
+                        return (
+                            <button
+                                key={pageNum}
+                                onClick={() => handlePageChange(pageNum)}
+                                className={`w-10 h-10 rounded-xl text-xs font-bold transition-all ${
+                                    currentPage === pageNum
+                                        ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200"
+                                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                                }`}
+                            >
+                                {pageNum}
+                            </button>
+                        );
+                    })}
+
+                    <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="p-3 rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                    >
+                        <FaChevronRight className="text-slate-600 text-xs" />
+                    </button>
+                </div>
+            )}
+
             {/* Empty State */}
-            {filteredPackages.length === 0 && !loading && (
+            {packages.length === 0 && !loading && (
                 <div className="text-center py-24 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200 mx-4">
                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                         <FaFlask className="text-slate-300 text-xl" />
                     </div>
-                    <h3 className="text-slate-800 font-bold text-lg">No matches found</h3>
-                    <p className="text-slate-400 text-sm max-w-xs mx-auto">Try adjusting your filters or search terms to find what you're looking for.</p>
+                    <h3 className="text-slate-800 font-bold text-lg">No packages found</h3>
+                    <p className="text-slate-400 text-sm max-w-xs mx-auto">Try searching for something else or check another laboratory.</p>
                 </div>
             )}
         </div>

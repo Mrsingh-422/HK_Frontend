@@ -6,6 +6,9 @@ import PackageDetailsModal from "./PackageDetailsModal";
 import UserAPI from "@/app/services/UserAPI";
 import { useCart } from "@/app/context/CartContext";
 
+// Fallback image URL for medical packages
+const FALLBACK_IMAGE = "https://www.pathofast.com/images/packages/cro/renamed/hero/full-body-health-checkup-vitamins-and-screening-tests.png";
+
 function AllPackagesList({ searchTerm = "" }) {
     const { cartItemIds } = useCart();
     const [packages, setPackages] = useState([]);
@@ -82,6 +85,9 @@ function AllPackagesList({ searchTerm = "" }) {
                     const isAdded = cartItemIds.includes(pkg._id);
                     const displayPrice = pkg.offerPrice || pkg.minPrice || pkg.mrp;
                     const strikePrice = pkg.mrp || pkg.standardMRP;
+                    
+                    // Determine image source: uses pkg.image, falls back to placeholder if empty or null
+                    const imageSrc = pkg.image && pkg.image !== "" ? pkg.image : FALLBACK_IMAGE;
 
                     return (
                         <div
@@ -100,11 +106,14 @@ function AllPackagesList({ searchTerm = "" }) {
                             )}
 
                             {/* Image Section */}
-                            <div className="relative h-48 w-full overflow-hidden">
+                            <div className="relative h-48 w-full overflow-hidden bg-slate-100">
                                 <img
-                                    src={pkg.image || `https://images.unsplash.com/photo-1579152276532-535c21af30b0?q=80&w=800`}
+                                    src={imageSrc}
                                     className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
                                     alt={pkg.packageName}
+                                    onError={(e) => {
+                                        e.target.src = FALLBACK_IMAGE; // Secondary fallback if the URL is broken
+                                    }}
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
 
@@ -191,7 +200,6 @@ function AllPackagesList({ searchTerm = "" }) {
 
                     {[...Array(totalPages)].map((_, i) => {
                         const pageNum = i + 1;
-                        // Basic logic to show limited page numbers if totalPages is huge
                         if (totalPages > 5 && Math.abs(pageNum - currentPage) > 2) return null;
 
                         return (
