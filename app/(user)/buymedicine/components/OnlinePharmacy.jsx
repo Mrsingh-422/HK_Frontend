@@ -2,10 +2,11 @@
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   FaFlask, FaSearch, FaUpload, FaCheckCircle,
   FaArrowRight, FaTruck, FaShieldAlt, FaPrescription,
-  FaPlus, FaCapsules, FaHistory, FaBolt, FaStethoscope, FaBaby, FaWeight, FaHeart
+  FaPlus, FaCapsules, FaHistory, FaBolt, FaStethoscope, FaBaby, FaWeight, FaHeart, FaTimes, FaPhoneAlt, FaMapMarkerAlt
 } from "react-icons/fa";
 import MedicineDetailsModal from "./otherComponents/MedicineDetailsModal";
 import { useGlobalContext } from "@/app/context/GlobalContext";
@@ -38,8 +39,13 @@ function OnlinePharmacy() {
 
   const [medicines, setMedicines] = useState(INITIAL_MEDICINES);
   const fileInputRef = useRef(null);
+  
+  // Prescription Upload States
+  const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
+  const [prescriptionFile, setPrescriptionFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+
   const [selectedMedicine, setSelectedMedicine] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -65,11 +71,24 @@ function OnlinePharmacy() {
   }, [searchTerm, medicines]);
 
   const handleUploadClick = () => fileInputRef.current.click();
+  
   const handleFileChange = (event) => {
-    if (event.target.files[0]) {
-      setIsUploading(true);
-      setTimeout(() => { setIsUploading(false); setUploadSuccess(true); }, 1500);
+    const file = event.target.files[0];
+    if (file) {
+      setPrescriptionFile(file);
+      setIsPrescriptionModalOpen(true);
     }
+  };
+
+  const handlePrescriptionSubmit = (e) => {
+    e.preventDefault();
+    setIsUploading(true);
+    setTimeout(() => {
+      setIsUploading(false);
+      setUploadSuccess(true);
+      setIsPrescriptionModalOpen(false);
+      alert("Prescription Order Placed Successfully!");
+    }, 2000);
   };
 
   if (loading) return (
@@ -80,6 +99,8 @@ function OnlinePharmacy() {
 
   return (
     <div className="min-h-screen bg-white pb-20 font-sans text-slate-900">
+      
+      {/* 1. MEDICINE DETAILS MODAL */}
       <MedicineDetailsModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -87,7 +108,62 @@ function OnlinePharmacy() {
         onAddToCart={(med) => console.log("Added:", med)}
       />
 
-      {/* --- 1. MINIMALIST HERO SECTION --- */}
+      {/* 2. PRESCRIPTION ORDER MODAL */}
+      <AnimatePresence>
+        {isPrescriptionModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white w-full max-w-lg rounded-[2.5rem] overflow-hidden shadow-2xl"
+            >
+              <div className="p-8 space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+                    <FaPrescription className="text-[#08B36A]" /> Prescription Order
+                  </h3>
+                  <button onClick={() => setIsPrescriptionModalOpen(false)} className="text-slate-400 hover:text-red-500">
+                    <FaTimes size={24} />
+                  </button>
+                </div>
+
+                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex items-center gap-4">
+                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-[#08B36A] shadow-sm">
+                    <FaCheckCircle />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">File Ready</p>
+                    <p className="text-sm font-black text-slate-700 truncate">{prescriptionFile?.name}</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handlePrescriptionSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-[#08B36A] uppercase tracking-widest ml-1">Contact Number</label>
+                    <div className="relative">
+                      <FaPhoneAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                      <input required type="tel" placeholder="Mobile Number" className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#08B36A]" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-[#08B36A] uppercase tracking-widest ml-1">Delivery Address</label>
+                    <div className="relative">
+                      <FaMapMarkerAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                      <textarea required rows="2" placeholder="Your Address" className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#08B36A] resize-none"></textarea>
+                    </div>
+                  </div>
+                  <button disabled={isUploading} type="submit" className="w-full bg-[#08B36A] text-white py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-50">
+                    {isUploading ? "Sending..." : "Confirm Prescription Order"}
+                  </button>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- 3. HERO SECTION --- */}
       <section className="bg-emerald-50/50 pt-10 pb-16 px-4">
         <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
           <div className="space-y-8">
@@ -97,11 +173,8 @@ function OnlinePharmacy() {
             <h1 className="text-4xl sm:text-7xl font-black text-slate-900 leading-[1.1]">
                {pageData.mainTitle.replace('!', '')}<span className="text-[#08B36A]">.</span>
             </h1>
-            <p className="text-slate-500 text-lg sm:text-xl max-w-lg font-medium">
-               {pageData.description}
-            </p>
+            <p className="text-slate-500 text-lg sm:text-xl max-w-lg font-medium">{pageData.description}</p>
             
-            {/* Action Bar */}
             <div className="flex flex-col sm:flex-row gap-4">
                <div className="relative flex-1 group">
                   <FaSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#08B36A] transition-colors" />
@@ -110,49 +183,34 @@ function OnlinePharmacy() {
                     placeholder={pageData.searchPlaceholder}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-14 pr-6 py-5 rounded-2xl bg-white border border-slate-200 shadow-sm outline-none focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium"
+                    className="w-full pl-14 pr-6 py-5 rounded-2xl bg-white border border-slate-200 shadow-sm outline-none focus:ring-4 focus:ring-[#08B36A]/10 transition-all font-medium"
                   />
                </div>
                <button 
                 onClick={handleUploadClick}
-                className="bg-slate-900 text-white px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-[#08B36A] transition-all shadow-lg flex items-center justify-center gap-3"
+                className={`px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-3 ${uploadSuccess ? 'bg-emerald-500 text-white' : 'bg-slate-900 text-white'}`}
                >
-                 {uploadSuccess ? <FaCheckCircle className="text-emerald-400" /> : <FaUpload />}
-                 {uploadSuccess ? "Uploaded" : "Prescription"}
+                 {uploadSuccess ? <FaCheckCircle /> : <FaUpload />}
+                 {uploadSuccess ? "Sent" : "Prescription"}
                </button>
-               <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+               <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,.pdf" />
             </div>
           </div>
-
           <div className="hidden lg:flex justify-end relative">
-             <div className="w-96 h-96 bg-[#08B36A] rounded-[4rem] rotate-6 absolute opacity-10"></div>
-             <img 
-               src="https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=600&q=80" 
-               className="w-80 h-[450px] object-cover rounded-[3rem] shadow-2xl relative z-10 -rotate-3 hover:rotate-0 transition-transform duration-700" 
-               alt="Pharmacy"
-             />
+             <img src="https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=600&q=80" className="w-80 h-[450px] object-cover rounded-[3rem] shadow-2xl relative z-10 -rotate-3 hover:rotate-0 transition-transform duration-700" alt="Pharmacy" />
           </div>
         </div>
       </section>
 
-      {/* --- 2. ICONIC CATEGORY BAR --- */}
+      {/* --- 4. ICONIC CATEGORY BAR --- */}
       <div className="max-w-7xl mx-auto px-4 -mt-8 relative z-20">
         <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-4 sm:p-8 flex gap-4 overflow-x-auto no-scrollbar">
-           <button 
-            onClick={() => setActiveCat("All")}
-            className={`flex flex-col items-center gap-3 min-w-[100px] p-4 rounded-2xl transition-all border-2
-            ${activeCat === "All" ? 'border-[#08B36A] bg-emerald-50/50' : 'border-transparent hover:bg-slate-50'}`}
-           >
+           <button onClick={() => setActiveCat("All")} className={`flex flex-col items-center gap-3 min-w-[100px] p-4 rounded-2xl transition-all border-2 ${activeCat === "All" ? 'border-[#08B36A] bg-emerald-50/50' : 'border-transparent hover:bg-slate-50'}`}>
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${activeCat === "All" ? 'bg-[#08B36A] text-white' : 'bg-slate-100 text-slate-400'}`}><FaPlus /></div>
               <span className="text-[10px] font-black uppercase tracking-widest">All Meds</span>
            </button>
            {CATEGORIES.map((cat) => (
-             <button 
-              key={cat.name}
-              onClick={() => setActiveCat(cat.name)}
-              className={`flex flex-col items-center gap-3 min-w-[100px] p-4 rounded-2xl transition-all border-2
-              ${activeCat === cat.name ? 'border-[#08B36A] bg-emerald-50/50' : 'border-transparent hover:bg-slate-50'}`}
-             >
+             <button key={cat.name} onClick={() => setActiveCat(cat.name)} className={`flex flex-col items-center gap-3 min-w-[100px] p-4 rounded-2xl transition-all border-2 ${activeCat === cat.name ? 'border-[#08B36A] bg-emerald-50/50' : 'border-transparent hover:bg-slate-50'}`}>
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${activeCat === cat.name ? 'bg-[#08B36A] text-white' : 'bg-slate-100 text-slate-400'}`}>{cat.icon}</div>
                 <span className="text-[10px] font-black uppercase tracking-widest">{cat.name}</span>
              </button>
@@ -162,7 +220,7 @@ function OnlinePharmacy() {
 
       <main className="max-w-7xl mx-auto px-4 mt-16 space-y-16">
         
-        {/* --- 3. TRUST SIGNALS --- */}
+        {/* --- 5. TRUST SIGNALS --- */}
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-6">
            <div className="flex items-center gap-4 p-6 bg-slate-50 rounded-3xl border border-slate-100">
               <FaTruck className="text-[#08B36A] text-2xl" />
@@ -182,44 +240,33 @@ function OnlinePharmacy() {
            </div>
         </section>
 
-        {/* --- 4. HIGH DENSITY PRODUCT GRID --- */}
+        {/* --- 6. MEDICINE GRID (LIMIT 8) --- */}
         <section>
           <div className="flex items-center justify-between mb-10">
             <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Popular Medicines</h2>
-            <Link href="/buymedicine/seeallmed" className="text-[#08B36A] text-xs font-black uppercase tracking-widest hover:underline">Explore All</Link>
+            <Link href="/buymedicine/seeallmed" className="hidden sm:block text-[#08B36A] text-xs font-black uppercase tracking-widest hover:underline">Explore Store</Link>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-8">
-            {filteredMedicines.slice(0, 12).map((med) => (
+            {filteredMedicines.slice(0, 8).map((med) => (
               <div key={med._id || med.id} className="group flex flex-col bg-white border border-slate-100 rounded-[2rem] overflow-hidden hover:shadow-2xl hover:shadow-emerald-900/5 transition-all duration-500">
                 <div className="relative aspect-square bg-slate-50/50 p-6 flex items-center justify-center">
-                  <img 
-                    src={med.image?.startsWith('http') ? med.image : `${API_URL}${med.image}`} 
-                    alt={med.name} 
-                    className="h-full w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-700" 
-                  />
+                  <img src={med.image?.startsWith('http') ? med.image : `${API_URL}${med.image}`} alt={med.name} className="h-full w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-700" />
                   {med.actualPrice > med.discountPrice && (
                     <div className="absolute top-4 left-4 bg-slate-900 text-white text-[8px] font-black px-2 py-0.5 rounded shadow-lg uppercase">
                        {Math.round(((med.actualPrice - med.discountPrice) / med.actualPrice) * 100)}% Off
                     </div>
                   )}
                 </div>
-
                 <div className="p-5 sm:p-7 flex flex-col flex-1">
-                  <span className="text-[9px] font-black text-[#08B36A] uppercase tracking-tighter mb-2">{med.vendor}</span>
-                  <h3 className="text-sm sm:text-lg font-black text-slate-800 line-clamp-2 leading-tight mb-4 h-10 sm:h-12">
-                    {med.name}
-                  </h3>
-                  
+                  <span className="text-[9px] font-black text-[#08B36A] uppercase mb-2">{med.vendor}</span>
+                  <h3 className="text-sm sm:text-lg font-black text-slate-800 line-clamp-2 h-10 sm:h-12">{med.name}</h3>
                   <div className="mt-auto pt-4 border-t border-slate-50 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] text-slate-300 line-through font-bold block leading-none mb-1">₹{med.actualPrice}</span>
+                      <span className="text-[10px] text-slate-300 line-through font-bold block leading-none">₹{med.actualPrice}</span>
                       <span className="text-xl sm:text-2xl font-black text-slate-900">₹{med.discountPrice}</span>
                     </div>
-                    <button 
-                      onClick={() => setSelectedMedicine(med) || setIsModalOpen(true)}
-                      className="w-10 h-10 sm:w-12 sm:h-12 bg-[#08B36A] text-white rounded-xl flex items-center justify-center hover:bg-slate-900 transition-all shadow-lg shadow-emerald-500/10 active:scale-90"
-                    >
+                    <button onClick={() => setSelectedMedicine(med) || setIsModalOpen(true)} className="w-10 h-10 sm:w-12 sm:h-12 bg-[#08B36A] text-white rounded-xl flex items-center justify-center hover:bg-slate-900 transition-all active:scale-90 shadow-lg shadow-emerald-500/10">
                       <FaPlus className="text-xs" />
                     </button>
                   </div>
@@ -227,26 +274,34 @@ function OnlinePharmacy() {
               </div>
             ))}
           </div>
+
+          {/* EXPLORE MORE BUTTON */}
+          {filteredMedicines.length > 8 && (
+            <div className="mt-16 text-center">
+                <Link href="/buymedicine/seeallmed">
+                    <button className="inline-flex items-center gap-3 bg-white text-slate-900 border-2 border-slate-900 px-12 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-[#08B36A] hover:text-white hover:border-[#08B36A] transition-all shadow-xl active:scale-95 group">
+                        Explore Full Store 
+                        <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
+                    </button>
+                </Link>
+                <p className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Showing 8 of {filteredMedicines.length} products</p>
+            </div>
+          )}
         </section>
 
-        {/* --- 5. CLEAN FOOTER ACTION --- */}
+        {/* --- 7. CLEAN FOOTER ACTION --- */}
         <section className="bg-slate-900 rounded-[3rem] p-10 sm:p-20 text-center space-y-8 relative overflow-hidden">
            <div className="relative z-10">
               <h2 className="text-3xl sm:text-5xl font-black text-white uppercase tracking-tighter max-w-2xl mx-auto leading-tight">
                 Authentic Meds. <br/><span className="text-[#08B36A]">Verified Partners.</span>
               </h2>
-              <p className="text-slate-400 max-w-lg mx-auto font-medium text-sm sm:text-lg pt-4">
-                Join 50k+ users who trust us for their monthly healthcare essentials.
-              </p>
+              <p className="text-slate-400 max-w-lg mx-auto font-medium text-sm sm:text-lg pt-4">Join 50k+ users who trust us for their monthly healthcare essentials.</p>
               <div className="pt-10">
-                 <Link href="/buymedicine/seeallmed">
-                    <button className="bg-white text-slate-900 px-12 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-[#08B36A] hover:text-white transition-all shadow-2xl">
-                       Browse Full Store
-                    </button>
-                 </Link>
+                <Link href="/buymedicine/seeallmed">
+                    <button className="bg-white text-slate-900 px-12 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-[#08B36A] hover:text-white transition-all">Browse Store</button>
+                </Link>
               </div>
            </div>
-           {/* Abstract Circle Background */}
            <div className="absolute top-0 right-0 w-96 h-96 bg-[#08B36A]/10 rounded-full blur-[100px] -mr-48 -mt-48"></div>
         </section>
       </main>

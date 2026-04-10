@@ -2,175 +2,283 @@
 
 import React, { useState, useEffect } from "react";
 import {
-  FaStar, FaShoppingCart, FaTrashAlt,
-  FaCheckCircle, FaInfoCircle, FaClock, FaVial,
-  FaShieldAlt, FaClinicMedical, FaArrowLeft, FaExclamationTriangle
+    FaStar, FaShoppingCart, FaTrashAlt,
+    FaCheckCircle, FaInfoCircle, FaClock, FaVial,
+    FaShieldAlt, FaClinicMedical, FaArrowLeft, 
+    FaExclamationTriangle, FaListUl, FaRegFileAlt,
+    FaQuestionCircle, FaUserFriends, FaFlask, FaMicroscope, FaHistory
 } from "react-icons/fa";
 import { useCart } from "@/app/context/CartContext"; 
 import toast from "react-hot-toast";
 
 const TestDetailsModal = ({ isOpen, onClose, test }) => {
-  const { cart, cartItemIds, addItem, removeItem } = useCart();
-  const [selectedLab, setSelectedLab] = useState(null);
+    const { cart, cartItemIds, addItem, removeItem, clearCart } = useCart();
+    const [selectedLab, setSelectedLab] = useState(null);
+    const [showClearCartConfirm, setShowClearCartConfirm] = useState(false);
 
-  const addedOffering = test?.vendorList?.find(v => cartItemIds.includes(v._id));
-  const isAdded = !!addedOffering;
+    // Identify if any lab for this test is already in the cart
+    const addedOffering = test?.vendorList?.find(v => cartItemIds.includes(v._id));
+    const isAdded = !!addedOffering;
 
-  useEffect(() => {
-    if (isOpen && isAdded) {
-      setSelectedLab(addedOffering);
-    } else if (isOpen) {
-      setSelectedLab(null);
-    }
-  }, [isOpen, isAdded, test, addedOffering]);
+    useEffect(() => {
+        if (isOpen && isAdded) {
+            setSelectedLab(addedOffering);
+            document.body.style.overflow = 'hidden';
+        } else if (isOpen) {
+            setSelectedLab(null);
+            document.body.style.overflow = 'hidden';
+            // Default select first lab if available
+            if (test?.vendorList?.length > 0) {
+                setSelectedLab(test.vendorList[0]);
+            }
+        } else {
+            document.body.style.overflow = 'unset';
+            setShowClearCartConfirm(false);
+        }
+        return () => { document.body.style.overflow = 'unset'; };
+    }, [isOpen, isAdded, test, addedOffering]);
 
-  if (!isOpen || !test) return null;
+    if (!isOpen || !test) return null;
 
-  const displayPrice = selectedLab ? selectedLab.discountPrice : (test.vendorList?.length > 0 ? Math.min(...test.vendorList.map(v => v.discountPrice)) : test.standardMRP);
-  const strikePrice = selectedLab ? selectedLab.mrp : test.standardMRP;
+    // Price calculations based on selected lab or test defaults
+    const displayPrice = selectedLab ? selectedLab.discountPrice : (test.minPrice || test.standardMRP);
+    const strikePrice = selectedLab ? selectedLab.amount : test.standardMRP;
+    const discount = selectedLab ? selectedLab.discountPercent : 0;
 
-  const handleAction = async () => {
-    if (isAdded) {
-      try {
-        await removeItem(addedOffering._id);
-        toast.success("Test removed from cart");
-      } catch (error) {
-        toast.error("Failed to remove test from cart");
-      }
-    } else {
-        // REDESIGNED POPUP LOGIC
-      if (cart && cart.items?.length > 0 && cart.categoryType) {
-        const currentCartType = cart.categoryType;
-        const newItemType = test.mainCategory;
+    const executeAdd = async () => {
+        try {
+            await addItem(selectedLab.labId, selectedLab._id, 'LabTest');
+            toast.success("Added to cart!");
+            setShowClearCartConfirm(false);
+        } catch (error) {
+            toast.error("An error occurred while adding to cart.");
+        }
+    };
 
-        if (currentCartType !== newItemType) {
-            toast.custom((t) => (
-                <div className={`${t.visible ? 'animate-in fade-in slide-in-from-bottom-4' : 'animate-out fade-out slide-out-to-bottom-4'} max-w-md w-full bg-white shadow-2xl rounded-[1.5rem] pointer-events-auto flex flex-col overflow-hidden border border-slate-100`}>
-                    <div className="p-6">
-                        <div className="flex items-start gap-4">
-                            <div className="flex-shrink-0 w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500">
-                                <FaExclamationTriangle size={20} />
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-base font-bold text-slate-900 leading-tight">Order Restriction</p>
-                                <p className="mt-1 text-sm text-slate-500 leading-relaxed">
-                                    You have <span className="font-bold text-slate-700">{currentCartType}</span> tests in cart. Mix-booking with <span className="font-bold text-slate-700">{newItemType}</span> is not allowed.
-                                </p>
-                            </div>
+    const handleClearAndAdd = async () => {
+        try {
+            await clearCart();
+            await executeAdd();
+        } catch (error) {
+            toast.error("Failed to clear cart");
+        }
+    };
+
+    const handleAction = async () => {
+        if (isAdded) {
+            try {
+                await removeItem(addedOffering._id);
+                toast.success("Removed from cart");
+            } catch (error) {
+                toast.error("Failed to remove item");
+            }
+        } else {
+            if (!selectedLab) {
+                toast.error("Please choose a laboratory center.");
+                return;
+            }
+
+            // Category Mismatch Check
+            if (cart && cart.items?.length > 0 && cart.categoryType) {
+                if (cart.categoryType !== test.mainCategory) {
+                    setShowClearCartConfirm(true);
+                    return;
+                }
+            }
+            await executeAdd();
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[999] bg-white w-full h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
+            
+            {/* CATEGORY MISMATCH OVERLAY */}
+            {showClearCartConfirm && (
+                <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+                            <FaExclamationTriangle className="text-amber-600 text-2xl" />
+                        </div>
+                        <h3 className="text-xl font-black text-slate-900 text-center mb-2">Mixed Cart Category</h3>
+                        <p className="text-slate-500 text-center font-medium text-sm mb-8 leading-relaxed">
+                            Your cart contains <span className="font-bold text-slate-700">{cart.categoryType}</span> items. Clear cart to start a new <span className="font-bold text-slate-700">{test.mainCategory}</span> order?
+                        </p>
+                        <div className="flex flex-col gap-3">
+                            <button onClick={handleClearAndAdd} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all">Clear and Add</button>
+                            <button onClick={() => setShowClearCartConfirm(false)} className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">Cancel</button>
                         </div>
                     </div>
-                    <div className="bg-slate-50 px-6 py-4 flex items-center justify-end gap-3">
-                        <button 
-                            onClick={() => toast.dismiss(t.id)}
-                            className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors"
-                        >
-                            Cancel
-                        </button>
-                        <button 
-                            onClick={async () => {
-                                toast.dismiss(t.id);
-                                await addItem(selectedLab.labId, selectedLab._id, 'LabTest', true);
-                            }}
-                            className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-slate-200 hover:bg-emerald-600 transition-all active:scale-95"
-                        >
-                            Start New Order
-                        </button>
+                </div>
+            )}
+
+            <header className="h-16 border-b border-slate-100 flex items-center justify-between px-4 md:px-8 sticky top-0 bg-white z-10">
+                <button onClick={onClose} className="flex items-center gap-2 text-slate-600 hover:text-emerald-600 font-bold transition-colors">
+                    <FaArrowLeft /> <span className="uppercase tracking-widest text-xs">Back to Catalog</span>
+                </button>
+                <div className="flex items-center gap-4">
+                    <div className="hidden md:flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        <FaShieldAlt className="text-emerald-500" /> Secure Diagnostic Booking
                     </div>
                 </div>
-            ), { position: 'bottom-center', duration: 6000 });
-            return;
-        }
-      }
+            </header>
 
-      if (!selectedLab) {
-        toast.error("Please choose a laboratory first!", { icon: '🏥' });
-        document.getElementById('lab-selection-area')?.scrollIntoView({ behavior: 'smooth' });
-        return;
-      }
-      
-      try {
-        await addItem(selectedLab.labId, selectedLab._id, 'LabTest');
-      } catch (error) {
-        toast.error("An error occurred while adding to cart.");
-      }
-    }
-  };
+            <div className="flex-1 overflow-y-auto bg-[#FDFDFD]">
+                <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 md:py-12">
+                    <div className="flex flex-col lg:flex-row gap-12">
+                        
+                        <div className="flex-1">
+                            <div className="mb-8">
+                                <div className="flex flex-wrap gap-2 mb-4">
+                                    <span className="bg-emerald-50 text-emerald-700 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider border border-emerald-100">
+                                        {test.mainCategory}
+                                    </span>
+                                    <span className="bg-blue-50 text-blue-700 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider border border-blue-100">
+                                        ID: {test.testCode}
+                                    </span>
+                                </div>
+                                <h1 className="text-3xl md:text-5xl font-black text-slate-900 mb-4 tracking-tight uppercase">
+                                    {test.testName}
+                                </h1>
+                                <div className="flex flex-wrap gap-2 mb-6">
+                                    {test.parameters?.map((param, i) => (
+                                        <span key={i} className="bg-slate-100 text-slate-500 text-[10px] font-black px-3 py-1 rounded-md uppercase">
+                                            {param}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
 
-  return (
-    <div className="fixed inset-0 z-[200] bg-white overflow-y-auto animate-in fade-in duration-300">
-      <nav className="sticky top-0 z-30 bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
-          <button onClick={onClose} className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-emerald-600 transition-colors"><FaArrowLeft size={14} /><span>Back to Catalog</span></button>
-          <div className="flex items-center gap-3">
-            <span className="hidden md:block text-[11px] font-bold text-slate-400 uppercase tracking-widest">Test Code: {test.testCode || 'N/A'}</span>
-            <div className="h-4 w-px bg-slate-200 hidden md:block"></div>
-            <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600"><FaShieldAlt /> Secure Booking</span>
-          </div>
-        </div>
-      </nav>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+                                <StatCard icon={<FaVial className="text-rose-500" />} label="Sample" value={test.sampleType === "NA" ? "No Sample" : test.sampleType} />
+                                <StatCard icon={<FaClock className="text-blue-500" />} label="Reports" value={selectedLab ? `${selectedLab.reportTime} Hours` : "Fastest"} />
+                                <StatCard icon={<FaHistory className="text-amber-500" />} label="Preparation" value={test.pretestPreparation?.includes("Fasting") ? "Fasting Req." : "None"} />
+                                <StatCard icon={<FaUserFriends className="text-purple-500" />} label="Gender" value={test.gender} />
+                            </div>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 md:py-12">
-        <div className="flex flex-col lg:flex-row gap-12 pb-24 md:pb-0">
-          <div className="flex-1">
-            <div className="mb-10">
-              <div className="flex items-center gap-2 mb-3"><span className="bg-emerald-50 text-emerald-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase border border-emerald-100">{test.mainCategory}</span><div className="flex items-center gap-1 text-amber-500 text-xs font-bold"><FaStar /> 4.8 <span className="text-slate-400 font-medium">(Verified)</span></div></div>
-              <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4 uppercase tracking-tight">{test.testName}</h1>
-              <p className="text-slate-600 text-base leading-relaxed max-w-3xl font-medium">Quality-controlled laboratory analysis ensures precise health data for medical evaluation.</p>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-              <ClinicalSpec icon={<FaVial />} label="Sample Type" value={test.sampleType || "Blood"} />
-              <ClinicalSpec icon={<FaShieldAlt />} label="Preparation" value={test.pretestPreparation || "None Required"} />
-              <ClinicalSpec icon={<FaClock />} label="Turnaround" value="24-48 Hours" />
-              <ClinicalSpec icon={<FaClinicMedical />} label="Availability" value={`${test.vendorCount || 0} Labs`} />
-            </div>
-            <section id="lab-selection-area" className="mb-12 scroll-mt-24">
-              <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2"><span className="w-1 h-6 bg-emerald-500 rounded-full"></span>1. Select Provider</h3>
-              <div className="grid gap-4">
-                {test.vendorList?.map((vendor) => {
-                  const isSelected = selectedLab?._id === vendor._id;
-                  return (
-                    <div key={vendor._id} onClick={() => !isAdded && setSelectedLab(vendor)} className={`p-5 rounded-2xl border-2 transition-all flex items-center justify-between ${isSelected ? "border-emerald-500 bg-emerald-50/30 shadow-md" : isAdded ? "border-slate-100 opacity-50 cursor-not-allowed" : "border-slate-100 bg-white hover:border-slate-200 cursor-pointer"}`}>
-                      <div className="flex items-center gap-4"><div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${isSelected ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"}`}><FaClinicMedical size={20} /></div><div><h4 className="font-bold text-slate-800 text-sm uppercase tracking-tight">Diagnostic Partner</h4><p className="text-[11px] text-slate-500 font-medium tracking-tight">Report Cycle: {vendor.reportTime} Hours</p></div></div>
-                      <div className="text-right">
-                        <div className="flex items-center gap-2 justify-end">{vendor.mrp > vendor.discountPrice && <span className="text-xs text-slate-400 line-through">₹{vendor.mrp}</span>}<p className="text-lg font-black text-slate-900">₹{vendor.discountPrice}</p></div>
-                        <p className="text-[10px] text-emerald-600 font-bold uppercase">{vendor.discountPercent}% Off</p>
-                      </div>
+                            {/* LAB SELECTION AREA */}
+                            <section id="lab-selection-area" className="mb-12">
+                                <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2">
+                                    <FaClinicMedical className="text-emerald-500" /> Choose Laboratory Center
+                                </h3>
+                                <div className="grid gap-4">
+                                    {test.vendorList?.map((vendor) => (
+                                        <div
+                                            key={vendor._id}
+                                            onClick={() => !isAdded && setSelectedLab(vendor)}
+                                            className={`p-5 rounded-2xl border-2 transition-all flex items-center justify-between ${selectedLab?._id === vendor._id ? "border-emerald-500 bg-emerald-50/40" : isAdded ? "opacity-50 cursor-not-allowed border-slate-100" : "border-slate-100 bg-white cursor-pointer hover:border-slate-200"}`}
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedLab?._id === vendor._id ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"}`}>
+                                                    <FaClinicMedical size={20} />
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-slate-900 uppercase text-sm tracking-tight">Partner Diagnostic Lab</p>
+                                                    <p className="text-[10px] text-slate-500 font-black uppercase">Report Cycle: {vendor.reportTime} Hours</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-lg font-black text-slate-900">₹{vendor.discountPrice}</p>
+                                                <p className="text-[10px] font-black text-emerald-600 uppercase">SAVE {vendor.discountPercent}%</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+
+                            {/* DYNAMIC CONTENT FROM RESPONSE */}
+                            <div className="grid md:grid-cols-2 gap-6 mb-12">
+                                {test.detailedDescription?.length > 0 && (
+                                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                                        <h4 className="font-black text-slate-900 mb-4 flex items-center gap-2 uppercase text-xs tracking-widest"><FaRegFileAlt className="text-blue-500" /> Clinical Overview</h4>
+                                        <div className="space-y-4">
+                                            {test.detailedDescription.map((desc) => (
+                                                <div key={desc._id}>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">{desc.sectionTitle}</p>
+                                                    <p className="text-sm text-slate-600 leading-relaxed font-medium">{desc.sectionContent}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="bg-amber-50/50 p-6 rounded-2xl border border-amber-100 h-fit">
+                                    <h4 className="font-black text-slate-900 mb-4 flex items-center gap-2 uppercase text-xs tracking-widest"><FaListUl className="text-amber-500" /> Preparation</h4>
+                                    <p className="text-sm text-slate-700 font-bold leading-relaxed">
+                                        {test.pretestPreparation || "No special preparation needed for this scan/test."}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* FAQS SECTION */}
+                            {test.faqs?.length > 0 && (
+                                <section className="mb-12">
+                                    <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2 uppercase text-xs tracking-widest">
+                                        <FaQuestionCircle className="text-emerald-500" /> Common Questions
+                                    </h3>
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        {test.faqs.map((faq) => (
+                                            <div key={faq._id} className="p-4 rounded-xl border border-slate-100 bg-white shadow-sm">
+                                                <p className="font-bold text-slate-900 text-sm mb-1">{faq.question}</p>
+                                                <p className="text-sm text-slate-500 font-medium">{faq.answer}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
+                        </div>
+
+                        {/* SIDEBAR SUMMARY */}
+                        <div className="w-full lg:w-80">
+                            <div className="sticky top-28 bg-white border border-slate-200 rounded-[2rem] shadow-2xl p-6 overflow-hidden">
+                                <div className="absolute top-0 right-0 p-4">
+                                    <FaMicroscope className="text-slate-50 text-7xl rotate-12" />
+                                </div>
+                                <div className="relative z-10">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Total Test Amount</p>
+                                    <div className="flex items-baseline gap-2 mb-1">
+                                        <span className="text-4xl font-black text-slate-900">₹{displayPrice}</span>
+                                        {strikePrice > displayPrice && (
+                                            <span className="text-slate-400 line-through font-bold">₹{strikePrice}</span>
+                                        )}
+                                    </div>
+                                    {discount > 0 && (
+                                        <p className="text-[10px] font-black text-emerald-600 mb-6 bg-emerald-50 px-2 py-1 rounded inline-block">
+                                            DISCOUNT APPLIED ({discount}%)
+                                        </p>
+                                    )}
+                                    <div className="space-y-4 mb-8">
+                                        <div className="flex items-center gap-3 text-sm text-slate-600 font-bold">
+                                            <FaCheckCircle className="text-emerald-500 shrink-0" />
+                                            <span className="text-[11px] uppercase tracking-tighter">NABL Verified Labs</span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-sm text-slate-600 font-bold">
+                                            <FaCheckCircle className="text-emerald-500 shrink-0" />
+                                            <span className="text-[11px] uppercase tracking-tighter">Digital Report Delivery</span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleAction}
+                                        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.1em] transition-all duration-300 ${isAdded ? "bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-600 hover:text-white" : !selectedLab ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-emerald-600 text-white hover:bg-slate-900 shadow-xl shadow-emerald-100"
+                                            }`}
+                                    >
+                                        {isAdded ? <span><FaTrashAlt className="inline mr-2" /> Remove Test</span> : <span><FaShoppingCart className="inline mr-2" /> Book Now</span>}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
-                  );
-                })}
-              </div>
-            </section>
-          </div>
-
-          <div className="w-full lg:w-96">
-            <div className="sticky top-28 bg-white border border-slate-200 rounded-[2rem] p-8 shadow-sm">
-              <div className="mb-6 pb-6 border-b border-slate-100">
-                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-2">Checkout Total</p>
-                <div className="flex items-baseline gap-2"><h2 className="text-5xl font-black text-slate-900 tracking-tighter">₹{displayPrice}</h2>{strikePrice > displayPrice && <span className="text-slate-400 line-through text-xl font-medium">₹{strikePrice}</span>}</div>
-                <p className="text-[10px] text-emerald-600 font-bold mt-4 flex items-center gap-1 uppercase tracking-tight"><FaCheckCircle /> Inclusive of all taxes</p>
-              </div>
-              <div className="space-y-5 mb-10 font-bold uppercase tracking-widest">
-                <SummaryItem icon={<FaClinicMedical />} text={selectedLab ? "Center Selected" : "No Center Selected"} active={!!selectedLab} />
-                <SummaryItem icon={<FaShieldAlt />} text="ISO Certified Process" active={true} />
-                <SummaryItem icon={<FaInfoCircle />} text="Digital Report Format" active={true} />
-              </div>
-              <button onClick={handleAction} className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${isAdded ? "bg-rose-50 text-rose-600 border border-rose-100 shadow-sm" : !selectedLab ? "bg-slate-100 text-slate-400 cursor-pointer" : "bg-emerald-600 text-white hover:bg-slate-900 shadow-xl shadow-emerald-200"}`}>
-                {isAdded ? <><FaTrashAlt /> Remove from Cart</> : <><FaShoppingCart /> Add to Cart</>}
-              </button>
+                </div>
             </div>
-          </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 };
 
-const ClinicalSpec = ({ icon, label, value }) => (
-  <div className="p-4 rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all"><div className="text-emerald-500 mb-2">{icon}</div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p><p className="text-xs font-black text-slate-800 line-clamp-1">{value}</p></div>
-);
-
-const SummaryItem = ({ icon, text, active }) => (
-  <div className="flex items-center gap-4 text-xs tracking-tighter"><span className={active ? "text-emerald-500" : "text-slate-200"}>{icon}</span><span className={active ? "text-slate-700" : "text-slate-300"}>{text}</span></div>
+const StatCard = ({ icon, label, value }) => (
+    <div className="bg-white border border-slate-100 p-4 rounded-2xl flex flex-col items-center text-center shadow-sm">
+        <div className="text-lg mb-2">{icon}</div>
+        <p className="text-[9px] font-black text-slate-400 uppercase mb-0.5">{label}</p>
+        <p className="text-[11px] font-black text-slate-900 truncate w-full uppercase">{value || "N/A"}</p>
+    </div>
 );
 
 export default TestDetailsModal;

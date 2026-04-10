@@ -1,241 +1,264 @@
 "use client";
 
+import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import React, { useState, useMemo, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  FaStar, FaFilter, FaSearch, FaMapMarkerAlt,
-  FaVideo, FaHospital, FaChevronRight, FaUserMd, FaTimes, FaArrowRight
+  FaStar, FaSearch, FaMapMarkerAlt, FaVideo, 
+  FaHospital, FaArrowRight, FaCheckCircle, 
+  FaStethoscope, FaUserMd, FaShieldAlt, FaBriefcaseMedical, FaClock
 } from "react-icons/fa";
 import { DOCTORS_DATA } from "@/app/constants/constants";
-import DoctorDetailsModal from "./otherComponents/DoctorDetailsModal";
-import { useGlobalContext } from "@/app/context/GlobalContext";
 
-const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
-
-// --- FALLBACK STATIC DATA ---
-const STATIC_DATA = {
-  headerTag: "Book Your Personal Meeting",
-  titlePart1: "Find My",
-  titlePart2: "Doctor! 👩‍⚕️",
-  description: "Connect with top-rated specialists instantly. We prioritize your health by bringing certified medical professionals to your doorstep.",
-  carouselImages: []
+// --- Framer Motion Animation Settings ---
+const fadeInUp = {
+  initial: { opacity: 0, y: 30 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
 };
 
-function FindMyDoctor() {
+const staggerContainer = {
+  animate: { transition: { staggerChildren: 0.1 } }
+};
+
+export default function LandingFindDoctor() {
   const router = useRouter();
-  const { getFindDoctorContent } = useGlobalContext();
-
-  // 1. DYNAMIC DATA STATE
-  const [data, setData] = useState(STATIC_DATA);
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState("recommended");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeDoctor, setActiveDoctor] = useState(null);
 
-  // 2. FETCH DYNAMIC CONTENT
-  useEffect(() => {
-    const fetchContent = async () => {
-      try {
-        const res = await getFindDoctorContent();
-        if (res?.success && res?.data) {
-          const fetchedData = res.data;
-
-          // Logic to handle Multer Image Paths if they exist in the response
-          const processedImages = (fetchedData.carouselImages || []).map((img) =>
-            img.startsWith("http") ? img : `${API_URL}${img}`
-          );
-
-          setData({
-            ...fetchedData,
-            carouselImages: processedImages
-          });
-        }
-      } catch (err) {
-        console.error("Backend fetch failed, using static fallback.");
-      }
-    };
-    fetchContent();
-  }, [getFindDoctorContent]);
-
-  // 3. DOCTOR LISTING LOGIC
-  const handleOpenDoctor = (doctor) => {
-    setActiveDoctor(doctor);
-    setIsModalOpen(true);
-  };
-
-  const processedDoctors = useMemo(() => {
-    let filtered = DOCTORS_DATA.filter(doc =>
+  // Logic: Filter by search then slice to exactly 6 for the landing page
+  const visibleDoctors = useMemo(() => {
+    const filtered = DOCTORS_DATA.filter(doc =>
       doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       doc.specialty.toLowerCase().includes(searchTerm.toLowerCase())
     );
-    return filtered.sort((a, b) => {
-      if (sortBy === "price-low") return a.consultFee - b.consultFee;
-      if (sortBy === "rating-high") return b.rating - a.rating;
-      if (sortBy === "distance-near") return a.distance - b.distance;
-      return 0;
-    });
-  }, [searchTerm, sortBy]);
+    return filtered.slice(0, 6); 
+  }, [searchTerm]);
 
-  const visibleDoctors = processedDoctors.slice(0, 6);
-  const hasMore = processedDoctors.length > 6;
+  const handleNavigateToDoctor = (id) => {
+    router.push(`/drappointment/doctor/${id}`);
+  };
+
+  const handleSeeAll = () => {
+    router.push("/drappointment/seealldoctors");
+  };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] py-6 md:py-12 px-4 sm:px-6 lg:px-8 font-sans">
-      <DoctorDetailsModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        doctor={activeDoctor}
-      />
+    <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-emerald-100">
       
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+      {/* 1. HERO SECTION */}
+      <section className="relative pt-24 pb-32 px-6 overflow-hidden bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-emerald-50/40 via-white to-white">
+        <div className="max-w-7xl mx-auto text-center relative z-10">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-widest mb-8 border border-emerald-100"
+          >
+            <FaCheckCircle className="animate-pulse" /> Verified Medical Network
+          </motion.div>
 
-        {/* LEFT SECTION: HERO - NOW DYNAMIC */}
-        <div className="lg:col-span-5 space-y-6 md:space-y-8 lg:sticky lg:top-32 h-fit">
-          <div className="border-l-4 border-[#08B36A] pl-4 md:pl-6 space-y-2 md:space-y-4">
-            <h4 className="text-[#08B36A] font-black uppercase tracking-widest text-[10px] sm:text-xs">
-              {data.headerTag}
-            </h4>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 leading-tight">
-              {data.titlePart1} <br className="hidden sm:block" /> {data.titlePart2}
-            </h1>
-          </div>
+          <motion.h1 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-[1.1]"
+          >
+            Your health journey <br />
+            <span className="text-emerald-600">starts with the right expert.</span>
+          </motion.h1>
 
-          <p className="text-slate-600 text-sm sm:text-base md:text-lg leading-relaxed max-w-xl">
-            {data.description}
-          </p>
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto mb-12 leading-relaxed"
+          >
+            Connect with India's top-rated certified specialists for video consultations 
+            or in-person clinic visits. Secure, fast, and reliable.
+          </motion.p>
 
-          <div className="space-y-3 max-w-md">
-            <label className="text-[#08B36A] font-black text-[11px] uppercase tracking-wider">Search Specialist</label>
-            <div className="relative group">
-              <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#08B36A] transition-colors" />
-              <input
+          {/* SEARCH BOX */}
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="max-w-3xl mx-auto bg-white rounded-3xl p-2 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-100 flex flex-col md:flex-row items-center gap-2"
+          >
+            <div className="relative flex-1 w-full group">
+              <FaSearch className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
+              <input 
                 type="text"
+                placeholder="Search by specialty (e.g. Cardiologist)..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Name or Speciality..."
-                className="w-full pl-11 pr-11 py-3.5 bg-white border-2 border-slate-100 rounded-2xl focus:ring-2 focus:ring-[#08B36A] focus:border-transparent outline-none transition-all shadow-sm text-base"
+                className="w-full pl-14 pr-6 py-5 bg-transparent outline-none font-medium text-slate-700"
               />
-              {searchTerm && (
-                <FaTimes 
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500 cursor-pointer" 
-                  onClick={() => setSearchTerm("")} 
-                />
-              )}
             </div>
-          </div>
+            <button 
+              onClick={handleSeeAll}
+              className="w-full md:w-auto bg-slate-900 text-white px-10 py-5 rounded-2xl font-bold hover:bg-emerald-600 transition-all active:scale-95 shadow-lg"
+            >
+              Search Doctors
+            </button>
+          </motion.div>
         </div>
+      </section>
 
-        {/* RIGHT SECTION: DOCTORS LIST */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* SORT BAR */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm gap-4">
-            <p className="text-slate-700 text-sm sm:text-base font-bold">
-              Found <span className="text-[#08B36A]">{processedDoctors.length} Specialists</span>
-            </p>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <FaFilter className="text-[#08B36A] flex-shrink-0" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="w-full sm:w-auto bg-slate-50 border-none text-xs sm:text-sm font-bold text-slate-700 py-2 pl-3 pr-8 rounded-xl focus:ring-2 focus:ring-[#08B36A] cursor-pointer"
-              >
-                <option value="recommended">Recommended</option>
-                <option value="distance-near">Nearest</option>
-                <option value="rating-high">Highest Rated</option>
-                <option value="price-low">Consult Fee</option>
-              </select>
-            </div>
-          </div>
-
-          {/* LISTING */}
-          <div className="space-y-6">
-            {visibleDoctors.length > 0 ? (
-              <>
-                {visibleDoctors.map((doc) => (
-                  <div key={doc.id} className="bg-white rounded-[1.5rem] md:rounded-[2rem] p-4 sm:p-6 shadow-sm border border-slate-100 hover:shadow-xl transition-all duration-300 group">
-                    <div className="flex flex-col sm:flex-row gap-4 md:gap-8">
-                      {/* Image */}
-                      <div className="w-full sm:w-40 md:w-48 h-56 sm:h-40 md:h-48 flex-shrink-0 relative">
-                        <img src={doc.image} alt={doc.name} className="w-full h-full object-cover rounded-2xl md:rounded-3xl" />
-                        <div className="absolute top-2 left-2 bg-[#08B36A] text-white px-2 py-0.5 rounded-md text-[9px] font-black shadow-lg">VERIFIED</div>
-                      </div>
-
-                      {/* Info Content */}
-                      <div className="flex-1 flex flex-col justify-between">
-                        <div>
-                          <div className="flex justify-between items-start">
-                            <div className="max-w-[70%]">
-                              <h3 className="text-xl md:text-2xl font-black text-slate-800 group-hover:text-[#08B36A] transition-colors truncate">{doc.name}</h3>
-                              <p className="text-[#08B36A] font-bold text-[10px] md:text-sm uppercase tracking-widest">{doc.specialty}</p>
-                            </div>
-                            <div className="flex bg-yellow-50 px-1.5 py-0.5 rounded-md">
-                              {[...Array(5)].map((_, i) => (
-                                <FaStar key={i} className={`${i < doc.rating ? 'text-yellow-400' : 'text-slate-200'} text-[10px] md:text-xs`} />
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-y-2 mt-4 text-[11px] md:text-sm">
-                            <p className="text-slate-500">Exp: <span className="text-slate-800 font-bold">{doc.experience}</span></p>
-                            <p className="text-slate-500">Lang: <span className="text-slate-800 font-bold">{doc.speaks}</span></p>
-                            <p className="text-slate-500 col-span-2 flex items-center gap-1">
-                              <FaMapMarkerAlt className="text-[#08B36A] flex-shrink-0" /> <span className="truncate">{doc.address}</span>
-                              <span className="ml-auto text-[9px] bg-slate-100 px-1.5 py-0.5 rounded-full font-bold">~{doc.distance}km</span>
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Action Grid */}
-                        <div className="grid grid-cols-2 gap-3 mt-5 pt-4 border-t border-slate-50">
-                          <button
-                            onClick={() => handleOpenDoctor(doc)}
-                            className="bg-[#08B36A] hover:bg-slate-900 text-white py-2.5 rounded-xl transition-all shadow-md flex flex-col items-center justify-center">
-                            <span className="text-sm md:text-lg font-black leading-none">₹{doc.consultFee}</span>
-                            <span className="text-[8px] md:text-[10px] font-bold uppercase mt-1 opacity-90 truncate px-1 flex items-center gap-1">
-                              <FaVideo className="hidden sm:inline" /> Online
-                            </span>
-                          </button>
-                          <button
-                            onClick={() => handleOpenDoctor(doc)}
-                            className="bg-amber-400 hover:bg-slate-900 hover:text-white text-slate-900 py-2.5 rounded-xl transition-all shadow-md flex flex-col items-center justify-center">
-                            <span className="text-sm md:text-lg font-black leading-none">₹{doc.clinicFee}</span>
-                            <span className="text-[8px] md:text-[10px] font-bold uppercase mt-1 opacity-90 truncate px-1 flex items-center gap-1">
-                              <FaHospital className="hidden sm:inline" /> Clinic
-                            </span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                {hasMore && (
-                  <div className="pt-4 text-center">
-                    <button
-                      onClick={() => router.push("/drappointment/seealldoctors")}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-[#08B36A] border-2 border-[#08B36A] font-black px-10 py-3.5 rounded-2xl hover:bg-[#08B36A] hover:text-white transition-all shadow-lg active:scale-95 group"
-                    >
-                      See All Doctors
-                      <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
-                    </button>
-                    <p className="text-slate-400 text-[10px] mt-3 font-medium uppercase tracking-tighter">
-                      Showing 6 of {processedDoctors.length} available specialists
-                    </p>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="bg-white p-12 md:p-20 rounded-[2rem] border-2 border-dashed border-slate-200 text-center">
-                <FaUserMd className="mx-auto text-5xl text-slate-200 mb-4" />
-                <h3 className="text-lg font-bold text-slate-800">No doctors match your search</h3>
-                <button onClick={() => setSearchTerm("")} className="mt-4 text-[#08B36A] font-bold underline">Reset search</button>
+      {/* 2. STATS SECTION */}
+      <div className="max-w-7xl mx-auto px-6 mb-24">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 p-10 bg-slate-50 rounded-[3rem] border border-slate-100">
+          {[
+            { icon: FaUserMd, label: "Specialists", count: "500+" },
+            { icon: FaStar, label: "Avg. Rating", count: "4.9/5" },
+            { icon: FaShieldAlt, label: "Secure Data", count: "100%" },
+            { icon: FaClock, label: "Wait Time", count: "< 5 Min" },
+          ].map((item, i) => (
+            <div key={i} className="text-center space-y-2">
+              <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center mx-auto mb-2">
+                <item.icon className="text-emerald-600" />
               </div>
-            )}
-          </div>
+              <h4 className="text-2xl font-black text-slate-900">{item.count}</h4>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">{item.label}</p>
+            </div>
+          ))}
         </div>
       </div>
+
+      {/* 3. DOCTORS GRID (SHOW ONLY 6) */}
+      <section className="max-w-7xl mx-auto px-6 pb-20">
+        <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
+          <div className="space-y-3">
+            <h2 className="text-4xl font-black text-slate-900 tracking-tight">Top Rated Specialists</h2>
+            <div className="h-1.5 w-20 bg-emerald-500 rounded-full" />
+          </div>
+          <button 
+            onClick={handleSeeAll}
+            className="group flex items-center gap-3 font-black text-slate-900 hover:text-emerald-600 transition-colors"
+          >
+            View All 200+ Specialists 
+            <div className="w-10 h-10 rounded-full border-2 border-slate-900 group-hover:border-emerald-600 flex items-center justify-center transition-all">
+                <FaArrowRight className="text-sm group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
+        </div>
+
+        <motion.div 
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10"
+        >
+          <AnimatePresence mode="popLayout">
+            {visibleDoctors.map((doc) => (
+              <motion.div
+                key={doc.id}
+                layout
+                variants={fadeInUp}
+                whileHover={{ y: -12 }}
+                onClick={() => handleNavigateToDoctor(doc.id)}
+                className="group bg-white rounded-[2.5rem] p-5 border border-slate-100 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.12)] transition-all cursor-pointer relative overflow-hidden"
+              >
+                {/* Image Area */}
+                <div className="relative mb-6 aspect-[4/5] rounded-[2rem] overflow-hidden">
+                  <img 
+                    src={doc.image} 
+                    alt={doc.name} 
+                    className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700" 
+                  />
+                  <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl flex items-center gap-2 shadow-xl">
+                    <FaStar className="text-amber-400" />
+                    <span className="font-black text-sm">{doc.rating}</span>
+                  </div>
+                </div>
+
+                {/* Info Area */}
+                <div className="space-y-4 px-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-2xl font-black text-slate-900 group-hover:text-emerald-600 transition-colors leading-tight">
+                        {doc.name}
+                      </h3>
+                      <p className="text-emerald-500 font-bold text-xs uppercase tracking-widest mt-1">
+                        {doc.specialty}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-slate-500 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                    <FaMapMarkerAlt className="text-emerald-500 flex-shrink-0" />
+                    <span className="text-xs font-bold truncate">{doc.address}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-2">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fee starts at</span>
+                      <span className="text-xl font-black text-slate-900">₹{doc.consultFee}</span>
+                    </div>
+                    <div className="flex -space-x-2">
+                      <div className="w-8 h-8 rounded-full border-2 border-white bg-emerald-100 flex items-center justify-center text-emerald-600"><FaVideo size={12}/></div>
+                      <div className="w-8 h-8 rounded-full border-2 border-white bg-blue-100 flex items-center justify-center text-blue-600"><FaHospital size={12}/></div>
+                    </div>
+                  </div>
+
+                  <button className="w-full py-4 bg-slate-900 group-hover:bg-emerald-600 text-white rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-lg shadow-slate-200 group-hover:shadow-emerald-200">
+                    Book Slot
+                    <FaArrowRight className="text-sm group-hover:translate-x-1 transition-transform" />
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
+        
+        {/* VIEW ALL BUTTON (Below Grid) */}
+        <motion.div 
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            className="mt-20 text-center"
+        >
+            <button 
+                onClick={handleSeeAll}
+                className="bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white px-12 py-5 rounded-[2rem] font-black transition-all shadow-sm active:scale-95 border border-emerald-100"
+            >
+                View All Available Specialists
+            </button>
+        </motion.div>
+      </section>
+
+      {/* 4. PROFESSIONAL CTA */}
+      <section className="max-w-7xl mx-auto px-6 pb-24">
+        <div className="bg-slate-900 rounded-[3.5rem] p-12 md:p-24 relative overflow-hidden group">
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <h2 className="text-4xl md:text-6xl font-black text-white mb-8 leading-tight">
+                Modern Healthcare <br /> <span className="text-emerald-400 underline decoration-wavy underline-offset-8">Simplified.</span>
+              </h2>
+              <p className="text-slate-400 text-lg md:text-xl mb-10 max-w-lg leading-relaxed">
+                Experience seamless appointment booking with India's most advanced health network. Available on Web, iOS, and Android.
+              </p>
+              <div className="flex flex-wrap gap-4">
+                <button className="bg-white text-slate-900 px-8 py-4 rounded-2xl font-black hover:bg-emerald-400 transition-all flex items-center gap-2">
+                  Get Started <FaArrowRight />
+                </button>
+                <button className="bg-slate-800 text-white border border-slate-700 px-8 py-4 rounded-2xl font-black hover:bg-slate-700 transition-all">
+                  Contact Support
+                </button>
+              </div>
+            </div>
+            <div className="hidden lg:block relative">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-500/20 blur-[100px] rounded-full"></div>
+                <FaStethoscope className="text-[25rem] text-white/5 -rotate-12 float-animation" />
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      <style jsx>{`
+        .float-animation {
+          animation: float 6s ease-in-out infinite;
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0) rotate(-12deg); }
+          50% { transform: translateY(-20px) rotate(-8deg); }
+        }
+      `}</style>
     </div>
   );
 }
-
-export default FindMyDoctor;

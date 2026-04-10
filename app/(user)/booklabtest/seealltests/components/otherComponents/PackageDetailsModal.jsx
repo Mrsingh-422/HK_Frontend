@@ -5,15 +5,16 @@ import {
     FaShoppingCart, FaTrashAlt, FaCheckCircle, FaInfoCircle,
     FaClock, FaVial, FaHistory, FaClinicMedical, FaShieldAlt,
     FaArrowLeft, FaListUl, FaQuestionCircle,
-    FaUserFriends, FaFlask, FaRegFileAlt, FaMicroscope
+    FaUserFriends, FaFlask, FaRegFileAlt, FaMicroscope, FaExclamationTriangle
 } from "react-icons/fa";
 import { useCart } from "@/app/context/CartContext";
 import toast from "react-hot-toast";
 
 const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
     // 1. All Hooks must be at the top level
-    const { cart, cartItemIds, addItem, removeItem } = useCart();
+    const { cart, cartItemIds, addItem, removeItem, clearCart } = useCart();
     const [selectedLab, setSelectedLab] = useState(null);
+    const [showClearCartConfirm, setShowClearCartConfirm] = useState(false);
 
     // Identify if the package is already in the cart
     const isAdded = cartItemIds.includes(pkg?._id);
@@ -44,6 +45,7 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
             }
         } else {
             document.body.style.overflow = 'unset';
+            setShowClearCartConfirm(false);
         }
         return () => { document.body.style.overflow = 'unset'; };
     }, [isOpen, pkg]);
@@ -56,6 +58,33 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
     const strikePrice = selectedLab?.mrp ?? pkg?.mrp ?? pkg?.standardMRP ?? 0;
     const discount = selectedLab?.discountPercent ?? pkg?.discountPercent ?? 0;
 
+    const executeAdd = async () => {
+        try {
+            const targetLabId = selectedLab?.labId || pkg.labId;
+            const targetPkgId = selectedLab?._id || pkg._id;
+
+            if (!targetLabId) {
+                toast.error("Laboratory information missing.");
+                return;
+            }
+
+            await addItem(targetLabId, targetPkgId, 'LabPackage');
+            toast.success("Added to cart!");
+            setShowClearCartConfirm(false);
+        } catch (error) {
+            toast.error("Failed to add to cart");
+        }
+    };
+
+    const handleClearAndAdd = async () => {
+        try {
+            await clearCart();
+            await executeAdd();
+        } catch (error) {
+            toast.error("Failed to clear cart");
+        }
+    };
+
     const handleFinalAction = async () => {
         if (isAdded) {
             try {
@@ -66,29 +95,44 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
             }
         } else {
             if (cart?.items?.length > 0 && cart.categoryType !== "Pathology") {
-                toast.error(`Clear cart first to add this category.`);
+                setShowClearCartConfirm(true);
                 return;
             }
-
-            try {
-                const targetLabId = selectedLab?.labId || pkg.labId;
-                const targetPkgId = selectedLab?._id || pkg._id;
-
-                if (!targetLabId) {
-                    toast.error("Laboratory information missing.");
-                    return;
-                }
-
-                await addItem(targetLabId, targetPkgId, 'LabPackage');
-                toast.success("Added to cart!");
-            } catch (error) {
-                toast.error("Failed to add to cart");
-            }
+            await executeAdd();
         }
     };
 
     return (
         <div className="fixed inset-0 z-[999] bg-white w-full h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
+            
+            {/* Clear Cart Confirmation Overlay */}
+            {showClearCartConfirm && (
+                <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+                            <FaExclamationTriangle className="text-amber-600 text-2xl" />
+                        </div>
+                        <h3 className="text-xl font-black text-slate-900 text-center mb-2">Mixed Cart Category</h3>
+                        <p className="text-slate-500 text-center font-medium text-sm mb-8">
+                            Your cart already contains items from another category. Clear cart to add this diagnostic package?
+                        </p>
+                        <div className="flex flex-col gap-3">
+                            <button 
+                                onClick={handleClearAndAdd}
+                                className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-700 transition-all"
+                            >
+                                Clear and Add
+                            </button>
+                            <button 
+                                onClick={() => setShowClearCartConfirm(false)}
+                                className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <header className="h-16 border-b border-slate-100 flex items-center justify-between px-4 md:px-8 sticky top-0 bg-white z-10">
                 <button onClick={onClose} className="flex items-center gap-2 text-slate-600 hover:text-emerald-600 font-bold transition-colors">

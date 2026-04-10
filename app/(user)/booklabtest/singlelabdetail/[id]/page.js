@@ -38,7 +38,7 @@ export default function LabDetailsPage() {
     }, [id]);
 
     if (loading) return <LoadingSkeleton />;
-    
+
     if (!lab) return (
         <div className="h-screen flex flex-col items-center justify-center text-slate-500 font-medium">
             <p>Laboratory data could not be retrieved.</p>
