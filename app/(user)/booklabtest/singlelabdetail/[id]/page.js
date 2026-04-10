@@ -24,11 +24,8 @@ export default function LabDetailsPage() {
         const fetchLabData = async () => {
             try {
                 setLoading(true);
-                // Based on your API function: const response = await publicApi.get(...)
                 const response = await UserAPI.getLabDetails(id);
-
                 if (response.success) {
-                    // Based on your JSON response structure: "data": { ... }
                     setLab(response.data);
                 }
             } catch (error) {
@@ -41,6 +38,7 @@ export default function LabDetailsPage() {
     }, [id]);
 
     if (loading) return <LoadingSkeleton />;
+    
     if (!lab) return (
         <div className="h-screen flex flex-col items-center justify-center text-slate-500 font-medium">
             <p>Laboratory data could not be retrieved.</p>
@@ -173,9 +171,53 @@ const TabTrigger = ({ active, onClick, label }) => (
     </button>
 );
 
+// --- DETAILED SKELETON EFFECT ---
 const LoadingSkeleton = () => (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-slate-100 border-t-emerald-500 rounded-full animate-spin mb-4"></div>
-        <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] animate-pulse">Initializing Lab Profile...</p>
+    <div className="min-h-screen bg-[#F8FAFC] animate-pulse">
+        {/* Nav Skeleton */}
+        <div className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between">
+            <div className="h-4 w-32 bg-slate-100 rounded"></div>
+            <div className="h-4 w-24 bg-slate-100 rounded"></div>
+        </div>
+
+        {/* Header Skeleton */}
+        <div className="bg-white border-b border-slate-200 px-6 py-12">
+            <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-8">
+                <div className="w-32 h-32 rounded-3xl bg-slate-100"></div>
+                <div className="flex-1 space-y-4">
+                    <div className="h-8 w-1/2 bg-slate-200 rounded-lg"></div>
+                    <div className="h-4 w-3/4 bg-slate-100 rounded-md"></div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+                        <div className="h-10 bg-slate-50 rounded-lg"></div>
+                        <div className="h-10 bg-slate-50 rounded-lg"></div>
+                        <div className="h-10 bg-slate-50 rounded-lg"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {/* Feature Grid Skeleton */}
+        <div className="max-w-7xl mx-auto px-6 py-10">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="h-32 bg-white rounded-2xl border border-slate-100"></div>
+                ))}
+            </div>
+        </div>
+
+        {/* Tabs Skeleton */}
+        <div className="max-w-7xl mx-auto px-6">
+            <div className="bg-white rounded-3xl border border-slate-200 h-[400px] p-8">
+                <div className="flex gap-10 border-b border-slate-100 mb-8">
+                    <div className="h-6 w-32 bg-slate-100 mb-2"></div>
+                    <div className="h-6 w-32 bg-slate-100 mb-2"></div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-48 bg-slate-50 rounded-2xl"></div>
+                    ))}
+                </div>
+            </div>
+        </div>
     </div>
 );
