@@ -14,24 +14,38 @@ import AmbulanceFacility from "./components/mainPageComponents/ambulanceFacility
 import OurAffiliates from "./components/mainPageComponents/ourAffiliates/OurAffiliates";
 import FewArticles from "./components/mainPageComponents/fewArticles/FewArticles";
 import Faqs from "./components/mainPageComponents/faqs/Faqs";
+import MedicineComponent from "./components/mainPageComponents/MedicineComponent";
+import PersonalCare from "./components/mainPageComponents/PersonalCare";
+import SomeDesign from "./components/mainPageComponents/SomeDesign";
+import LabTests from "./components/mainPageComponents/LabTests";
+import LabPackages from "./components/mainPageComponents/LabPackages";
+import Ayurveda from "./components/mainPageComponents/Ayurveda";
+import AppointmentComponent from "./components/mainPageComponents/AppointmentComponent";
 
 export default function Home() {
   return (
     <>
       <SecondNavbar />
       <HeroSection />
-      <OurIntroduction />
-      <AboutUs />
-      <Medicines />
-      <Laboratory />
-      <DoctorsTeam />
-      <GetHealthApp />
-      <Nursing />
-      <AmbulanceFacility />
-      <Hospitals />
-      <OurAffiliates />
-      <FewArticles />
-      <Faqs />
+      {/* <OurIntroduction /> */}
+      <MedicineComponent />
+      <AppointmentComponent />
+      <PersonalCare />
+      <LabTests />
+      <SomeDesign />
+      <LabPackages />
+      <Ayurveda />
+      {/* <AboutUs /> */}
+      {/* <Medicines /> */}
+      {/* <Laboratory /> */}
+      {/* <DoctorsTeam /> */}
+      {/* <GetHealthApp /> */}
+      {/* <Nursing /> */}
+      {/* <AmbulanceFacility /> */}
+      {/* <Hospitals /> */}
+      {/* <OurAffiliates /> */}
+      {/* <FewArticles /> */}
+      {/* <Faqs /> */}
     </>
   );
 }

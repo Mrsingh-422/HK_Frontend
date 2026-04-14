@@ -3,11 +3,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-    FaArrowLeft, FaSearch, FaCapsules, FaChevronDown, 
-    FaFilter, FaShoppingBasket, FaMedkit, FaMapMarkerAlt, 
-    FaStar, FaClock, FaChevronRight, FaStore, FaHistory, 
-    FaTruck, FaShieldAlt, FaCheckCircle 
+import {
+    FaArrowLeft, FaSearch, FaCapsules, FaChevronDown,
+    FaFilter, FaShoppingBasket, FaMedkit, FaMapMarkerAlt,
+    FaStar, FaClock, FaChevronRight, FaStore, FaHistory,
+    FaTruck, FaShieldAlt, FaCheckCircle
 } from "react-icons/fa";
 
 // Constants & Components
@@ -15,7 +15,7 @@ import { INITIAL_MEDICINES } from "../../../constants/constants";
 import MedicineDetailsModal from "../components/otherComponents/MedicineDetailsModal";
 import AllMed from "./components/AllMed";
 import AllProducts from "./components/AllProducts";
-import UserAPI from "@/app/services/UserAPI"; // Assuming path based on your snippet
+import UserAPI from "@/app/services/UserAPI"; 
 
 // --- SKELETON COMPONENT ---
 const PharmacyCardSkeleton = () => (
@@ -59,9 +59,9 @@ export default function AllMedicinesPage() {
     const [pharmacies, setPharmacies] = useState([]);
     const [loadingPharmacies, setLoadingPharmacies] = useState(true);
     const [pharmacySearchTerm, setPharmacySearchTerm] = useState("");
-    
+
     // Catalog States
-    const [activeTab, setActiveTab] = useState("medicines"); // "medicines" or "products"
+    const [activeTab, setActiveTab] = useState("medicines"); 
     const [searchTerm, setSearchTerm] = useState("");
     const [sortBy, setSortBy] = useState("low-to-high");
     const [activeCategory, setActiveCategory] = useState("All");
@@ -70,20 +70,36 @@ export default function AllMedicinesPage() {
     const [selectedItem, setSelectedItem] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // Fetch Pharmacies Logic
+    // --- FETCH PHARMACIES LOGIC ---
     const fetchPharmacies = useCallback(async (search = "") => {
         setLoadingPharmacies(true);
+        
+        // 1. Get Lat/Lng from Local Storage
         const storedCoords = localStorage.getItem("userCoords");
+        let lat = null;
+        let lng = null;
+
+        if (storedCoords) {
+            try {
+                const coords = JSON.parse(storedCoords);
+                lat = coords.lat;
+                lng = coords.lng;
+            } catch (e) {
+                console.error("Error parsing userCoords from localStorage", e);
+            }
+        }
 
         try {
-            let payload = { search };
-            if (storedCoords) {
-                const { lat, lng } = JSON.parse(storedCoords);
-                payload = { ...payload, lat, lng };
-            }
+            // 2. Prepare Payload for your POST /user/pharmacy/list
+            const payload = { 
+                search,
+                lat, 
+                lng 
+            };
 
-            // Adjust this call to your actual API method (e.g., getPharmaciesList)
-            const response = await UserAPI.getPharmaciesList?.(payload) || { success: false };
+            // 3. Call your UserAPI function
+            const response = await UserAPI.getAllPharmacies(payload);
+            
             if (response.success) {
                 setPharmacies(response.data || []);
             }
@@ -94,22 +110,25 @@ export default function AllMedicinesPage() {
         }
     }, []);
 
+    // Debounced effect for searching pharmacies
     useEffect(() => {
-        const delayDebounce = setTimeout(() => fetchPharmacies(pharmacySearchTerm), 400);
+        const delayDebounce = setTimeout(() => {
+            fetchPharmacies(pharmacySearchTerm);
+        }, 500);
         return () => clearTimeout(delayDebounce);
     }, [pharmacySearchTerm, fetchPharmacies]);
 
     // Categories Logic
-    const categories = activeTab === "medicines" 
-        ? ["All", "Tablets", "Syrups", "Injections"] 
+    const categories = activeTab === "medicines"
+        ? ["All", "Tablets", "Syrups", "Injections"]
         : ["All", "Wellness", "Personal Care", "Baby Care", "First Aid"];
 
     // Filtering logic for the items below
     const filteredItems = useMemo(() => {
-        let source = INITIAL_MEDICINES; 
+        let source = INITIAL_MEDICINES;
         let result = source.filter((item) => {
             const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                item.vendor.toLowerCase().includes(searchTerm.toLowerCase());
+                item.vendor.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesCategory = activeCategory === "All" || item.category === activeCategory;
             return matchesSearch && matchesCategory;
         });
@@ -148,7 +167,7 @@ export default function AllMedicinesPage() {
             </nav>
 
             <div className="max-w-6xl mx-auto pt-8 px-4">
-                
+
                 {/* 1. PHARMACIES SECTION */}
                 <section className="mb-12">
                     <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
@@ -178,7 +197,7 @@ export default function AllMedicinesPage() {
                             pharmacies.map((pharmacy) => (
                                 <div
                                     key={pharmacy._id}
-                                    onClick={() => router.push(`/pharmacy/${pharmacy._id}`)}
+                                    onClick={() => router.push(`/buymedicine/singlepharmacydetail/${pharmacy._id}`)}
                                     className="group flex-shrink-0 cursor-pointer w-[320px] bg-white rounded-3xl border-2 border-transparent shadow-sm hover:border-[#08B36A] hover:shadow-xl transition-all duration-300 p-5 flex flex-col justify-between h-[190px]"
                                 >
                                     <div>
@@ -188,23 +207,29 @@ export default function AllMedicinesPage() {
                                                     {pharmacy.name}
                                                 </h3>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">
-                                                    {pharmacy.area || pharmacy.city} {pharmacy.distance ? `• ${pharmacy.distance.toFixed(1)} KM` : ""}
+                                                    {pharmacy.city} {pharmacy.distance && pharmacy.distance !== "0" ? `• ${pharmacy.distance} KM` : ""}
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg text-amber-600 border border-amber-100">
                                                 <FaStar size={10} />
-                                                <span className="text-[10px] font-black">{pharmacy.rating || "4.5"}</span>
+                                                <span className="text-[10px] font-black">{pharmacy.rating || "0.0"}</span>
                                             </div>
                                         </div>
                                         <div className="flex flex-wrap gap-2 mt-4">
-                                            <Badge icon={<FaTruck size={8} />} text="Home Delivery" color="emerald" />
-                                            {pharmacy.is24x7 && <Badge icon={<FaHistory size={8} />} text="24/7" color="blue" />}
+                                            {pharmacy.isHomeDeliveryAvailable && (
+                                                <Badge icon={<FaTruck size={8} />} text="Home Delivery" color="emerald" />
+                                            )}
+                                            {pharmacy.is24x7 && (
+                                                <Badge icon={<FaHistory size={8} />} text="24/7" color="blue" />
+                                            )}
                                         </div>
                                     </div>
                                     <div className="flex items-center justify-between pt-3 border-t border-slate-50">
                                         <div className="flex items-center gap-1.5 text-slate-500">
                                             <FaClock size={10} className="text-[#08B36A]" />
-                                            <span className="text-[10px] font-black uppercase">Open Now</span>
+                                            <span className="text-[10px] font-black uppercase">
+                                                {pharmacy.is24x7 ? "Open 24/7" : "Open Now"}
+                                            </span>
                                         </div>
                                         <FaChevronRight size={12} className="text-slate-300 group-hover:text-[#08B36A] transform group-hover:translate-x-1 transition-all" />
                                     </div>

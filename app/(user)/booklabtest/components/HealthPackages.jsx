@@ -2,156 +2,172 @@
 
 import React, { useState } from "react";
 import {
-  FaArrowRight,
-  FaCheckCircle,
-  FaRegClock,
-  FaRegHospital,
-  FaTag
+    FaArrowRight,
+    FaCheckCircle,
+    FaRegClock,
+    FaRegHospital,
+    FaTag,
+    FaShoppingCart,
+    FaShieldAlt,
+    FaStar,
+    FaPlus
 } from "react-icons/fa";
 import { INITIAL_PACKAGES } from "../../../constants/constants";
 import { useRouter } from "next/navigation";
 import TestDetailsModal from "./otherComponents/TestDetailsModal";
 
-const displayPackages = [...INITIAL_PACKAGES, ...INITIAL_PACKAGES];
+export default function HealthPackagesLanding() {
+    const router = useRouter();
+    const [selectedPackage, setSelectedPackage] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
-function HealthPackages() {
-  const [isPaused, setIsPaused] = useState(false);
-  const router = useRouter();
+    // Show only the first 3 or 4 top packages for the landing page
+    const featuredPackages = INITIAL_PACKAGES.slice(0, 3);
 
-  const [selectedPackage, setSelectedPackage] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+    const handleBookClick = (pkg) => {
+        setSelectedPackage(pkg);
+        setIsModalOpen(true);
+    };
 
-  const handleBookClick = (pkg) => {
-    setSelectedPackage(pkg);
-    setIsModalOpen(true);
-  };
+    return (
+        <section className="py-24 bg-[#FDFDFD]">
+            <TestDetailsModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                pkg={selectedPackage}
+            />
 
-  return (
-    <section className="py-10  bg-slate-50 overflow-hidden">
-      <TestDetailsModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        pkg={selectedPackage}
-      />
+            <div className="max-w-7xl mx-auto px-6">
+                
+                {/* --- SECTION HEADER --- */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
+                    <div className="max-w-2xl">
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className="h-1.5 w-12 bg-emerald-500 rounded-full"></span>
+                            <span className="text-[11px] font-black uppercase tracking-[0.4em] text-emerald-600">Premium Diagnostics</span>
+                        </div>
+                        <h2 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tighter leading-tight mb-6">
+                            Best-Selling <span className="text-emerald-500">Health</span> Packages.
+                        </h2>
+                        <p className="text-slate-500 text-base md:text-lg font-medium">
+                            Skip the clinic queues. Book comprehensive health checkups with 
+                            safe home sample collection and digital reports.
+                        </p>
+                    </div>
+                    
+                    {/* TOP CTA */}
+                    <button 
+                        onClick={() => router.push("/booklabtest/seealltests")}
+                        className="group flex items-center gap-3 text-sm font-black uppercase tracking-widest text-slate-900 hover:text-emerald-600 transition-all"
+                    >
+                        View Full Catalog <FaArrowRight className="group-hover:translate-x-2 transition-transform"/>
+                    </button>
+                </div>
 
-      {/* Header Section */}
-      <div className="max-w-7xl mx-auto px-6 mb-16">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="w-10 h-[2px] bg-emerald-500"></span>
-              <span className="text-emerald-600 font-bold tracking-[0.2em] text-xs uppercase">
-                Preventive Care
-              </span>
+                {/* --- STATIC E-COMMERCE GRID --- */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                    {featuredPackages.map((pkg) => (
+                        <div 
+                            key={pkg.id}
+                            className="group bg-white rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/40 hover:shadow-2xl hover:shadow-emerald-200/30 transition-all duration-500 flex flex-col overflow-hidden"
+                        >
+                            {/* Image & Badges */}
+                            <div className="relative h-60 overflow-hidden m-4 rounded-[2.2rem]">
+                                <img 
+                                    src={pkg.image} 
+                                    alt={pkg.name} 
+                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
+                                
+                                {/* Floating Badges */}
+                                <div className="absolute top-5 left-5 flex flex-col gap-2">
+                                    <span className="bg-white/90 backdrop-blur-md text-slate-900 text-[9px] font-black px-3 py-1.5 rounded-xl shadow-sm uppercase tracking-widest">
+                                        {pkg.testCount || "60+"} Parameters
+                                    </span>
+                                </div>
+
+                                <div className="absolute top-5 right-5">
+                                    <div className="bg-orange-500 text-white text-[9px] font-black px-3 py-1.5 rounded-xl shadow-lg uppercase tracking-widest flex items-center gap-1">
+                                        <FaStar size={8}/> Bestseller
+                                    </div>
+                                </div>
+
+                                <div className="absolute bottom-5 left-5 flex items-center gap-2 text-white">
+                                    <div className="h-8 w-8 rounded-full bg-[#08B36A] flex items-center justify-center">
+                                        <FaCheckCircle size={14}/>
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest">NABL Accredited</span>
+                                </div>
+                            </div>
+
+                            {/* Package Content */}
+                            <div className="px-8 pb-8 flex-1 flex flex-col">
+                                <h3 className="text-2xl font-black text-slate-900 leading-tight mb-4 group-hover:text-emerald-600 transition-colors line-clamp-2">
+                                    {pkg.name}
+                                </h3>
+
+                                {/* Feature Pills */}
+                                <div className="flex flex-wrap gap-2 mb-8">
+                                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                        <FaRegClock className="text-emerald-500" /> 24h Reports
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                        <FaRegHospital className="text-emerald-500" /> Home Pickup
+                                    </div>
+                                </div>
+
+                                {/* PRICE & ACTION SECTION */}
+                                <div className="mt-auto pt-6 border-t border-slate-50 flex items-center justify-between">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-xs text-slate-400 line-through font-bold">₹2,999</span>
+                                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase">Save 60%</span>
+                                        </div>
+                                        <span className="text-3xl font-black text-slate-900 tracking-tighter">
+                                            {pkg.price}
+                                        </span>
+                                    </div>
+
+                                    <button 
+                                        onClick={() => handleBookClick(pkg)}
+                                        className="h-16 w-16 bg-slate-900 text-white rounded-[1.5rem] flex items-center justify-center hover:bg-emerald-500 transition-all duration-300 shadow-xl shadow-slate-200 group/btn"
+                                    >
+                                        <FaPlus className="group-hover:rotate-90 transition-transform" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* --- BOTTOM TRUST BAR --- */}
+                <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-8 py-10 border-t border-slate-100">
+                    <TrustItem icon={<FaShieldAlt/>} title="ISO Certified" desc="Quality Assured" />
+                    <TrustItem icon={<FaRegHospital/>} title="50+ Labs" desc="Verified Partners" />
+                    <TrustItem icon={<FaCheckCircle/>} title="Home Collection" desc="Safe & Hygienic" />
+                    <TrustItem icon={<FaStar/>} title="4.9/5 Rating" desc="Happy Customers" />
+                </div>
+
+                {/* FINAL SECTION CTA */}
+                <div className="mt-12 text-center">
+                    <button 
+                        onClick={() => router.push("/booklabtest/seealltests")}
+                        className="bg-emerald-500 text-white px-12 py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-emerald-200 hover:bg-slate-900 transition-all"
+                    >
+                        Browse All 50+ Packages
+                    </button>
+                </div>
             </div>
-            <h2 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tight">
-              Best <span className="text-emerald-500">Health</span> Packages
-            </h2>
-          </div>
-          <p className="max-w-md text-slate-500 text-lg leading-relaxed border-l-4 border-emerald-100 pl-6">
-            Proactive health monitoring for you and your family. Early detection leads to better protection.
-          </p>
-        </div>
-      </div>
-
-      {/* Marquee Wrapper with Gradient Masking */}
-      <div
-        className="relative w-full group"
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => setIsPaused(false)}
-      >
-        {/* The Professional "Fade" Mask */}
-        <div className="absolute inset-y-0 left-0 w-24 md:w-60 bg-gradient-to-r from-[#fdfdfd] to-transparent z-10 pointer-events-none"></div>
-        <div className="absolute inset-y-0 right-0 w-24 md:w-60 bg-gradient-to-l from-[#fdfdfd] to-transparent z-10 pointer-events-none"></div>
-
-        <div
-          className="flex gap-8 animate-marquee"
-          style={{
-            animationPlayState: isPaused ? "paused" : "running",
-            width: "max-content",
-          }}
-        >
-          {displayPackages.map((pkg, index) => (
-            <div
-              key={`${pkg.id}-${index}`}
-              className="w-[300px] md:w-[350px] flex-shrink-0 bg-white rounded-[2.5rem] border border-slate-100 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.08)] hover:shadow-[0_25px_60px_-15px_rgba(16,185,129,0.15)] transition-all duration-500 group/card mb-10 mt-5"
-            >
-              {/* Image with Floating Tag */}
-              <div className="h-48 relative m-3 overflow-hidden rounded-[1.8rem]">
-                <img
-                  src={pkg.image}
-                  alt={pkg.name}
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"
-                />
-                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
-                  <FaTag className="text-emerald-500 text-xs" />
-                  <span className="text-[10px] font-bold text-slate-800 uppercase tracking-widest">Premium</span>
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="px-8 pb-8 pt-4">
-                <h3 className="text-xl font-bold text-slate-800 mb-4 min-h-[60px] line-clamp-2 leading-snug">
-                  {pkg.name}
-                </h3>
-
-                {/* Micro Features */}
-                <div className="space-y-3 mb-8">
-                  <div className="flex items-center gap-3 text-slate-500 text-sm">
-                    <FaCheckCircle className="text-emerald-500 shrink-0" />
-                    <span>Includes 60+ Vital Parameters</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-slate-500 text-sm">
-                    <FaRegClock className="text-emerald-500 shrink-0" />
-                    <span>Digital Report within 24 Hrs</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-slate-500 text-sm">
-                    <FaRegHospital className="text-emerald-500 shrink-0" />
-                    <span>Free Home Collection</span>
-                  </div>
-                </div>
-
-                {/* Price and Action Section */}
-                <div className="flex items-center justify-between border-t border-slate-50 pt-6">
-                  <div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Total Price</span>
-                    <span className="text-3xl font-black text-slate-900 tracking-tight">
-                      {pkg.price}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => handleBookClick(pkg)}
-                    className="h-14 w-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center hover:bg-emerald-500 transition-all duration-300 shadow-xl shadow-slate-200 active:scale-95 group/btn"
-                  >
-                    <FaArrowRight className="group-hover/btn:translate-x-1 transition-transform" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Modern Scrolling Styles */}
-      <style>{`
-        @keyframes marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(calc(-50% - 1rem)); }
-        }
-
-        .animate-marquee {
-          animation: marquee 40s linear infinite;
-        }
-
-        @media (max-width: 768px) {
-          .animate-marquee {
-            animation: marquee 25s linear infinite;
-          }
-        }
-      `}</style>
-    </section>
-  );
+        </section>
+    );
 }
 
-export default HealthPackages;
+// Sub-component for Trust Items
+const TrustItem = ({ icon, title, desc }) => (
+    <div className="flex flex-col items-center text-center">
+        <div className="text-emerald-500 text-2xl mb-3">{icon}</div>
+        <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest mb-1">{title}</h4>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{desc}</p>
+    </div>
+);

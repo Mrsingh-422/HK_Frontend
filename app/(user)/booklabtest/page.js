@@ -22,13 +22,13 @@ function page() {
       <BookYourDiseaseTest />
       <BookYourPrescriptionTest />
       <HealthPackages />
-      <PopularTest />
+      {/* <PopularTest /> */}
       <YourLifecycleDisorders />
       <MonthlyOffers />
       <HowItWorks />
-      <LabCare />
-      <AboutUsLaboratory />
-      <ResearchAndVerify />
+      {/* <LabCare /> */}
+      {/* <AboutUsLaboratory /> */}
+      {/* <ResearchAndVerify /> */}
       <OurPartners />
       <FromHealth />
     </div>

@@ -74,7 +74,15 @@ const UserAPI = {
     },
 
     //Medicine apis all 
-    
+    getAllPharmacies: async (payload) => {
+        // payload should be { lat, lng, search, etc. }
+        const response = await publicApi.post("/user/pharmacy/list", payload);
+        return response.data;
+    },
+    getPharmacyDetails: async (pharmacyId) => {
+        const response = await publicApi.get(`/user/pharmacy/details/${pharmacyId}`);
+        return response.data;
+    },
 
     // ==========================================
     // PRIVATE METHODS (Token Required)

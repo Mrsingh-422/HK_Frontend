@@ -43,7 +43,7 @@ function HeroSection() {
                         ),
                     });
 
-                    setCurrent(0); 
+                    setCurrent(0);
                 }
             } catch (error) {
                 console.error("Error fetching hero content:", error);
@@ -102,7 +102,7 @@ function HeroSection() {
 
                         {/* ✅ Mobile Quick Action for Ambulance (only shows on small screens) */}
                         <Link href="/ambulance" className="mobile-emergency-trigger">
-                           <FaPhoneAlt /> Book Free Ambulance
+                            <FaPhoneAlt /> Book Free Ambulance
                         </Link>
                     </div>
                 </div>

@@ -1,0 +1,201 @@
+"use client";
+
+import React from "react";
+import { useRouter } from "next/navigation";
+import { FaPlus, FaChevronRight, FaStar, FaRegHeart } from "react-icons/fa";
+
+const PERSONAL_CARE = [
+  {
+    id: 101,
+    name: "Cetaphil Gentle Cleanser",
+    brand: "Cetaphil",
+    price: 545,
+    mrp: 599,
+    discount: "9% OFF",
+    rating: 4.8,
+    image: "https://images.unsplash.com/photo-1612817288484-6f916006741a?q=80&w=400&auto=format&fit=crop",
+  },
+  {
+    id: 102,
+    name: "Nivea Soft Moisturizer",
+    brand: "Nivea",
+    price: 240,
+    mrp: 299,
+    discount: "20% OFF",
+    rating: 4.7,
+    image: "https://images.unsplash.com/photo-1556229010-6c3f2c9ca5f8?q=80&w=400&auto=format&fit=crop",
+  },
+  {
+    id: 103,
+    name: "Onion Hair Oil - 200ml",
+    brand: "Mamaearth",
+    price: 380,
+    mrp: 419,
+    discount: "10% OFF",
+    rating: 4.5,
+    image: "https://images.unsplash.com/photo-1631730359585-38a4935cbb6b?q=80&w=400&auto=format&fit=crop",
+  },
+  {
+    id: 104,
+    name: "Ultra Sheer Sunscreen",
+    brand: "Neutrogena",
+    price: 650,
+    mrp: 750,
+    discount: "13% OFF",
+    rating: 4.9,
+    image: "https://images.unsplash.com/photo-1526947425960-945c6e72858f?q=80&w=400&auto=format&fit=crop",
+  },
+  {
+    id: 105,
+    name: "Charcoal Face Wash",
+    brand: "Beardo",
+    price: 199,
+    mrp: 250,
+    discount: "20% OFF",
+    rating: 4.4,
+    image: "https://images.unsplash.com/photo-1556228578-0d85b1a4d571?q=80&w=400&auto=format&fit=crop",
+  },
+  {
+    id: 106,
+    name: "Charcoal Face Wash",
+    brand: "Beardo",
+    price: 199,
+    mrp: 250,
+    discount: "20% OFF",
+    rating: 4.4,
+    image: "https://images.unsplash.com/photo-1556228578-0d85b1a4d571?q=80&w=400&auto=format&fit=crop",
+  },
+  {
+    id: 107,
+    name: "Charcoal Face Wash",
+    brand: "Beardo",
+    price: 199,
+    mrp: 250,
+    discount: "20% OFF",
+    rating: 4.4,
+    image: "https://images.unsplash.com/photo-1556228578-0d85b1a4d571?q=80&w=400&auto=format&fit=crop",
+  },
+];
+
+export default function PersonalCare() {
+  const router = useRouter();
+
+  return (
+    <section className="py-12 bg-[#FBFDFB]">
+      <div className="max-w-7xl mx-auto px-4 md:px-6">
+        
+        {/* --- SECTION HEADER --- */}
+        <div className="flex items-end justify-between mb-8">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+                <span className="w-8 h-[2px] bg-[#08B36A]"></span>
+                <span className="text-[#08B36A] text-[10px] font-black uppercase tracking-widest">Self Care</span>
+            </div>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Personal Care</h2>
+            <p className="text-sm text-slate-500 font-medium">Beauty and hygiene essentials curated for you</p>
+          </div>
+          
+          <button 
+            onClick={() => router.push("/personal-care-all")}
+            className="group flex items-center gap-2 text-xs font-bold text-[#08B36A] hover:bg-[#08B36A] hover:text-white border border-[#08B36A] px-4 py-2 rounded-full transition-all"
+          >
+            VIEW ALL <FaChevronRight size={10} className="group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
+
+        {/* --- SINGLE LINE HORIZONTAL SCROLL --- */}
+        <div className="flex flex-nowrap overflow-x-auto gap-4 pb-8 scrollbar-hide snap-x snap-mandatory">
+          {PERSONAL_CARE.map((item) => (
+            <div 
+              key={item.id}
+              className="flex-shrink-0 w-[190px] md:w-[230px] snap-start group bg-white border border-slate-100 rounded-2xl p-3 flex flex-col transition-all duration-300 hover:shadow-xl hover:border-[#08B36A]/20"
+            >
+              {/* Image & Badges */}
+              <div className="relative aspect-square rounded-xl bg-slate-50 overflow-hidden mb-3">
+                <img 
+                  src={item.image} 
+                  alt={item.name} 
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                />
+                
+                {/* Wishlist */}
+                <button className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-full text-slate-300 hover:text-red-500 transition-colors shadow-sm">
+                  <FaRegHeart size={13} />
+                </button>
+                
+                {/* Discount Tag */}
+                <div className="absolute top-2 left-0">
+                   <span className="bg-[#08B36A] text-white text-[9px] font-black px-2 py-1 rounded-r-md shadow-md">
+                    {item.discount}
+                  </span>
+                </div>
+              </div>
+
+              {/* Product Info */}
+              <div className="flex flex-col flex-grow">
+                <div className="flex items-center gap-1 mb-1">
+                  <FaStar className="text-amber-400" size={10} />
+                  <span className="text-[10px] font-bold text-slate-500">{item.rating}</span>
+                </div>
+
+                <h3 className="text-xs md:text-sm font-bold text-slate-800 line-clamp-1 mb-0.5 group-hover:text-[#08B36A] transition-colors">
+                  {item.name}
+                </h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight mb-3">
+                  {item.brand}
+                </p>
+
+                {/* Price & Add Button */}
+                <div className="mt-auto flex items-center justify-between pt-2 border-t border-slate-50">
+                  <div>
+                    <span className="block text-[10px] text-slate-400 line-through">₹{item.mrp}</span>
+                    <span className="text-sm md:text-base font-black text-slate-900">₹{item.price}</span>
+                  </div>
+                  
+                  <button 
+                    onClick={() => router.push(`/product/${item.id}`)}
+                    className="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-50 text-[#08B36A] border border-slate-100 hover:bg-[#08B36A] hover:text-white hover:shadow-lg hover:shadow-[#08B36A]/30 transition-all active:scale-90"
+                  >
+                    <FaPlus size={12} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* CSS to hide scrollbar */}
+        <style jsx>{`
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+        `}</style>
+
+        {/* --- THEMED PROMO BANNER --- */}
+        <div 
+          onClick={() => router.push("/offers")}
+          className="mt-6 cursor-pointer overflow-hidden rounded-2xl bg-[#08B36A] relative group"
+        >
+          <div className="relative z-10 p-8 md:p-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="max-w-md">
+                <span className="bg-white/20 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest">Limited Offer</span>
+                <h4 className="text-2xl md:text-3xl font-black text-white mt-3">Glow Up This Season!</h4>
+                <p className="text-white/80 text-sm mt-2 font-medium">Flat 25% off on all luxury personal care brands. Offer valid till Sunday.</p>
+            </div>
+            <button className="bg-white text-[#08B36A] px-8 py-3 rounded-xl font-black text-sm shadow-xl group-hover:scale-105 transition-transform active:scale-95">
+                SHOP THE SALE
+            </button>
+          </div>
+          
+          <div className="absolute top-[-10%] right-[-5%] w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-[-20%] left-[-5%] w-40 h-40 bg-black/10 rounded-full blur-2xl" />
+        </div>
+
+      </div>
+    </section>
+  );
+}
