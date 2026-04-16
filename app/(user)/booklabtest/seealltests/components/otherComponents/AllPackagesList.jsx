@@ -1,66 +1,49 @@
+
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { FaStar, FaFlask, FaChevronRight, FaClinicMedical, FaCheckCircle, FaChevronLeft } from "react-icons/fa";
+import { 
+    FaStar, 
+    FaFlask, 
+    FaChevronRight, 
+    FaClinicMedical, 
+    FaCheckCircle, 
+    FaChevronLeft, 
+    FaShieldAlt,
+    FaArrowRight
+} from "react-icons/fa";
 import PackageDetailsModal from "./PackageDetailsModal";
 import UserAPI from "@/app/services/UserAPI";
 import { useCart } from "@/app/context/CartContext";
 
-// Fallback image URL for medical packages
-const FALLBACK_IMAGE = "https://www.pathofast.com/images/packages/cro/renamed/hero/full-body-health-checkup-vitamins-and-screening-tests.png";
+// Professional Medical Fallback Image
+const FALLBACK_IMAGE = "https://eu-images.contentstack.com/v3/assets/blta023acee29658dfc/blt9c34ecdceb81dbfb/651a7809eb58cafed2dd6951/COVID-19-testing-kit-Alamy-2G606ND-ftd.jpg?width=1280&auto=webp&quality=80&disable=upscale";
 
-// --- SKELETON COMPONENT ---
+// --- PROFESSIONAL SKELETON ---
 const PackageCardSkeleton = () => (
-    <div className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden flex flex-col h-full animate-pulse shadow-sm">
-        {/* Image Placeholder */}
-        <div className="h-48 bg-slate-200 w-full" />
-
-        {/* Content Placeholder */}
-        <div className="p-6 flex-1 flex flex-col">
-            <div className="flex justify-between items-start mb-3">
-                <div className="h-4 bg-slate-100 rounded-lg w-24" />
-                <div className="h-6 bg-slate-50 rounded-lg w-12" />
-            </div>
-
-            {/* Title Placeholders */}
-            <div className="h-5 bg-slate-200 rounded-md w-full mb-2" />
-            <div className="h-5 bg-slate-200 rounded-md w-2/3 mb-4" />
-
-            {/* Info Badges Placeholders */}
-            <div className="flex items-center gap-4 mb-6">
-                <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-slate-100" />
-                    <div className="h-3 bg-slate-100 rounded w-12" />
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-slate-100" />
-                    <div className="h-3 bg-slate-100 rounded w-12" />
-                </div>
-            </div>
-
-            {/* Pricing & Button Placeholder */}
-            <div className="mt-auto pt-5 border-t border-slate-50 flex items-center justify-between">
-                <div className="space-y-2">
-                    <div className="h-2 bg-slate-100 rounded w-16" />
-                    <div className="h-6 bg-slate-200 rounded w-24" />
-                </div>
-                <div className="h-12 bg-slate-200 rounded-2xl w-32" />
-            </div>
+    <div className="bg-white rounded-xl border border-slate-200 p-4 animate-pulse h-[360px] flex flex-col">
+        <div className="h-32 bg-slate-100 rounded-lg mb-4" />
+        <div className="space-y-3 flex-1">
+            <div className="h-4 bg-slate-100 rounded w-1/4" />
+            <div className="h-5 bg-slate-100 rounded w-full" />
+            <div className="h-5 bg-slate-100 rounded w-3/4" />
+            <div className="h-3 bg-slate-50 rounded w-1/2 mt-4" />
         </div>
+        <div className="h-10 bg-slate-100 rounded-lg w-full mt-4" />
     </div>
 );
 
-function AllPackagesList({ searchTerm = "" }) {
+function AllPackagesList({ searchTerm = "", selectedLabId = null }) {
     const { cartItemIds } = useCart();
     const [packages, setPackages] = useState([]);
     const [selectedPackage, setSelectedPackage] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const limit = 12; // Items per page
+    const limit = 12;
 
     const fetchPackages = useCallback(async () => {
         try {
@@ -68,7 +51,8 @@ function AllPackagesList({ searchTerm = "" }) {
             const response = await UserAPI.getStandardPackageCatalog({
                 page: currentPage,
                 limit: limit,
-                search: searchTerm
+                search: searchTerm,
+                labId: selectedLabId
             });
 
             if (response.success) {
@@ -81,14 +65,12 @@ function AllPackagesList({ searchTerm = "" }) {
         } finally {
             setLoading(false);
         }
-    }, [currentPage, searchTerm]);
+    }, [currentPage, searchTerm, selectedLabId]);
 
-    // Reset to page 1 when search term changes
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm]);
+    }, [searchTerm, selectedLabId]);
 
-    // Fetch data when page or search term changes
     useEffect(() => {
         fetchPackages();
     }, [fetchPackages]);
@@ -101,102 +83,84 @@ function AllPackagesList({ searchTerm = "" }) {
     const handlePageChange = (newPage) => {
         if (newPage >= 1 && newPage <= totalPages) {
             setCurrentPage(newPage);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({ top: 400, behavior: 'smooth' });
         }
     };
 
     return (
-        <div className="bg-transparent space-y-10">
+        <div className="space-y-10">
             <PackageDetailsModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 pkg={selectedPackage}
             />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Simple Grid - Clean Spacing */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {loading ? (
-                    // Render 6 skeleton cards while loading
-                    Array(6).fill(0).map((_, i) => <PackageCardSkeleton key={i} />)
+                    Array(8).fill(0).map((_, i) => <PackageCardSkeleton key={i} />)
                 ) : (
                     packages.map((pkg) => {
                         const isAdded = cartItemIds.includes(pkg._id);
                         const displayPrice = pkg.offerPrice || pkg.minPrice || pkg.mrp;
                         const strikePrice = pkg.mrp || pkg.standardMRP;
-                        const imageSrc = pkg.image && pkg.image !== "" ? pkg.image : FALLBACK_IMAGE;
+                        const imageSrc = pkg.image && pkg.image.trim() !== "" ? pkg.image : FALLBACK_IMAGE;
 
                         return (
                             <div
                                 key={pkg._id}
                                 onClick={() => handleCardClick(pkg)}
-                                className="group relative bg-white rounded-[2rem] border border-slate-100 hover:border-emerald-500/30 hover:shadow-[0_20px_50px_rgba(8,179,106,0.12)] transition-all duration-500 flex flex-col overflow-hidden cursor-pointer"
+                                className="group bg-white rounded-xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden cursor-pointer"
                             >
-                                {/* Labs Count Badge */}
-                                {pkg.vendorCount > 0 && (
-                                    <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-2xl shadow-sm flex items-center gap-2 border border-slate-100">
-                                        <FaClinicMedical className="text-emerald-500 text-xs" />
-                                        <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">
-                                            {pkg.vendorCount} Labs Available
-                                        </span>
-                                    </div>
-                                )}
-
-                                {/* Image Section */}
-                                <div className="relative h-48 w-full overflow-hidden bg-slate-100">
+                                {/* Thumbnail */}
+                                <div className="relative h-36 w-full overflow-hidden bg-slate-50 border-b border-slate-100">
                                     <img
                                         src={imageSrc}
-                                        className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                                        className="w-full h-full object-cover"
                                         alt={pkg.packageName}
                                         onError={(e) => { e.target.src = FALLBACK_IMAGE; }}
                                     />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-
                                     {strikePrice > displayPrice && (
-                                        <div className="absolute bottom-4 right-4 bg-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg">
-                                            SAVE {Math.round(((strikePrice - displayPrice) / strikePrice) * 100)}%
+                                        <div className="absolute top-2 right-2 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                            {Math.round(((strikePrice - displayPrice) / strikePrice) * 100)}% OFF
                                         </div>
                                     )}
                                 </div>
 
-                                {/* Content Section */}
-                                <div className="p-6 flex-1 flex flex-col">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg uppercase tracking-wider">
-                                            {pkg.mainCategory || pkg.category || 'Wellness'}
+                                {/* Details */}
+                                <div className="p-4 flex-1 flex flex-col">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                            {pkg.mainCategory || 'Diagnostics'}
                                         </span>
-                                        <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
-                                            <FaStar className="text-amber-400 text-[10px]" />
-                                            <span className="text-slate-700 font-bold text-[10px]">4.8</span>
+                                        <div className="flex items-center gap-1">
+                                            <FaStar className="text-amber-400" size={10} />
+                                            <span className="text-[11px] font-bold text-slate-600">4.8</span>
                                         </div>
                                     </div>
 
-                                    <h3 className="text-lg font-bold text-slate-800 line-clamp-2 h-14 leading-tight mb-4 group-hover:text-emerald-600 transition-colors">
+                                    <h3 className="text-sm font-bold text-slate-900 line-clamp-2 h-10 mb-3">
                                         {pkg.packageName}
                                     </h3>
 
-                                    <div className="flex items-center gap-4 mb-6">
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center">
-                                                <FaFlask className="text-emerald-500 text-[10px]" />
-                                            </div>
-                                            <span className="text-xs font-medium text-slate-500">{pkg.testCount || pkg.tests?.length || 0} Tests</span>
+                                    <div className="space-y-2 mb-4">
+                                        <div className="flex items-center gap-2 text-slate-500">
+                                            <FaFlask size={11} className="text-slate-400" />
+                                            <span className="text-[11px] font-medium">{pkg.testCount || 0} Parameters included</span>
                                         </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center">
-                                                <FaCheckCircle className="text-blue-500 text-[10px]" />
-                                            </div>
-                                            <span className="text-xs font-medium text-slate-500">Verified</span>
+                                        <div className="flex items-center gap-2 text-slate-500">
+                                            <FaClinicMedical size={11} className="text-slate-400" />
+                                            <span className="text-[11px] font-medium">{pkg.vendorCount || 0} Labs provide this</span>
                                         </div>
                                     </div>
 
-                                    <div className="mt-auto pt-5 border-t border-slate-50 flex items-center justify-between gap-4">
-                                        <div>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Price Starts From</p>
-                                            <div className="flex items-baseline gap-1.5">
-                                                <span className="text-2xl font-black text-slate-900">₹{displayPrice}</span>
-                                                {strikePrice > displayPrice && (
-                                                    <span className="text-xs text-slate-300 line-through font-medium">₹{strikePrice}</span>
-                                                )}
-                                            </div>
+                                    {/* Footer */}
+                                    <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
+                                        <div className="flex flex-col">
+                                            {strikePrice > displayPrice && (
+                                                <span className="text-[10px] text-slate-400 line-through">₹{strikePrice}</span>
+                                            )}
+                                            <span className="text-lg font-bold text-slate-900">₹{displayPrice}</span>
                                         </div>
 
                                         <button
@@ -204,13 +168,13 @@ function AllPackagesList({ searchTerm = "" }) {
                                                 e.stopPropagation();
                                                 handleCardClick(pkg);
                                             }}
-                                            className={`px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all duration-300 shadow-md active:scale-95 ${isAdded
-                                                ? "bg-slate-100 text-slate-500 cursor-default"
-                                                : "bg-emerald-600 text-white hover:bg-slate-900 shadow-emerald-200"
-                                                }`}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-colors ${isAdded
+                                                ? "bg-slate-50 text-slate-400 border border-slate-200"
+                                                : "bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-600 hover:text-white"
+                                            }`}
                                         >
-                                            {isAdded ? "In Cart" : "Book Now"}
-                                            {!isAdded && <FaChevronRight size={10} />}
+                                            {isAdded ? "Added" : "Book"}
+                                            {!isAdded && <FaArrowRight size={10} />}
                                         </button>
                                     </div>
                                 </div>
@@ -220,53 +184,57 @@ function AllPackagesList({ searchTerm = "" }) {
                 )}
             </div>
 
-            {/* Pagination Controls */}
+            {/* Simplified Professional Pagination */}
             {totalPages > 1 && !loading && (
-                <div className="flex justify-center items-center gap-2 pt-8">
+                <div className="flex justify-center items-center gap-6 py-8 border-t border-slate-100">
                     <button
                         onClick={() => handlePageChange(currentPage - 1)}
                         disabled={currentPage === 1}
-                        className="p-3 rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                        className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-emerald-600 disabled:opacity-30 disabled:hover:text-slate-500 transition-colors"
                     >
-                        <FaChevronLeft className="text-slate-600 text-xs" />
+                        <FaChevronLeft size={10} /> Previous
                     </button>
 
-                    {[...Array(totalPages)].map((_, i) => {
-                        const pageNum = i + 1;
-                        if (totalPages > 5 && Math.abs(pageNum - currentPage) > 2) return null;
-
-                        return (
-                            <button
-                                key={pageNum}
-                                onClick={() => handlePageChange(pageNum)}
-                                className={`w-10 h-10 rounded-xl text-xs font-bold transition-all ${currentPage === pageNum
-                                    ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200"
-                                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-                                    }`}
-                            >
-                                {pageNum}
-                            </button>
-                        );
-                    })}
+                    <div className="flex items-center gap-2">
+                        {[...Array(totalPages)].map((_, i) => {
+                            const p = i + 1;
+                            // Show first, last, and current +/- 1
+                            if (p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1)) {
+                                return (
+                                    <button
+                                        key={p}
+                                        onClick={() => handlePageChange(p)}
+                                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === p 
+                                            ? "bg-slate-900 text-white" 
+                                            : "text-slate-500 hover:bg-slate-100"}`}
+                                    >
+                                        {p}
+                                    </button>
+                                );
+                            }
+                            if (p === currentPage - 2 || p === currentPage + 2) return <span key={p} className="text-slate-300">...</span>;
+                            return null;
+                        })}
+                    </div>
 
                     <button
                         onClick={() => handlePageChange(currentPage + 1)}
                         disabled={currentPage === totalPages}
-                        className="p-3 rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                        className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-emerald-600 disabled:opacity-30 disabled:hover:text-slate-500 transition-colors"
                     >
-                        <FaChevronRight className="text-slate-600 text-xs" />
+                        Next <FaChevronRight size={10} />
                     </button>
                 </div>
             )}
 
             {/* Empty State */}
-            {packages.length === 0 && !loading && (
-                <div className="text-center py-24 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200 mx-4">
-                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
-                        <FaFlask className="text-slate-300 text-xl" />
+            {!loading && packages.length === 0 && (
+                <div className="text-center py-20 border border-slate-200 rounded-xl bg-white">
+                    <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <FaShieldAlt className="text-slate-300" size={24} />
                     </div>
-                    <h3 className="text-slate-800 font-bold text-lg">No packages found</h3>
-                    <p className="text-slate-400 text-sm max-w-xs mx-auto">Try searching for something else or browse different categories.</p>
+                    <h3 className="text-slate-900 font-bold">No match found</h3>
+                    <p className="text-slate-500 text-xs mt-1">Adjust your search or clear filters to see more packages.</p>
                 </div>
             )}
         </div>

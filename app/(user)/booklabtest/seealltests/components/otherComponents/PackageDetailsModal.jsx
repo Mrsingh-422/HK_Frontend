@@ -11,37 +11,35 @@ import { useCart } from "@/app/context/CartContext";
 import toast from "react-hot-toast";
 
 const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
-    // 1. All Hooks must be at the top level
     const { cart, cartItemIds, addItem, removeItem, clearCart } = useCart();
     const [selectedLab, setSelectedLab] = useState(null);
     const [showClearCartConfirm, setShowClearCartConfirm] = useState(false);
 
     // Identify if the package is already in the cart
-    const isAdded = cartItemIds.includes(pkg?._id);
+    const isAdded = pkg ? cartItemIds.includes(pkg._id) : false;
 
     // Determine if tests are strings (IDs) or Objects (Rich Data)
     const hasRichTestData = pkg?.tests && typeof pkg?.tests[0] === 'object';
 
-    // Fasting Check: Scans strings in preparations OR objects in pretestPreparation
+    // Fasting Check
     const fastingRequired = useMemo(() => {
         if (!pkg) return false;
         if (pkg?.isFastingRequired === true) return true;
-
         const prepStringMatch = pkg?.preparations?.some(p => p?.toLowerCase().includes("fasting"));
         const testObjectMatch = hasRichTestData && pkg.tests?.some(t =>
             t.pretestPreparation?.toLowerCase()?.includes("fasting")
         );
-
         return prepStringMatch || testObjectMatch;
     }, [pkg, hasRichTestData]);
 
     useEffect(() => {
         if (isOpen && pkg) {
             document.body.style.overflow = 'hidden';
-            if (pkg?.vendorList?.length > 0) {
+            // Set default lab
+            if (pkg.vendorList && pkg.vendorList.length > 0) {
                 setSelectedLab(pkg.vendorList[0]);
             } else {
-                setSelectedLab(pkg);
+                setSelectedLab(pkg); // Fallback to pkg itself if no vendor list
             }
         } else {
             document.body.style.overflow = 'unset';
@@ -50,10 +48,9 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
         return () => { document.body.style.overflow = 'unset'; };
     }, [isOpen, pkg]);
 
-    // 2. Early return moved AFTER all hooks
     if (!isOpen || !pkg) return null;
 
-    // --- DYNAMIC DATA EXTRACTION ---
+    // Price calculations
     const displayPrice = selectedLab?.offerPrice ?? pkg?.offerPrice ?? pkg?.minPrice ?? 0;
     const strikePrice = selectedLab?.mrp ?? pkg?.mrp ?? pkg?.standardMRP ?? 0;
     const discount = selectedLab?.discountPercent ?? pkg?.discountPercent ?? 0;
@@ -61,7 +58,7 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
     const executeAdd = async () => {
         try {
             const targetLabId = selectedLab?.labId || pkg.labId;
-            const targetPkgId = selectedLab?._id || pkg._id;
+            const targetPkgId = pkg._id;
 
             if (!targetLabId) {
                 toast.error("Laboratory information missing.");
@@ -72,7 +69,7 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
             toast.success("Added to cart!");
             setShowClearCartConfirm(false);
         } catch (error) {
-            toast.error("Failed to add to cart");
+            toast.error("An error occurred while adding to cart.");
         }
     };
 
@@ -85,18 +82,27 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
         }
     };
 
-    const handleFinalAction = async () => {
+    const handleAction = async () => {
         if (isAdded) {
             try {
                 await removeItem(pkg._id);
                 toast.success("Removed from cart");
             } catch (error) {
-                toast.error("Error removing item");
+                toast.error("Failed to remove item");
             }
         } else {
-            if (cart?.items?.length > 0 && cart.categoryType !== "Pathology") {
-                setShowClearCartConfirm(true);
+            if (!selectedLab && !pkg.labId) {
+                toast.error("Please choose a laboratory center.");
                 return;
+            }
+
+            // Category Mismatch Check
+            const currentPkgCategory = pkg.mainCategory || "Pathology";
+            if (cart && cart.items?.length > 0 && cart.categoryType) {
+                if (cart.categoryType !== currentPkgCategory) {
+                    setShowClearCartConfirm(true);
+                    return;
+                }
             }
             await executeAdd();
         }
@@ -105,7 +111,7 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
     return (
         <div className="fixed inset-0 z-[999] bg-white w-full h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
             
-            {/* Clear Cart Confirmation Overlay */}
+            {/* CATEGORY MISMATCH OVERLAY */}
             {showClearCartConfirm && (
                 <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
@@ -113,22 +119,12 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                             <FaExclamationTriangle className="text-amber-600 text-2xl" />
                         </div>
                         <h3 className="text-xl font-black text-slate-900 text-center mb-2">Mixed Cart Category</h3>
-                        <p className="text-slate-500 text-center font-medium text-sm mb-8">
-                            Your cart already contains items from another category. Clear cart to add this diagnostic package?
+                        <p className="text-slate-500 text-center font-medium text-sm mb-8 leading-relaxed">
+                            Your cart contains <span className="font-bold text-slate-700">{cart.categoryType}</span> items. Clear cart to start a new <span className="font-bold text-slate-700">{pkg.mainCategory || "Pathology"}</span> order?
                         </p>
                         <div className="flex flex-col gap-3">
-                            <button 
-                                onClick={handleClearAndAdd}
-                                className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-700 transition-all"
-                            >
-                                Clear and Add
-                            </button>
-                            <button 
-                                onClick={() => setShowClearCartConfirm(false)}
-                                className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
-                            >
-                                Cancel
-                            </button>
+                            <button onClick={handleClearAndAdd} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all">Clear and Add</button>
+                            <button onClick={() => setShowClearCartConfirm(false)} className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -136,11 +132,11 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
 
             <header className="h-16 border-b border-slate-100 flex items-center justify-between px-4 md:px-8 sticky top-0 bg-white z-10">
                 <button onClick={onClose} className="flex items-center gap-2 text-slate-600 hover:text-emerald-600 font-bold transition-colors">
-                    <FaArrowLeft /> <span>Back</span>
+                    <FaArrowLeft /> <span className="uppercase tracking-widest text-xs">Back to Catalog</span>
                 </button>
                 <div className="flex items-center gap-4">
                     <div className="hidden md:flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        <FaShieldAlt className="text-emerald-500" /> NABL Accredited Diagnostics
+                        <FaShieldAlt className="text-emerald-500" /> Secure Diagnostic Booking
                     </div>
                 </div>
             </header>
@@ -161,7 +157,7 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                                         </span>
                                     ))}
                                 </div>
-                                <h1 className="text-3xl md:text-5xl font-black text-slate-900 mb-4 tracking-tight">
+                                <h1 className="text-3xl md:text-5xl font-black text-slate-900 mb-4 tracking-tight uppercase">
                                     {pkg.packageName}
                                 </h1>
                                 <p className="text-slate-500 text-lg leading-relaxed font-medium">
@@ -176,26 +172,26 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                                 <StatCard icon={<FaUserFriends className="text-purple-500" />} label="Gender" value={pkg.gender} />
                             </div>
 
+                            {/* LAB SELECTION AREA */}
                             {pkg.vendorList?.length > 0 && (
-                                <section className="mb-12">
+                                <section id="lab-selection-area" className="mb-12">
                                     <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2">
-                                        <FaClinicMedical className="text-emerald-500" /> Choose Laboratory
+                                        <FaClinicMedical className="text-emerald-500" /> Choose Laboratory Center
                                     </h3>
                                     <div className="grid gap-4">
                                         {pkg.vendorList.map((lab) => (
                                             <div
                                                 key={lab._id}
-                                                onClick={() => setSelectedLab(lab)}
-                                                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between ${selectedLab?._id === lab._id ? "border-emerald-500 bg-emerald-50/40" : "border-slate-100 bg-white"
-                                                    }`}
+                                                onClick={() => !isAdded && setSelectedLab(lab)}
+                                                className={`p-5 rounded-2xl border-2 transition-all flex items-center justify-between ${selectedLab?._id === lab._id ? "border-emerald-500 bg-emerald-50/40" : isAdded ? "opacity-50 cursor-not-allowed border-slate-100" : "border-slate-100 bg-white cursor-pointer hover:border-slate-200"}`}
                                             >
                                                 <div className="flex items-center gap-4">
                                                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedLab?._id === lab._id ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"}`}>
                                                         <FaClinicMedical size={20} />
                                                     </div>
                                                     <div>
-                                                        <p className="font-bold text-slate-900">Partner Lab Center</p>
-                                                        <p className="text-xs text-slate-500 font-bold">{lab.totalTestsIncluded} Parameters</p>
+                                                        <p className="font-bold text-slate-900 uppercase text-sm tracking-tight">Partner Diagnostic Lab</p>
+                                                        <p className="text-[10px] text-slate-500 font-black uppercase">{lab.totalTestsIncluded || pkg.totalTestsIncluded} Parameters Included</p>
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
@@ -209,7 +205,7 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                             )}
 
                             <section className="mb-12">
-                                <h3 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3">
+                                <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3 uppercase tracking-widest">
                                     <FaMicroscope className="text-emerald-500" />
                                     Tests Included ({pkg.totalTestsIncluded || pkg.tests?.length || 0})
                                 </h3>
@@ -220,12 +216,12 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                                             <div key={test._id} className="border border-slate-100 rounded-2xl overflow-hidden bg-white shadow-sm">
                                                 <div className="p-5 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
                                                     <div>
-                                                        <h4 className="font-bold text-slate-900 text-lg">{test.testName}</h4>
+                                                        <h4 className="font-bold text-slate-900 text-lg uppercase tracking-tight">{test.testName}</h4>
                                                         <p className="text-[10px] text-emerald-600 font-black uppercase tracking-wider">{test.category} • {test.sampleType} Sample</p>
                                                     </div>
                                                     <div className="flex flex-wrap gap-2">
                                                         {test.parameters?.map((p, i) => (
-                                                            <span key={i} className="bg-white border border-slate-200 text-slate-500 text-[10px] px-2 py-1 rounded-md font-bold">{p}</span>
+                                                            <span key={i} className="bg-white border border-slate-200 text-slate-500 text-[10px] px-2 py-1 rounded-md font-black uppercase">{p}</span>
                                                         ))}
                                                     </div>
                                                 </div>
@@ -242,7 +238,7 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                                     </div>
                                 ) : (
                                     <div className="p-8 bg-slate-50 rounded-2xl text-center border-2 border-dashed border-slate-200">
-                                        <p className="font-bold text-slate-500">Includes {pkg.totalTestsIncluded || pkg.tests?.length} essential health parameters.</p>
+                                        <p className="font-bold text-slate-500 uppercase text-xs tracking-widest">Includes {pkg.totalTestsIncluded || pkg.tests?.length} essential health parameters.</p>
                                     </div>
                                 )}
                             </section>
@@ -250,7 +246,7 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                             <div className="grid md:grid-cols-2 gap-6 mb-12">
                                 {pkg.detailedDescription?.length > 0 && (
                                     <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                                        <h4 className="font-black text-slate-900 mb-4 flex items-center gap-2"><FaRegFileAlt className="text-blue-500" /> Overview</h4>
+                                        <h4 className="font-black text-slate-900 mb-4 flex items-center gap-2 uppercase text-xs tracking-widest"><FaRegFileAlt className="text-blue-500" /> Clinical Overview</h4>
                                         <div className="space-y-4">
                                             {pkg.detailedDescription.map((desc) => (
                                                 <div key={desc._id}>
@@ -263,7 +259,7 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                                 )}
                                 {pkg.preparations?.length > 0 && (
                                     <div className="bg-amber-50/50 p-6 rounded-2xl border border-amber-100">
-                                        <h4 className="font-black text-slate-900 mb-4 flex items-center gap-2"><FaListUl className="text-amber-500" /> Preparation</h4>
+                                        <h4 className="font-black text-slate-900 mb-4 flex items-center gap-2 uppercase text-xs tracking-widest"><FaListUl className="text-amber-500" /> Preparation</h4>
                                         <ul className="space-y-3">
                                             {pkg.preparations.map((prep, i) => (
                                                 <li key={i} className="text-sm text-slate-700 font-bold flex items-start gap-3">
@@ -277,8 +273,10 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                             </div>
 
                             {(pkg.faqs?.length > 0 || (hasRichTestData && pkg.tests?.some(t => t.faqs?.length > 0))) && (
-                                <section>
-                                    <h3 className="text-xl font-black text-slate-900 mb-6">Common Questions</h3>
+                                <section className="mb-12">
+                                    <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2 uppercase text-xs tracking-widest">
+                                        <FaQuestionCircle className="text-emerald-500" /> Common Questions
+                                    </h3>
                                     <div className="grid md:grid-cols-2 gap-4">
                                         {pkg.faqs?.map((faq, i) => (
                                             <div key={faq._id || i} className="p-4 rounded-xl border border-slate-100 bg-white shadow-sm">
@@ -297,13 +295,14 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                             )}
                         </div>
 
+                        {/* SIDEBAR SUMMARY */}
                         <div className="w-full lg:w-80">
                             <div className="sticky top-28 bg-white border border-slate-200 rounded-[2rem] shadow-2xl p-6 overflow-hidden">
                                 <div className="absolute top-0 right-0 p-4">
                                     <FaFlask className="text-slate-50 text-7xl rotate-12" />
                                 </div>
                                 <div className="relative z-10">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Total Package Price</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Total Package Amount</p>
                                     <div className="flex items-baseline gap-2 mb-1">
                                         <span className="text-4xl font-black text-slate-900">₹{displayPrice}</span>
                                         {strikePrice > displayPrice && (
@@ -318,23 +317,24 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
                                     <div className="space-y-4 mb-8">
                                         <div className="flex items-center gap-3 text-sm text-slate-600 font-bold">
                                             <FaCheckCircle className="text-emerald-500 shrink-0" />
-                                            <span>Home Sample Pickup</span>
+                                            <span className="text-[11px] uppercase tracking-tighter">Home Sample Pickup</span>
                                         </div>
                                         <div className="flex items-center gap-3 text-sm text-slate-600 font-bold">
                                             <FaCheckCircle className="text-emerald-500 shrink-0" />
-                                            <span>Certified Lab Report</span>
+                                            <span className="text-[11px] uppercase tracking-tighter">Certified Lab Report</span>
                                         </div>
                                     </div>
                                     <button
-                                        onClick={handleFinalAction}
-                                        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.1em] transition-all duration-300 ${isAdded ? "bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-600 hover:text-white" : "bg-emerald-600 text-white hover:bg-slate-900 shadow-xl shadow-emerald-100"
+                                        onClick={handleAction}
+                                        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.1em] transition-all duration-300 ${isAdded ? "bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-600 hover:text-white" : !selectedLab && !pkg.labId ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-emerald-600 text-white hover:bg-slate-900 shadow-xl shadow-emerald-100"
                                             }`}
                                     >
-                                        {isAdded ? <span><FaTrashAlt className="inline mr-2" /> Remove Item</span> : <span><FaShoppingCart className="inline mr-2" /> Add to Cart</span>}
+                                        {isAdded ? <span><FaTrashAlt className="inline mr-2" /> Remove Item</span> : <span><FaShoppingCart className="inline mr-2" /> Book Now</span>}
                                     </button>
                                 </div>
                             </div>
                         </div>
+
                     </div>
                 </div>
             </div>

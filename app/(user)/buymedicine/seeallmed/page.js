@@ -1,25 +1,18 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import {
-    FaArrowLeft, FaSearch, FaCapsules, FaChevronDown,
-    FaFilter, FaShoppingBasket, FaMedkit, FaMapMarkerAlt,
+    FaArrowLeft, FaSearch, FaMapMarkerAlt,
     FaStar, FaClock, FaChevronRight, FaStore, FaHistory,
-    FaTruck, FaShieldAlt, FaCheckCircle
+    FaTruck
 } from "react-icons/fa";
-
-// Constants & Components
-import { INITIAL_MEDICINES } from "../../../constants/constants";
-import MedicineDetailsModal from "../components/otherComponents/MedicineDetailsModal";
-import AllMed from "./components/AllMed";
-import AllProducts from "./components/AllProducts";
-import UserAPI from "@/app/services/UserAPI"; 
+import UserAPI from "@/app/services/UserAPI";
+import AllPharmacyProducts from "./components/AllPharmacyProducts";
 
 // --- SKELETON COMPONENT ---
 const PharmacyCardSkeleton = () => (
-    <div className="flex-shrink-0 w-[300px] h-[180px] bg-white rounded-3xl border border-slate-100 p-5 flex flex-col justify-between animate-pulse">
+    <div className="flex-shrink-0 w-[300px] h-[180px] bg-white rounded-3xl border border-slate-100 p-5 flex flex-col justify-between animate-pulse shadow-sm">
         <div>
             <div className="flex justify-between items-start">
                 <div className="w-2/3">
@@ -55,51 +48,39 @@ const Badge = ({ icon, text, color }) => {
 export default function AllMedicinesPage() {
     const router = useRouter();
 
-    // Pharmacy States
+    // --- STATES ---
     const [pharmacies, setPharmacies] = useState([]);
     const [loadingPharmacies, setLoadingPharmacies] = useState(true);
-    const [pharmacySearchTerm, setPharmacySearchTerm] = useState("");
+    const [pharmacyNameQuery, setPharmacyNameQuery] = useState("");
+    const [pharmacySuggestions, setPharmacySuggestions] = useState([]);
+    const [showPharmacySuggestions, setShowPharmacySuggestions] = useState(false);
+    const [coords, setCoords] = useState({ lat: null, lng: null });
 
-    // Catalog States
-    const [activeTab, setActiveTab] = useState("medicines"); 
-    const [searchTerm, setSearchTerm] = useState("");
-    const [sortBy, setSortBy] = useState("low-to-high");
-    const [activeCategory, setActiveCategory] = useState("All");
-
-    // Modal States
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-
-    // --- FETCH PHARMACIES LOGIC ---
-    const fetchPharmacies = useCallback(async (search = "") => {
-        setLoadingPharmacies(true);
-        
-        // 1. Get Lat/Lng from Local Storage
+    // 1. Initial Load: Sync coordinates from localStorage
+    useEffect(() => {
         const storedCoords = localStorage.getItem("userCoords");
-        let lat = null;
-        let lng = null;
-
         if (storedCoords) {
             try {
-                const coords = JSON.parse(storedCoords);
-                lat = coords.lat;
-                lng = coords.lng;
-            } catch (e) {
-                console.error("Error parsing userCoords from localStorage", e);
+                const parsed = JSON.parse(storedCoords);
+                setCoords(parsed);
+            } catch (error) {
+                console.error("Failed to parse userCoords", error);
             }
         }
+    }, []);
 
+    // 2. Fetch Pharmacies Logic
+    const fetchPharmacies = useCallback(async () => {
+        setLoadingPharmacies(true);
         try {
-            // 2. Prepare Payload for your POST /user/pharmacy/list
-            const payload = { 
-                search,
-                lat, 
-                lng 
+            const payload = {
+                search: pharmacyNameQuery,
+                lat: coords.lat,
+                lng: coords.lng,
+                // Location metadata removed as we rely on lat/lng from storage
             };
 
-            // 3. Call your UserAPI function
             const response = await UserAPI.getAllPharmacies(payload);
-            
             if (response.success) {
                 setPharmacies(response.data || []);
             }
@@ -108,51 +89,34 @@ export default function AllMedicinesPage() {
         } finally {
             setLoadingPharmacies(false);
         }
-    }, []);
+    }, [coords, pharmacyNameQuery]);
 
-    // Debounced effect for searching pharmacies
+    // Re-fetch when coordinates or search query change
     useEffect(() => {
-        const delayDebounce = setTimeout(() => {
-            fetchPharmacies(pharmacySearchTerm);
-        }, 500);
-        return () => clearTimeout(delayDebounce);
-    }, [pharmacySearchTerm, fetchPharmacies]);
+        fetchPharmacies();
+    }, [fetchPharmacies]);
 
-    // Categories Logic
-    const categories = activeTab === "medicines"
-        ? ["All", "Tablets", "Syrups", "Injections"]
-        : ["All", "Wellness", "Personal Care", "Baby Care", "First Aid"];
+    // --- SEARCH SUGGESTION LOGIC ---
+    const handlePharmacyNameChange = async (val) => {
+        setPharmacyNameQuery(val);
+        if (val.length > 1) {
+            const res = await UserAPI.getPharmacyNameSuggestions(val);
+            if (res.success) {
+                setPharmacySuggestions(res.data);
+                setShowPharmacySuggestions(true);
+            }
+        } else {
+            setPharmacySuggestions([]);
+        }
+    };
 
-    // Filtering logic for the items below
-    const filteredItems = useMemo(() => {
-        let source = INITIAL_MEDICINES;
-        let result = source.filter((item) => {
-            const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.vendor.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesCategory = activeCategory === "All" || item.category === activeCategory;
-            return matchesSearch && matchesCategory;
-        });
-
-        if (sortBy === "low-to-high") result.sort((a, b) => a.discountPrice - b.discountPrice);
-        else if (sortBy === "high-to-low") result.sort((a, b) => b.discountPrice - a.discountPrice);
-
-        return result;
-    }, [searchTerm, sortBy, activeCategory]);
-
-    const handleOpenModal = (item) => {
-        setSelectedItem(item);
-        setIsModalOpen(true);
+    const selectPharmacySuggestion = (name) => {
+        setPharmacyNameQuery(name);
+        setShowPharmacySuggestions(false);
     };
 
     return (
         <div className="min-h-screen font-sans bg-[#f8fafc] pb-20">
-            <MedicineDetailsModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                medicine={selectedItem}
-                onAddToCart={(item) => alert(`${item.name} added to cart!`)}
-            />
-
             {/* STICKY NAV */}
             <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 py-4">
                 <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -166,24 +130,51 @@ export default function AllMedicinesPage() {
                 </div>
             </nav>
 
-            <div className="max-w-6xl mx-auto pt-8 px-4">
+            <div className="max-w-6xl mx-auto pt-4 px-4">
 
-                {/* 1. PHARMACIES SECTION */}
+                {/* SIMPLIFIED SEARCH BAR */}
+                <div className="mb-10">
+                    <div className="max-w-2xl mx-auto relative">
+                        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                            <FaSearch className="text-slate-400" />
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Search Pharmacy by Name..."
+                            value={pharmacyNameQuery}
+                            onChange={(e) => handlePharmacyNameChange(e.target.value)}
+                            onFocus={() => pharmacySuggestions.length > 0 && setShowPharmacySuggestions(true)}
+                            className="w-full pl-11 pr-4 py-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-[#08B36A] transition-all shadow-sm"
+                        />
+                        {showPharmacySuggestions && pharmacySuggestions.length > 0 && (
+                            <div className="absolute z-[60] w-full mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 max-h-60 overflow-y-auto">
+                                {pharmacySuggestions.map((s, idx) => (
+                                    <div
+                                        key={idx}
+                                        onClick={() => selectPharmacySuggestion(s.name)}
+                                        className="px-4 py-3 hover:bg-emerald-50 cursor-pointer flex items-center gap-3 border-b border-slate-50 last:border-0"
+                                    >
+                                        <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center text-[#08B36A]">
+                                            <FaStore size={10} />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-black text-slate-800 uppercase">{s.name}</p>
+                                            <p className="text-[9px] text-slate-400 font-bold tracking-tighter uppercase">{s.city}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* 1. PHARMACIES HORIZONTAL LIST */}
                 <section className="mb-12">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-                        <div className="flex items-center gap-2">
-                            <FaMapMarkerAlt className="text-[#08B36A]" />
-                            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Stores Near You</h2>
-                        </div>
-                        <div className="relative w-full md:w-72">
-                            <input
-                                type="text"
-                                placeholder="Search pharmacy name..."
-                                value={pharmacySearchTerm}
-                                onChange={(e) => setPharmacySearchTerm(e.target.value)}
-                                className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08B36A] outline-none text-xs font-bold transition-all shadow-sm"
-                            />
-                        </div>
+                    <div className="flex items-center gap-2 mb-6">
+                        <FaMapMarkerAlt className="text-[#08B36A]" />
+                        <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+                            Stores Near Your Location
+                        </h2>
                     </div>
 
                     <div className="flex gap-5 overflow-x-auto pb-4 no-scrollbar">
@@ -238,107 +229,24 @@ export default function AllMedicinesPage() {
                         )}
                         {!loadingPharmacies && pharmacies.length === 0 && (
                             <div className="w-full py-10 bg-white rounded-3xl border border-dashed border-slate-200 text-center">
-                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No pharmacies found in your area</p>
+                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No pharmacies found near you</p>
                             </div>
                         )}
                     </div>
                 </section>
 
-                <hr className="border-slate-200 mb-12" />
+                <hr className="border-slate-200 mb-6" />
+                <AllPharmacyProducts />
 
-                {/* 2. CATALOG HEADER (Search & Tabs) */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-                    <div>
-                        <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
-                            Browse <span className="text-[#08B36A] capitalize">{activeTab}</span>
-                        </h1>
-                        <p className="text-slate-500 text-sm font-medium">Authentic & Licensed Healthcare solutions.</p>
-                    </div>
-
-                    <div className="flex gap-3 w-full md:w-auto">
-                        <div className="relative flex-1 md:w-80">
-                            <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
-                            <input
-                                type="text"
-                                placeholder={`Search ${activeTab}...`}
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-[#08B36A] outline-none text-sm transition-all shadow-sm"
-                            />
-                        </div>
-                        <div className="relative">
-                            <select
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value)}
-                                className="appearance-none bg-white border border-slate-200 rounded-2xl px-5 py-3.5 pr-10 text-[10px] font-black uppercase tracking-widest outline-none cursor-pointer shadow-sm"
-                            >
-                                <option value="low-to-high">Price: Low</option>
-                                <option value="high-to-low">Price: High</option>
-                            </select>
-                            <FaChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] pointer-events-none text-slate-400" />
-                        </div>
-                    </div>
-                </div>
-
-                {/* TABS SWITCHER */}
-                <div className="flex p-1.5 bg-slate-200/50 rounded-2xl mb-8 w-fit">
-                    <button
-                        onClick={() => { setActiveTab("medicines"); setActiveCategory("All"); }}
-                        className={`flex items-center gap-2 px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "medicines" ? "bg-white text-[#08B36A] shadow-md" : "text-slate-500"}`}
-                    >
-                        <FaCapsules size={14} /> Medicines
-                    </button>
-                    <button
-                        onClick={() => { setActiveTab("products"); setActiveCategory("All"); }}
-                        className={`flex items-center gap-2 px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "products" ? "bg-white text-[#08B36A] shadow-md" : "text-slate-500"}`}
-                    >
-                        <FaShoppingBasket size={14} /> Products
-                    </button>
-                </div>
-
-                {/* CATEGORY FILTER BAR */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-8 no-scrollbar">
-                    <div className="flex items-center gap-2 pr-4 border-r border-slate-200">
-                        <FaFilter className="text-slate-400 text-xs" />
-                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Filters</span>
-                    </div>
-                    {categories.map((cat) => (
-                        <button
-                            key={cat}
-                            onClick={() => setActiveCategory(cat)}
-                            className={`whitespace-nowrap px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat
-                                ? "bg-[#08B36A] text-white shadow-lg shadow-emerald-200"
-                                : "bg-white text-slate-500 border border-slate-100 hover:bg-slate-50"
-                                }`}
-                        >
-                            {cat}
-                        </button>
-                    ))}
-                </div>
-
-                {/* MAIN GRID AREA */}
-                <motion.div
-                    key={activeTab}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                >
-                    {activeTab === "medicines" ? (
-                        <AllMed items={filteredItems} onBuy={handleOpenModal} />
-                    ) : (
-                        <AllProducts items={filteredItems} onBuy={handleOpenModal} />
-                    )}
-                </motion.div>
-
-                {/* EMPTY STATE */}
-                {filteredItems.length === 0 && (
-                    <div className="text-center py-24 bg-white rounded-[3rem] border border-slate-100 shadow-sm mt-10">
-                        <FaMedkit className="mx-auto text-5xl text-slate-100 mb-4" />
-                        <p className="text-slate-400 font-black uppercase tracking-widest text-xs">No items matching your selection</p>
-                        <button onClick={() => { setSearchTerm(""); setActiveCategory("All"); }} className="text-[#08B36A] text-[10px] font-bold uppercase mt-4 underline">Clear all filters</button>
-                    </div>
-                )}
             </div>
+
+            {/* Click Outside Listener to close suggestion overlays */}
+            {showPharmacySuggestions && (
+                <div
+                    className="fixed inset-0 z-[55]"
+                    onClick={() => setShowPharmacySuggestions(false)}
+                />
+            )}
         </div>
     );
 }

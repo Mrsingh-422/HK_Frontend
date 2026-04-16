@@ -17,6 +17,9 @@ import {
   FaAmbulance,
   FaFilePrescription,
   FaTimes,
+  FaLocationArrow,
+  FaCity,
+  FaChevronDown
 } from "react-icons/fa";
 import { FiMessageCircle } from "react-icons/fi";
 
@@ -25,6 +28,7 @@ import MainRegister from "./registerComponents/MainRegister";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import { useAuth } from "@/app/context/AuthContext";
 import { useCart } from "@/app/context/CartContext";
+import UserAPI from "@/app/services/UserAPI";
 
 export default function TopNavbar() {
   const [token, setToken] = useState(null);
@@ -33,61 +37,122 @@ export default function TopNavbar() {
   // --- LOCATION STATES ---
   const [locationName, setLocationName] = useState("Detecting...");
   const [coords, setCoords] = useState({ lat: null, lng: null });
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [cityInput, setCityInput] = useState("");
+  const [citySuggestions, setCitySuggestions] = useState([]);
 
   const { cartItemIds } = useCart();
   const { openModal, modalType, closeModal } = useGlobalContext();
   const { logout } = useAuth();
 
+  const DELHI_COORDS = { lat: 28.6139, lng: 77.209 };
+
+  // Helper: Reverse Geocode to get City Name
+  const fetchAddressName = async (lat, lng) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+      );
+      const data = await response.json();
+      const city = data.address.city || data.address.town || data.address.village || data.address.suburb || "Delhi";
+      const pincode = data.address.postcode || "";
+      setLocationName(`${city}${pincode ? ", " + pincode : ""}`);
+    } catch (error) {
+      setLocationName("Location Found");
+    }
+  };
+
+  // Helper: Update Coords in State and LocalStorage
+  const updateLocation = (lat, lng) => {
+    const newCoords = { lat, lng };
+    setCoords(newCoords);
+    localStorage.setItem("userCoords", JSON.stringify(newCoords));
+    fetchAddressName(lat, lng);
+    setShowLocationPicker(false);
+    setCityInput("");
+    setCitySuggestions([]);
+  };
+
+  // Helper: Get Current GPS Location
+  const handleDetectLocation = () => {
+    if ("geolocation" in navigator) {
+      setLocationName("Detecting...");
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          updateLocation(position.coords.latitude, position.coords.longitude);
+        },
+        (error) => {
+          console.error("Geolocation denied:", error);
+          alert("Location access denied. Setting default location to Delhi.");
+          updateLocation(DELHI_COORDS.lat, DELHI_COORDS.lng);
+        }
+      );
+    }
+  };
+
   useEffect(() => {
-    // 1. Get Auth Token
     const storedToken = localStorage.getItem("userToken");
     setToken(storedToken);
 
-    // 2. Handle Body Scroll
     if (profileOpen) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "unset";
     }
 
-    // 3. GET USER LATITUDE AND LONGITUDE
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const latitude = position.coords.latitude;
-          const longitude = position.coords.longitude;
-
-          setCoords({ lat: latitude, lng: longitude });
-
-          // OPTIONAL: Store in localStorage for use in other components (like HeroSection)
-          localStorage.setItem("userCoords", JSON.stringify({ lat: latitude, lng: longitude }));
-
-          // 4. REVERSE GEOCODE (Turn Lat/Lng into a readable City/Area name)
-          try {
-            const response = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
-            );
-            const data = await response.json();
-
-            // Extract City or Neighborhood or Postcode
-            const city = data.address.city || data.address.town || data.address.village || data.address.suburb || "Unknown Location";
-            const pincode = data.address.postcode || "";
-
-            setLocationName(`${city}${pincode ? ", " + pincode : ""}`);
-          } catch (error) {
-            console.error("Geocoding error:", error);
-            setLocationName("Location Found");
-          }
-        },
-        (error) => {
-          console.error("Geolocation denied or error:", error);
-          setLocationName("Location Denied");
-        }
-      );
+    // INITIAL LOAD LOGIC
+    const savedCoords = localStorage.getItem("userCoords");
+    if (savedCoords) {
+      const parsed = JSON.parse(savedCoords);
+      setCoords(parsed);
+      fetchAddressName(parsed.lat, parsed.lng);
     } else {
-      setLocationName("Not Supported");
+      // If no saved coords, try to auto-detect or fallback to Delhi
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => updateLocation(position.coords.latitude, position.coords.longitude),
+          () => updateLocation(DELHI_COORDS.lat, DELHI_COORDS.lng)
+        );
+      } else {
+        updateLocation(DELHI_COORDS.lat, DELHI_COORDS.lng);
+      }
     }
   }, [profileOpen]);
+
+  // --- MANUAL SEARCH LOGIC ---
+  const handleCityInputChange = async (val) => {
+    setCityInput(val);
+    if (val.length > 1) {
+      try {
+        const res = await UserAPI.getCitySuggestions(val);
+        if (res.success) {
+          setCitySuggestions(res.data);
+        }
+      } catch (err) {
+        console.error("City suggestion error:", err);
+      }
+    } else {
+      setCitySuggestions([]);
+    }
+  };
+
+  const selectCityFromSuggestion = async (item) => {
+    try {
+      const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(item.city + ", " + item.state)}`;
+      const geoRes = await fetch(geocodeUrl);
+      const geoData = await geoRes.json();
+
+      if (geoData && geoData.length > 0) {
+        updateLocation(parseFloat(geoData[0].lat), parseFloat(geoData[0].lon));
+      } else {
+        // Fallback if geocoding fails, just update name
+        setLocationName(item.city);
+        setShowLocationPicker(false);
+      }
+    } catch (error) {
+      console.error("Geocoding failed:", error);
+    }
+  };
 
   const menuItems = [
     { icon: <FaUserCircle />, label: "My Account", link: "/userscreens/myaccount" },
@@ -106,14 +171,96 @@ export default function TopNavbar() {
       <nav className="tnav-wrapper">
         <div className="tnav-container">
           {/* LEFT: Dynamic Location */}
-          <div className="tnav-left">
-            <div className="location-badge">
-              <FaMapMarkerAlt className="tnav-icon-marker" />
+          <div className="tnav-left" style={{ position: 'relative' }}>
+            <div
+              className="location-badge-new"
+              onClick={() => setShowLocationPicker(!showLocationPicker)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
+                padding: '6px 12px', borderRadius: '8px', backgroundColor: '#f3f4f6',
+                transition: 'all 0.2s'
+              }}
+            >
+              <FaMapMarkerAlt className="tnav-icon-marker" style={{ color: '#ef4444' }} />
               <div className="location-texts">
-                <span className="loc-label">Deliver to</span>
-                <span className="tnav-location-text">{locationName}</span>
+                <span className="loc-label" style={{ fontSize: '10px', display: 'block', color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>Deliver to</span>
+                <span className="tnav-location-text" style={{ fontSize: '13px', fontWeight: '700', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {locationName} <FaChevronDown size={10} style={{ opacity: 0.5 }} />
+                </span>
               </div>
             </div>
+
+            {/* DESIGNED LOCATION PICKER PANEL */}
+            {showLocationPicker && (
+              <div className="location-panel-dropdown" style={{
+                position: 'absolute', top: '55px', left: '0', width: '320px',
+                backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                zIndex: 1000, border: '1px solid #f3f4f6', overflow: 'hidden', padding: '16px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#111827' }}>Change Location</h4>
+                  <FaTimes style={{ cursor: 'pointer', color: '#9ca3af' }} onClick={() => setShowLocationPicker(false)} />
+                </div>
+
+                <div
+                  onClick={handleDetectLocation}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '12px', padding: '12px',
+                    backgroundColor: '#eff6ff', borderRadius: '12px', cursor: 'pointer',
+                    color: '#2563eb', marginBottom: '16px', transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dbeafe'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#eff6ff'}
+                >
+                  <FaLocationArrow />
+                  <span style={{ fontSize: '14px', fontWeight: '600' }}>Detect my current location</span>
+                </div>
+
+                <div style={{ position: 'relative', marginBottom: '12px' }}>
+                  <FaSearch style={{ position: 'absolute', left: '12px', top: '14px', color: '#9ca3af' }} />
+                  <input
+                    type="text"
+                    placeholder="Search for city or area..."
+                    value={cityInput}
+                    onChange={(e) => handleCityInputChange(e.target.value)}
+                    style={{
+                      width: '100%', padding: '12px 12px 12px 40px', borderRadius: '10px',
+                      border: '1px solid #e5e7eb', outline: 'none', fontSize: '14px',
+                      backgroundColor: '#f9fafb ', color: '#111827',
+                    }}
+                  />
+                </div>
+
+                <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                  {citySuggestions.length > 0 ? (
+                    citySuggestions.map((item, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => selectCityFromSuggestion(item)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '12px', padding: '10px',
+                          cursor: 'pointer', borderRadius: '8px', transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <div style={{ width: '32px', height: '32px', backgroundColor: '#f3f4f6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <FaCity style={{ color: '#6b7280', fontSize: '14px' }} />
+                        </div>
+                        <div>
+                          <p style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#374151' }}>{item.city}</p>
+                          <p style={{ margin: 0, fontSize: '12px', color: '#9ca3af' }}>{item.state}, {item.country}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : cityInput.length > 1 ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>No results found</div>
+                  ) : (
+                    <div style={{ padding: '10px', color: '#9ca3af', fontSize: '12px', fontWeight: '500' }}>RECENT CITIES</div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* CENTER: Search Bar */}
@@ -166,6 +313,14 @@ export default function TopNavbar() {
           </div>
         </div>
       </nav>
+
+      {/* Backdrop for Location Picker */}
+      {showLocationPicker && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 999, backgroundColor: 'transparent' }}
+          onClick={() => setShowLocationPicker(false)}
+        />
+      )}
 
       {/* MODALS (Login/Register) */}
       {modalType && (

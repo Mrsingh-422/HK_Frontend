@@ -4,11 +4,11 @@ import React, { useState, useEffect } from "react";
 import {
     FaStar, FaShoppingCart, FaTrashAlt,
     FaCheckCircle, FaInfoCircle, FaClock, FaVial,
-    FaShieldAlt, FaClinicMedical, FaArrowLeft, 
+    FaShieldAlt, FaClinicMedical, FaArrowLeft,
     FaExclamationTriangle, FaListUl, FaRegFileAlt,
     FaQuestionCircle, FaUserFriends, FaFlask, FaMicroscope, FaHistory
 } from "react-icons/fa";
-import { useCart } from "@/app/context/CartContext"; 
+import { useCart } from "@/app/context/CartContext";
 import toast from "react-hot-toast";
 
 const TestDetailsModal = ({ isOpen, onClose, test }) => {
@@ -91,7 +91,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }) => {
 
     return (
         <div className="fixed inset-0 z-[999] bg-white w-full h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
-            
+
             {/* CATEGORY MISMATCH OVERLAY */}
             {showClearCartConfirm && (
                 <div className="fixed inset-0 z-[1000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -125,7 +125,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }) => {
             <div className="flex-1 overflow-y-auto bg-[#FDFDFD]">
                 <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 md:py-12">
                     <div className="flex flex-col lg:flex-row gap-12">
-                        
+
                         <div className="flex-1">
                             <div className="mb-8">
                                 <div className="flex flex-wrap gap-2 mb-4">

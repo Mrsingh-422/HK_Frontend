@@ -73,6 +73,21 @@ const UserAPI = {
         return response.data;
     },
 
+    // Add these to your UserAPI object
+    getLabsList: async (payload) => {
+        // payload: { lat, lng, search, city, state, country }
+        const response = await publicApi.post("/user/labs/list", payload);
+        return response.data;
+    },
+    getCitySuggestions: async (query) => {
+        const response = await publicApi.get(`/user/labs/suggestions?query=${query}`);
+        return response.data;
+    },
+    getLabNameSuggestions: async (query) => {
+        const response = await publicApi.get(`/user/labs/lab-suggestions?query=${query}`);
+        return response.data;
+    },
+
     //Medicine apis all 
     getAllPharmacies: async (payload) => {
         // payload should be { lat, lng, search, etc. }
@@ -81,6 +96,27 @@ const UserAPI = {
     },
     getPharmacyDetails: async (pharmacyId) => {
         const response = await publicApi.get(`/user/pharmacy/details/${pharmacyId}`);
+        return response.data;
+    },
+    getPharmacyCitySuggestions: async (query) => {
+        const response = await publicApi.get(`/user/pharmacy/search-suggestions?query=${query}`);
+        return response.data;
+    },
+    getPharmacyNameSuggestions: async (query) => {
+        const response = await publicApi.get(`/user/pharmacy/pharmacy-suggestions?query=${query}`);
+        return response.data;
+    },
+
+    getPharmacyProductsAll: async (params) => {
+        // params example: { page: 1, limit: 10 }
+        const response = await publicApi.get(`/user/pharmacy/standard-list`, { params });
+        return response.data;
+    },
+
+    pharmacyProductDetail: async (productId, params) => {
+        // vendorId example: "69df18ad0cf05769b93d6761"
+        // params example: { lat: 30.7333, lng: 76.7233 }
+        const response = await publicApi.get(`/user/pharmacy/medicine-details/${productId}`, { params });
         return response.data;
     },
 

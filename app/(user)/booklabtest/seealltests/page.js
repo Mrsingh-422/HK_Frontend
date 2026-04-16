@@ -4,103 +4,120 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
     FaArrowLeft,
-    FaSearch,
     FaMapMarkerAlt,
-    FaCheckCircle,
     FaFlask,
     FaBoxOpen,
-    FaTimes,
     FaLayerGroup,
     FaChevronRight,
     FaStar,
-    FaClock,
-    FaHouseUser,
-    FaBolt,
-    FaShieldAlt,
-    FaHistory
+    FaHospital,
+    FaTag,
+    FaSearch
 } from "react-icons/fa";
 import TestDetailsModal from "../components/otherComponents/TestDetailsModal";
 import UserAPI from "@/app/services/UserAPI";
 import AllPackagesList from "./components/otherComponents/AllPackagesList";
 import AllSingleTestsList from "./components/otherComponents/AllSingleTestsList";
 
-// --- SKELETON COMPONENTS ---
+// --- SKELETON COMPONENT ---
 const LabCardSkeleton = () => (
-    <div className="flex-shrink-0 w-[340px] h-[210px] bg-white rounded-3xl border border-slate-100 p-5 flex flex-col justify-between animate-pulse">
-        <div>
-            <div className="flex justify-between items-start">
-                <div className="w-2/3">
-                    <div className="h-5 bg-slate-200 rounded-md w-full mb-2"></div>
-                    <div className="h-3 bg-slate-100 rounded-md w-1/2"></div>
-                </div>
-                <div className="w-16 h-8 bg-slate-100 rounded-lg"></div>
-            </div>
-            <div className="flex gap-2 mt-4">
-                <div className="h-6 w-12 bg-slate-100 rounded-md"></div>
-                <div className="h-6 w-12 bg-slate-100 rounded-md"></div>
-                <div className="h-6 w-12 bg-slate-100 rounded-md"></div>
+    <div className="flex-shrink-0 w-[360px] bg-white rounded-2xl border border-gray-100 p-5 animate-pulse shadow-sm">
+        <div className="flex gap-4">
+            <div className="w-16 h-16 bg-gray-200 rounded-xl"></div>
+            <div className="flex-1 space-y-2">
+                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                <div className="h-3 bg-gray-100 rounded w-1/2"></div>
             </div>
         </div>
-        <div className="flex justify-between items-end pt-4 border-t border-slate-50">
-            <div className="w-1/2">
-                <div className="h-3 bg-slate-100 rounded-md w-full mb-1"></div>
-                <div className="h-3 bg-slate-100 rounded-md w-2/3"></div>
-            </div>
-            <div className="w-8 h-8 bg-slate-100 rounded-full"></div>
-        </div>
+        <div className="h-16 bg-gray-50 rounded-xl mt-4"></div>
+        <div className="h-10 bg-gray-50 rounded-xl mt-4"></div>
     </div>
 );
 
 function AllTestsPage() {
     const router = useRouter();
-
-    const [localSearch, setLocalSearch] = useState("");
-    const [labSearchTerm, setLabSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState("packages");
     const [selectedItem, setSelectedItem] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
+    // Lab Data States
     const [labs, setLabs] = useState([]);
     const [selectedLabId, setSelectedLabId] = useState(null);
     const [loadingLabs, setLoadingLabs] = useState(true);
-    const [locationError, setLocationError] = useState(false);
 
-    const fetchLabs = useCallback(async (searchTerm = "") => {
+    // Search & Suggestion States
+    const [labSearchQuery, setLabSearchQuery] = useState("");
+    const [labSuggestions, setLabSuggestions] = useState([]);
+    const [showLabSuggestions, setShowLabSuggestions] = useState(false);
+
+    // Location State (Retrieved from LocalStorage)
+    const [coords, setCoords] = useState({ lat: null, lng: null });
+
+    // Fetch Labs Logic
+    const fetchLabs = useCallback(async () => {
         setLoadingLabs(true);
-        const storedCoords = localStorage.getItem("userCoords");
-
-        if (!storedCoords) {
-            setLocationError(true);
-            setLoadingLabs(false);
-            return;
-        }
-
         try {
-            const parsedCoords = JSON.parse(storedCoords);
             const payload = {
-                lat: parsedCoords.lat,
-                lng: parsedCoords.lng,
-                search: searchTerm
+                lat: coords.lat,
+                lng: coords.lng,
+                search: labSearchQuery,
+                // City/State/Country removed as we rely on coords
             };
 
             const response = await UserAPI.getLabsList(payload);
             if (response.success) {
-                setLabs(response.data || []);
+                const labsData = Array.isArray(response.data) ? response.data : [response.data];
+                setLabs(labsData);
+            } else {
+                setLabs([]);
             }
         } catch (error) {
             console.error("Error fetching labs:", error);
-            setLocationError(true);
+            setLabs([]);
         } finally {
             setLoadingLabs(false);
         }
+    }, [coords, labSearchQuery]);
+
+    // Initial Load: Check local storage for existing coords
+    useEffect(() => {
+        const storedCoords = localStorage.getItem("userCoords");
+        if (storedCoords) {
+            try {
+                setCoords(JSON.parse(storedCoords));
+            } catch (e) {
+                console.error("Error parsing userCoords", e);
+            }
+        }
     }, []);
 
+    // Re-fetch when coordinates or search query change
     useEffect(() => {
-        const delayDebounceFn = setTimeout(() => {
-            fetchLabs(labSearchTerm);
-        }, 400);
-        return () => clearTimeout(delayDebounceFn);
-    }, [labSearchTerm, fetchLabs]);
+        fetchLabs();
+    }, [fetchLabs]);
+
+    // --- SEARCH LOGIC ---
+    const handleLabSearchChange = async (val) => {
+        setLabSearchQuery(val);
+        if (val.length > 1) {
+            try {
+                const res = await UserAPI.getLabNameSuggestions(val);
+                if (res.success) {
+                    setLabSuggestions(res.data);
+                    setShowLabSuggestions(true);
+                }
+            } catch (err) {
+                console.error("Lab suggestion error:", err);
+            }
+        } else {
+            setLabSuggestions([]);
+        }
+    };
+
+    const selectLabSuggestion = (name) => {
+        setLabSearchQuery(name);
+        setShowLabSuggestions(false);
+    };
 
     const handleLabClick = (labId) => {
         router.push(`/booklabtest/singlelabdetail/${labId}`);
@@ -112,181 +129,197 @@ function AllTestsPage() {
     };
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900">
+        <div className="min-h-screen bg-gray-50">
             <TestDetailsModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} pkg={selectedItem} />
 
-            {/* Sticky Navigation */}
-            <nav className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
-                <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-                    <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-bold text-sm transition-colors">
-                        <FaArrowLeft size={12} />
-                        <span className="uppercase tracking-wider">Back</span>
-                    </button>
-                    <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-emerald-500 rounded-lg"><FaFlask className="text-white text-sm" /></div>
-                        <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-800">Diagnostics</span>
+            {/* Navigation Header */}
+            <div className="bg-white border-b border-gray-200 sticky top-0 z-50">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex items-center justify-between h-16">
+                        <button
+                            onClick={() => router.back()}
+                            className="flex items-center gap-2 text-gray-600 hover:text-emerald-600 transition-colors text-sm font-medium"
+                        >
+                            <FaArrowLeft size={16} /> Back
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+                                <FaFlask size={14} className="text-white" />
+                            </div>
+                            <span className="text-sm font-semibold text-gray-800">HK Diagnostics</span>
+                        </div>
                     </div>
                 </div>
-            </nav>
+            </div>
 
-            <main className="max-w-6xl mx-auto px-4 py-8">
-                {/* Search & Header */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
-                    <div>
-                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Explore <span className="text-emerald-600">Diagnostics</span></h1>
-                        <p className="text-slate-500 text-sm mt-1 font-medium">Verified tests from trusted NABL laboratories.</p>
-                    </div>
-                    <div className="relative w-full md:w-[450px]">
-                        <FaSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+                {/* SEARCH BAR SECTION (Cleaned up to Lab Search Only) */}
+                <div className="mb-10">
+                    <div className="max-w-2xl mx-auto relative">
+                        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                            <FaSearch className="text-gray-400" />
+                        </div>
                         <input
                             type="text"
-                            placeholder="Search for tests (e.g. Vitamin B12, KFT)..."
-                            value={localSearch}
-                            onChange={(e) => setLocalSearch(e.target.value)}
-                            className="w-full pl-14 pr-6 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none text-sm shadow-sm font-medium"
+                            placeholder="Search for a specific diagnostic center..."
+                            value={labSearchQuery}
+                            onChange={(e) => handleLabSearchChange(e.target.value)}
+                            onFocus={() => labSuggestions.length > 0 && setShowLabSuggestions(true)}
+                            className="w-full pl-11 pr-4 py-4 bg-white border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all shadow-sm"
                         />
-                    </div>
-                </div>
-
-                {/* Lab Selection Section */}
-                <section className="mb-12">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-                        <div className="flex items-center gap-2">
-                            <FaMapMarkerAlt className="text-emerald-500" />
-                            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Labs Near You</h2>
-                        </div>
-                        <div className="relative w-full md:w-72">
-                            <input
-                                type="text"
-                                placeholder="Search lab by name..."
-                                value={labSearchTerm}
-                                onChange={(e) => setLabSearchTerm(e.target.value)}
-                                className="w-full pl-4 pr-10 py-2.5 bg-slate-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none text-xs font-bold transition-all"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex gap-6 overflow-x-auto pb-8 no-scrollbar pt-2">
-                        {/* Static "All Labs" Filter Card */}
-                        <div
-                            onClick={() => setSelectedLabId(null)}
-                            className={`flex-shrink-0 cursor-pointer w-[180px] p-6 rounded-3xl border-2 transition-all flex flex-col justify-between h-[210px] ${selectedLabId === null ? "bg-white border-emerald-500 shadow-xl" : "bg-white border-transparent shadow-sm"}`}
-                        >
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${selectedLabId === null ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"}`}>
-                                <FaLayerGroup size={20} />
-                            </div>
-                            <div>
-                                <h3 className="font-black text-sm text-slate-800 uppercase tracking-tight">Show All Labs</h3>
-                                <p className="text-[10px] text-slate-400 font-bold mt-1">Discover all providers</p>
-                            </div>
-                        </div>
-
-                        {/* Dynamic Lab Cards based on API Response */}
-                        {loadingLabs ? (
-                            <>
-                                <LabCardSkeleton />
-                                <LabCardSkeleton />
-                            </>
-                        ) : (
-                            labs.map((lab) => (
-                                <div
-                                    key={lab._id}
-                                    onClick={() => handleLabClick(lab._id)}
-                                    className="group flex-shrink-0 cursor-pointer w-[340px] bg-white rounded-3xl border-2 border-transparent shadow-sm hover:border-emerald-500 hover:shadow-2xl transition-all duration-300 p-5 flex flex-col justify-between h-[210px]"
-                                >
-                                    <div>
-                                        <div className="flex justify-between items-start">
-                                            <div className="max-w-[65%]">
-                                                <h3 className="font-black text-base text-slate-800 group-hover:text-emerald-600 transition-colors truncate">
-                                                    {lab.name}
-                                                </h3>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
-                                                    {lab.city}, {lab.state} {lab.distance ? `• ${lab.distance.toFixed(1)} KM` : ""}
-                                                </p>
-                                            </div>
-                                            <div className="flex flex-col items-end">
-                                                <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg text-amber-600 border border-amber-100">
-                                                    <FaStar size={10} />
-                                                    <span className="text-[11px] font-black">{lab.rating || "N/A"}</span>
-                                                    <span className="text-[9px] text-amber-400 ml-0.5">({lab.totalReviews || 0})</span>
-                                                </div>
-                                                <span className={`mt-2 text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${lab.openStatus === "Open Now" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
-                                                    {lab.openStatus}
-                                                </span>
-                                            </div>
+                        {showLabSuggestions && labSuggestions.length > 0 && (
+                            <div className="absolute z-[60] w-full mt-2 bg-white rounded-xl shadow-xl border border-gray-100 max-h-60 overflow-y-auto">
+                                {labSuggestions.map((s, idx) => (
+                                    <div
+                                        key={idx}
+                                        onClick={() => selectLabSuggestion(s.name)}
+                                        className="px-4 py-3 hover:bg-emerald-50 cursor-pointer flex items-center gap-3 border-b border-gray-50 last:border-0"
+                                    >
+                                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-emerald-600">
+                                            <FaHospital size={14} />
                                         </div>
-
-                                        {/* Dynamic Badges from JSON Features */}
-                                        <div className="flex flex-wrap gap-2 mt-4">
-                                            {lab.is24x7 && <Badge icon={<FaHistory size={8} />} text="24/7" color="blue" />}
-                                            {lab.isRapidServiceAvailable && <Badge icon={<FaBolt size={8} />} text="Rapid" color="purple" />}
-                                            {lab.isHomeCollectionAvailable && <Badge icon={<FaHouseUser size={8} />} text="Home Visit" color="emerald" />}
-                                            {lab.isInsuranceAccepted && <Badge icon={<FaShieldAlt size={8} />} text="Insurance" color="slate" />}
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-800">{s.name}</p>
+                                            <p className="text-[10px] text-gray-400 uppercase tracking-tight">{s.city}</p>
                                         </div>
                                     </div>
-
-                                    {/* Timing and Slots from JSON */}
-                                    <div className="flex items-end justify-between pt-4 border-t border-slate-50">
-                                        <div className="flex flex-col gap-1">
-                                            <div className="flex items-center gap-1.5 text-slate-500">
-                                                <FaClock size={10} className="text-slate-300" />
-                                                <span className="text-[10px] font-bold">{lab.timingLabel}</span>
-                                            </div>
-                                            {lab.nextAvailableSlot && (
-                                                <div className="text-[10px]">
-                                                    <span className="text-slate-400 font-medium">Next: </span>
-                                                    <span className="text-emerald-600 font-black">
-                                                        {lab.nextAvailableSlot.date}, {lab.nextAvailableSlot.time}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="w-8 h-8 rounded-full bg-slate-50 group-hover:bg-emerald-500 group-hover:text-white transition-all flex items-center justify-center">
-                                            <FaChevronRight size={10} />
-                                        </div>
-                                    </div>
-                                </div>
-                            ))
+                                ))}
+                            </div>
                         )}
                     </div>
-                </section>
+                </div>
+
+                {/* Labs Carousel Section */}
+                <div className="mb-12">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <FaMapMarkerAlt className="text-emerald-500" size={16} />
+                            <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                Diagnostic Centers Near Your Location
+                            </h2>
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto pb-4 -mx-2 px-2 no-scrollbar">
+                        <div className="flex gap-4">
+                            {/* Reset Filter Button */}
+                            <div
+                                onClick={() => {
+                                    setSelectedLabId(null);
+                                    setLabSearchQuery("");
+                                }}
+                                className={`flex-shrink-0 cursor-pointer w-[160px] rounded-xl border-2 transition-all p-4 ${selectedLabId === null && !labSearchQuery
+                                    ? "bg-emerald-600 border-emerald-600 text-white shadow-lg"
+                                    : "bg-white border-gray-200 text-gray-600 hover:border-emerald-300"
+                                    }`}
+                            >
+                                <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-3 ${selectedLabId === null && !labSearchQuery ? "bg-white/20" : "bg-gray-100"}`}>
+                                    <FaLayerGroup size={20} className={selectedLabId === null && !labSearchQuery ? "text-white" : "text-gray-500"} />
+                                </div>
+                                <h3 className="font-semibold text-sm">All Labs</h3>
+                                <p className="text-xs opacity-75 mt-1">Reset Filters</p>
+                            </div>
+
+                            {loadingLabs ? (
+                                [1, 2, 3].map((i) => <LabCardSkeleton key={i} />)
+                            ) : labs.length > 0 ? (
+                                labs.map((lab) => (
+                                    <div
+                                        key={lab._id}
+                                        onClick={() => handleLabClick(lab._id)}
+                                        className="group flex-shrink-0 cursor-pointer w-[360px] bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300 p-5"
+                                    >
+                                        <div className="flex gap-4">
+                                            <div className="w-16 h-16 rounded-xl bg-gray-100 flex-shrink-0 flex items-center justify-center text-gray-400 overflow-hidden">
+                                                {lab.profileImage ? (
+                                                    <img src={lab.profileImage} alt={lab.name} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <FaHospital size={28} />
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex justify-between items-start gap-2">
+                                                    <h3 className="font-semibold text-gray-900 truncate">{lab.name}</h3>
+                                                    <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg">
+                                                        <FaStar size={10} className="text-amber-500" />
+                                                        <span className="text-xs font-semibold text-amber-700">{lab.rating || "New"}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                                    {lab.distance && (
+                                                        <span className="text-xs text-gray-500 flex items-center gap-1">
+                                                            <FaMapMarkerAlt size={10} /> {lab.distance} km
+                                                        </span>
+                                                    )}
+                                                    {lab.startingPrice > 0 && (
+                                                        <span className="text-xs text-gray-500 flex items-center gap-1">
+                                                            <FaTag size={10} /> From ₹{lab.startingPrice}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 pt-4 border-t border-gray-100">
+                                            <p className="text-xs text-gray-700 font-medium">{lab.city}, {lab.state}</p>
+                                            <p className="text-xs text-gray-400 mt-0.5 truncate">{lab.address}</p>
+                                        </div>
+
+                                        <div className="mt-4 pt-3 flex items-center justify-between border-t border-gray-100">
+                                            <span className="text-xs text-emerald-600 font-medium bg-emerald-50 px-2 py-0.5 rounded">Available now</span>
+                                            <button className="flex items-center gap-2 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors">
+                                                View Lab <FaChevronRight size={12} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="w-full py-10 px-10 text-center bg-white rounded-xl border border-dashed border-gray-300 min-w-[300px]">
+                                    <p className="text-gray-500 text-sm font-medium">No diagnostic centers found near you.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
 
                 {/* Tab Switcher */}
-                <div className="flex p-1.5 bg-slate-200/50 rounded-2xl mb-10 w-fit mx-auto md:mx-0">
-                    <button onClick={() => setActiveTab("packages")} className={`flex items-center gap-2 px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "packages" ? "bg-white text-emerald-600 shadow-md" : "text-slate-500"}`}>
-                        <FaBoxOpen size={14} /> Health Packages
-                    </button>
-                    <button onClick={() => setActiveTab("single")} className={`flex items-center gap-2 px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "single" ? "bg-white text-emerald-600 shadow-md" : "text-slate-500"}`}>
-                        <FaFlask size={14} /> Single Tests
-                    </button>
+                <div className="mb-8">
+                    <div className="flex gap-2 bg-gray-100 rounded-xl p-1 w-fit">
+                        <button
+                            onClick={() => setActiveTab("packages")}
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === "packages" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}
+                        >
+                            <FaBoxOpen size={16} /> Health Packages
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("single")}
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === "single" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}
+                        >
+                            <FaFlask size={16} /> Single Tests
+                        </button>
+                    </div>
                 </div>
 
-                <div className="min-h-[500px]">
+                {/* Content Area */}
+                <div className="min-h-[400px]">
                     {activeTab === "packages" ? (
-                        <AllPackagesList searchTerm={localSearch} selectedLabId={selectedLabId} onBook={handleOpenModal} />
+                        <AllPackagesList selectedLabId={selectedLabId} onBook={handleOpenModal} />
                     ) : (
-                        <AllSingleTestsList searchTerm={localSearch} selectedLabId={selectedLabId} onBook={handleOpenModal} />
+                        <AllSingleTestsList selectedLabId={selectedLabId} onBook={handleOpenModal} />
                     )}
                 </div>
-            </main>
+            </div>
+
+            {/* Click Outside Listener to close suggestion overlays */}
+            {showLabSuggestions && (
+                <div
+                    className="fixed inset-0 z-[55]"
+                    onClick={() => setShowLabSuggestions(false)}
+                />
+            )}
         </div>
     );
 }
-
-// Reusable Small Badge Component
-const Badge = ({ icon, text, color }) => {
-    const colors = {
-        blue: "bg-blue-50 text-blue-600 border-blue-100",
-        purple: "bg-purple-50 text-purple-600 border-purple-100",
-        emerald: "bg-emerald-50 text-emerald-600 border-emerald-100",
-        slate: "bg-slate-50 text-slate-600 border-slate-100",
-    };
-    return (
-        <div className={`flex items-center gap-1 px-2 py-1 rounded-md border ${colors[color]}`}>
-            {icon}
-            <span className="text-[9px] font-bold uppercase">{text}</span>
-        </div>
-    );
-};
 
 export default AllTestsPage;
