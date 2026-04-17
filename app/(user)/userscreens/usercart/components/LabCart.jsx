@@ -4,12 +4,13 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     FaPlus, FaMinus, FaShieldAlt,
-    FaPrescriptionBottleAlt, FaTag, FaSpinner, FaArrowLeft, FaCheckCircle, FaTicketAlt
+    FaPrescriptionBottleAlt, FaTag, FaSpinner, FaArrowLeft, FaCheckCircle, FaTicketAlt, FaUserCircle, FaWalking, FaHome
 } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
 import UserAPI from '@/app/services/UserAPI';
 import SlotSelectionModal from './SlotSelectionModal';
+import FamilyMemberModal from './FamilyMemberModal';
 
 const LabCart = () => {
     const router = useRouter();
@@ -21,12 +22,29 @@ const LabCart = () => {
     const [serverDiscount, setServerDiscount] = useState(0);
     const [isValidating, setIsValidating] = useState(false);
 
-    // Slot Modal State
+    // Collection Method State
+    const [collectionMethod, setCollectionMethod] = useState('Walk-in'); // 'Walk-in' or 'Home'
+
+    // Patient & Slot State
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
+    const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false);
+    const [selectedMember, setSelectedMember] = useState(null);
     const [selectedAppointment, setSelectedAppointment] = useState(null);
 
     const labItems = useMemo(() => cart?.items || [], [cart]);
     const currentLabId = useMemo(() => cart?.labId?._id, [cart]);
+
+    // Validation: Home collection allowed only for Pathology
+    const isHomeCollectionAllowed = useMemo(() => {
+        return cart?.categoryType === 'Pathology';
+    }, [cart?.categoryType]);
+
+    // Force Walk-in if Radiology is detected
+    useEffect(() => {
+        if (!isHomeCollectionAllowed && collectionMethod === 'Home') {
+            setCollectionMethod('Walk-in');
+        }
+    }, [isHomeCollectionAllowed, collectionMethod]);
 
     const subtotal = useMemo(() => {
         return labItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
@@ -76,34 +94,39 @@ const LabCart = () => {
         }
     }, [subtotal]);
 
-    // Recalculate totals including slot extra fees
     const totals = useMemo(() => {
         const extraFee = selectedAppointment?.slot?.extraFee || 0;
         const discountedAmount = Math.max(0, subtotal - serverDiscount);
-        const shipping = (subtotal > 500 || subtotal === 0) ? 0 : 50;
-        const total = discountedAmount + shipping + extraFee;
+        // Home collection fee logic: Can be changed to a fixed price if needed
+        const collectionFee = collectionMethod === 'Home' ? 0 : 0; 
+        const total = discountedAmount + collectionFee + extraFee;
 
-        return { subtotal, shipping, discount: serverDiscount, extraFee, total };
-    }, [subtotal, serverDiscount, selectedAppointment]);
+        return { subtotal, discount: serverDiscount, extraFee, total };
+    }, [subtotal, serverDiscount, selectedAppointment, collectionMethod]);
 
     const handleQtyChange = (itemId, currentQty, action) => {
         if (action === 'dec' && currentQty <= 1) return toast.error("Quantity cannot be less than 1");
         updateQuantity(itemId, action);
     };
 
+    const onFamilyConfirm = (member) => {
+        setSelectedMember(member);
+        setIsFamilyModalOpen(false);
+        setIsSlotModalOpen(true);
+    };
+
     const onSlotConfirm = (date, slot) => {
         setSelectedAppointment({ date, slot });
         setIsSlotModalOpen(false);
         toast.success(`Slot selected: ${slot.time}`);
-        // Here you can proceed to checkout directly or let user click button again
     };
 
     const handleProceed = () => {
-        if (!selectedAppointment) {
+        if (!selectedMember) {
+            setIsFamilyModalOpen(true);
+        } else if (!selectedAppointment) {
             setIsSlotModalOpen(true);
         } else {
-            // Save selectedAppointment to state/storage and route to checkout
-            // localStorage.setItem('bookingSlot', JSON.stringify(selectedAppointment));
             router.push('/checkout');
         }
     };
@@ -130,13 +153,57 @@ const LabCart = () => {
 
                     {/* LEFT: LAB ITEMS */}
                     <div className="flex-1 w-full space-y-4">
-                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mb-2 flex justify-between items-center">
-                            <p className="text-emerald-700 text-sm font-bold">{cart?.labId?.name} • {cart?.categoryType}</p>
-                            {selectedAppointment && (
-                                <div className="text-xs font-bold text-emerald-600 flex items-center gap-1">
-                                    <FaCheckCircle /> Slot: {selectedAppointment.date} @ {selectedAppointment.slot.time}
-                                </div>
+                        {/* COLLECTION METHOD SELECTION */}
+                        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Choose Collection Method</h3>
+                            <div className="flex gap-4">
+                                <button 
+                                    onClick={() => setCollectionMethod('Walk-in')}
+                                    className={`flex-1 flex flex-col items-center gap-2 py-4 rounded-2xl border-2 transition-all ${collectionMethod === 'Walk-in' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'}`}
+                                >
+                                    <FaWalking size={20} />
+                                    <span className="text-sm font-bold">Walk-in at Lab</span>
+                                </button>
+                                <button 
+                                    disabled={!isHomeCollectionAllowed}
+                                    onClick={() => setCollectionMethod('Home')}
+                                    className={`flex-1 flex flex-col items-center gap-2 py-4 rounded-2xl border-2 transition-all ${!isHomeCollectionAllowed ? 'opacity-40 cursor-not-allowed grayscale border-gray-100 bg-gray-50' : collectionMethod === 'Home' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'}`}
+                                >
+                                    <FaHome size={20} />
+                                    <span className="text-sm font-bold">Home Collection</span>
+                                </button>
+                            </div>
+                            {!isHomeCollectionAllowed && (
+                                <p className="text-[10px] text-rose-500 font-bold mt-3 uppercase tracking-tighter">* Home collection not available for {cart?.categoryType} tests</p>
                             )}
+                        </div>
+
+                        {/* SELECTION SUMMARY */}
+                        {(selectedMember || selectedAppointment) && (
+                            <div className="bg-white border border-emerald-100 rounded-xl p-4 flex flex-wrap gap-4 items-center">
+                                {selectedMember && (
+                                    <div className="flex items-center gap-2 border-r pr-4 border-gray-100">
+                                        <FaUserCircle className="text-emerald-500" />
+                                        <span className="text-xs font-bold text-gray-700">Patient: {selectedMember.name}</span>
+                                    </div>
+                                )}
+                                {selectedAppointment && (
+                                    <div className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                                        <FaCheckCircle /> Slot: {selectedAppointment.date} @ {selectedAppointment.slot.time}
+                                    </div>
+                                )}
+                                <button 
+                                    onClick={() => {setSelectedMember(null); setSelectedAppointment(null);}} 
+                                    className="text-[10px] font-bold text-rose-500 uppercase ml-auto underline"
+                                >
+                                    Reset
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex justify-between items-center">
+                            <p className="text-emerald-700 text-sm font-bold">{cart?.labId?.name} • {cart?.categoryType}</p>
+                            <span className="text-[10px] font-black text-emerald-600 uppercase bg-white px-2 py-1 rounded-lg border border-emerald-100">{collectionMethod}</span>
                         </div>
 
                         {labItems.map((item) => (
@@ -210,7 +277,7 @@ const LabCart = () => {
                             <div className="space-y-3 pb-5 border-b border-gray-100 text-sm">
                                 <div className="flex justify-between text-gray-500"><span>Cart Total</span><span className="text-gray-900 font-semibold">₹{totals.subtotal.toLocaleString()}</span></div>
                                 {totals.discount > 0 && <div className="flex justify-between text-emerald-600 font-semibold"><span>Coupon Discount</span><span>-₹{totals.discount.toLocaleString()}</span></div>}
-                                <div className="flex justify-between text-gray-500"><span>Home Collection</span><span className={`font-semibold ${totals.shipping === 0 ? "text-emerald-600" : "text-gray-900"}`}>{totals.shipping === 0 ? "FREE" : `₹${totals.shipping}`}</span></div>
+                                <div className="flex justify-between text-gray-500"><span>Collection Type</span><span className="font-semibold text-gray-900">{collectionMethod}</span></div>
                                 {totals.extraFee > 0 && <div className="flex justify-between text-amber-600 font-semibold"><span>Urgent Slot Fee</span><span>+₹{totals.extraFee.toLocaleString()}</span></div>}
                             </div>
                             <div className="py-5 flex justify-between items-center">
@@ -219,14 +286,20 @@ const LabCart = () => {
                             </div>
 
                             <button onClick={handleProceed} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-bold text-sm transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 uppercase">
-                                {selectedAppointment ? "Pay Securely" : "Select Time Slot"} <FaShieldAlt />
+                                {!selectedMember ? "Select Patient" : !selectedAppointment ? "Select Time Slot" : "Pay Securely"} <FaShieldAlt />
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Modal Rendering */}
+            {/* Modals */}
+            <FamilyMemberModal 
+                isOpen={isFamilyModalOpen}
+                onClose={() => setIsFamilyModalOpen(false)}
+                onConfirm={onFamilyConfirm}
+            />
+
             <SlotSelectionModal
                 isOpen={isSlotModalOpen}
                 onClose={() => setIsSlotModalOpen(false)}

@@ -72,6 +72,28 @@ const UserAPI = {
         const response = await publicApi.post(`/user/labs/${labId}/inventory-packages/search`, payload);
         return response.data;
     },
+      checkoutLab: async (checkoutData) => {
+        /**
+         * Expected checkoutData object:
+         * {
+         *   appointmentDate: "YYYY-MM-DD",
+         *   appointmentTime: "10:00 AM",
+         *   selectedPatientIds: ["id1", "id2"],
+         *   collectionType: "Home Collection" | "Visit Lab",
+         *   isRapid: boolean,
+         *   couponCode: string | null,
+         *   address: { ... },
+         *   paymentMethod: "COD"
+         * }
+         */
+        const response = await authApi.post("/user/labs/checkout", checkoutData);
+        return response.data;
+    },
+    // 8. Get service/delivery charges (Fixed fee, Express fee, etc.)
+    getDeliveryCharges: async () => {
+        const response = await authApi.get("/user/labs/delivery-charges");
+        return response.data;
+    },
 
     // Add these to your UserAPI object
     getLabsList: async (payload) => {
