@@ -101,17 +101,6 @@ export const CartProvider = ({ children }) => {
         }
     };
 
-    // const updateQuantity = async (itemId, action) => {
-    //     try {
-    //         const response = await UserAPI.updateCartQuantity({ itemId, action });
-    //         if (response.success) {
-    //             await fetchCart();
-    //         }
-    //     } catch (error) {
-    //         console.error("Update Quantity Error:", error);
-    //     }
-    // };
-
     const clearFullCart = async () => {
         try {
             const response = await UserAPI.clearCart();

@@ -18,6 +18,7 @@ import TestDetailsModal from "../components/otherComponents/TestDetailsModal";
 import UserAPI from "@/app/services/UserAPI";
 import AllPackagesList from "./components/otherComponents/AllPackagesList";
 import AllSingleTestsList from "./components/otherComponents/AllSingleTestsList";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
 // --- SKELETON COMPONENT ---
 const LabCardSkeleton = () => (
@@ -40,6 +41,9 @@ function AllTestsPage() {
     const [selectedItem, setSelectedItem] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
+    const { location } = useGlobalContext();
+    // alert(location?.lat + " " + location?.lng);
+
     // Lab Data States
     const [labs, setLabs] = useState([]);
     const [selectedLabId, setSelectedLabId] = useState(null);
@@ -52,6 +56,7 @@ function AllTestsPage() {
 
     // Location State (Retrieved from LocalStorage)
     const [coords, setCoords] = useState({ lat: null, lng: null });
+    // alert(coords.lat + " " + coords.lng);
 
     // Fetch Labs Logic
     const fetchLabs = useCallback(async () => {
@@ -60,6 +65,8 @@ function AllTestsPage() {
             const payload = {
                 lat: coords.lat,
                 lng: coords.lng,
+                // lat: location?.lat,
+                // lng: location?.lng,
                 search: labSearchQuery,
                 // City/State/Country removed as we rely on coords
             };
@@ -94,7 +101,7 @@ function AllTestsPage() {
     // Re-fetch when coordinates or search query change
     useEffect(() => {
         fetchLabs();
-    }, [fetchLabs]);
+    }, [fetchLabs, location]);
 
     // --- SEARCH LOGIC ---
     const handleLabSearchChange = async (val) => {

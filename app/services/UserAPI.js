@@ -294,8 +294,21 @@ const UserAPI = {
         const response = await authApi.get(`/user/labs/comparison/package/${masterPackageId}`);
         return response.data;
     },
-    getLabSlots: async (params) => {
-        const response = await authApi.get("/user/labs/slots", { params });
+    getCouponsForCart: async () => {
+        const response = await authApi.get(`/user/labs/coupons`);
+        return response.data;
+    },
+    validateCouponCart: async (couponName, labId, totalAmount) => {
+        const response = await authApi.post(`/user/labs/validate-coupon`, { couponName, labId, totalAmount });
+        return response.data;
+    },
+    getLabSlots: async (labId, date) => {
+        const response = await authApi.get("/user/labs/slots", {
+            params: {
+                labId,
+                date // This will be sent as ?labId=...&date=YYYY-MM-DD
+            }
+        });
         return response.data;
     },
     getLabDeliveryCharges: async (params) => {
