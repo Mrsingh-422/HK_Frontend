@@ -89,7 +89,7 @@ export default function AppointmentComponent() {
     };
 
     return (
-        <section className="py-16 bg-[#F8FAFC]">
+        <section className="py-8 bg-[#F8FAFC]">
             <div className="max-w-7xl mx-auto px-4 md:px-6">
 
                 {/* --- HEADER --- */}

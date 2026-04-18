@@ -72,7 +72,7 @@ const UserAPI = {
         const response = await publicApi.post(`/user/labs/${labId}/inventory-packages/search`, payload);
         return response.data;
     },
-      checkoutLab: async (checkoutData) => {
+    checkoutLab: async (checkoutData) => {
         /**
          * Expected checkoutData object:
          * {
@@ -294,9 +294,6 @@ const UserAPI = {
         const response = await authApi.delete(`/api/auth/user/remove-address/${addressId}`);
         return response.data;
     },
-
-
-
 
 
     // --- Master Details & Comparison ---

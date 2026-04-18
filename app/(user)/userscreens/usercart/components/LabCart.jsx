@@ -4,7 +4,7 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     FaPlus, FaMinus, FaShieldAlt,
-    FaPrescriptionBottleAlt, FaTag, FaSpinner, FaArrowLeft, FaCheckCircle, FaTicketAlt, FaUserCircle, FaWalking, FaHome
+    FaPrescriptionBottleAlt, FaTag, FaSpinner, FaArrowLeft, FaCheckCircle, FaTicketAlt, FaUserCircle, FaWalking, FaHome, FaBolt
 } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
@@ -24,6 +24,11 @@ const LabCart = () => {
 
     // Collection Method State
     const [collectionMethod, setCollectionMethod] = useState('Walk-in'); // 'Walk-in' or 'Home'
+
+    // Delivery Charges State
+    const [deliveryConfig, setDeliveryConfig] = useState(null);
+    const [isFastDelivery, setIsFastDelivery] = useState(false);
+    const [userDistance, setUserDistance] = useState(0);
 
     // Patient & Slot State
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
@@ -60,9 +65,23 @@ const LabCart = () => {
         }
     }, [labItems.length]);
 
+    // Fetch Delivery Charges Configuration
+    const fetchDeliveryCharges = useCallback(async () => {
+        if (!currentLabId) return;
+        try {
+            const res = await UserAPI.getLabDeliveryCharges({ labId: currentLabId });
+            if (res.success) {
+                setDeliveryConfig(res.data);
+            }
+        } catch (error) {
+            console.error("Error fetching delivery charges:", error);
+        }
+    }, [currentLabId]);
+
     useEffect(() => {
         fetchSuggested();
-    }, [fetchSuggested]);
+        fetchDeliveryCharges();
+    }, [fetchSuggested, fetchDeliveryCharges]);
 
     const handleApplyCoupon = async (name) => {
         const codeToApply = name || couponCode;
@@ -97,12 +116,51 @@ const LabCart = () => {
     const totals = useMemo(() => {
         const extraFee = selectedAppointment?.slot?.extraFee || 0;
         const discountedAmount = Math.max(0, subtotal - serverDiscount);
-        // Home collection fee logic: Can be changed to a fixed price if needed
-        const collectionFee = collectionMethod === 'Home' ? 0 : 0; 
-        const total = discountedAmount + collectionFee + extraFee;
 
-        return { subtotal, discount: serverDiscount, extraFee, total };
-    }, [subtotal, serverDiscount, selectedAppointment, collectionMethod]);
+        let homeCollectionFee = 0;
+        let distanceFee = 0;
+        let fastReportFee = 0;
+        let taxAmount = 0;
+
+        if (deliveryConfig) {
+            // 1. Fast Delivery Extra (Available for both Walk-in and Home)
+            if (isFastDelivery) {
+                fastReportFee = deliveryConfig.fastDeliveryExtra;
+            }
+
+            // 2. Logic specific to Home Collection
+            if (collectionMethod === 'Home') {
+                // Fixed Price (Free if above threshold)
+                if (subtotal < deliveryConfig.freeDeliveryThreshold) {
+                    homeCollectionFee = deliveryConfig.fixedPrice;
+                }
+
+                // Distance Charges
+                if (userDistance > deliveryConfig.fixedDistance) {
+                    distanceFee = (userDistance - deliveryConfig.fixedDistance) * deliveryConfig.pricePerKM;
+                }
+            }
+
+            // 3. Taxes
+            if (deliveryConfig.taxPercentage > 0) {
+                taxAmount = (discountedAmount * deliveryConfig.taxPercentage) / 100;
+            }
+            taxAmount += (deliveryConfig.taxInRupees || 0);
+        }
+
+        const total = discountedAmount + extraFee + homeCollectionFee + distanceFee + fastReportFee + taxAmount;
+
+        return {
+            subtotal,
+            discount: serverDiscount,
+            extraFee,
+            homeCollectionFee,
+            distanceFee,
+            fastReportFee,
+            taxAmount,
+            total
+        };
+    }, [subtotal, serverDiscount, selectedAppointment, collectionMethod, deliveryConfig, userDistance, isFastDelivery]);
 
     const handleQtyChange = (itemId, currentQty, action) => {
         if (action === 'dec' && currentQty <= 1) return toast.error("Quantity cannot be less than 1");
@@ -157,14 +215,14 @@ const LabCart = () => {
                         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
                             <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Choose Collection Method</h3>
                             <div className="flex gap-4">
-                                <button 
+                                <button
                                     onClick={() => setCollectionMethod('Walk-in')}
                                     className={`flex-1 flex flex-col items-center gap-2 py-4 rounded-2xl border-2 transition-all ${collectionMethod === 'Walk-in' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'}`}
                                 >
                                     <FaWalking size={20} />
                                     <span className="text-sm font-bold">Walk-in at Lab</span>
                                 </button>
-                                <button 
+                                <button
                                     disabled={!isHomeCollectionAllowed}
                                     onClick={() => setCollectionMethod('Home')}
                                     className={`flex-1 flex flex-col items-center gap-2 py-4 rounded-2xl border-2 transition-all ${!isHomeCollectionAllowed ? 'opacity-40 cursor-not-allowed grayscale border-gray-100 bg-gray-50' : collectionMethod === 'Home' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'}`}
@@ -175,6 +233,27 @@ const LabCart = () => {
                             </div>
                             {!isHomeCollectionAllowed && (
                                 <p className="text-[10px] text-rose-500 font-bold mt-3 uppercase tracking-tighter">* Home collection not available for {cart?.categoryType} tests</p>
+                            )}
+
+                            {/* FAST DELIVERY TOGGLE (Available for both) */}
+                            {deliveryConfig && (
+                                <div className="mt-6 pt-6 border-t border-gray-100">
+                                    <div
+                                        onClick={() => setIsFastDelivery(!isFastDelivery)}
+                                        className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${isFastDelivery ? 'border-amber-500 bg-amber-50' : 'border-gray-100 bg-white'}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-lg ${isFastDelivery ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                                <FaBolt />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-gray-800">Fast Report Delivery</h4>
+                                                <p className="text-[10px] text-gray-500 font-medium">Get reports delivered 2x faster</p>
+                                            </div>
+                                        </div>
+                                        <span className="font-bold text-sm text-gray-900">+₹{deliveryConfig.fastDeliveryExtra}</span>
+                                    </div>
+                                </div>
                             )}
                         </div>
 
@@ -192,8 +271,8 @@ const LabCart = () => {
                                         <FaCheckCircle /> Slot: {selectedAppointment.date} @ {selectedAppointment.slot.time}
                                     </div>
                                 )}
-                                <button 
-                                    onClick={() => {setSelectedMember(null); setSelectedAppointment(null);}} 
+                                <button
+                                    onClick={() => { setSelectedMember(null); setSelectedAppointment(null); }}
                                     className="text-[10px] font-bold text-rose-500 uppercase ml-auto underline"
                                 >
                                     Reset
@@ -277,7 +356,40 @@ const LabCart = () => {
                             <div className="space-y-3 pb-5 border-b border-gray-100 text-sm">
                                 <div className="flex justify-between text-gray-500"><span>Cart Total</span><span className="text-gray-900 font-semibold">₹{totals.subtotal.toLocaleString()}</span></div>
                                 {totals.discount > 0 && <div className="flex justify-between text-emerald-600 font-semibold"><span>Coupon Discount</span><span>-₹{totals.discount.toLocaleString()}</span></div>}
+
                                 <div className="flex justify-between text-gray-500"><span>Collection Type</span><span className="font-semibold text-gray-900">{collectionMethod}</span></div>
+
+                                {collectionMethod === 'Home' && (
+                                    <>
+                                        <div className="flex justify-between text-gray-500">
+                                            <span>Home Collection Fee</span>
+                                            <span className={`font-semibold ${totals.homeCollectionFee === 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
+                                                {totals.homeCollectionFee === 0 ? 'FREE' : `+₹${totals.homeCollectionFee}`}
+                                            </span>
+                                        </div>
+                                        {totals.distanceFee > 0 && (
+                                            <div className="flex justify-between text-gray-500">
+                                                <span>Distance Charges ({userDistance} km)</span>
+                                                <span className="font-semibold text-gray-900">+₹{totals.distanceFee}</span>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {totals.fastReportFee > 0 && (
+                                    <div className="flex justify-between text-amber-600 font-semibold">
+                                        <span>Fast Report Delivery</span>
+                                        <span>+₹{totals.fastReportFee}</span>
+                                    </div>
+                                )}
+
+                                {totals.taxAmount > 0 && (
+                                    <div className="flex justify-between text-gray-500">
+                                        <span>Taxes & Service Fees</span>
+                                        <span className="font-semibold text-gray-900">+₹{Math.round(totals.taxAmount).toLocaleString()}</span>
+                                    </div>
+                                )}
+
                                 {totals.extraFee > 0 && <div className="flex justify-between text-amber-600 font-semibold"><span>Urgent Slot Fee</span><span>+₹{totals.extraFee.toLocaleString()}</span></div>}
                             </div>
                             <div className="py-5 flex justify-between items-center">
@@ -294,7 +406,7 @@ const LabCart = () => {
             </div>
 
             {/* Modals */}
-            <FamilyMemberModal 
+            <FamilyMemberModal
                 isOpen={isFamilyModalOpen}
                 onClose={() => setIsFamilyModalOpen(false)}
                 onConfirm={onFamilyConfirm}

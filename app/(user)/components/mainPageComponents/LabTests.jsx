@@ -68,7 +68,7 @@ export default function LabTests() {
   const router = useRouter();
 
   return (
-    <section className="py-12 bg-white">
+    <section className="py-8 bg-[#F8FAFC]">
       <div className="max-w-7xl mx-auto px-4 md:px-6">
         
         {/* --- HEADER --- */}

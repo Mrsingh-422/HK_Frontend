@@ -76,7 +76,7 @@ export default function LabPackages() {
   };
 
   return (
-    <section className="py-10 md:py-16 bg-[#FDFDFD] overflow-hidden">
+    <section className="py-8 md:py-16 bg-[#F8FAFC] overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         
         {/* --- HEADER --- */}

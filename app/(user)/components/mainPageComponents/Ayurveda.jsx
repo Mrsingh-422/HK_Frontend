@@ -65,7 +65,7 @@ export default function Ayurveda() {
   const router = useRouter();
 
   return (
-    <section className="py-16 bg-[#F9FBFA]">
+    <section className="py-6 bg-[#F8FAFC]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         
         {/* --- HEADER --- */}

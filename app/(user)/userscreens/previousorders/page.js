@@ -1,9 +1,10 @@
 "use client";
 import React, { useState } from 'react';
-// Icons for tabs
-import { FiPlusSquare, FiActivity, FiSearch } from 'react-icons/fi';
+// Icons
+import { FiClock, FiCheckCircle, FiPackage } from 'react-icons/fi';
 import { MdOutlineMedicalServices, MdOutlineLocalPharmacy, MdOutlineScience } from 'react-icons/md';
 
+// Components
 import NursingOrders from './components/NursingOrders';
 import PharmacyOrders from './components/PharmacyOrders';
 import LabOrders from './components/LabOrders';
@@ -11,65 +12,122 @@ import LabOrders from './components/LabOrders';
 function PreviousOrders() {
     const [activeTab, setActiveTab] = useState("nursing");
 
-    // --- ENHANCED TAB STYLING ---
+    // --- TAB STYLING LOGIC ---
     const getTabClass = (tab) => {
-        const base = "flex-1 flex items-center justify-center gap-2 py-3 px-2 md:px-6 text-[10px] md:text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer rounded-xl md:rounded-2xl ";
+        const base = "relative flex-1 flex items-center justify-center gap-3 py-3.5 px-4 text-[11px] md:text-sm font-bold uppercase tracking-wider transition-all duration-500 cursor-pointer rounded-2xl ";
 
         return activeTab === tab
-            ? `${base} bg-white text-[#08b36a] shadow-[0_8px_20px_-6px_rgba(0,0,0,0.15)] scale-[1.02] z-10`
-            : `${base} text-white/80 hover:text-white hover:bg-white/10`;
+            ? `${base} bg-white text-emerald-600 shadow-xl shadow-emerald-900/10 scale-[1.02] z-10`
+            : `${base} text-slate-500 hover:text-emerald-600 hover:bg-white/50`;
     };
 
     return (
-        <div className="min-h-screen bg-[#f8fafc] py-8 md:py-12 px-4 sm:px-6 lg:px-8 font-sans">
-            <div className="max-w-7xl mx-auto">
+        <div className="min-h-screen bg-[#F8FAFC] relative overflow-hidden">
+            {/* --- DECORATIVE BACKGROUND ELEMENTS --- */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[400px] bg-gradient-to-b from-emerald-50/50 to-transparent pointer-events-none" />
+
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
 
                 {/* --- PAGE HEADER --- */}
-                <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12">
                     <div>
-                        <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
-                            Order History
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="h-1 w-8 bg-emerald-500 rounded-full" />
+                            <p className="text-emerald-600 font-black text-[10px] uppercase tracking-[0.2em]">Patient Dashboard</p>
+                        </div>
+                        <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">
+                            Order <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">History</span>
                         </h1>
-                        <p className="text-slate-400 font-bold text-sm mt-1 uppercase tracking-wide">
-                            Healthcare & Pharmacy Records
-                        </p>
                     </div>
-                    {/* Optional: Simple search bar or filter info could go here */}
+
+                    {/* --- QUICK STATS SUMMARY --- */}
+                    <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+                        {[
+                            { label: 'Completed', count: '12', icon: <FiCheckCircle />, color: 'text-emerald-500' },
+                            { label: 'In Progress', count: '02', icon: <FiClock />, color: 'text-amber-500' },
+                            { label: 'Total', count: '14', icon: <FiPackage />, color: 'text-blue-500' }
+                        ].map((stat, i) => (
+                            <div key={i} className="bg-white border border-slate-100 p-3 px-5 rounded-2xl shadow-sm flex items-center gap-3 min-w-fit">
+                                <div className={`${stat.color} text-lg`}>{stat.icon}</div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">{stat.label}</p>
+                                    <p className="text-sm font-black text-slate-800 leading-none">{stat.count}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
-                {/* --- FIXED TAB NAVIGATION --- */}
-                <div className="relative mb-12">
-                    {/* The Background Track */}
-                    <div className="bg-[#08b36a] p-1.5  md:p-2 rounded-[22px] md:rounded-[30px] flex gap-1 shadow-2xl shadow-green-200/50 max-w-7xl mx-auto md:mx-0 md:px-10">
+                {/* --- MODERN TAB NAVIGATION --- */}
+                <div className="mb-12">
+                    <div className="bg-slate-200/60 backdrop-blur-md p-1.5 rounded-[24px] flex flex-row gap-1 shadow-inner border border-white/50">
 
                         <button onClick={() => setActiveTab("nursing")} className={getTabClass("nursing")}>
-                            <MdOutlineMedicalServices className="text-lg md:text-xl" />
+                            <MdOutlineMedicalServices className={`text-xl ${activeTab === 'nursing' ? 'animate-pulse' : ''}`} />
                             <span>Nursing</span>
+                            {activeTab === 'nursing' && <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-emerald-500 rounded-full" />}
                         </button>
 
                         <button onClick={() => setActiveTab("pharmacy")} className={getTabClass("pharmacy")}>
-                            <MdOutlineLocalPharmacy className="text-lg md:text-xl" />
+                            <MdOutlineLocalPharmacy className={`text-xl ${activeTab === 'pharmacy' ? 'animate-pulse' : ''}`} />
                             <span>Pharmacy</span>
+                            {activeTab === 'pharmacy' && <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-emerald-500 rounded-full" />}
                         </button>
 
                         <button onClick={() => setActiveTab("lab")} className={getTabClass("lab")}>
-                            <MdOutlineScience className="text-lg md:text-xl" />
+                            <MdOutlineScience className={`text-xl ${activeTab === 'lab' ? 'animate-pulse' : ''}`} />
                             <span>Lab Tests</span>
+                            {activeTab === 'lab' && <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-emerald-500 rounded-full" />}
                         </button>
 
                     </div>
                 </div>
 
-                {/* --- CONTENT AREA --- */}
-                <div className="animate-in fade-in slide-in-from-bottom-6 duration-700">
-                    {activeTab === "nursing" && <NursingOrders />}
-                    {activeTab === "pharmacy" && <PharmacyOrders />}
-                    {activeTab === "lab" && <LabOrders />}
+                {/* --- CONTENT AREA WITH TRANSITION --- */}
+                <div className="relative">
+                    {/* Background Glow */}
+                    <div className="absolute inset-0 bg-emerald-400/5 blur-[100px] -z-10 rounded-full" />
+
+                    <div className="transition-all duration-500 ease-in-out">
+                        {activeTab === "nursing" && (
+                            <div className="animate-in fade-in zoom-in-95 duration-500">
+                                <NursingOrders />
+                            </div>
+                        )}
+                        {activeTab === "pharmacy" && (
+                            <div className="animate-in fade-in zoom-in-95 duration-500">
+                                <PharmacyOrders />
+                            </div>
+                        )}
+                        {activeTab === "lab" && (
+                            <div className="animate-in fade-in zoom-in-95 duration-500">
+                                <LabOrders />
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                {/* --- EMPTY STATE HELPER (Optional) --- */}
-                {/* Add a logic check here if you want to show a global "no orders" state */}
+                {/* --- FOOTER INFO --- */}
+                <div className="mt-20 flex items-center justify-center gap-4 text-slate-400">
+                    <div className="h-px w-12 bg-slate-200" />
+                    <p className="text-[10px] font-bold uppercase tracking-[0.3em]">End of Records</p>
+                    <div className="h-px w-12 bg-slate-200" />
+                </div>
             </div>
+
+            <style jsx global>{`
+                .no-scrollbar::-webkit-scrollbar {
+                    display: none;
+                }
+                .no-scrollbar {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                }
+                @keyframes fade-in {
+                    from { opacity: 0; transform: translateY(10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+            `}</style>
         </div>
     );
 }

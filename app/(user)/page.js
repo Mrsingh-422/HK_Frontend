@@ -21,6 +21,9 @@ import LabTests from "./components/mainPageComponents/LabTests";
 import LabPackages from "./components/mainPageComponents/LabPackages";
 import Ayurveda from "./components/mainPageComponents/Ayurveda";
 import AppointmentComponent from "./components/mainPageComponents/AppointmentComponent";
+import NewArrivals from "./components/mainPageComponents/NewArrivals";
+import HospitalsMainPage from "./components/mainPageComponents/HospitalsMainPage";
+import NurseSection from "./components/mainPageComponents/NurseSection";
 
 export default function Home() {
   return (
@@ -28,6 +31,7 @@ export default function Home() {
       <SecondNavbar />
       <HeroSection />
       {/* <OurIntroduction /> */}
+      <NewArrivals />
       <MedicineComponent />
       <AppointmentComponent />
       <PersonalCare />
@@ -35,6 +39,8 @@ export default function Home() {
       <SomeDesign />
       <LabPackages />
       <Ayurveda />
+      <HospitalsMainPage />
+      <NurseSection />
       {/* <AboutUs /> */}
       {/* <Medicines /> */}
       {/* <Laboratory /> */}

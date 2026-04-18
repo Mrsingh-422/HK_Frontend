@@ -16,7 +16,7 @@ export default function SomeDesign() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen pb-20 font-sans">
+    <div className="min-h-screen pb-20 font-sans bg-[#F8FAFC]">
       
       {/* --- 1. PREMIUM HERO BANNER --- */}
       <div className="max-w-7xl mx-auto px-4 pt-6">
