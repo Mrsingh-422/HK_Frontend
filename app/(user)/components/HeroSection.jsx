@@ -17,7 +17,7 @@ const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 function HeroSection() {
     const [current, setCurrent] = useState(0);
-    const [heroData, setHeroData] = useState({
+    const [heroData, setHeroData] = useState({ 
         title: "",
         subtitle: "",
         images: [],
