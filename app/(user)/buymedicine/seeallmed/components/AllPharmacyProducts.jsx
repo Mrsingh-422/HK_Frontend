@@ -5,14 +5,15 @@ import { useRouter } from 'next/navigation';
 import {
     ChevronLeft,
     ChevronRight,
-    ShoppingCart,
     Search,
     X,
     Filter,
     Stethoscope,
     Info,
     ShoppingBag,
-    ChevronRight as ChevronRightIcon
+    ChevronRight as ChevronRightIcon,
+    ArrowRight,
+    ShoppingCart
 } from 'lucide-react';
 import UserAPI from '@/app/services/UserAPI';
 
@@ -41,6 +42,7 @@ const CATEGORIES = [
 
 function AllPharmacyProducts() {
     const router = useRouter();
+    
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
@@ -186,7 +188,7 @@ function AllPharmacyProducts() {
                                         {/* Discount Tag */}
                                         {product.discont_percent && parseInt(product.discont_percent) > 0 && (
                                             <div className="absolute top-2 right-2 z-10 bg-amber-400 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">
-                                                {product.discont_percent} OFF
+                                                {product.discont_percent}% OFF
                                             </div>
                                         )}
 
@@ -216,18 +218,18 @@ function AllPharmacyProducts() {
                                                 )}
                                             </div>
 
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                            <div className="flex flex-col gap-2">
+                                                <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded w-fit">
                                                     {product.packaging}
                                                 </span>
                                                 <button
                                                     onClick={(e) => {
-                                                        e.stopPropagation(); // Prevents navigating to detail page when adding to cart
-                                                        // Add your cart logic here if needed
+                                                        e.stopPropagation();
+                                                        handleProductClick(product._id);
                                                     }}
-                                                    className="bg-[#08B36A] hover:bg-[#069c5a] text-white p-2 rounded-lg transition-colors shadow-sm"
+                                                    className="w-full flex items-center justify-center gap-2 bg-[#08B36A] hover:bg-[#069c5a] text-white py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm"
                                                 >
-                                                    <ShoppingCart size={18} />
+                                                    View Details <ArrowRight size={14} />
                                                 </button>
                                             </div>
                                         </div>

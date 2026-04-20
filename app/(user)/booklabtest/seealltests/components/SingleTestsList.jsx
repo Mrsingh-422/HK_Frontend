@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import UserAPI from "@/app/services/UserAPI";
-import { 
-    FaStar, FaFlask, FaChevronRight, FaVial, 
-    FaCheckCircle, FaPrescriptionBottleAlt, FaChevronLeft 
+import {
+    FaStar, FaFlask, FaChevronRight, FaVial,
+    FaCheckCircle, FaPrescriptionBottleAlt, FaChevronLeft,
+    FaExclamationTriangle, FaTrashAlt
 } from "react-icons/fa";
 import TestDetailsModal from "./otherComponents/TestDetailsModal";
 import { useCart } from "@/app/context/CartContext";
@@ -16,8 +17,8 @@ const CATEGORY_IMAGES = {
 };
 
 const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
-    const { cartItemIds, addItem, removeItem } = useCart();
-    
+    const { cartItemIds, addItem, removeItem, clearFullCart } = useCart();
+
     // Data State
     const [tests, setTests] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -28,28 +29,29 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
     const [totalPages, setTotalPages] = useState(1);
     const [totalResults, setTotalResults] = useState(0);
 
+    // Conflict/Clear Cart State
+    const [showClearCartModal, setShowClearCartModal] = useState(false);
+    const [pendingTest, setPendingTest] = useState(null);
+    const [isClearing, setIsClearing] = useState(false);
+
     const fetchTests = useCallback(async () => {
         try {
             setLoading(true);
             let response;
 
-            // Logic to determine which API to call
             if (selectedLabId && selectedLabId !== "undefined") {
                 if (searchTerm) {
-                    // 1. Search within a specific lab's inventory
-                    response = await UserAPI.searchLabInventoryTests(selectedLabId, { 
+                    response = await UserAPI.searchLabInventoryTests(selectedLabId, {
                         query: searchTerm,
-                        page: currentPage 
+                        page: currentPage
                     });
                 } else {
-                    // 2. Fetch full inventory for a specific lab (Paginated)
-                    response = await UserAPI.getLabInventoryTests(selectedLabId, { 
+                    response = await UserAPI.getLabInventoryTests(selectedLabId, {
                         page: currentPage,
-                        limit: 12 
+                        limit: 12
                     });
                 }
             } else {
-                // 3. Global Discovery (Standard Catalog)
                 response = await UserAPI.getStandardTestCatalog({
                     search: searchTerm,
                     page: currentPage,
@@ -58,10 +60,7 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
             }
 
             if (response.success) {
-                // Based on your JSON, inventory results are in 'data'
                 setTests(response.data || response.tests || []);
-                
-                // Pagination mapping
                 setTotalPages(response.pages || response.totalPages || 1);
                 setTotalResults(response.total || 0);
             }
@@ -73,12 +72,10 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
         }
     }, [selectedLabId, searchTerm, currentPage]);
 
-    // Reset to page 1 whenever search or lab filter changes
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm, selectedLabId]);
 
-    // Fetch data when filters or page change
     useEffect(() => {
         fetchTests();
     }, [fetchTests]);
@@ -90,20 +87,63 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
         }
     };
 
-    const handleCartAction = (test, e) => {
+    const handleCartAction = async (test, e) => {
         if (e) e.stopPropagation();
         const isAlreadyAdded = cartItemIds.includes(test._id);
 
         if (isAlreadyAdded) {
             removeItem(test._id);
         } else {
-            // Priority: Use selectedLabId if viewing a specific lab, else fallback to test data
             const targetLabId = selectedLabId || test.labId || test.minPriceLabId;
             if (!targetLabId) {
                 handleCardClick(test);
                 return;
             }
-            addItem(targetLabId, test._id, 'LabTest');
+
+            try {
+                // Attempt to add item
+                const result = await addItem(targetLabId, test._id, 'LabTest');
+
+                // If the context returns a specific failure related to different lab/category
+                if (result && result.error && (result.type === 'LAB_MISMATCH' || result.type === 'CATEGORY_MISMATCH')) {
+                    setPendingTest(test);
+                    setShowClearCartModal(true);
+                }
+            } catch (error) {
+                // If the error message indicates a conflict between Radiology/Pathology or Labs
+                if (error.message?.includes('different lab') || error.message?.includes('category')) {
+                    setPendingTest(test);
+                    setShowClearCartModal(true);
+                } else {
+                    console.error("Add to cart error:", error);
+                }
+            }
+        }
+    };
+
+    const handleClearAndAdd = async () => {
+        if (!pendingTest) return;
+        try {
+            setIsClearing(true);
+
+            // 1. Clear the cart using the API logic provided
+            // We use UserAPI.clearCart if available or the Context's clear method
+            // if (clearCartFromContext) {
+                await clearFullCart();
+            // } else {
+                // await UserAPI.clearCart();
+            // }
+
+            // 2. Add the new item after clearing
+            const targetLabId = selectedLabId || pendingTest.labId || pendingTest.minPriceLabId;
+            await addItem(targetLabId, pendingTest._id, 'LabTest');
+
+            setShowClearCartModal(false);
+            setPendingTest(null);
+        } catch (error) {
+            console.error("Clear and add error:", error);
+        } finally {
+            setIsClearing(false);
         }
     };
 
@@ -129,6 +169,47 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                 isAdded={selectedTest && cartItemIds.includes(selectedTest._id)}
             />
 
+            {/* Clear Cart Conflict Modal */}
+            {showClearCartModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-300">
+                        <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center mb-6">
+                            <FaExclamationTriangle className="text-rose-500 text-2xl" />
+                        </div>
+
+                        <h3 className="text-xl font-black text-slate-800 mb-2">Replace Cart Items?</h3>
+                        <p className="text-slate-500 text-sm leading-relaxed mb-8">
+                            Your cart contains items from a different Lab or Category (Pathology/Radiology).
+                            You can only book tests from one lab and one category at a time.
+                        </p>
+
+                        <div className="flex flex-col gap-3">
+                            <button
+                                onClick={handleClearAndAdd}
+                                disabled={isClearing}
+                                className="w-full py-4 bg-slate-900 hover:bg-rose-600 text-white rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2"
+                            >
+                                {isClearing ? (
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                    <>
+                                        <FaTrashAlt size={14} />
+                                        Clear Cart & Add New Test
+                                    </>
+                                )}
+                            </button>
+                            <button
+                                onClick={() => { setShowClearCartModal(false); setPendingTest(null); }}
+                                disabled={isClearing}
+                                className="w-full py-4 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-2xl font-bold text-sm transition-all"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Result Stats */}
             {totalResults > 0 && (
                 <div className="flex items-center gap-2 mb-2 px-2">
@@ -141,12 +222,8 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {tests.map((test) => {
                     const isAdded = cartItemIds.includes(test._id);
-                    
-                    // Price Logic: inventory uses discountPrice/amount, catalog uses minPrice/mrp
                     const displayPrice = test.discountPrice || test.minPrice || test.amount || test.mrp;
                     const strikePrice = test.amount || test.standardMRP || test.mrp;
-                    
-                    // Image Logic: Use master data category or default
                     const category = test.masterTestId?.mainCategory || test.mainCategory || 'Pathology';
                     const testImage = CATEGORY_IMAGES[category] || CATEGORY_IMAGES.Default;
 
@@ -156,7 +233,6 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                             onClick={() => handleCardClick(test)}
                             className="group relative bg-white rounded-[2rem] border border-slate-100 hover:border-emerald-500/30 hover:shadow-[0_20px_50px_rgba(8,179,106,0.12)] transition-all duration-500 flex flex-col overflow-hidden cursor-pointer"
                         >
-                            {/* Category Badge */}
                             <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-2xl shadow-sm flex items-center gap-2 border border-slate-100">
                                 <FaVial className="text-emerald-500 text-[10px]" />
                                 <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">
@@ -164,7 +240,6 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                                 </span>
                             </div>
 
-                            {/* Image Section */}
                             <div className="relative h-40 w-full overflow-hidden">
                                 <img
                                     src={testImage}
@@ -172,7 +247,7 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                                     alt={test.testName}
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                                
+
                                 {strikePrice > displayPrice && (
                                     <div className="absolute bottom-4 right-4 bg-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg">
                                         SAVE {Math.round(((strikePrice - displayPrice) / strikePrice) * 100)}%
@@ -180,7 +255,6 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                                 )}
                             </div>
 
-                            {/* Content Section */}
                             <div className="p-6 flex-1 flex flex-col">
                                 <div className="flex justify-between items-start mb-3">
                                     <div className="flex items-center gap-1.5 bg-blue-50 px-2 py-1 rounded-lg">
@@ -206,7 +280,6 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                                     <span className="text-xs font-medium text-slate-500">Reports in {test.reportTime || '24'}h</span>
                                 </div>
 
-                                {/* Pricing & Action */}
                                 <div className="mt-auto pt-5 border-t border-slate-50 flex items-center justify-between gap-4">
                                     <div>
                                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Test Price</p>
@@ -220,11 +293,10 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
 
                                     <button
                                         onClick={(e) => handleCartAction(test, e)}
-                                        className={`px-5 py-2.5 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all duration-300 shadow-md active:scale-95 ${
-                                            isAdded 
-                                            ? "bg-rose-50 text-rose-500 hover:bg-rose-100" 
+                                        className={`px-5 py-2.5 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all duration-300 shadow-md active:scale-95 ${isAdded
+                                            ? "bg-rose-50 text-rose-500 hover:bg-rose-100"
                                             : "bg-emerald-600 text-white hover:bg-slate-900 shadow-emerald-200"
-                                        }`}
+                                            }`}
                                     >
                                         {isAdded ? "Remove" : "Book Now"}
                                         {!isAdded && <FaChevronRight size={10} />}
@@ -236,7 +308,6 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                 })}
             </div>
 
-            {/* Pagination Controls */}
             {totalPages > 1 && (
                 <div className="flex justify-center items-center gap-2 pt-8">
                     <button
@@ -246,7 +317,7 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                     >
                         <FaChevronLeft className="text-slate-600 text-xs" />
                     </button>
-                    
+
                     {[...Array(totalPages)].map((_, i) => {
                         const pageNum = i + 1;
                         if (totalPages > 5 && Math.abs(pageNum - currentPage) > 2) return null;
@@ -255,11 +326,10 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                             <button
                                 key={pageNum}
                                 onClick={() => handlePageChange(pageNum)}
-                                className={`w-10 h-10 rounded-xl text-xs font-bold transition-all ${
-                                    currentPage === pageNum
-                                        ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200"
-                                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-                                }`}
+                                className={`w-10 h-10 rounded-xl text-xs font-bold transition-all ${currentPage === pageNum
+                                    ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200"
+                                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                                    }`}
                             >
                                 {pageNum}
                             </button>
@@ -276,7 +346,6 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                 </div>
             )}
 
-            {/* Empty State */}
             {tests.length === 0 && !loading && (
                 <div className="text-center py-24 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200 mx-4">
                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">

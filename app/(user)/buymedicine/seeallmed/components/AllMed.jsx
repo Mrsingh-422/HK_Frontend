@@ -8,8 +8,8 @@ const AllMed = ({ items, onBuy }) => {
         /* Grid: 2 columns on mobile, 3 on desktop. Standardized gaps. */
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
             {items.map((med) => (
-                <div 
-                    key={med.id} 
+                <div
+                    key={med.id}
                     className="bg-white border border-slate-200 rounded-xl md:rounded-2xl flex flex-col hover:border-[#08B36A] hover:shadow-md transition-all duration-300 group"
                 >
                     {/* 1. IMAGE CONTAINER */}
@@ -20,12 +20,12 @@ const AllMed = ({ items, onBuy }) => {
                                 {Math.round(((med.actualPrice - med.discountPrice) / med.actualPrice) * 100)}% OFF
                             </div>
                         )}
-                        
+
                         <div className="aspect-square w-full bg-[#f8f9fa] rounded-lg overflow-hidden flex items-center justify-center p-4 md:p-8">
-                            <img 
-                                src={med.image} 
-                                className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-500" 
-                                alt={med.name} 
+                            <img
+                                src={med.image}
+                                className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-500"
+                                alt={med.name}
                             />
                         </div>
                     </div>
@@ -36,7 +36,7 @@ const AllMed = ({ items, onBuy }) => {
                         <p className="text-[10px] md:text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">
                             {med.vendor}
                         </p>
-                        
+
                         {/* Product Name - Line Clamped for uniformity */}
                         <h3 className="text-sm md:text-lg font-bold text-slate-800 line-clamp-2 h-10 md:h-14 mb-2 leading-tight">
                             {med.name}

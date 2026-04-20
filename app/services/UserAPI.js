@@ -393,16 +393,29 @@ const UserAPI = {
         return response.data;
     },
 
-    removeCartItem: async (itemId) => {
-        const response = await authApi.delete(`/user/cart/item/${itemId}`);
-        return response.data;
-    },
 
     updateCartQuantity: async (updateData) => {
         // updateData usually contains itemId and new quantity
         const response = await authApi.put("/user/cart/quantity", updateData);
         return response.data;
     },
+
+    removeCartItem: async (itemId) => {
+        const response = await authApi.delete(`/user/cart/item/${itemId}`);
+        return response.data;
+    },
+    addPharmacyToCart: async (cartData) => {
+        // cartData should contain productId, pharmacyId, quantity, etc.
+        const response = await authApi.post("/user/cart/pharmacy/add", cartData);
+        return response.data;
+    },
+    updatePharmacyCartQuantity: async (updateData) => {
+        // updateData usually contains itemId and new quantity
+        const response = await authApi.put("/user/cart/pharmacy/quantity", updateData);
+        return response.data;
+    },
+
+
 
 
 

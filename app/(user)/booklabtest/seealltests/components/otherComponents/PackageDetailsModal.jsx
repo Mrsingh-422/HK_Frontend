@@ -11,7 +11,7 @@ import { useCart } from "@/app/context/CartContext";
 import toast from "react-hot-toast";
 
 const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
-    const { cart, cartItemIds, addItem, removeItem, clearCart } = useCart();
+    const { cart, cartItemIds, addItem, removeItem, clearFullCart } = useCart();
     const [selectedLab, setSelectedLab] = useState(null);
     const [showClearCartConfirm, setShowClearCartConfirm] = useState(false);
 
@@ -75,7 +75,7 @@ const PackageDetailsModal = ({ isOpen, onClose, pkg }) => {
 
     const handleClearAndAdd = async () => {
         try {
-            await clearCart();
+            await clearFullCart();
             await executeAdd();
         } catch (error) {
             toast.error("Failed to clear cart");

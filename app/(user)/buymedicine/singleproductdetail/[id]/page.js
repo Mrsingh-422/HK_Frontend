@@ -9,39 +9,45 @@ import {
     Truck,
     RotateCcw,
     AlertCircle,
-    Beaker,
-    Package,
-    ArrowLeft,
-    Info,
-    Store,
     Plus,
     Minus,
     ThermometerSnowflake,
-    FileText,
     ShieldAlert,
     FlaskRound,
     MapPin,
-    Clock,
-    CheckCircle2
+    CheckCircle2,
+    Trash2,
+    Store,
+    Info
 } from 'lucide-react';
 import UserAPI from '@/app/services/UserAPI';
+import { useCart } from '@/app/context/CartContext';
+import { toast } from 'react-hot-toast';
 
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=800&auto=format&fit=crop";
 
 function ProductDetailPage() {
     const { id } = useParams();
     const router = useRouter();
+    const { cartItems, cartItemIds, refreshCart } = useCart();
+
     const [product, setProduct] = useState(null);
     const [vendors, setVendors] = useState([]);
     const [loading, setLoading] = useState(true);
     const [quantity, setQuantity] = useState(1);
     const [activeTab, setActiveTab] = useState('overview');
+    const [processingId, setProcessingId] = useState(null);
+
+    // Find if current product is in cart and get its quantity
+    const cartProduct = cartItems?.find(item =>
+        (item.medicineId?._id === id || item.medicineId === id)
+    );
+    const isAdded = !!cartProduct;
 
     useEffect(() => {
         const fetchDetail = async () => {
             setLoading(true);
             try {
-                // Parse the specific local storage structure: userCoords: {"lat":..., "lng":...}
                 const storedCoords = localStorage.getItem('userCoords');
                 let params = {};
 
@@ -58,10 +64,14 @@ function ProductDetailPage() {
 
                 const res = await UserAPI.pharmacyProductDetail(id, params);
 
-                // Matching your specific response keys
                 if (res && res.success) {
                     setProduct(res.medicineData);
                     setVendors(res.vendors || []);
+
+                    // If product is already in cart, sync the local quantity state
+                    if (cartProduct) {
+                        setQuantity(cartProduct.quantity);
+                    }
                 }
             } catch (err) {
                 console.error("Error fetching product details", err);
@@ -70,7 +80,90 @@ function ProductDetailPage() {
             }
         };
         if (id) fetchDetail();
-    }, [id]);
+    }, [id, cartProduct]);
+
+    // --- QUANTITY UPDATE LOGIC ---
+    const handleUpdateQuantity = async (newQty) => {
+        if (newQty < 1) return;
+
+        // If not in cart yet, just update local state
+        if (!isAdded) {
+            setQuantity(newQty);
+            return;
+        }
+
+        // If already in cart, call the Update API
+        try {
+            setProcessingId(id);
+            const res = await UserAPI.updatePharmacyCartQuantity({
+                medicineId: id,
+                quantity: newQty
+            });
+            if (res.success) {
+                setQuantity(newQty);
+                if (refreshCart) refreshCart();
+            }
+        } catch (error) {
+            toast.error("Failed to update quantity");
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    // --- ADD / REMOVE LOGIC ---
+    const handleCartAction = async (selectedVendor = null, forceReplace = false) => {
+        const vendor = selectedVendor || vendors[0];
+
+        if (!vendor) {
+            toast.error("No pharmacy available for this product");
+            return;
+        }
+
+        try {
+            setProcessingId(id);
+
+            if (isAdded && !forceReplace && !selectedVendor) {
+                // REMOVE LOGIC
+                const res = await UserAPI.removeCartItem(id);
+                if (res.success) {
+                    toast.success("Removed from cart");
+                    setQuantity(1);
+                }
+            } else {
+                // ADD LOGIC (Matches your Controller)
+                const cartData = {
+                    pharmacyId: vendor.pharmacyId,
+                    medicineId: id,
+                    quantity: quantity,
+                    duration: "Full Course",
+                    forceReplace: forceReplace
+                };
+
+                const res = await UserAPI.addPharmacyToCart(cartData);
+
+                // Handle the "Clear existing pharmacy items?" logic from your controller
+                if (!res.success && res.canReplace) {
+                    const confirmReplace = window.confirm("Your cart contains items from another pharmacy. Clear cart and add this item?");
+                    if (confirmReplace) {
+                        await handleCartAction(vendor, true);
+                    }
+                    return;
+                }
+
+                if (res.success) {
+                    toast.success(forceReplace ? "Cart replaced & added" : "Added to cart");
+                } else {
+                    toast.error(res.message || "Failed to add");
+                }
+            }
+            if (refreshCart) refreshCart();
+        } catch (error) {
+            console.error("Cart Error:", error);
+            toast.error("Something went wrong");
+        } finally {
+            setProcessingId(null);
+        }
+    };
 
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center bg-white">
@@ -170,12 +263,37 @@ function ProductDetailPage() {
 
                                 <div className="flex items-center gap-3">
                                     <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl overflow-hidden h-12">
-                                        <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="px-4 hover:bg-white hover:text-[#08B36A] transition-colors h-full"><Minus size={16} /></button>
+                                        <button
+                                            onClick={() => handleUpdateQuantity(quantity - 1)}
+                                            className="px-4 hover:bg-white hover:text-[#08B36A] transition-colors h-full disabled:opacity-30"
+                                            disabled={processingId === id}
+                                        >
+                                            <Minus size={16} />
+                                        </button>
                                         <span className="w-10 text-center font-black text-slate-800">{quantity}</span>
-                                        <button onClick={() => setQuantity(quantity + 1)} className="px-4 hover:bg-white hover:text-[#08B36A] transition-colors h-full"><Plus size={16} /></button>
+                                        <button
+                                            onClick={() => handleUpdateQuantity(quantity + 1)}
+                                            className="px-4 hover:bg-white hover:text-[#08B36A] transition-colors h-full disabled:opacity-30"
+                                            disabled={processingId === id}
+                                        >
+                                            <Plus size={16} />
+                                        </button>
                                     </div>
-                                    <button className="flex-1 md:flex-none bg-[#08B36A] text-white px-10 py-3.5 rounded-xl font-black text-xs uppercase tracking-[1px] flex items-center justify-center gap-2 hover:bg-slate-900 transition-all shadow-lg shadow-emerald-100 h-12">
-                                        <ShoppingCart size={18} /> Add to Cart
+                                    <button
+                                        onClick={() => handleCartAction()}
+                                        disabled={processingId === id}
+                                        className={`flex-1 md:flex-none px-10 py-3.5 rounded-xl font-black text-xs uppercase tracking-[1px] flex items-center justify-center gap-2 transition-all shadow-lg h-12 ${isAdded
+                                            ? "bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 shadow-red-50"
+                                            : "bg-[#08B36A] text-white hover:bg-slate-900 shadow-emerald-100"
+                                            }`}
+                                    >
+                                        {processingId === id ? (
+                                            <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                        ) : isAdded ? (
+                                            <><Trash2 size={18} /> Remove</>
+                                        ) : (
+                                            <><ShoppingCart size={18} /> Add to Cart</>
+                                        )}
                                     </button>
                                 </div>
                             </div>
@@ -197,39 +315,47 @@ function ProductDetailPage() {
                             </div>
 
                             <div className="space-y-3">
-                                {vendors.map((vendor, index) => (
-                                    <div key={index} className="p-4 bg-[#FBFBFB] border border-gray-100 rounded-xl hover:border-[#08B36A]/30 transition-all group">
-                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <p className="font-bold text-slate-800 text-sm group-hover:text-[#08B36A] transition-colors">{vendor.pharmacyName}</p>
-                                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${vendor.isOpen === "Open Now" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                                                        {vendor.isOpen}
-                                                    </span>
-                                                </div>
-                                                <div className="flex flex-wrap gap-x-4 gap-y-2">
-                                                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
-                                                        <MapPin size={12} className="text-[#08B36A]" /> {vendor.distance} km • {vendor.city}
+                                {vendors.map((vendor, index) => {
+                                    return (
+                                        <div key={index} className="p-4 bg-[#FBFBFB] border border-gray-100 rounded-xl hover:border-[#08B36A]/30 transition-all group">
+                                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <p className="font-bold text-slate-800 text-sm group-hover:text-[#08B36A] transition-colors">{vendor.pharmacyName}</p>
+                                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${vendor.isOpen === "Open Now" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                                                            {vendor.isOpen}
+                                                        </span>
                                                     </div>
-                                                    {vendor.isHomeDelivery && (
-                                                        <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-bold">
-                                                            <Truck size={12} /> Home Delivery
+                                                    <div className="flex flex-wrap gap-x-4 gap-y-2">
+                                                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                                                            <MapPin size={12} className="text-[#08B36A]" /> {vendor.distance} km • {vendor.city}
                                                         </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center justify-between md:flex-col md:items-end gap-1 border-t md:border-t-0 pt-3 md:pt-0">
-                                                <div className="text-right">
-                                                    <p className="text-lg font-black text-slate-900">₹{vendor.price}</p>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] text-gray-400 line-through">₹{vendor.mrp}</span>
-                                                        <span className="text-[10px] text-orange-600 font-black">{vendor.discount}% OFF</span>
+                                                        {vendor.isHomeDelivery && (
+                                                            <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-bold">
+                                                                <Truck size={12} /> Home Delivery
+                                                            </div>
+                                                        )}
                                                     </div>
+                                                </div>
+                                                <div className="flex items-center justify-between md:flex-col md:items-end gap-3 border-t md:border-t-0 pt-3 md:pt-0">
+                                                    <div className="text-right">
+                                                        <p className="text-lg font-black text-slate-900">₹{vendor.price}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] text-gray-400 line-through">₹{vendor.mrp}</span>
+                                                            <span className="text-[10px] text-orange-600 font-black">{vendor.discount}% OFF</span>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleCartAction(vendor)}
+                                                        className="bg-white border border-gray-200 text-gray-700 p-2 rounded-lg hover:bg-[#08B36A] hover:text-white transition-all shadow-sm"
+                                                    >
+                                                        <ShoppingCart size={16} />
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>

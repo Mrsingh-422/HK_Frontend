@@ -4,7 +4,7 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     FaPlus, FaMinus, FaShieldAlt,
-    FaPrescriptionBottleAlt, FaTag, FaSpinner, FaArrowLeft, FaCheckCircle, FaTicketAlt, FaUserCircle, FaWalking, FaHome, FaBolt
+    FaPrescriptionBottleAlt, FaTag, FaSpinner, FaArrowLeft, FaCheckCircle, FaTicketAlt, FaUserCircle, FaWalking, FaHome, FaBolt, FaMapMarkerAlt
 } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
@@ -24,6 +24,11 @@ const LabCart = () => {
 
     // Collection Method State
     const [collectionMethod, setCollectionMethod] = useState('Walk-in'); // 'Walk-in' or 'Home'
+
+    // Address State
+    const [addresses, setAddresses] = useState([]);
+    const [selectedAddress, setSelectedAddress] = useState(null);
+    const [isAddressLoading, setIsAddressLoading] = useState(false);
 
     // Delivery Charges State
     const [deliveryConfig, setDeliveryConfig] = useState(null);
@@ -78,10 +83,29 @@ const LabCart = () => {
         }
     }, [currentLabId]);
 
+    // Fetch Addresses from API
+    const fetchAddresses = useCallback(async () => {
+        setIsAddressLoading(true);
+        try {
+            const res = await UserAPI.getUserAddresses();
+            if (res.success) {
+                setAddresses(res.data);
+                // Auto-select default
+                const defaultAddr = res.data.find(a => a.isDefault);
+                if (defaultAddr) setSelectedAddress(defaultAddr);
+            }
+        } catch (error) {
+            console.error("Error fetching addresses:", error);
+        } finally {
+            setIsAddressLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
         fetchSuggested();
         fetchDeliveryCharges();
-    }, [fetchSuggested, fetchDeliveryCharges]);
+        fetchAddresses();
+    }, [fetchSuggested, fetchDeliveryCharges, fetchAddresses]);
 
     const handleApplyCoupon = async (name) => {
         const codeToApply = name || couponCode;
@@ -180,6 +204,9 @@ const LabCart = () => {
     };
 
     const handleProceed = () => {
+        if (collectionMethod === 'Home' && !selectedAddress) {
+            return toast.error("Please select a home collection address");
+        }
         if (!selectedMember) {
             setIsFamilyModalOpen(true);
         } else if (!selectedAppointment) {
@@ -235,6 +262,45 @@ const LabCart = () => {
                                 <p className="text-[10px] text-rose-500 font-bold mt-3 uppercase tracking-tighter">* Home collection not available for {cart?.categoryType} tests</p>
                             )}
 
+                            {/* ADDRESS SELECTION SECTION */}
+                            {collectionMethod === 'Home' && (
+                                <div className="mt-6 pt-6 border-t border-gray-100">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Select Address</h3>
+                                        <button onClick={() => router.push('/profile/addresses')} className="text-[10px] font-bold text-emerald-600 uppercase">+ Add New</button>
+                                    </div>
+                                    
+                                    {isAddressLoading ? (
+                                        <div className="flex justify-center py-4"><FaSpinner className="animate-spin text-emerald-500" /></div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {addresses.map((addr) => (
+                                                <div 
+                                                    key={addr._id}
+                                                    onClick={() => setSelectedAddress(addr)}
+                                                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedAddress?._id === addr._id ? 'border-emerald-600 bg-emerald-50' : 'border-gray-100 bg-white hover:border-gray-200'}`}
+                                                >
+                                                    <div className="flex items-start gap-3">
+                                                        <FaMapMarkerAlt className={selectedAddress?._id === addr._id ? 'text-emerald-600 mt-1' : 'text-gray-400 mt-1'} />
+                                                        <div className="flex-1">
+                                                            <div className="flex justify-between">
+                                                                <span className="text-xs font-black text-gray-900 uppercase">{addr.addressType}</span>
+                                                                {addr.isDefault && <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">DEFAULT</span>}
+                                                            </div>
+                                                            <p className="text-[11px] font-bold text-gray-700 mt-1">{addr.name}</p>
+                                                            <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">
+                                                                H.No {addr.houseNo}, Sector {addr.sector}, {addr.city}, {addr.state} - {addr.pincode}
+                                                            </p>
+                                                            <p className="text-[10px] font-bold text-gray-400 mt-1">Ph: {addr.phone}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {/* FAST DELIVERY TOGGLE (Available for both) */}
                             {deliveryConfig && (
                                 <div className="mt-6 pt-6 border-t border-gray-100">
@@ -258,7 +324,7 @@ const LabCart = () => {
                         </div>
 
                         {/* SELECTION SUMMARY */}
-                        {(selectedMember || selectedAppointment) && (
+                        {(selectedMember || selectedAppointment || (collectionMethod === 'Home' && selectedAddress)) && (
                             <div className="bg-white border border-emerald-100 rounded-xl p-4 flex flex-wrap gap-4 items-center">
                                 {selectedMember && (
                                     <div className="flex items-center gap-2 border-r pr-4 border-gray-100">
@@ -267,12 +333,17 @@ const LabCart = () => {
                                     </div>
                                 )}
                                 {selectedAppointment && (
-                                    <div className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                                    <div className="text-xs font-bold text-emerald-600 flex items-center gap-1 border-r pr-4 border-gray-100">
                                         <FaCheckCircle /> Slot: {selectedAppointment.date} @ {selectedAppointment.slot.time}
                                     </div>
                                 )}
+                                {collectionMethod === 'Home' && selectedAddress && (
+                                    <div className="text-xs font-bold text-gray-700 flex items-center gap-1">
+                                        <FaMapMarkerAlt className="text-emerald-500" /> {selectedAddress.addressType}: {selectedAddress.city}
+                                    </div>
+                                )}
                                 <button
-                                    onClick={() => { setSelectedMember(null); setSelectedAppointment(null); }}
+                                    onClick={() => { setSelectedMember(null); setSelectedAppointment(null); setSelectedAddress(null); }}
                                     className="text-[10px] font-bold text-rose-500 uppercase ml-auto underline"
                                 >
                                     Reset
@@ -398,7 +469,7 @@ const LabCart = () => {
                             </div>
 
                             <button onClick={handleProceed} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-bold text-sm transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 uppercase">
-                                {!selectedMember ? "Select Patient" : !selectedAppointment ? "Select Time Slot" : "Pay Securely"} <FaShieldAlt />
+                                {collectionMethod === 'Home' && !selectedAddress ? "Select Address" : !selectedMember ? "Select Patient" : !selectedAppointment ? "Select Time Slot" : "Pay Securely"} <FaShieldAlt />
                             </button>
                         </div>
                     </div>

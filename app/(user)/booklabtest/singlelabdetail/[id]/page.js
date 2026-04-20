@@ -56,7 +56,7 @@ export default function LabDetailsPage() {
     // Image Source Logic for Multer
     const getLabImage = () => {
         if (!lab.profileImage) return null;
-        return lab.profileImage.startsWith('http') 
+        return lab.profileImage.startsWith('http')
             ? `${IMAGE_BASE_URL}/${lab.profileImage}`
             : `${IMAGE_BASE_URL}/${lab.profileImage}`;
     };
@@ -87,16 +87,16 @@ export default function LabDetailsPage() {
                 <div className="absolute top-0 right-0 p-20 opacity-[0.03] pointer-events-none">
                     <FaHospital size={300} />
                 </div>
-                
+
                 <div className="max-w-7xl mx-auto px-4 md:px-8 py-10 md:py-16 relative z-10">
                     <div className="flex flex-col md:flex-row gap-10 items-center md:items-start text-center md:text-left">
                         {/* Profile Image with Fallback */}
                         <div className="w-32 h-32 md:w-44 md:h-44 rounded-[2.5rem] bg-slate-50 flex items-center justify-center overflow-hidden shrink-0 shadow-2xl shadow-slate-200 border-4 border-white ring-1 ring-slate-100">
                             {lab.profileImage ? (
-                                <img 
-                                    src={getLabImage()} 
-                                    alt={lab.name} 
-                                    className="w-full h-full object-cover" 
+                                <img
+                                    src={getLabImage()}
+                                    alt={lab.name}
+                                    className="w-full h-full object-cover"
                                     onError={(e) => {
                                         e.target.onerror = null;
                                         e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(lab.name)}&background=f1f5f9&color=10b981&bold=true&size=256`;
@@ -119,7 +119,7 @@ export default function LabDetailsPage() {
                                     <FaStar /> {lab.rating || "4.8"}
                                 </div>
                             </div>
-                            
+
                             <p className="text-slate-500 text-base max-w-2xl mb-8 font-medium leading-relaxed">
                                 {lab.description || `Leading diagnostic facility in ${lab.city}, providing world-class laboratory services with high precision and digital report delivery.`}
                             </p>
@@ -137,29 +137,29 @@ export default function LabDetailsPage() {
             {/* --- FEATURES GRID --- */}
             <div className="max-w-7xl mx-auto px-4 md:px-8 py-10">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <FeatureCard 
-                        icon={<FaHome />} 
-                        title="Home Visit" 
-                        desc={lab.isHomeCollectionAvailable ? "Doorstep Service" : "In-Center Only"} 
-                        active={lab.isHomeCollectionAvailable} 
+                    <FeatureCard
+                        icon={<FaHome />}
+                        title="Home Visit"
+                        desc={lab.isHomeCollectionAvailable ? "Doorstep Service" : "In-Center Only"}
+                        active={lab.isHomeCollectionAvailable}
                     />
-                    <FeatureCard 
-                        icon={<FaBolt />} 
-                        title="Quick Reports" 
-                        desc={lab.isRapidServiceAvailable ? "6-12 Hours" : "Standard Cycle"} 
-                        active={lab.isRapidServiceAvailable} 
+                    <FeatureCard
+                        icon={<FaBolt />}
+                        title="Quick Reports"
+                        desc={lab.isRapidServiceAvailable ? "6-12 Hours" : "Standard Cycle"}
+                        active={lab.isRapidServiceAvailable}
                     />
-                    <FeatureCard 
-                        icon={<FaClock />} 
-                        title="Timing" 
-                        desc={lab.timingLabel || "09:00 AM - 08:00 PM"} 
-                        active={true} 
+                    <FeatureCard
+                        icon={<FaClock />}
+                        title="Timing"
+                        desc={lab.timingLabel || "09:00 AM - 08:00 PM"}
+                        active={true}
                     />
-                    <FeatureCard 
-                        icon={<FaCalendarCheck />} 
-                        title="Availability" 
-                        desc="Instant Booking" 
-                        active={true} 
+                    <FeatureCard
+                        icon={<FaCalendarCheck />}
+                        title="Availability"
+                        desc="Instant Booking"
+                        active={true}
                     />
                 </div>
             </div>
@@ -173,7 +173,7 @@ export default function LabDetailsPage() {
                             <TabTrigger active={activeTab === "packages"} onClick={() => setActiveTab("packages")} label="Packages" />
                             <TabTrigger active={activeTab === "tests"} onClick={() => setActiveTab("tests")} label="Tests" />
                         </div>
-                        
+
                         <div className="mb-6 relative w-full md:w-[350px]">
                             <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                             <input
@@ -223,8 +223,8 @@ const FeatureCard = ({ icon, title, desc, active }) => (
 );
 
 const TabTrigger = ({ active, onClick, label }) => (
-    <button 
-        onClick={onClick} 
+    <button
+        onClick={onClick}
         className={`pb-4 text-[11px] font-black uppercase tracking-[0.2em] transition-all relative ${active ? "text-emerald-600" : "text-slate-400 hover:text-slate-700"}`}
     >
         {label}
@@ -254,7 +254,7 @@ const LoadingSkeleton = () => (
         </div>
         <div className="max-w-7xl mx-auto px-8 py-10">
             <div className="grid grid-cols-4 gap-4">
-                {[1,2,3,4].map(i => <div key={i} className="h-32 bg-white rounded-3xl border border-slate-100" />)}
+                {[1, 2, 3, 4].map(i => <div key={i} className="h-32 bg-white rounded-3xl border border-slate-100" />)}
             </div>
         </div>
     </div>
