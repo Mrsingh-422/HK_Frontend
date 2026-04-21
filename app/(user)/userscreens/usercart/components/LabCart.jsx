@@ -21,6 +21,7 @@ const LabCart = () => {
     const [appliedCouponName, setAppliedCouponName] = useState(null);
     const [serverDiscount, setServerDiscount] = useState(0);
     const [isValidating, setIsValidating] = useState(false);
+    const [isCheckingOut, setIsCheckingOut] = useState(false);
 
     // Collection Method State
     const [collectionMethod, setCollectionMethod] = useState('Walk-in'); // 'Walk-in' or 'Home'
@@ -35,10 +36,10 @@ const LabCart = () => {
     const [isFastDelivery, setIsFastDelivery] = useState(false);
     const [userDistance, setUserDistance] = useState(0);
 
-    // Patient & Slot State
+    // Patient & Slot State (MODIFIED: selectedMembers is now an Array)
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
     const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false);
-    const [selectedMember, setSelectedMember] = useState(null);
+    const [selectedMembers, setSelectedMembers] = useState([]);
     const [selectedAppointment, setSelectedAppointment] = useState(null);
 
     const labItems = useMemo(() => cart?.items || [], [cart]);
@@ -56,9 +57,16 @@ const LabCart = () => {
         }
     }, [isHomeCollectionAllowed, collectionMethod]);
 
-    const subtotal = useMemo(() => {
+    // BASE SUBTOTAL (Items * Quantity)
+    const baseSubtotal = useMemo(() => {
         return labItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     }, [labItems]);
+
+    // MULTIPLIED SUBTOTAL (Base * Number of Patients)
+    const subtotal = useMemo(() => {
+        const multiplier = selectedMembers.length || 1;
+        return baseSubtotal * multiplier;
+    }, [baseSubtotal, selectedMembers]);
 
     const fetchSuggested = useCallback(async () => {
         if (labItems.length === 0) return;
@@ -90,7 +98,6 @@ const LabCart = () => {
             const res = await UserAPI.getUserAddresses();
             if (res.success) {
                 setAddresses(res.data);
-                // Auto-select default
                 const defaultAddr = res.data.find(a => a.isDefault);
                 if (defaultAddr) setSelectedAddress(defaultAddr);
             }
@@ -147,25 +154,17 @@ const LabCart = () => {
         let taxAmount = 0;
 
         if (deliveryConfig) {
-            // 1. Fast Delivery Extra (Available for both Walk-in and Home)
             if (isFastDelivery) {
                 fastReportFee = deliveryConfig.fastDeliveryExtra;
             }
-
-            // 2. Logic specific to Home Collection
             if (collectionMethod === 'Home') {
-                // Fixed Price (Free if above threshold)
                 if (subtotal < deliveryConfig.freeDeliveryThreshold) {
                     homeCollectionFee = deliveryConfig.fixedPrice;
                 }
-
-                // Distance Charges
                 if (userDistance > deliveryConfig.fixedDistance) {
                     distanceFee = (userDistance - deliveryConfig.fixedDistance) * deliveryConfig.pricePerKM;
                 }
             }
-
-            // 3. Taxes
             if (deliveryConfig.taxPercentage > 0) {
                 taxAmount = (discountedAmount * deliveryConfig.taxPercentage) / 100;
             }
@@ -176,6 +175,8 @@ const LabCart = () => {
 
         return {
             subtotal,
+            baseSubtotal,
+            multiplier: selectedMembers.length || 1,
             discount: serverDiscount,
             extraFee,
             homeCollectionFee,
@@ -184,17 +185,17 @@ const LabCart = () => {
             taxAmount,
             total
         };
-    }, [subtotal, serverDiscount, selectedAppointment, collectionMethod, deliveryConfig, userDistance, isFastDelivery]);
+    }, [subtotal, baseSubtotal, selectedMembers, serverDiscount, selectedAppointment, collectionMethod, deliveryConfig, userDistance, isFastDelivery]);
 
     const handleQtyChange = (itemId, currentQty, action) => {
         if (action === 'dec' && currentQty <= 1) return toast.error("Quantity cannot be less than 1");
         updateQuantity(itemId, action);
     };
 
-    const onFamilyConfirm = (member) => {
-        setSelectedMember(member);
+    const onFamilyConfirm = (membersList) => {
+        setSelectedMembers(membersList);
         setIsFamilyModalOpen(false);
-        setIsSlotModalOpen(true);
+        if (!selectedAppointment) setIsSlotModalOpen(true);
     };
 
     const onSlotConfirm = (date, slot) => {
@@ -203,16 +204,60 @@ const LabCart = () => {
         toast.success(`Slot selected: ${slot.time}`);
     };
 
-    const handleProceed = () => {
+    const handleProceed = async () => {
         if (collectionMethod === 'Home' && !selectedAddress) {
             return toast.error("Please select a home collection address");
         }
-        if (!selectedMember) {
+        if (selectedMembers.length === 0) {
             setIsFamilyModalOpen(true);
         } else if (!selectedAppointment) {
             setIsSlotModalOpen(true);
         } else {
-            router.push('/checkout');
+            // HIT checkoutLabCart API
+            setIsCheckingOut(true);
+            try {
+                const payload = {
+                    appointmentDate: selectedAppointment.date,
+                    appointmentTime: selectedAppointment.slot.time,
+
+                    selectedPatientIds: selectedMembers.map(m =>
+                        m.relation === 'Self' ? 'Self' : m._id
+                    ),
+
+                    collectionType: collectionMethod === 'Home Collection'
+                        ? "Home Collection"
+                        : "Visit Lab",
+
+                    address: collectionMethod === 'Home' ? {
+                        addressType: selectedAddress.addressType,
+                        name: selectedAddress.name,
+                        phone: selectedAddress.phone,
+                        houseNo: selectedAddress.houseNo,
+                        sector: selectedAddress.sector,
+                        landmark: selectedAddress.landmark,
+                        city: selectedAddress.city,
+                        state: selectedAddress.state,
+                        country: selectedAddress.country,
+                        pincode: selectedAddress.pincode,
+                        isDefault: selectedAddress.isDefault,
+                        _id: selectedAddress._id
+                    } : null,
+
+                    isRapid: isFastDelivery,
+                    couponCode: appliedCouponName || "",
+                    paymentMethod: "COD"
+                };
+
+                const res = await UserAPI.checkoutLabCart(payload);
+                if (res.success) {
+                    toast.success("Order Placed Successfully!");
+                    router.push('/checkout/success');
+                }
+            } catch (error) {
+                toast.error(error.response?.data?.message || "Checkout failed");
+            } finally {
+                setIsCheckingOut(false);
+            }
         }
     };
 
@@ -269,13 +314,13 @@ const LabCart = () => {
                                         <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Select Address</h3>
                                         <button onClick={() => router.push('/profile/addresses')} className="text-[10px] font-bold text-emerald-600 uppercase">+ Add New</button>
                                     </div>
-                                    
+
                                     {isAddressLoading ? (
                                         <div className="flex justify-center py-4"><FaSpinner className="animate-spin text-emerald-500" /></div>
                                     ) : (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             {addresses.map((addr) => (
-                                                <div 
+                                                <div
                                                     key={addr._id}
                                                     onClick={() => setSelectedAddress(addr)}
                                                     className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedAddress?._id === addr._id ? 'border-emerald-600 bg-emerald-50' : 'border-gray-100 bg-white hover:border-gray-200'}`}
@@ -285,13 +330,11 @@ const LabCart = () => {
                                                         <div className="flex-1">
                                                             <div className="flex justify-between">
                                                                 <span className="text-xs font-black text-gray-900 uppercase">{addr.addressType}</span>
-                                                                {addr.isDefault && <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">DEFAULT</span>}
                                                             </div>
                                                             <p className="text-[11px] font-bold text-gray-700 mt-1">{addr.name}</p>
                                                             <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">
-                                                                H.No {addr.houseNo}, Sector {addr.sector}, {addr.city}, {addr.state} - {addr.pincode}
+                                                                H.No {addr.houseNo}, {addr.city}
                                                             </p>
-                                                            <p className="text-[10px] font-bold text-gray-400 mt-1">Ph: {addr.phone}</p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -300,36 +343,15 @@ const LabCart = () => {
                                     )}
                                 </div>
                             )}
-
-                            {/* FAST DELIVERY TOGGLE (Available for both) */}
-                            {deliveryConfig && (
-                                <div className="mt-6 pt-6 border-t border-gray-100">
-                                    <div
-                                        onClick={() => setIsFastDelivery(!isFastDelivery)}
-                                        className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${isFastDelivery ? 'border-amber-500 bg-amber-50' : 'border-gray-100 bg-white'}`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`p-2 rounded-lg ${isFastDelivery ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
-                                                <FaBolt />
-                                            </div>
-                                            <div>
-                                                <h4 className="text-sm font-bold text-gray-800">Fast Report Delivery</h4>
-                                                <p className="text-[10px] text-gray-500 font-medium">Get reports delivered 2x faster</p>
-                                            </div>
-                                        </div>
-                                        <span className="font-bold text-sm text-gray-900">+₹{deliveryConfig.fastDeliveryExtra}</span>
-                                    </div>
-                                </div>
-                            )}
                         </div>
 
                         {/* SELECTION SUMMARY */}
-                        {(selectedMember || selectedAppointment || (collectionMethod === 'Home' && selectedAddress)) && (
+                        {(selectedMembers.length > 0 || selectedAppointment || (collectionMethod === 'Home' && selectedAddress)) && (
                             <div className="bg-white border border-emerald-100 rounded-xl p-4 flex flex-wrap gap-4 items-center">
-                                {selectedMember && (
+                                {selectedMembers.length > 0 && (
                                     <div className="flex items-center gap-2 border-r pr-4 border-gray-100">
                                         <FaUserCircle className="text-emerald-500" />
-                                        <span className="text-xs font-bold text-gray-700">Patient: {selectedMember.name}</span>
+                                        <span className="text-xs font-bold text-gray-700">Patients: {selectedMembers.map(m => m.memberName).join(", ")}</span>
                                     </div>
                                 )}
                                 {selectedAppointment && (
@@ -337,24 +359,14 @@ const LabCart = () => {
                                         <FaCheckCircle /> Slot: {selectedAppointment.date} @ {selectedAppointment.slot.time}
                                     </div>
                                 )}
-                                {collectionMethod === 'Home' && selectedAddress && (
-                                    <div className="text-xs font-bold text-gray-700 flex items-center gap-1">
-                                        <FaMapMarkerAlt className="text-emerald-500" /> {selectedAddress.addressType}: {selectedAddress.city}
-                                    </div>
-                                )}
                                 <button
-                                    onClick={() => { setSelectedMember(null); setSelectedAppointment(null); setSelectedAddress(null); }}
+                                    onClick={() => { setSelectedMembers([]); setSelectedAppointment(null); setSelectedAddress(null); }}
                                     className="text-[10px] font-bold text-rose-500 uppercase ml-auto underline"
                                 >
                                     Reset
                                 </button>
                             </div>
                         )}
-
-                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex justify-between items-center">
-                            <p className="text-emerald-700 text-sm font-bold">{cart?.labId?.name} • {cart?.categoryType}</p>
-                            <span className="text-[10px] font-black text-emerald-600 uppercase bg-white px-2 py-1 rounded-lg border border-emerald-100">{collectionMethod}</span>
-                        </div>
 
                         {labItems.map((item) => (
                             <div key={item._id} className="bg-white border border-gray-200 rounded-xl p-5 flex items-center gap-5 shadow-sm">
@@ -366,8 +378,8 @@ const LabCart = () => {
                                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-100 px-2 py-0.5 rounded mt-1 inline-block">{item.productType}</span>
                                         </div>
                                         <div className="text-right">
-                                            <p className="font-bold text-gray-900 text-lg">₹{(item.price * item.quantity).toLocaleString()}</p>
-                                            <button onClick={() => removeItem(item.itemId)} className="text-xs text-rose-500 font-semibold hover:underline">Remove</button>
+                                            <p className="font-bold text-gray-900 text-lg">₹{(item.price * item.quantity * (selectedMembers.length || 1)).toLocaleString()}</p>
+                                            <p className="text-[10px] text-gray-400">₹{item.price} x {selectedMembers.length || 1} Patient(s)</p>
                                         </div>
                                     </div>
                                     <div className="mt-4 flex items-center border border-gray-200 rounded-lg w-fit overflow-hidden">
@@ -383,7 +395,7 @@ const LabCart = () => {
                     {/* RIGHT: BILLING & COUPONS */}
                     <div className="w-full lg:w-[400px] space-y-6">
 
-                        {/* COUPON SECTION */}
+                        {/* COUPON SECTION (PRESERVED) */}
                         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                             <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2"><FaTicketAlt className="text-emerald-500" /> Apply Coupon</h3>
                             <div className="flex gap-2 mb-4">
@@ -421,55 +433,40 @@ const LabCart = () => {
                             </div>
                         </div>
 
-                        {/* BILLING SUMMARY */}
+                        {/* ORDER SUMMARY (CLEAN & DETAILED) */}
                         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                            <h2 className="text-lg font-bold text-gray-900 mb-5">Order Summary</h2>
+                            <h2 className="text-lg font-black text-gray-900 mb-5">Order Summary</h2>
                             <div className="space-y-3 pb-5 border-b border-gray-100 text-sm">
-                                <div className="flex justify-between text-gray-500"><span>Cart Total</span><span className="text-gray-900 font-semibold">₹{totals.subtotal.toLocaleString()}</span></div>
-                                {totals.discount > 0 && <div className="flex justify-between text-emerald-600 font-semibold"><span>Coupon Discount</span><span>-₹{totals.discount.toLocaleString()}</span></div>}
+                                <div className="flex justify-between text-gray-500 font-medium">
+                                    <span>Items Subtotal</span>
+                                    <span className="text-gray-900">₹{totals.baseSubtotal.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between text-gray-500 font-medium">
+                                    <span>Patient Multiplier</span>
+                                    <span className="text-gray-900 font-bold">x {totals.multiplier}</span>
+                                </div>
+                                <div className="flex justify-between text-emerald-700 font-black pt-1">
+                                    <span>Cart Total</span>
+                                    <span>₹{totals.subtotal.toLocaleString()}</span>
+                                </div>
 
-                                <div className="flex justify-between text-gray-500"><span>Collection Type</span><span className="font-semibold text-gray-900">{collectionMethod}</span></div>
+                                {totals.discount > 0 && <div className="flex justify-between text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg"><span>Coupon Discount</span><span>-₹{totals.discount.toLocaleString()}</span></div>}
 
-                                {collectionMethod === 'Home' && (
-                                    <>
-                                        <div className="flex justify-between text-gray-500">
-                                            <span>Home Collection Fee</span>
-                                            <span className={`font-semibold ${totals.homeCollectionFee === 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
-                                                {totals.homeCollectionFee === 0 ? 'FREE' : `+₹${totals.homeCollectionFee}`}
-                                            </span>
-                                        </div>
-                                        {totals.distanceFee > 0 && (
-                                            <div className="flex justify-between text-gray-500">
-                                                <span>Distance Charges ({userDistance} km)</span>
-                                                <span className="font-semibold text-gray-900">+₹{totals.distanceFee}</span>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-
-                                {totals.fastReportFee > 0 && (
-                                    <div className="flex justify-between text-amber-600 font-semibold">
-                                        <span>Fast Report Delivery</span>
-                                        <span>+₹{totals.fastReportFee}</span>
-                                    </div>
-                                )}
-
-                                {totals.taxAmount > 0 && (
-                                    <div className="flex justify-between text-gray-500">
-                                        <span>Taxes & Service Fees</span>
-                                        <span className="font-semibold text-gray-900">+₹{Math.round(totals.taxAmount).toLocaleString()}</span>
-                                    </div>
-                                )}
-
-                                {totals.extraFee > 0 && <div className="flex justify-between text-amber-600 font-semibold"><span>Urgent Slot Fee</span><span>+₹{totals.extraFee.toLocaleString()}</span></div>}
+                                <div className="pt-2 space-y-2">
+                                    <div className="flex justify-between text-gray-500 text-xs"><span>Collection ({collectionMethod})</span><span className="font-semibold text-gray-900">{totals.homeCollectionFee === 0 ? 'FREE' : `+₹${totals.homeCollectionFee}`}</span></div>
+                                    {totals.fastReportFee > 0 && <div className="flex justify-between text-amber-600 text-xs font-bold"><span>Fast Report Delivery</span><span>+₹{totals.fastReportFee}</span></div>}
+                                    <div className="flex justify-between text-gray-500 text-xs"><span>Taxes & Service Fees</span><span className="font-semibold text-gray-900">+₹{Math.round(totals.taxAmount).toLocaleString()}</span></div>
+                                    {totals.extraFee > 0 && <div className="flex justify-between text-amber-600 text-xs font-bold"><span>Urgent Slot Fee</span><span>+₹{totals.extraFee.toLocaleString()}</span></div>}
+                                </div>
                             </div>
+
                             <div className="py-5 flex justify-between items-center">
-                                <span className="font-bold text-gray-900 text-xs">TOTAL PAYABLE</span>
-                                <span className="text-2xl font-bold text-gray-900">₹{Math.round(totals.total).toLocaleString()}</span>
+                                <span className="font-black text-gray-400 text-[10px] uppercase tracking-widest">Grand Total</span>
+                                <span className="text-2xl font-black text-gray-900">₹{Math.round(totals.total).toLocaleString()}</span>
                             </div>
 
-                            <button onClick={handleProceed} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-bold text-sm transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 uppercase">
-                                {collectionMethod === 'Home' && !selectedAddress ? "Select Address" : !selectedMember ? "Select Patient" : !selectedAppointment ? "Select Time Slot" : "Pay Securely"} <FaShieldAlt />
+                            <button onClick={handleProceed} disabled={isCheckingOut} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-bold text-sm transition-all shadow-lg flex items-center justify-center gap-2 uppercase">
+                                {isCheckingOut ? <FaSpinner className="animate-spin" /> : selectedMembers.length === 0 ? "Select Patients" : !selectedAppointment ? "Select Time Slot" : "Confirm & Pay COD"} <FaShieldAlt />
                             </button>
                         </div>
                     </div>
@@ -481,21 +478,14 @@ const LabCart = () => {
                 isOpen={isFamilyModalOpen}
                 onClose={() => setIsFamilyModalOpen(false)}
                 onConfirm={onFamilyConfirm}
+                initialSelected={selectedMembers}
             />
-
             <SlotSelectionModal
                 isOpen={isSlotModalOpen}
                 onClose={() => setIsSlotModalOpen(false)}
                 labId={currentLabId}
                 onConfirm={onSlotConfirm}
             />
-
-            <style jsx>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-                .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-                .no-scrollbar::-webkit-scrollbar { display: none; }
-            `}</style>
         </div>
     );
 };
