@@ -29,7 +29,15 @@ const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1584308666744-24d5c474
 function ProductDetailPage() {
     const { id } = useParams();
     const router = useRouter();
-    const { cartItems, cartItemIds, refreshCart } = useCart();
+
+    // Updated to use Pharmacy specific states from Context
+    const {
+        pharmacyCart,
+        addPharmacyToCart,
+        updatePharmacyCartQuantity,
+        loading: cartLoading,
+        removePharmacyItem,
+    } = useCart();
 
     const [product, setProduct] = useState(null);
     const [vendors, setVendors] = useState([]);
@@ -38,8 +46,8 @@ function ProductDetailPage() {
     const [activeTab, setActiveTab] = useState('overview');
     const [processingId, setProcessingId] = useState(null);
 
-    // Find if current product is in cart and get its quantity
-    const cartProduct = cartItems?.find(item =>
+    // Find if current product is in pharmacy cart
+    const cartProduct = pharmacyCart?.items?.find(item =>
         (item.medicineId?._id === id || item.medicineId === id)
     );
     const isAdded = !!cartProduct;
@@ -67,11 +75,6 @@ function ProductDetailPage() {
                 if (res && res.success) {
                     setProduct(res.medicineData);
                     setVendors(res.vendors || []);
-
-                    // If product is already in cart, sync the local quantity state
-                    if (cartProduct) {
-                        setQuantity(cartProduct.quantity);
-                    }
                 }
             } catch (err) {
                 console.error("Error fetching product details", err);
@@ -80,29 +83,34 @@ function ProductDetailPage() {
             }
         };
         if (id) fetchDetail();
-    }, [id, cartProduct]);
+    }, [id]);
+
+    // Sync quantity when cart data changes
+    useEffect(() => {
+        if (cartProduct) {
+            setQuantity(cartProduct.quantity);
+        } else {
+            setQuantity(1);
+        }
+    }, [cartProduct]);
 
     // --- QUANTITY UPDATE LOGIC ---
-    const handleUpdateQuantity = async (newQty) => {
-        if (newQty < 1) return;
-
-        // If not in cart yet, just update local state
-        if (!isAdded) {
-            setQuantity(newQty);
+    const handleUpdateQuantity = async (action) => {
+        if (action === 'dec' && quantity <= 1) {
+            if (isAdded) {
+                await handleCartAction(); // Remove if dec below 1
+            }
             return;
         }
 
-        // If already in cart, call the Update API
+        if (!isAdded) {
+            setQuantity(prev => action === 'inc' ? prev + 1 : prev - 1);
+            return;
+        }
+
         try {
             setProcessingId(id);
-            const res = await UserAPI.updatePharmacyCartQuantity({
-                medicineId: id,
-                quantity: newQty
-            });
-            if (res.success) {
-                setQuantity(newQty);
-                if (refreshCart) refreshCart();
-            }
+            await updatePharmacyCartQuantity(id, action);
         } catch (error) {
             toast.error("Failed to update quantity");
         } finally {
@@ -111,7 +119,7 @@ function ProductDetailPage() {
     };
 
     // --- ADD / REMOVE LOGIC ---
-    const handleCartAction = async (selectedVendor = null, forceReplace = false) => {
+    const handleCartAction = async (selectedVendor = null) => {
         const vendor = selectedVendor || vendors[0];
 
         if (!vendor) {
@@ -122,41 +130,19 @@ function ProductDetailPage() {
         try {
             setProcessingId(id);
 
-            if (isAdded && !forceReplace && !selectedVendor) {
-                // REMOVE LOGIC
-                const res = await UserAPI.removeCartItem(id);
-                if (res.success) {
-                    toast.success("Removed from cart");
-                    setQuantity(1);
-                }
+            if (isAdded && !selectedVendor) {
+                // REMOVE LOGIC: Using 'dec' action to 0 removes it via your controller logic
+                await removePharmacyItem(id);
+                toast.success("Removed from cart");
             } else {
-                // ADD LOGIC (Matches your Controller)
-                const cartData = {
-                    pharmacyId: vendor.pharmacyId,
-                    medicineId: id,
-                    quantity: quantity,
-                    duration: "Full Course",
-                    forceReplace: forceReplace
-                };
-
-                const res = await UserAPI.addPharmacyToCart(cartData);
-
-                // Handle the "Clear existing pharmacy items?" logic from your controller
-                if (!res.success && res.canReplace) {
-                    const confirmReplace = window.confirm("Your cart contains items from another pharmacy. Clear cart and add this item?");
-                    if (confirmReplace) {
-                        await handleCartAction(vendor, true);
-                    }
-                    return;
-                }
-
-                if (res.success) {
-                    toast.success(forceReplace ? "Cart replaced & added" : "Added to cart");
-                } else {
-                    toast.error(res.message || "Failed to add");
-                }
+                // ADD LOGIC
+                await addPharmacyToCart(
+                    vendor.pharmacyId,
+                    id,
+                    quantity,
+                    "Full Course"
+                );
             }
-            if (refreshCart) refreshCart();
         } catch (error) {
             console.error("Cart Error:", error);
             toast.error("Something went wrong");
@@ -264,7 +250,7 @@ function ProductDetailPage() {
                                 <div className="flex items-center gap-3">
                                     <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl overflow-hidden h-12">
                                         <button
-                                            onClick={() => handleUpdateQuantity(quantity - 1)}
+                                            onClick={() => handleUpdateQuantity('dec')}
                                             className="px-4 hover:bg-white hover:text-[#08B36A] transition-colors h-full disabled:opacity-30"
                                             disabled={processingId === id}
                                         >
@@ -272,7 +258,7 @@ function ProductDetailPage() {
                                         </button>
                                         <span className="w-10 text-center font-black text-slate-800">{quantity}</span>
                                         <button
-                                            onClick={() => handleUpdateQuantity(quantity + 1)}
+                                            onClick={() => handleUpdateQuantity('inc')}
                                             className="px-4 hover:bg-white hover:text-[#08B36A] transition-colors h-full disabled:opacity-30"
                                             disabled={processingId === id}
                                         >

@@ -5,21 +5,39 @@ import UserAPI from "../services/UserAPI";
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
+    // State for Lab Cart
     const [cart, setCart] = useState(null);
     const [cartItemIds, setCartItemIds] = useState([]);
+    
+    // State for Pharmacy Cart
+    const [pharmacyCart, setPharmacyCart] = useState(null);
+    const [pharmacyItemIds, setPharmacyItemIds] = useState([]);
+
     const [loading, setLoading] = useState(true);
 
     const fetchCart = async (isBackground = false) => {
         try {
-            if (!isBackground) setLoading(true); // ONLY set global loading if it's NOT a background update
+            if (!isBackground) setLoading(true);
 
             const response = await UserAPI.getMyCart();
-            if (response.success && response.data?.labCart) {
-                setCart(response.data.labCart);
-                setCartItemIds(response.data.labCart.items.map(i => i.itemId._id || i.itemId));
-            } else {
-                setCart(null);
-                setCartItemIds([]);
+            if (response.success && response.data) {
+                // Set Lab Cart
+                if (response.data.labCart) {
+                    setCart(response.data.labCart);
+                    setCartItemIds(response.data.labCart.items.map(i => i.itemId._id || i.itemId));
+                } else {
+                    setCart(null);
+                    setCartItemIds([]);
+                }
+
+                // Set Pharmacy Cart
+                if (response.data.pharmacyCart) {
+                    setPharmacyCart(response.data.pharmacyCart);
+                    setPharmacyItemIds(response.data.pharmacyCart.items.map(i => i.medicineId._id || i.medicineId));
+                } else {
+                    setPharmacyCart(null);
+                    setPharmacyItemIds([]);
+                }
             }
         } catch (error) {
             console.error("Fetch Cart Error:", error);
@@ -28,9 +46,13 @@ export const CartProvider = ({ children }) => {
         }
     };
 
+    useEffect(() => {
+        fetchCart();
+    }, []);
+
+    // --- LAB CART METHODS ---
     const updateQuantity = async (itemId, action) => {
         try {
-            // Option 1: Optimistic Update (Update local UI instantly)
             setCart(prev => {
                 const newItems = prev.items.map(item => {
                     if (item.itemId._id === itemId) {
@@ -41,63 +63,49 @@ export const CartProvider = ({ children }) => {
                 return { ...prev, items: newItems };
             });
 
-            // Option 2: Server Update
             const response = await UserAPI.updateCartQuantity({ itemId, action });
             if (response.success) {
-                await fetchCart(true); // Pass 'true' to fetch in background without reload/spinner
+                await fetchCart(true);
             }
         } catch (error) {
-            fetchCart(); // Revert on error
+            fetchCart();
         }
     };
 
-    useEffect(() => {
-        fetchCart();
-    }, []);
-
     const addItem = async (labId, itemId, productType, forceReplace = false) => {
-        // Validation before sending
-        if (!labId || !itemId || !productType) {
-            console.error("❌ Missing required fields for AddToCart:", { labId, itemId, productType });
-            return;
-        }
-
+        if (!labId || !itemId || !productType) return;
         try {
-            const payload = {
-                labId: String(labId), // Ensure it's a string
-                itemId: String(itemId),
-                productType: productType, // Must be 'LabPackage' or 'LabTest'
-                forceReplace
-            };
-
+            const payload = { labId: String(labId), itemId: String(itemId), productType, forceReplace };
             const response = await UserAPI.addToCart(payload);
 
             if (response.success) {
                 await fetchCart();
             } else if (response.canReplace) {
-                const confirmReplace = window.confirm(response.message || "Your cart has items from another lab. Replace them?");
+                const confirmReplace = window.confirm(response.message || "Replace items from another lab?");
                 if (confirmReplace) {
                     await addItem(labId, itemId, productType, true);
                 }
-            } else {
-                alert(response.message || "Failed to add item.");
             }
         } catch (error) {
-            // This will tell you exactly what the 400 error is
-            const errorMsg = error.response?.data?.message || "Error adding item to cart.";
-            console.error("Add Item API Error Details:", error.response?.data);
-            alert(errorMsg);
+            alert(error.response?.data?.message || "Error adding item.");
         }
     };
 
     const removeItem = async (itemId) => {
         try {
             const response = await UserAPI.removeCartItem(itemId);
-            if (response.success) {
-                await fetchCart();
-            }
+            if (response.success) await fetchCart();
         } catch (error) {
             console.error("Remove Item Error:", error);
+        }
+    };
+
+    const removePharmacyItem = async (itemId) => {
+        try {
+            const response = await UserAPI.removePharmacyItem(itemId);
+            if (response.success) await fetchCart();
+        } catch (error) {
+            console.error("Remove Pharmacy Item Error:", error);
         }
     };
 
@@ -113,17 +121,71 @@ export const CartProvider = ({ children }) => {
         }
     };
 
+    // --- PHARMACY CART METHODS ---
+
+    const addPharmacyToCart = async (pharmacyId, medicineId, quantity = 1, duration = "Full Course", forceReplace = false) => {
+        try {
+            const payload = { pharmacyId, medicineId, quantity, duration, forceReplace };
+            const response = await UserAPI.addPharmacyToCart(payload);
+
+            if (response.success) {
+                await fetchCart(true);
+            } else if (response.canReplace) {
+                const confirmReplace = window.confirm(response.message || "Clear existing pharmacy items?");
+                if (confirmReplace) {
+                    await addPharmacyToCart(pharmacyId, medicineId, quantity, duration, true);
+                }
+            }
+        } catch (error) {
+            const errorMsg = error.response?.data?.message || "Error adding medicine to cart.";
+            alert(errorMsg);
+        }
+    };
+
+    const updatePharmacyCartQuantity = async (medicineId, action) => {
+        try {
+            // Optimistic Update
+            setPharmacyCart(prev => {
+                if (!prev) return prev;
+                const updatedItems = prev.items.map(item => {
+                    const id = item.medicineId._id || item.medicineId;
+                    if (id === medicineId) {
+                        return { ...item, quantity: action === 'inc' ? item.quantity + 1 : item.quantity - 1 };
+                    }
+                    return item;
+                }).filter(item => item.quantity > 0);
+
+                return { ...prev, items: updatedItems };
+            });
+
+            const response = await UserAPI.updatePharmacyCartQuantity({ medicineId, action });
+            if (response.success) {
+                await fetchCart(true);
+            }
+        } catch (error) {
+            fetchCart(); // Revert on error
+        }
+    };
+
     return (
         <CartContext.Provider
             value={{
+                // Lab
                 cart,
                 cartItemIds,
                 addItem,
                 removeItem,
                 updateQuantity,
                 clearFullCart,
+                // Pharmacy
+                pharmacyCart,
+                pharmacyItemIds,
+                addPharmacyToCart,
+                updatePharmacyCartQuantity,
+                // General
                 fetchCart,
-                loading
+                loading,
+                removePharmacyItem
             }}
         >
             {children}

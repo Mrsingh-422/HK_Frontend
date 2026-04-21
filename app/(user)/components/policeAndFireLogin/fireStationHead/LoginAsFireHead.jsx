@@ -1,10 +1,14 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+import { useRouter } from "next/navigation"; // Added for redirection
 import { useAuth } from "@/app/context/AuthContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+// Import libphonenumber-js functions
+import { getCountries, getCountryCallingCode } from "libphonenumber-js";
 
 function LoginAsFireHead() {
-  const [phone, setPhone] = useState("");
+  const [identifier, setIdentifier] = useState(""); // phone OR email
+  const [countryDialCode, setCountryDialCode] = useState("+91"); 
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
 
@@ -12,37 +16,69 @@ function LoginAsFireHead() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const router = useRouter(); // Initialize router
   const { openModal, closeModal } = useGlobalContext();
-  const { loginAsUser } = useAuth();
+  const { loginFireHeadquarter } = useAuth(); 
+
+  // Generate the list of Country Dialing Codes
+  const countryCallingCodes = useMemo(() => {
+    return getCountries()
+      .map((country) => ({
+        country,
+        callingCode: `+${getCountryCallingCode(country)}`,
+      }))
+      .sort((a, b) => a.callingCode.localeCompare(b.callingCode, undefined, { numeric: true }));
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
 
-    if (!phone || !password) {
-      setError("Please enter phone number and password.");
+    if (!identifier || !password) {
+      setError("Please enter phone/email and password.");
       return;
     }
 
     try {
       setLoading(true);
 
-      const userLoginData = {
-        phone,
-        password,
-        remember,
+      // 1. Detect if input is an email
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
+
+      // 2. Construct the data object
+      const loginData = {
+        password: password,
+        remember: remember,
       };
 
-      await loginAsUser(userLoginData);
+      if (isEmail) {
+        loginData.email = identifier;
+      } else {
+        loginData.phone = identifier.replace(/\s+/g, "");
+        loginData.countryCode = countryDialCode; 
+      }
+
+      // 3. Send to API
+      const response = await loginFireHeadquarter(loginData);
+
+      // 4. Save token specifically as fireheadquarterToken
+      // (Assuming your API response returns the token in response.token or response.data.token)
+      const token = response?.token || response?.data?.token;
+      if (token) {
+        localStorage.setItem("fireheadquarterToken", token);
+      }
 
       setSuccess("Login successful! Redirecting...");
 
+      // 5. Redirect and close modal
       setTimeout(() => {
-        closeModal(); // Fixed: added parentheses
+        closeModal();
+        router.push("/policeandfire/fireheadquarter");
       }, 1500);
+
     } catch (err) {
-      setError(err?.response?.data?.message || "Invalid phone or password.");
+      setError(err?.response?.data?.message || "Invalid credentials.");
     } finally {
       setLoading(false);
     }
@@ -52,8 +88,8 @@ function LoginAsFireHead() {
     <div className="w-full bg-white">
       {/* TOP LOGIN BOX */}
       <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
-        
-        {/* LEFT IMAGE - Hidden on mobile, visible from md up */}
+
+        {/* LEFT IMAGE */}
         <div className="hidden md:block flex-shrink-0">
           <img
             src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692601520fire-station1.jpg"
@@ -65,32 +101,45 @@ function LoginAsFireHead() {
         {/* RIGHT FORM */}
         <div className="flex-1 w-full md:ml-8 lg:ml-15 text-center md:text-left">
           <h2 className="text-xl sm:text-2xl md:text-[32px] font-bold mb-5 leading-tight">
-            Get Started
+            Fire HQ Login
           </h2>
 
-          {/* Success Message */}
+          {/* Messages */}
           {success && (
             <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-4 text-sm font-medium animate-in fade-in duration-300">
               {success}
             </div>
           )}
-
-          {/* Error Message */}
           {error && (
             <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-4 text-sm font-medium animate-in fade-in duration-300">
               {error}
             </div>
           )}
 
-          <input
-            type="text"
-            placeholder="Enter your phone number"
-            className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
+          {/* INPUT GROUP: COUNTRY CODE + IDENTIFIER */}
+          <div className="flex gap-2 mb-1">
+            <select
+              value={countryDialCode}
+              onChange={(e) => setCountryDialCode(e.target.value)}
+              className="w-[110px] p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883] bg-white cursor-pointer"
+            >
+              {countryCallingCodes.map((item, index) => (
+                <option key={`${item.country}-${index}`} value={item.callingCode}>
+                  {item.country} ({item.callingCode})
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              placeholder="Phone number or email"
+              className="flex-1 p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+            />
+          </div>
+
           <p className="text-[13px] text-gray-500 mb-3 text-left">
-            We'll never share your phone with anyone else.
+            Select country code if logging in via phone number.
           </p>
 
           <input
@@ -112,7 +161,7 @@ function LoginAsFireHead() {
               Remember Password
             </label>
 
-            <span 
+            <span
               className="cursor-pointer hover:underline text-[#333]"
               onClick={() => openModal("forgotPassword")}
             >
@@ -136,9 +185,9 @@ function LoginAsFireHead() {
           Fire Station HeadQuarter
         </h3>
         <p className="text-sm md:text-base leading-relaxed text-[#333]">
-          Lorem ipsum dolor sit amet consectetur adipisicing elit. Molestias eius, 
-          quas ipsa quam maiores nobis eveniet quasi repellat aliquid dolorem omnis 
-          nostrum quia hic facere nam ab quo consequatur quisquam!
+          Official portal for Fire Station HeadQuarter administration. Please use your 
+          authorized phone or email credentials to access the command dashboard. 
+          Unauthorized access is strictly prohibited.
         </p>
       </div>
     </div>

@@ -142,6 +142,12 @@ const UserAPI = {
         return response.data;
     },
 
+    getSinglePharmacyMedicines: async (pharmacyId, params) => {
+        // params example: { page: 1, limit: 10 }
+        const response = await publicApi.get(`/user/medicine/pharmacies/${pharmacyId}`, { params });
+        return response.data;
+    },
+
     // ==========================================
     // PRIVATE METHODS (Token Required)
     // ==========================================
@@ -404,6 +410,12 @@ const UserAPI = {
         const response = await authApi.delete(`/user/cart/item/${itemId}`);
         return response.data;
     },
+
+    removePharmacyItem : async (itemId) => {
+        const response = await authApi.delete(`/user/cart/pharmacy/item/${itemId}`);
+        return response.data;
+    },
+
     addPharmacyToCart: async (cartData) => {
         // cartData should contain productId, pharmacyId, quantity, etc.
         const response = await authApi.post("/user/cart/pharmacy/add", cartData);
@@ -414,6 +426,11 @@ const UserAPI = {
         const response = await authApi.put("/user/cart/pharmacy/quantity", updateData);
         return response.data;
     },
+
+    checkoutLabCart: async (checkoutData) => {
+        const response = await authApi.post("/user/labs/checkout", checkoutData);
+        return response.data;
+    }
 
 
 

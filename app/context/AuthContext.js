@@ -371,6 +371,23 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const loginFireHeadquarter = async (userData) => {
+        try {
+            setLoading(true);
+            const response = await axios.post(
+                `${API_URL}/fireHQ/auth/login`,
+                userData
+            );
+            return response.data;
+        } catch (error) {
+            const message = error.response?.data?.message || "Login failed";
+            return Promise.reject(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
     // 1️⃣ SEND OTP
     const forgotPassword = async (email) => {
         const res = await axios.post(
@@ -451,7 +468,8 @@ export const AuthProvider = ({ children }) => {
             resetPassword,
             uploadHospitalDocuments,
             uploadPharmacyDocuments,
-            uploadNurseDocuments
+            uploadNurseDocuments,
+            loginFireHeadquarter,
         }}>
             {children}
         </AuthContext.Provider>

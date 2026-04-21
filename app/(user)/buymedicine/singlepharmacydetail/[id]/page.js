@@ -9,9 +9,7 @@ import {
     FaShoppingBasket, FaStore
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
-import AllMed from "../../seeallmed/components/AllMed";
-import AllProducts from "../../seeallmed/components/AllProducts";
-import { INITIAL_MEDICINES } from "@/app/constants/constants";
+import PharmacyMedicines from "../../seeallmed/components/PharmacyMedicines";
 
 export default function PharmacyDetailsPage() {
     const { id } = useParams();
@@ -19,8 +17,6 @@ export default function PharmacyDetailsPage() {
 
     const [pharmacy, setPharmacy] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState("medicines");
-    const [searchTerm, setSearchTerm] = useState("");
 
     useEffect(() => {
         const fetchPharmacyData = async () => {
@@ -124,43 +120,8 @@ export default function PharmacyDetailsPage() {
 
             {/* --- PRODUCTS SECTION --- */}
             <main className="max-w-7xl mx-auto px-4 md:px-6 pb-20">
-                <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm min-h-[600px]">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 px-8 pt-4 gap-4">
-                        <div className="flex gap-10">
-                            <TabTrigger active={activeTab === "medicines"} onClick={() => setActiveTab("medicines")} label="Medicines" />
-                            <TabTrigger active={activeTab === "products"} onClick={() => setActiveTab("products")} label="Wellness Products" />
-                        </div>
-                        <div className="mb-4 relative w-full md:w-80">
-                            <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                            <input
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder={`Search in ${activeTab}...`}
-                                className="w-full pl-11 pr-4 py-3 bg-slate-50 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="p-8">
-                        {activeTab === "medicines" ? (
-                            <AllMed
-                                items={INITIAL_MEDICINES.filter(m =>
-                                    m.category !== 'Wellness' &&
-                                    m.name.toLowerCase().includes(searchTerm.toLowerCase())
-                                )}
-                                onBuy={() => { }}
-                            />
-                        ) : (
-                            <AllProducts
-                                items={INITIAL_MEDICINES.filter(m =>
-                                    m.category === 'Wellness' &&
-                                    m.name.toLowerCase().includes(searchTerm.toLowerCase())
-                                )}
-                                onBuy={() => { }}
-                            />
-                        )}
-                    </div>
+                <div className="p-8">
+                    <PharmacyMedicines id={pharmacy._id} />
                 </div>
             </main>
         </div>
@@ -186,13 +147,6 @@ const FeatureCard = ({ icon, title, desc, active }) => (
         <p className="text-xs font-black text-slate-900 uppercase tracking-tight mb-1">{title}</p>
         <p className="text-[11px] text-slate-500 font-bold">{desc}</p>
     </div>
-);
-
-const TabTrigger = ({ active, onClick, label }) => (
-    <button onClick={onClick} className={`pb-4 text-xs font-black uppercase tracking-[0.2em] transition-all relative ${active ? "text-emerald-600" : "text-slate-400 hover:text-slate-700"}`}>
-        {label}
-        {active && <div className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full shadow-[0_-2px_10px_rgba(16,185,129,0.3)]" />}
-    </button>
 );
 
 // --- DETAILED SKELETON EFFECT (Matching Reference) ---
