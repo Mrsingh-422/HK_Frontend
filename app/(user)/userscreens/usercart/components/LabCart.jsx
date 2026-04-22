@@ -4,7 +4,7 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     FaPlus, FaMinus, FaShieldAlt,
-    FaPrescriptionBottleAlt, FaTag, FaSpinner, FaArrowLeft, FaCheckCircle, FaTicketAlt, FaUserCircle, FaWalking, FaHome, FaBolt, FaMapMarkerAlt
+    FaPrescriptionBottleAlt, FaTag, FaSpinner, FaArrowLeft, FaCheckCircle, FaTicketAlt, FaUserCircle, FaWalking, FaHome, FaBolt, FaMapMarkerAlt, FaTrash
 } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
@@ -224,7 +224,7 @@ const LabCart = () => {
                         m.relation === 'Self' ? 'Self' : m._id
                     ),
 
-                    collectionType: collectionMethod === 'Home Collection'
+                    collectionType: collectionMethod === 'Home'
                         ? "Home Collection"
                         : "Visit Lab",
 
@@ -343,6 +343,27 @@ const LabCart = () => {
                                     )}
                                 </div>
                             )}
+
+                            {/* RESTORED: FAST DELIVERY OPTION */}
+                            {deliveryConfig && (
+                                <div className="mt-6 pt-6 border-t border-gray-100">
+                                    <div
+                                        onClick={() => setIsFastDelivery(!isFastDelivery)}
+                                        className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${isFastDelivery ? 'border-amber-500 bg-amber-50' : 'border-gray-100 bg-white'}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-lg ${isFastDelivery ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                                <FaBolt />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-gray-800">Fast Report Delivery</h4>
+                                                <p className="text-[10px] text-gray-500 font-medium">Get reports delivered 2x faster</p>
+                                            </div>
+                                        </div>
+                                        <span className="font-bold text-sm text-gray-900">+₹{deliveryConfig.fastDeliveryExtra}</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* SELECTION SUMMARY */}
@@ -382,10 +403,38 @@ const LabCart = () => {
                                             <p className="text-[10px] text-gray-400">₹{item.price} x {selectedMembers.length || 1} Patient(s)</p>
                                         </div>
                                     </div>
-                                    <div className="mt-4 flex items-center border border-gray-200 rounded-lg w-fit overflow-hidden">
-                                        <button onClick={() => handleQtyChange(item.itemId, item.quantity, 'dec')} className="px-3 py-1 bg-gray-50 hover:bg-gray-100"><FaMinus size={10} /></button>
-                                        <span className="px-4 text-sm font-bold">{item.quantity}</span>
-                                        <button onClick={() => handleQtyChange(item.itemId, item.quantity, 'inc')} className="px-3 py-1 bg-gray-50 hover:bg-gray-100"><FaPlus size={10} /></button>
+                                    <div className="mt-4 flex items-center justify-between w-full">
+
+                                        {/* Left Side: Quantity Controls */}
+                                        <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                                            <button
+                                                onClick={() => handleQtyChange(item.itemId, item.quantity, 'dec')}
+                                                className="px-3 py-1 bg-gray-50 hover:bg-gray-100 transition"
+                                            >
+                                                <FaMinus size={14} />
+                                            </button>
+
+                                            <span className="px-4 text-sm font-bold">
+                                                {item.quantity}
+                                            </span>
+
+                                            <button
+                                                onClick={() => handleQtyChange(item.itemId, item.quantity, 'inc')}
+                                                className="px-3 py-1 bg-gray-50 hover:bg-gray-100 transition"
+                                            >
+                                                <FaPlus size={14} />
+                                            </button>
+                                        </div>
+
+                                        {/* Right Side: Remove Button */}
+                                        <button
+                                            onClick={() => removeItem(item.itemId)}
+                                            className="flex items-center gap-1 text-rose-500 hover:text-rose-600 transition"
+                                        >
+                                            <FaTrash size={12} />
+                                            <span className="text-xs font-semibold">Remove</span>
+                                        </button>
+
                                     </div>
                                 </div>
                             </div>

@@ -1,19 +1,17 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation"; // 1. Import useRouter
 import UserAPI from "@/app/services/UserAPI";
 import {
     FaStar,
-    FaFlask,
     FaChevronRight,
     FaChevronLeft,
     FaVial,
     FaCheckCircle,
     FaPrescriptionBottleAlt,
     FaArrowRight,
-    FaHospital
 } from "react-icons/fa";
-import TestDetailsModal from "./TestDetailsModal";
 import { useCart } from "@/app/context/CartContext";
 
 const CATEGORY_IMAGES = {
@@ -36,10 +34,10 @@ const TestCardSkeleton = () => (
 );
 
 const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
+    const router = useRouter(); // 2. Initialize router
     const { cartItemIds } = useCart();
     const [tests, setTests] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedTest, setSelectedTest] = useState(null);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -56,7 +54,6 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
             });
 
             if (response.success) {
-                // Ensure we check all potential data keys from response
                 const data = response.data || response.tests || [];
                 setTests(data);
                 setTotalPages(response.totalPages || 1);
@@ -77,8 +74,9 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
         fetchTests();
     }, [fetchTests]);
 
-    const handleCardClick = (test) => {
-        setSelectedTest(test);
+    // 3. Update navigation function
+    const handleCardClick = (testId) => {
+        router.push(`/booklabtest/testdetails/${testId}`);
     };
 
     const handlePageChange = (newPage) => {
@@ -93,11 +91,7 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
 
     return (
         <div className="space-y-10" id="tests-grid-top">
-            <TestDetailsModal
-                isOpen={!!selectedTest}
-                onClose={() => setSelectedTest(null)}
-                test={selectedTest}
-            />
+            {/* Modal removed as it's no longer needed here */}
 
             {/* Professional Compact Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -108,23 +102,20 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                         const isAdded = cartItemIds.includes(test._id);
                         const displayPrice = test.offerPrice || test.minPrice || test.mrp || test.standardMRP;
                         const strikePrice = test.standardMRP || test.mrp;
-
-                        // Select initial image based on category
                         const testImage = CATEGORY_IMAGES[test.mainCategory] || CATEGORY_IMAGES.Default;
 
                         return (
                             <div
                                 key={test._id}
-                                onClick={() => handleCardClick(test)}
+                                onClick={() => handleCardClick(test._id)} // Navigate on click
                                 className="group bg-white rounded-xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden cursor-pointer"
                             >
                                 {/* Professional Thumbnail */}
                                 <div className="relative h-32 w-full overflow-hidden bg-slate-50 border-b border-slate-100">
                                     <img
                                         src={testImage}
-                                        className="w-full h-full object-cover grayscale-[0.2] group-hover:grayscale-0 transition-all duration-500"
+                                        className="w-full h-full object-cover grayscale-[0.2] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-105"
                                         alt={test.testName}
-                                        // THE FIX: Set onerror to null to prevent infinite loop if fallback fails
                                         onError={(e) => {
                                             e.target.onerror = null;
                                             e.target.src = CATEGORY_IMAGES.Default;
@@ -176,14 +167,14 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                handleCardClick(test);
+                                                handleCardClick(test._id);
                                             }}
                                             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${isAdded
                                                 ? "bg-slate-50 text-slate-400 border border-slate-200"
                                                 : "bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-600 hover:text-white"
                                                 }`}
                                         >
-                                            {isAdded ? "Added" : "Book"}
+                                            {isAdded ? "Added" : "Book Now"}
                                             {!isAdded && <FaArrowRight size={9} />}
                                         </button>
                                     </div>
@@ -194,7 +185,7 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                 )}
             </div>
 
-            {/* Professional Pagination */}
+            {/* Pagination */}
             {totalPages > 1 && !loading && (
                 <div className="flex justify-center items-center gap-6 py-8 border-t border-slate-100">
                     <button

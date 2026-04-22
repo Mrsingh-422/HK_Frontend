@@ -43,6 +43,13 @@ const UserAPI = {
         const response = await publicApi.get("/user/labs/standard-packages", { params });
         return response.data;
     },
+    getSinglePackageDetails: async (packageId, userCoords) => {
+        // We use .post because we are sending the userCoords in the request body
+        const response = await publicApi.post(`/user/labs/standard-packages/details/${packageId}`, {
+            userCoords: userCoords // Sending the lat/lng object here
+        });
+        return response.data;
+    },
     getLabsList: async (payload) => {
         // payload should be { lat, lng, search, etc. }
         const response = await publicApi.post("/user/labs/list", payload);
@@ -70,6 +77,14 @@ const UserAPI = {
     searchLabInventoryPackages: async (labId, payload) => {
         // payload example: { query: "Full Body" }
         const response = await publicApi.post(`/user/labs/${labId}/inventory-packages/search`, payload);
+        return response.data;
+    },
+    getFemalePackages: async () => {
+        const response = await publicApi.get("/user/labs/standard-packages/female");
+        return response.data;
+    },
+    getFemaleTests: async () => {
+        const response = await publicApi.get("/user/labs/standard-tests/female");
         return response.data;
     },
     checkoutLab: async (checkoutData) => {
@@ -411,7 +426,7 @@ const UserAPI = {
         return response.data;
     },
 
-    removePharmacyItem : async (itemId) => {
+    removePharmacyItem: async (itemId) => {
         const response = await authApi.delete(`/user/cart/pharmacy/item/${itemId}`);
         return response.data;
     },

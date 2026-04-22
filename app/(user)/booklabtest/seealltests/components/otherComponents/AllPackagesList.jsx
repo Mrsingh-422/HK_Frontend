@@ -1,19 +1,16 @@
-
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation"; // Added for navigation
 import { 
     FaStar, 
     FaFlask, 
     FaChevronRight, 
     FaClinicMedical, 
-    FaCheckCircle, 
     FaChevronLeft, 
     FaShieldAlt,
     FaArrowRight
 } from "react-icons/fa";
-import PackageDetailsModal from "./PackageDetailsModal";
 import UserAPI from "@/app/services/UserAPI";
 import { useCart } from "@/app/context/CartContext";
 
@@ -35,10 +32,9 @@ const PackageCardSkeleton = () => (
 );
 
 function AllPackagesList({ searchTerm = "", selectedLabId = null }) {
+    const router = useRouter(); // Initialize router
     const { cartItemIds } = useCart();
     const [packages, setPackages] = useState([]);
-    const [selectedPackage, setSelectedPackage] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(true);
 
     const [currentPage, setCurrentPage] = useState(1);
@@ -75,9 +71,9 @@ function AllPackagesList({ searchTerm = "", selectedLabId = null }) {
         fetchPackages();
     }, [fetchPackages]);
 
-    const handleCardClick = (pkg) => {
-        setSelectedPackage(pkg);
-        setIsModalOpen(true);
+    // Update: Now handles navigation instead of opening a modal
+    const handleNavigate = (pkgId) => {
+        router.push(`/booklabtest/packagedetails/${pkgId}`);
     };
 
     const handlePageChange = (newPage) => {
@@ -89,12 +85,6 @@ function AllPackagesList({ searchTerm = "", selectedLabId = null }) {
 
     return (
         <div className="space-y-10">
-            <PackageDetailsModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                pkg={selectedPackage}
-            />
-
             {/* Simple Grid - Clean Spacing */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {loading ? (
@@ -109,14 +99,14 @@ function AllPackagesList({ searchTerm = "", selectedLabId = null }) {
                         return (
                             <div
                                 key={pkg._id}
-                                onClick={() => handleCardClick(pkg)}
+                                onClick={() => handleNavigate(pkg._id)}
                                 className="group bg-white rounded-xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden cursor-pointer"
                             >
                                 {/* Thumbnail */}
                                 <div className="relative h-36 w-full overflow-hidden bg-slate-50 border-b border-slate-100">
                                     <img
                                         src={imageSrc}
-                                        className="w-full h-full object-cover"
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                         alt={pkg.packageName}
                                         onError={(e) => { e.target.src = FALLBACK_IMAGE; }}
                                     />
@@ -146,11 +136,11 @@ function AllPackagesList({ searchTerm = "", selectedLabId = null }) {
                                     <div className="space-y-2 mb-4">
                                         <div className="flex items-center gap-2 text-slate-500">
                                             <FaFlask size={11} className="text-slate-400" />
-                                            <span className="text-[11px] font-medium">{pkg.testCount || 0} Parameters included</span>
+                                            <span className="text-[11px] font-medium">{pkg.totalTestsIncluded || pkg.tests?.length || 0} Parameters</span>
                                         </div>
                                         <div className="flex items-center gap-2 text-slate-500">
                                             <FaClinicMedical size={11} className="text-slate-400" />
-                                            <span className="text-[11px] font-medium">{pkg.vendorCount || 0} Labs provide this</span>
+                                            <span className="text-[11px] font-medium">{pkg.vendorCount || 0} Labs available</span>
                                         </div>
                                     </div>
 
@@ -166,14 +156,14 @@ function AllPackagesList({ searchTerm = "", selectedLabId = null }) {
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                handleCardClick(pkg);
+                                                handleNavigate(pkg._id);
                                             }}
                                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-colors ${isAdded
-                                                ? "bg-slate-50 text-slate-400 border border-slate-200"
+                                                ? "bg-slate-100 text-slate-500 border border-slate-200"
                                                 : "bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-600 hover:text-white"
                                             }`}
                                         >
-                                            {isAdded ? "Added" : "Book"}
+                                            {isAdded ? "In Cart" : "View Details"}
                                             {!isAdded && <FaArrowRight size={10} />}
                                         </button>
                                     </div>
@@ -184,13 +174,13 @@ function AllPackagesList({ searchTerm = "", selectedLabId = null }) {
                 )}
             </div>
 
-            {/* Simplified Professional Pagination */}
+            {/* Professional Pagination */}
             {totalPages > 1 && !loading && (
                 <div className="flex justify-center items-center gap-6 py-8 border-t border-slate-100">
                     <button
                         onClick={() => handlePageChange(currentPage - 1)}
                         disabled={currentPage === 1}
-                        className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-emerald-600 disabled:opacity-30 disabled:hover:text-slate-500 transition-colors"
+                        className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-emerald-600 disabled:opacity-30 transition-colors"
                     >
                         <FaChevronLeft size={10} /> Previous
                     </button>
@@ -198,7 +188,6 @@ function AllPackagesList({ searchTerm = "", selectedLabId = null }) {
                     <div className="flex items-center gap-2">
                         {[...Array(totalPages)].map((_, i) => {
                             const p = i + 1;
-                            // Show first, last, and current +/- 1
                             if (p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1)) {
                                 return (
                                     <button
@@ -220,7 +209,7 @@ function AllPackagesList({ searchTerm = "", selectedLabId = null }) {
                     <button
                         onClick={() => handlePageChange(currentPage + 1)}
                         disabled={currentPage === totalPages}
-                        className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-emerald-600 disabled:opacity-30 disabled:hover:text-slate-500 transition-colors"
+                        className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-emerald-600 disabled:opacity-30 transition-colors"
                     >
                         Next <FaChevronRight size={10} />
                     </button>

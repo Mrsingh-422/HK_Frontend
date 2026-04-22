@@ -61,7 +61,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }) => {
             }
 
             const result = await addItem(targetLabId, targetItemId, 'LabTest');
-            
+
             // If the addItem function returns a conflict error (Lab or Category mismatch)
             if (result && result.error) {
                 setShowClearCartConfirm(true);
@@ -118,7 +118,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }) => {
                     return;
                 }
             }
-            
+
             await executeAdd();
         }
     };

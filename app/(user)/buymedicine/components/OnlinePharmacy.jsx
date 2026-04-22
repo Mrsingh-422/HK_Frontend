@@ -1,14 +1,18 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  FaFlask, FaSearch, FaUpload, FaCheckCircle,
-  FaArrowRight, FaTruck, FaShieldAlt, FaPrescription,
-  FaPlus, FaCapsules, FaHistory, FaBolt, FaStethoscope, FaBaby, FaWeight, FaHeart, FaTimes, FaPhoneAlt, FaMapMarkerAlt
+import { 
+  FaFlask, FaSearch, FaUpload, FaCheckCircle, 
+  FaArrowRight, FaTruck, FaShieldAlt, FaPrescription, 
+  FaPlus, FaHistory, FaBolt, FaStethoscope, FaBaby, FaWeight, FaHeart 
 } from "react-icons/fa";
+
+// Components
 import MedicineDetailsModal from "./otherComponents/MedicineDetailsModal";
+import PrescriptionModal from "./otherComponents/PrescriptionModal"; // IMPORTED NEW MODAL
+
+// Context & Constants
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import { INITIAL_MEDICINES } from "@/app/constants/constants";
 
@@ -25,29 +29,22 @@ const CATEGORIES = [
 function OnlinePharmacy() {
   const { getPharmacyPageContent, getAllMedicines } = useGlobalContext();
 
+  // State
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCat, setActiveCat] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [medicines, setMedicines] = useState(INITIAL_MEDICINES);
+  const [selectedMedicine, setSelectedMedicine] = useState(null);
+
+  // Modal Control States
+  const [isMedicineModalOpen, setIsMedicineModalOpen] = useState(false);
+  const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
 
   const [pageData, setPageData] = useState({
     mainTitle: "Your Pharmacy Store",
     description: "Authentic medications delivered safely in 02 Hours.",
-    card2Title: "Have a prescription?",
-    card2Btn: "UPLOAD NOW",
     searchPlaceholder: "Search for medicines or wellness products..."
   });
-
-  const [medicines, setMedicines] = useState(INITIAL_MEDICINES);
-  const fileInputRef = useRef(null);
-  
-  // Prescription Upload States
-  const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
-  const [prescriptionFile, setPrescriptionFile] = useState(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
-
-  const [selectedMedicine, setSelectedMedicine] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -70,27 +67,6 @@ function OnlinePharmacy() {
     );
   }, [searchTerm, medicines]);
 
-  const handleUploadClick = () => fileInputRef.current.click();
-  
-  const handleFileChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      setPrescriptionFile(file);
-      setIsPrescriptionModalOpen(true);
-    }
-  };
-
-  const handlePrescriptionSubmit = (e) => {
-    e.preventDefault();
-    setIsUploading(true);
-    setTimeout(() => {
-      setIsUploading(false);
-      setUploadSuccess(true);
-      setIsPrescriptionModalOpen(false);
-      alert("Prescription Order Placed Successfully!");
-    }, 2000);
-  };
-
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="w-8 h-8 border-4 border-[#08B36A]/20 border-t-[#08B36A] rounded-full animate-spin"></div>
@@ -102,66 +78,17 @@ function OnlinePharmacy() {
       
       {/* 1. MEDICINE DETAILS MODAL */}
       <MedicineDetailsModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isMedicineModalOpen}
+        onClose={() => setIsMedicineModalOpen(false)}
         medicine={selectedMedicine}
         onAddToCart={(med) => console.log("Added:", med)}
       />
 
-      {/* 2. PRESCRIPTION ORDER MODAL */}
-      <AnimatePresence>
-        {isPrescriptionModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white w-full max-w-lg rounded-[2.5rem] overflow-hidden shadow-2xl"
-            >
-              <div className="p-8 space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-                    <FaPrescription className="text-[#08B36A]" /> Prescription Order
-                  </h3>
-                  <button onClick={() => setIsPrescriptionModalOpen(false)} className="text-slate-400 hover:text-red-500">
-                    <FaTimes size={24} />
-                  </button>
-                </div>
-
-                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-[#08B36A] shadow-sm">
-                    <FaCheckCircle />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">File Ready</p>
-                    <p className="text-sm font-black text-slate-700 truncate">{prescriptionFile?.name}</p>
-                  </div>
-                </div>
-
-                <form onSubmit={handlePrescriptionSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-[#08B36A] uppercase tracking-widest ml-1">Contact Number</label>
-                    <div className="relative">
-                      <FaPhoneAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
-                      <input required type="tel" placeholder="Mobile Number" className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#08B36A]" />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-[#08B36A] uppercase tracking-widest ml-1">Delivery Address</label>
-                    <div className="relative">
-                      <FaMapMarkerAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
-                      <textarea required rows="2" placeholder="Your Address" className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#08B36A] resize-none"></textarea>
-                    </div>
-                  </div>
-                  <button disabled={isUploading} type="submit" className="w-full bg-[#08B36A] text-white py-5 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-50">
-                    {isUploading ? "Sending..." : "Confirm Prescription Order"}
-                  </button>
-                </form>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* 2. PRESCRIPTION MODAL (NEW COMPONENT CALL) */}
+      <PrescriptionModal 
+        isOpen={isPrescriptionModalOpen} 
+        onClose={() => setIsPrescriptionModalOpen(false)} 
+      />
 
       {/* --- 3. HERO SECTION --- */}
       <section className="bg-emerald-50/50 pt-10 pb-16 px-4">
@@ -186,14 +113,13 @@ function OnlinePharmacy() {
                     className="w-full pl-14 pr-6 py-5 rounded-2xl bg-white border border-slate-200 shadow-sm outline-none focus:ring-4 focus:ring-[#08B36A]/10 transition-all font-medium"
                   />
                </div>
+               {/* Trigger for Prescription Modal */}
                <button 
-                onClick={handleUploadClick}
-                className={`px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-3 ${uploadSuccess ? 'bg-emerald-500 text-white' : 'bg-slate-900 text-white'}`}
+                onClick={() => setIsPrescriptionModalOpen(true)}
+                className="px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-3 bg-slate-900 text-white hover:bg-[#08B36A]"
                >
-                 {uploadSuccess ? <FaCheckCircle /> : <FaUpload />}
-                 {uploadSuccess ? "Sent" : "Prescription"}
+                 <FaUpload /> Prescription
                </button>
-               <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,.pdf" />
             </div>
           </div>
           <div className="hidden lg:flex justify-end relative">
@@ -220,7 +146,7 @@ function OnlinePharmacy() {
 
       <main className="max-w-7xl mx-auto px-4 mt-16 space-y-16">
         
-        {/* --- 5. TRUST SIGNALS --- */}
+        {/* Trust Signals Section */}
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-6">
            <div className="flex items-center gap-4 p-6 bg-slate-50 rounded-3xl border border-slate-100">
               <FaTruck className="text-[#08B36A] text-2xl" />
@@ -240,7 +166,7 @@ function OnlinePharmacy() {
            </div>
         </section>
 
-        {/* --- 6. MEDICINE GRID (LIMIT 8) --- */}
+        {/* Medicine Grid */}
         <section>
           <div className="flex items-center justify-between mb-10">
             <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Popular Medicines</h2>
@@ -266,7 +192,10 @@ function OnlinePharmacy() {
                       <span className="text-[10px] text-slate-300 line-through font-bold block leading-none">₹{med.actualPrice}</span>
                       <span className="text-xl sm:text-2xl font-black text-slate-900">₹{med.discountPrice}</span>
                     </div>
-                    <button onClick={() => setSelectedMedicine(med) || setIsModalOpen(true)} className="w-10 h-10 sm:w-12 sm:h-12 bg-[#08B36A] text-white rounded-xl flex items-center justify-center hover:bg-slate-900 transition-all active:scale-90 shadow-lg shadow-emerald-500/10">
+                    <button 
+                      onClick={() => { setSelectedMedicine(med); setIsMedicineModalOpen(true); }} 
+                      className="w-10 h-10 sm:w-12 sm:h-12 bg-[#08B36A] text-white rounded-xl flex items-center justify-center hover:bg-slate-900 transition-all active:scale-90 shadow-lg shadow-emerald-500/10"
+                    >
                       <FaPlus className="text-xs" />
                     </button>
                   </div>
@@ -274,22 +203,9 @@ function OnlinePharmacy() {
               </div>
             ))}
           </div>
-
-          {/* EXPLORE MORE BUTTON */}
-          {filteredMedicines.length > 8 && (
-            <div className="mt-16 text-center">
-                <Link href="/buymedicine/seeallmed">
-                    <button className="inline-flex items-center gap-3 bg-white text-slate-900 border-2 border-slate-900 px-12 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-[#08B36A] hover:text-white hover:border-[#08B36A] transition-all shadow-xl active:scale-95 group">
-                        Explore Full Store 
-                        <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
-                    </button>
-                </Link>
-                <p className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Showing 8 of {filteredMedicines.length} products</p>
-            </div>
-          )}
         </section>
 
-        {/* --- 7. CLEAN FOOTER ACTION --- */}
+        {/* Footer Action */}
         <section className="bg-slate-900 rounded-[3rem] p-10 sm:p-20 text-center space-y-8 relative overflow-hidden">
            <div className="relative z-10">
               <h2 className="text-3xl sm:text-5xl font-black text-white uppercase tracking-tighter max-w-2xl mx-auto leading-tight">
