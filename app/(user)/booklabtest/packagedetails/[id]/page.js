@@ -6,7 +6,7 @@ import {
     FaShoppingCart, FaTrashAlt, FaClock, FaVial,
     FaHistory, FaClinicMedical, FaArrowLeft,
     FaUserFriends, FaMicroscope, FaExclamationTriangle,
-    FaCheckCircle, FaInfoCircle, FaStar
+    FaCheckCircle, FaInfoCircle, FaStar, FaTimes
 } from "react-icons/fa";
 import { useCart } from "@/app/context/CartContext";
 import toast from "react-hot-toast";
@@ -24,6 +24,9 @@ export default function PackageDetailPage() {
     const [selectedLab, setSelectedLab] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [pageLoading, setPageLoading] = useState(true);
+    
+    // New state for custom warning modal
+    const [showConflictModal, setShowConflictModal] = useState(false);
 
     // 1. Fetch Package Data using Coordinates from LocalStorage
     useEffect(() => {
@@ -36,7 +39,6 @@ export default function PackageDetailPage() {
                     try { coords = JSON.parse(storedCoords); } catch (e) { console.error("Coord parse error"); }
                 }
 
-                // Call the POST API with coords in body
                 const response = await UserAPI.getSinglePackageDetails(id, coords);
 
                 if (response.success) {
@@ -46,7 +48,6 @@ export default function PackageDetailPage() {
                     setPkg(packageData);
                     setLabs(labsData);
 
-                    // Auto-select the first lab
                     if (labsData.length > 0) {
                         setSelectedLab(labsData[0]);
                     }
@@ -64,14 +65,25 @@ export default function PackageDetailPage() {
         if (id) fetchPackageDetails();
     }, [id]);
 
-    /** 
-     * FIX: Check if the SPECIFIC lab version of this package is in the cart
-     * We use selectedLab.labPackageId because that is what the backend stores in the cart items
-     */
     const isAdded = useMemo(() => {
         if (!selectedLab) return false;
         return cartItemIds.includes(selectedLab.labPackageId);
     }, [cartItemIds, selectedLab]);
+
+    // Handle the "Clear and Add" confirmation
+    const handleConfirmReplace = async () => {
+        try {
+            setIsProcessing(true);
+            setShowConflictModal(false);
+            // Call addItem with forceReplace = true
+            await addItem(selectedLab.labId, selectedLab.labPackageId, 'LabPackage', true);
+            toast.success("Cart updated successfully");
+        } catch (error) {
+            toast.error("Failed to update cart");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     // HANDLER FOR ADD/REMOVE
     const handleAction = async () => {
@@ -83,7 +95,6 @@ export default function PackageDetailPage() {
         if (isAdded) {
             try {
                 setIsProcessing(true);
-                // Use the labPackageId for removal to match what's in the cart
                 await removeItem(selectedLab.labPackageId);
                 toast.success("Removed from cart");
             } catch (error) {
@@ -92,14 +103,21 @@ export default function PackageDetailPage() {
                 setIsProcessing(false);
             }
         } else {
+            // CHECK FOR CONFLICT BEFORE ADDING
+            // If cart exists and has items from a different lab or category
+            if (cart && cart.items?.length > 0) {
+                const currentLabId = cart.labId?._id || cart.labId;
+                const currentCategory = cart.categoryType;
+                const newCategory = pkg.mainCategory;
+
+                if (currentLabId !== selectedLab.labId || currentCategory !== newCategory) {
+                    setShowConflictModal(true);
+                    return;
+                }
+            }
+
             try {
                 setIsProcessing(true);
-                /**
-                 * THE FIX:
-                 * labId: selectedLab.labId
-                 * itemId: selectedLab.labPackageId (NOT pkg._id)
-                 * productType: 'LabPackage'
-                 */
                 await addItem(selectedLab.labId, selectedLab.labPackageId, 'LabPackage');
             } catch (error) {
                 console.error("Cart Add Error", error);
@@ -120,6 +138,37 @@ export default function PackageDetailPage() {
 
     return (
         <div className="min-h-screen bg-[#FDFDFD] pb-20">
+            
+            {/* CUSTOM CONFLICT MODAL */}
+            {showConflictModal && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-amber-500"></div>
+                        <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+                            <FaExclamationTriangle className="text-amber-600 text-2xl" />
+                        </div>
+                        <h3 className="text-xl font-black text-slate-900 text-center mb-2">Replace Cart?</h3>
+                        <p className="text-slate-500 text-center font-medium text-sm mb-8 leading-relaxed">
+                            Your cart already contains items from <span className="font-bold text-slate-700">{cart.labName || "another laboratory"}</span>. Clear it to add this package?
+                        </p>
+                        <div className="flex flex-col gap-3">
+                            <button 
+                                onClick={handleConfirmReplace} 
+                                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg"
+                            >
+                                Clear and Add
+                            </button>
+                            <button 
+                                onClick={() => setShowConflictModal(false)} 
+                                className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <main className="max-w-6xl mx-auto px-4 py-8">
                 {/* Back Link */}
                 <button onClick={() => router.back()} className="mb-8 flex items-center gap-2 text-slate-400 font-bold hover:text-emerald-600 transition-colors uppercase text-[10px] tracking-widest">

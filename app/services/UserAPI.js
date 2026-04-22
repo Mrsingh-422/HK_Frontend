@@ -34,6 +34,15 @@ const UserAPI = {
     // PUBLIC METHODS (No Token Needed)
     // ==========================================
 
+    getWomensPackages: async () => {
+        const response = await publicApi.get("/user/labs/standard-packages/female");
+        return response.data;
+    },
+        getWomensTests: async () => {
+            const response = await publicApi.get("/user/labs/standard-tests/female");
+            return response.data;
+        },
+
     getStandardTestCatalog: async () => {
         const response = await publicApi.get("/user/labs/standard-tests");
         return response.data;

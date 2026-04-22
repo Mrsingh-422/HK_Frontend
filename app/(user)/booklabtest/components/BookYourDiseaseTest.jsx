@@ -71,6 +71,7 @@ function BookYourDiseaseTest() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [selectedPkg, setSelectedPkg] = useState(null);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [pageData, setPageData] = useState({
@@ -184,7 +185,7 @@ function BookYourDiseaseTest() {
               <h2 className="text-4xl sm:text-6xl font-black leading-[1.1]">The Complete <br />Women's Healthcare <br /> Hub.</h2>
               <p className="text-emerald-100 text-lg opacity-80 max-w-md font-medium">Expertly curated packages for PCOS, Pregnancy, Thyroid, and Senior Female wellness.</p>
               <button
-                onClick={() => setActiveCategory("Women")}
+                onClick={() => router.push("/booklabtest/womenstestonly")}
                 className="bg-white text-emerald-900 px-10 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-2xl"
               >
                 View Women-Only Tests
