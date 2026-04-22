@@ -50,6 +50,13 @@ const UserAPI = {
         });
         return response.data;
     },
+    getSingleTestDetails: async (testId, userCoords) => {
+        // We use .post because we are sending the userCoords in the request body
+        const response = await publicApi.post(`/user/labs/standard-tests/details/${testId}`, {
+            userCoords: userCoords // Sending the lat/lng object here
+        });
+        return response.data;
+    },
     getLabsList: async (payload) => {
         // payload should be { lat, lng, search, etc. }
         const response = await publicApi.post("/user/labs/list", payload);
