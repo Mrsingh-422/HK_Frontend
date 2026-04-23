@@ -394,8 +394,20 @@ const UserAPI = {
         const response = await authApi.get("/user/labs/coupons");
         return response.data;
     },
+    getPharmacyCoupons: async () => {
+        const response = await authApi.get("/user/pharmacy/available-coupons");
+        return response.data;
+    },
+    validatePharmacyCoupon: async (couponName, pharmacyId, totalAmount) => {
+        const response = await authApi.post(`/user/pharmacy/validate-coupon`, { couponName, pharmacyId, totalAmount });
+        return response.data;
+    },
     checkoutLabBooking: async (checkoutData) => {
         const response = await authApi.post("/user/labs/checkout", checkoutData);
+        return response.data;
+    },
+    checkoutPharmacyOrder: async (checkoutData) => {
+        const response = await authApi.post("/user/pharmacy/checkout", checkoutData);
         return response.data;
     },
     bookLabTest: async (bookingData) => {

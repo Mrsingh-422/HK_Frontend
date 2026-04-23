@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaPills, FaSpinner, FaTruck, FaFilePrescription, FaPrescriptionBottleAlt, FaMinus, FaPlus, FaClock, FaCalendarAlt, FaChevronRight } from 'react-icons/fa';
+import { FaPills, FaSpinner, FaTruck, FaFilePrescription, FaPrescriptionBottleAlt, FaMinus, FaPlus, FaClock, FaCalendarAlt, FaChevronRight, FaCamera, FaTrash, FaCheckCircle, FaStore } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
 import UserAPI from '@/app/services/UserAPI';
@@ -16,13 +16,14 @@ import PharmacySlotModal from './PharmacySlotModal';
 
 const PharmacyCart = () => {
     const router = useRouter();
-    const { pharmacyCart, updatePharmacyCartQuantity, loading, removePharmacyItem } = useCart();
+    const { pharmacyCart, updatePharmacyCartQuantity, loading, removePharmacyItem, clearFullCart } = useCart();
 
     const [availableCoupons, setAvailableCoupons] = useState([]);
     const [couponCode, setCouponCode] = useState("");
     const [appliedCouponName, setAppliedCouponName] = useState(null);
     const [serverDiscount, setServerDiscount] = useState(0);
     const [isValidating, setIsValidating] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [addresses, setAddresses] = useState([]);
     const [selectedAddress, setSelectedAddress] = useState(null);
@@ -30,13 +31,18 @@ const PharmacyCart = () => {
 
     // Delivery & Slot States
     const [deliveryOption, setDeliveryOption] = useState('fast');
+    const [collectionType, setCollectionType] = useState('Home Delivery'); // "Home Delivery" or "Self Pickup"
     const [selectedSlot, setSelectedSlot] = useState(null);
-    const [slotFee, setSlotFee] = useState(0); // Added slot fee state
+    const [rawSlotData, setRawSlotData] = useState(null);
+    const [slotFee, setSlotFee] = useState(0);
+    const [deliveryChargesConfig, setDeliveryChargesConfig] = useState(null);
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
+
+    // Prescription State
+    const [prescriptionFiles, setPrescriptionFiles] = useState([]);
 
     const pharmacyItems = useMemo(() => pharmacyCart?.items || [], [pharmacyCart]);
     const pharmacyId = useMemo(() => pharmacyCart?.pharmacyId?._id || pharmacyCart?.pharmacyId, [pharmacyCart]);
-    const pharmacyName = useMemo(() => pharmacyCart?.pharmacyId?.name, [pharmacyCart]);
 
     const subtotal = useMemo(() => {
         return pharmacyItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
@@ -46,10 +52,35 @@ const PharmacyCart = () => {
         return pharmacyItems.some(item => item.medicineId?.prescription_required === "YES");
     }, [pharmacyItems]);
 
+    const handleFileChange = (e) => {
+        const files = Array.from(e.target.files);
+        // Requirement: Max 5 images
+        if (prescriptionFiles.length + files.length > 5) {
+            return toast.error("Maximum 5 prescription images allowed");
+        }
+        const validFiles = files.filter(file => file.type.startsWith('image/'));
+        if (validFiles.length !== files.length) {
+            toast.error("Only image files are allowed");
+        }
+        setPrescriptionFiles(prev => [...prev, ...validFiles]);
+    };
+
+    const removeFile = (index) => {
+        setPrescriptionFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const fetchDeliveryCharges = useCallback(async () => {
+        if (!pharmacyId) return;
+        try {
+            const res = await UserAPI.getPharmacyDeliveryCharges({ vendorId: pharmacyId });
+            if (res.success) setDeliveryChargesConfig(res.data);
+        } catch (error) { console.error("Delivery Charge Error:", error); }
+    }, [pharmacyId]);
+
     const fetchSuggested = useCallback(async () => {
         if (pharmacyItems.length === 0) return;
         try {
-            const response = await UserAPI.getCouponsForCart();
+            const response = await UserAPI.getPharmacyCoupons();
             if (response.success) setAvailableCoupons(response.data);
         } catch (error) { console.error(error); }
     }, [pharmacyItems.length]);
@@ -70,7 +101,8 @@ const PharmacyCart = () => {
     useEffect(() => {
         fetchSuggested();
         fetchAddresses();
-    }, [fetchSuggested, fetchAddresses]);
+        fetchDeliveryCharges();
+    }, [fetchSuggested, fetchAddresses, fetchDeliveryCharges]);
 
     const handleApplyCoupon = async (name) => {
         const codeToApply = name || couponCode;
@@ -78,7 +110,7 @@ const PharmacyCart = () => {
         if (!pharmacyId) return toast.error("Pharmacy information missing");
         setIsValidating(true);
         try {
-            const res = await UserAPI.validateCouponCart(codeToApply.toUpperCase(), pharmacyId, subtotal);
+            const res = await UserAPI.validatePharmacyCoupon(codeToApply.toUpperCase(), pharmacyId, subtotal);
             if (res.success) {
                 setAppliedCouponName(codeToApply.toUpperCase());
                 setServerDiscount(res.discount);
@@ -96,27 +128,106 @@ const PharmacyCart = () => {
         if (appliedCouponName) handleApplyCoupon(appliedCouponName);
     }, [subtotal]);
 
-    // Handle changing delivery speed (resets slot fee if not slot)
     const handleSetDeliveryOption = (option) => {
         setDeliveryOption(option);
         if (option !== 'slot') {
             setSlotFee(0);
             setSelectedSlot(null);
+            setRawSlotData(null);
         }
     };
 
     const totals = useMemo(() => {
         const discountedAmount = Math.max(0, subtotal - serverDiscount);
-        const shippingFee = (subtotal >= 500 || subtotal === 0) ? 0 : 40;
-        // Include Slot Charge (slotFee) in total
+        let shippingFee = 40;
+        let freeThreshold = 500;
+
+        if (deliveryChargesConfig) {
+            freeThreshold = deliveryChargesConfig.freeDeliveryThreshold;
+            shippingFee = subtotal >= freeThreshold ? 0 : (deliveryChargesConfig.fixedPrice || 40);
+        } else {
+            shippingFee = subtotal >= 500 ? 0 : 40;
+        }
+
+        // If self pickup, shipping is 0
+        if (collectionType === 'Self Pickup') shippingFee = 0;
+
+        const fastFee = (deliveryOption === 'fast' && deliveryChargesConfig && collectionType === 'Home Delivery') ? deliveryChargesConfig.fastDeliveryExtra : 0;
+        const currentSlotFee = (deliveryOption === 'slot' && collectionType === 'Home Delivery') ? slotFee : 0;
+        const tax = deliveryChargesConfig?.taxInRupees || 0;
+
         return {
             subtotal,
             discount: serverDiscount,
             shippingFee,
-            slotFee, // Pass to billing summary
-            total: discountedAmount + shippingFee + slotFee
+            fastFee,
+            slotFee: currentSlotFee,
+            tax,
+            freeThreshold,
+            total: discountedAmount + shippingFee + fastFee + currentSlotFee + tax
         };
-    }, [subtotal, serverDiscount, slotFee]);
+    }, [subtotal, serverDiscount, slotFee, deliveryOption, deliveryChargesConfig, collectionType]);
+
+    // --- FINAL CHECKOUT HANDLER ---
+    const onConfirmCheckout = async () => {
+        if (collectionType === 'Home Delivery' && !selectedAddress) return toast.error("Please select a delivery address");
+        if (needsPrescription && prescriptionFiles.length === 0) return toast.error("Prescription upload is required");
+
+        setIsSubmitting(true);
+        try {
+            const formData = new FormData();
+
+            // 1. Appointment Date/Time Logic (YYYY-MM-DD / HH:MM AM/PM)
+            let appDate = new Date().toISOString().split('T')[0];
+            let appTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+            if (deliveryOption === 'slot' && rawSlotData) {
+                appDate = rawSlotData.date; // Should be YYYY-MM-DD
+                appTime = rawSlotData.time; // Should be HH:MM AM/PM
+            }
+
+            // 2. Append Text Fields
+            formData.append('appointmentDate', appDate);
+            formData.append('appointmentTime', appTime);
+            formData.append('collectionType', collectionType);
+            formData.append('isRapid', deliveryOption === 'fast' ? "true" : "false");
+            formData.append('paymentMethod', "COD");
+
+            // Send address as Stringified JSON
+            if (selectedAddress) {
+                formData.append('address', JSON.stringify({
+                    name: selectedAddress.name,
+                    phone: selectedAddress.phone,
+                    houseNo: selectedAddress.houseNo,
+                    city: selectedAddress.city,
+                    pincode: selectedAddress.pincode,
+                    state: selectedAddress.state,
+                    landmark: selectedAddress.landmark,
+                    addressType: selectedAddress.addressType
+                }));
+            }
+
+            if (appliedCouponName) formData.append('couponName', appliedCouponName);
+
+            // 3. Append Files (Max 5)
+            prescriptionFiles.forEach((file) => {
+                formData.append('prescriptionImages', file);
+            });
+
+            const res = await UserAPI.checkoutPharmacyOrder(formData);
+
+            if (res.success) {
+                toast.success("Order Placed Successfully!");
+                await clearFullCart();
+                router.push(`/order-success/pharmacy?id=${res.data?._id || ''}`);
+            }
+        } catch (error) {
+            console.error("Checkout Error:", error);
+            toast.error(error.response?.data?.message || "Failed to place order");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
     if (loading && pharmacyItems.length === 0) return <div className="p-20 text-center font-bold text-slate-400 animate-pulse">Syncing Pharmacy Cart...</div>;
 
@@ -143,6 +254,7 @@ const PharmacyCart = () => {
             <div className="max-w-7xl mx-auto px-4">
                 <div className="flex flex-col lg:flex-row gap-8 items-start">
                     <div className="flex-1 w-full space-y-6">
+
                         <div className="space-y-4">
                             <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
                                 <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">1</span>
@@ -176,66 +288,117 @@ const PharmacyCart = () => {
                             </div>
                         </div>
 
-                        <div className="space-y-3">
-                            <div className="bg-emerald-900 text-white rounded-2xl p-4 flex justify-between items-center shadow-lg shadow-emerald-100">
-                                <div>
-                                    <p className="text-[9px] font-black uppercase tracking-[1px] opacity-70">Fulfillment Partner</p>
-                                    <p className="text-sm font-black uppercase">{pharmacyName}</p>
-                                </div>
-                                <div className="flex flex-col items-end">
-                                    <div className="flex items-center gap-2 text-emerald-400 font-black text-[10px] uppercase"><FaTruck size={12} /> Authorized Store</div>
+                        {needsPrescription && (
+                            <div className="space-y-4">
+                                <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
+                                    <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">!</span>
+                                    Upload Prescription
+                                </h2>
+                                <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm space-y-4">
+                                    <div className="flex items-start gap-4 p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                                        <FaFilePrescription className="text-amber-600 shrink-0 mt-1" size={18} />
+                                        <div className="space-y-1">
+                                            <p className="text-xs font-black text-amber-900 uppercase">Prescription Required</p>
+                                            <p className="text-[10px] text-amber-700 font-bold leading-tight">Your order contains medicines that require a prescription. Please upload at least one image.</p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                                        {prescriptionFiles.map((file, idx) => (
+                                            <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 group">
+                                                <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" />
+                                                <button onClick={() => removeFile(idx)} className="absolute top-1 right-1 bg-rose-500 text-white p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"><FaTrash size={10} /></button>
+                                            </div>
+                                        ))}
+                                        {prescriptionFiles.length < 5 && (
+                                            <label className="aspect-square border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-slate-50 cursor-pointer transition-colors group">
+                                                <FaCamera className="text-gray-300 group-hover:text-emerald-500 transition-colors" size={20} />
+                                                <span className="text-[9px] font-black text-gray-400 uppercase">Add Image</span>
+                                                <input type="file" hidden accept="image/*" multiple onChange={handleFileChange} name="prescriptionImages" />
+                                            </label>
+                                        )}
+                                    </div>
+                                    {prescriptionFiles.length > 0 && (
+                                        <div className="flex items-center gap-2 text-emerald-600 text-[10px] font-black uppercase">
+                                            <FaCheckCircle /> {prescriptionFiles.length} Prescription(s) Added
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                            {needsPrescription && (
-                                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex items-center gap-3">
-                                    <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center shrink-0"><FaFilePrescription className="text-amber-600" size={14} /></div>
-                                    <p className="text-[10px] text-amber-700 font-black uppercase leading-tight">Rx Required: A valid doctor's prescription is mandatory for some items.</p>
-                                </div>
-                            )}
-                        </div>
+                        )}
 
                         <div className="space-y-4">
                             <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
                                 <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">2</span>
-                                Delivery Preference
+                                Collection Type
                             </h2>
-                            <PharmacyDeliverySection
-                                deliveryOption={deliveryOption}
-                                setDeliveryOption={handleSetDeliveryOption}
-                                selectedSlot={selectedSlot}
-                                openSlotModal={() => setIsSlotModalOpen(true)}
-                            />
+                            <div className="grid grid-cols-2 gap-4">
+                                <button
+                                    onClick={() => setCollectionType('Home Delivery')}
+                                    className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-3 ${collectionType === 'Home Delivery' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-white'}`}
+                                >
+                                    <FaTruck className={collectionType === 'Home Delivery' ? 'text-emerald-600' : 'text-slate-300'} />
+                                    <span className={`text-[10px] font-black uppercase tracking-wider ${collectionType === 'Home Delivery' ? 'text-emerald-900' : 'text-slate-500'}`}>Home Delivery</span>
+                                </button>
+                                <button
+                                    onClick={() => setCollectionType('Self Pickup')}
+                                    className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-3 ${collectionType === 'Self Pickup' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 bg-white'}`}
+                                >
+                                    <FaStore className={collectionType === 'Self Pickup' ? 'text-emerald-600' : 'text-slate-300'} />
+                                    <span className={`text-[10px] font-black uppercase tracking-wider ${collectionType === 'Self Pickup' ? 'text-emerald-900' : 'text-slate-500'}`}>Self Pickup</span>
+                                </button>
+                            </div>
                         </div>
 
-                        <div className="space-y-4">
-                            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
-                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">3</span>
-                                Delivery Address
-                            </h2>
-                            <PharmacyAddressSection addresses={addresses} selectedAddress={selectedAddress} setSelectedAddress={setSelectedAddress} isLoading={isAddressLoading} />
-                        </div>
+                        {collectionType === 'Home Delivery' && (
+                            <>
+                                <div className="space-y-4">
+                                    <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
+                                        <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">3</span>
+                                        Delivery Preference
+                                    </h2>
+                                    <PharmacyDeliverySection
+                                        deliveryOption={deliveryOption}
+                                        setDeliveryOption={handleSetDeliveryOption}
+                                        selectedSlot={selectedSlot}
+                                        openSlotModal={() => setIsSlotModalOpen(true)}
+                                    />
+                                </div>
+
+                                <div className="space-y-4">
+                                    <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
+                                        <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">4</span>
+                                        Delivery Address
+                                    </h2>
+                                    <PharmacyAddressSection addresses={addresses} selectedAddress={selectedAddress} setSelectedAddress={setSelectedAddress} isLoading={isAddressLoading} />
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <div className="w-full lg:w-[400px] space-y-6 sticky top-6">
                         <PharmacyCouponSection availableCoupons={availableCoupons} couponCode={couponCode} setCouponCode={setCouponCode} appliedCouponName={appliedCouponName} setAppliedCouponName={setAppliedCouponName} setServerDiscount={setServerDiscount} handleApplyCoupon={handleApplyCoupon} isValidating={isValidating} />
 
-                        {/* Summary updated to show totals (including slotFee) */}
-                        <PharmacyBillingSummary totals={totals} selectedAddress={selectedAddress} subtotal={subtotal} />
-
-                        <div className="px-2">
-                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest text-center leading-relaxed">Safe and Secure Payments • 100% Genuine Medicines • Easy Returns</p>
-                        </div>
+                        <PharmacyBillingSummary
+                            totals={totals}
+                            selectedAddress={selectedAddress}
+                            subtotal={subtotal}
+                            needsPrescription={needsPrescription}
+                            prescriptionFiles={prescriptionFiles}
+                            onConfirm={onConfirmCheckout}
+                            isSubmitting={isSubmitting}
+                        />
                     </div>
                 </div>
             </div>
 
-            <PharmacySlotModal
+            <PharmacySlotModal  
                 isOpen={isSlotModalOpen}
                 onClose={() => setIsSlotModalOpen(false)}
                 pharmacyId={pharmacyId}
                 onSelectSlot={(data) => {
-                    setSelectedSlot(data.displayText); // e.g., "25 Apr, 09:30 (Morning)"
-                    setSlotFee(data.fee);              // e.g., 159
+                    setSelectedSlot(data.displayText);
+                    setRawSlotData({ date: data.apiDate, time: data.apiTime });
+                    setSlotFee(data.fee);
                     setDeliveryOption('slot');
                     setIsSlotModalOpen(false);
                 }}
