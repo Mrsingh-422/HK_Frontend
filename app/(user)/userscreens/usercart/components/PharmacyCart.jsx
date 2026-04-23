@@ -2,15 +2,17 @@
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaPills, FaSpinner, FaTruck, FaFilePrescription, FaPrescriptionBottleAlt, FaMinus, FaPlus } from 'react-icons/fa';
+import { FaPills, FaSpinner, FaTruck, FaFilePrescription, FaPrescriptionBottleAlt, FaMinus, FaPlus, FaClock, FaCalendarAlt, FaChevronRight } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
 import UserAPI from '@/app/services/UserAPI';
 
-// Import New Modular Components
+// Import Modular Components
 import PharmacyAddressSection from './PharmacyAddressSection';
 import PharmacyCouponSection from './PharmacyCouponSection';
 import PharmacyBillingSummary from './PharmacyBillingSummary';
+import PharmacyDeliverySection from './PharmacyDeliverySection';
+import PharmacySlotModal from './PharmacySlotModal';
 
 const PharmacyCart = () => {
     const router = useRouter();
@@ -26,8 +28,14 @@ const PharmacyCart = () => {
     const [selectedAddress, setSelectedAddress] = useState(null);
     const [isAddressLoading, setIsAddressLoading] = useState(false);
 
+    // Delivery & Slot States
+    const [deliveryOption, setDeliveryOption] = useState('fast');
+    const [selectedSlot, setSelectedSlot] = useState(null);
+    const [slotFee, setSlotFee] = useState(0); // Added slot fee state
+    const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
+
     const pharmacyItems = useMemo(() => pharmacyCart?.items || [], [pharmacyCart]);
-    const pharmacyId = useMemo(() => pharmacyCart?.pharmacyId?._id, [pharmacyCart]);
+    const pharmacyId = useMemo(() => pharmacyCart?.pharmacyId?._id || pharmacyCart?.pharmacyId, [pharmacyCart]);
     const pharmacyName = useMemo(() => pharmacyCart?.pharmacyId?.name, [pharmacyCart]);
 
     const subtotal = useMemo(() => {
@@ -88,11 +96,27 @@ const PharmacyCart = () => {
         if (appliedCouponName) handleApplyCoupon(appliedCouponName);
     }, [subtotal]);
 
+    // Handle changing delivery speed (resets slot fee if not slot)
+    const handleSetDeliveryOption = (option) => {
+        setDeliveryOption(option);
+        if (option !== 'slot') {
+            setSlotFee(0);
+            setSelectedSlot(null);
+        }
+    };
+
     const totals = useMemo(() => {
         const discountedAmount = Math.max(0, subtotal - serverDiscount);
         const shippingFee = (subtotal >= 500 || subtotal === 0) ? 0 : 40;
-        return { subtotal, discount: serverDiscount, shippingFee, total: discountedAmount + shippingFee };
-    }, [subtotal, serverDiscount]);
+        // Include Slot Charge (slotFee) in total
+        return {
+            subtotal,
+            discount: serverDiscount,
+            shippingFee,
+            slotFee, // Pass to billing summary
+            total: discountedAmount + shippingFee + slotFee
+        };
+    }, [subtotal, serverDiscount, slotFee]);
 
     if (loading && pharmacyItems.length === 0) return <div className="p-20 text-center font-bold text-slate-400 animate-pulse">Syncing Pharmacy Cart...</div>;
 
@@ -107,85 +131,115 @@ const PharmacyCart = () => {
     }
 
     return (
-        <div className="bg-gray-50 min-h-screen pb-20">
-            <div className="max-w-7xl mx-auto px-4 py-6">
+        <div className="bg-[#F8FAFC] min-h-screen pb-20">
+            <div className="bg-white border-b border-gray-100 px-4 py-4 mb-6">
+                <div className="max-w-7xl mx-auto flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <span className="hover:text-emerald-600 cursor-pointer" onClick={() => router.push('/')}>Home</span>
+                    <FaChevronRight size={8} />
+                    <span className="text-slate-900">Pharmacy Checkout</span>
+                </div>
+            </div>
+
+            <div className="max-w-7xl mx-auto px-4">
                 <div className="flex flex-col lg:flex-row gap-8 items-start">
-                    <div className="flex-1 w-full space-y-4">
-                        
-                        {/* 1. MODULAR ADDRESS SECTION */}
-                        <PharmacyAddressSection 
-                            addresses={addresses} 
-                            selectedAddress={selectedAddress} 
-                            setSelectedAddress={setSelectedAddress} 
-                            isLoading={isAddressLoading} 
-                        />
+                    <div className="flex-1 w-full space-y-6">
+                        <div className="space-y-4">
+                            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
+                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">1</span>
+                                Review Items ({pharmacyItems.length})
+                            </h2>
+                            <div className="space-y-3">
+                                {pharmacyItems.map((item) => (
+                                    <div key={item._id} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
+                                        <div className="w-20 h-20 bg-slate-50 rounded-xl flex items-center justify-center border border-gray-50 flex-shrink-0 overflow-hidden">
+                                            {item.medicineId?.image_url?.[0] ? <img src={item.medicineId.image_url[0]} className="w-full h-full object-contain p-2 mix-blend-multiply" /> : <FaPills size={24} className="text-emerald-600 opacity-20" />}
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h3 className="font-bold text-slate-900 text-md leading-tight">{item.name}</h3>
+                                                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter mt-1">{item.medicineId?.manufacturers}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="font-black text-slate-900 text-lg">₹{(item.price * item.quantity).toLocaleString()}</p>
+                                                    <button onClick={() => removePharmacyItem(item.medicineId._id)} className="text-[10px] text-rose-500 font-black uppercase tracking-wider hover:underline">Remove</button>
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 flex items-center bg-slate-50 border border-slate-100 rounded-lg w-fit overflow-hidden">
+                                                <button onClick={() => updatePharmacyCartQuantity(item.medicineId._id, 'dec')} className="px-3 py-1.5 hover:bg-white text-slate-400 transition-colors"><FaMinus size={10} /></button>
+                                                <span className="px-4 text-xs font-black text-slate-900 border-x border-slate-100">{item.quantity}</span>
+                                                <button onClick={() => updatePharmacyCartQuantity(item.medicineId._id, 'inc')} className="px-3 py-1.5 hover:bg-white text-slate-400 transition-colors"><FaPlus size={10} /></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
 
                         <div className="space-y-3">
-                            <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex justify-between items-center">
-                                <p className="text-emerald-700 text-sm font-bold uppercase">Ordering From: <span className="font-black">{pharmacyName}</span></p>
-                                <div className="flex items-center gap-2 text-emerald-600 font-bold text-[10px] uppercase"><FaTruck /> Fast Home Delivery</div>
+                            <div className="bg-emerald-900 text-white rounded-2xl p-4 flex justify-between items-center shadow-lg shadow-emerald-100">
+                                <div>
+                                    <p className="text-[9px] font-black uppercase tracking-[1px] opacity-70">Fulfillment Partner</p>
+                                    <p className="text-sm font-black uppercase">{pharmacyName}</p>
+                                </div>
+                                <div className="flex flex-col items-end">
+                                    <div className="flex items-center gap-2 text-emerald-400 font-black text-[10px] uppercase"><FaTruck size={12} /> Authorized Store</div>
+                                </div>
                             </div>
                             {needsPrescription && (
-                                <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex items-center gap-3">
-                                    <FaFilePrescription className="text-rose-500 shrink-0" size={18} />
-                                    <p className="text-[10px] text-rose-600 font-bold uppercase">Note: Some items require a doctor's prescription.</p>
+                                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center shrink-0"><FaFilePrescription className="text-amber-600" size={14} /></div>
+                                    <p className="text-[10px] text-amber-700 font-black uppercase leading-tight">Rx Required: A valid doctor's prescription is mandatory for some items.</p>
                                 </div>
                             )}
                         </div>
 
-                        {pharmacyItems.map((item) => (
-                            <div key={item._id} className="bg-white border border-gray-200 rounded-xl p-5 flex items-center gap-5 shadow-sm">
-                                <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center border border-gray-100 flex-shrink-0 overflow-hidden">
-                                    {item.medicineId?.image_url?.[0] ? <img src={item.medicineId.image_url[0]} className="w-full h-full object-contain p-1" /> : <FaPills size={24} className="text-emerald-600 opacity-20" />}
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <h3 className="font-bold text-gray-900 text-lg leading-tight">{item.name}</h3>
-                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-100 px-2 py-0.5 rounded inline-block mt-1">{item.medicineId?.manufacturers}</span>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="font-bold text-gray-900 text-lg">₹{(item.price * item.quantity).toLocaleString()}</p>
-                                            <button onClick={() => removePharmacyItem(item.medicineId._id)} className="text-xs text-rose-500 font-semibold hover:underline">Remove</button>
-                                        </div>
-                                    </div>
-                                    <div className="mt-4 flex items-center border border-gray-200 rounded-lg w-fit overflow-hidden">
-                                        <button onClick={() => updatePharmacyCartQuantity(item.medicineId._id, 'dec')} className="px-3 py-1 bg-gray-50"><FaMinus size={10} /></button>
-                                        <span className="px-4 text-sm font-bold">{item.quantity}</span>
-                                        <button onClick={() => updatePharmacyCartQuantity(item.medicineId._id, 'inc')} className="px-3 py-1 bg-gray-50"><FaPlus size={10} /></button>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+                        <div className="space-y-4">
+                            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
+                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">2</span>
+                                Delivery Preference
+                            </h2>
+                            <PharmacyDeliverySection
+                                deliveryOption={deliveryOption}
+                                setDeliveryOption={handleSetDeliveryOption}
+                                selectedSlot={selectedSlot}
+                                openSlotModal={() => setIsSlotModalOpen(true)}
+                            />
+                        </div>
+
+                        <div className="space-y-4">
+                            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
+                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">3</span>
+                                Delivery Address
+                            </h2>
+                            <PharmacyAddressSection addresses={addresses} selectedAddress={selectedAddress} setSelectedAddress={setSelectedAddress} isLoading={isAddressLoading} />
+                        </div>
                     </div>
 
-                    <div className="w-full lg:w-[400px] space-y-6">
-                        {/* 2. MODULAR COUPON SECTION */}
-                        <PharmacyCouponSection 
-                            availableCoupons={availableCoupons}
-                            couponCode={couponCode}
-                            setCouponCode={setCouponCode}
-                            appliedCouponName={appliedCouponName}
-                            setAppliedCouponName={setAppliedCouponName}
-                            setServerDiscount={setServerDiscount}
-                            handleApplyCoupon={handleApplyCoupon}
-                            isValidating={isValidating}
-                        />
+                    <div className="w-full lg:w-[400px] space-y-6 sticky top-6">
+                        <PharmacyCouponSection availableCoupons={availableCoupons} couponCode={couponCode} setCouponCode={setCouponCode} appliedCouponName={appliedCouponName} setAppliedCouponName={setAppliedCouponName} setServerDiscount={setServerDiscount} handleApplyCoupon={handleApplyCoupon} isValidating={isValidating} />
 
-                        {/* 3. MODULAR BILLING SUMMARY */}
-                        <PharmacyBillingSummary 
-                            totals={totals} 
-                            selectedAddress={selectedAddress} 
-                            subtotal={subtotal} 
-                        />
+                        {/* Summary updated to show totals (including slotFee) */}
+                        <PharmacyBillingSummary totals={totals} selectedAddress={selectedAddress} subtotal={subtotal} />
+
+                        <div className="px-2">
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest text-center leading-relaxed">Safe and Secure Payments • 100% Genuine Medicines • Easy Returns</p>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <style jsx>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-            `}</style>
+            <PharmacySlotModal
+                isOpen={isSlotModalOpen}
+                onClose={() => setIsSlotModalOpen(false)}
+                pharmacyId={pharmacyId}
+                onSelectSlot={(data) => {
+                    setSelectedSlot(data.displayText); // e.g., "25 Apr, 09:30 (Morning)"
+                    setSlotFee(data.fee);              // e.g., 159
+                    setDeliveryOption('slot');
+                    setIsSlotModalOpen(false);
+                }}
+            />
         </div>
     );
 };

@@ -8,7 +8,7 @@ export const CartProvider = ({ children }) => {
     // State for Lab Cart
     const [cart, setCart] = useState(null);
     const [cartItemIds, setCartItemIds] = useState([]);
-    
+
     // State for Pharmacy Cart
     const [pharmacyCart, setPharmacyCart] = useState(null);
     const [pharmacyItemIds, setPharmacyItemIds] = useState([]);

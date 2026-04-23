@@ -17,6 +17,10 @@ import {
 } from 'lucide-react';
 import UserAPI from '@/app/services/UserAPI';
 
+// Updated to match your Postman URL: http://192.168.1.9:5002
+// const BACKEND_URL = "http://192.168.1.9:5002";/
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
 const RANDOM_IMAGES = [
     "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=500&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=500&auto=format&fit=crop",
@@ -27,23 +31,11 @@ const RANDOM_IMAGES = [
     "https://images.unsplash.com/photo-1628771065518-0d82f1938462?q=80&w=500&auto=format&fit=crop"
 ];
 
-const CATEGORIES = [
-    "All",
-    "Medicines",
-    "Diabetes",
-    "Cardiac Care",
-    "Respiratory",
-    "Fitness & Supplements",
-    "Anti Infectives",
-    "Baby Care",
-    "Devices",
-    "Personal Care"
-];
-
 function AllPharmacyProducts() {
     const router = useRouter();
 
     const [products, setProducts] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -52,6 +44,27 @@ function AllPharmacyProducts() {
     const [activeCategory, setActiveCategory] = useState("All");
 
     const limit = 12;
+
+    // Fetch Categories
+    useEffect(() => {
+        const fetchCategories = async () => {
+            try {
+                const res = await UserAPI.getPharmacyCategories();
+                if (res && res.success) {
+                    // Prepend "All" category
+                    const allCat = {
+                        name: "All",
+                        productCount: null,
+                        image: "https://cdn-icons-png.flaticon.com/512/822/822143.png"
+                    };
+                    setCategories([allCat, ...res.data]);
+                }
+            } catch (error) {
+                console.error("Failed to fetch categories:", error);
+            }
+        };
+        fetchCategories();
+    }, []);
 
     const fetchProducts = useCallback(async () => {
         setLoading(true);
@@ -96,6 +109,18 @@ function AllPharmacyProducts() {
         router.push(`/buymedicine/singleproductdetail/${productId}`);
     };
 
+    // Robust Image Helper specifically for http://192.168.1.9:5002/
+    const getCategoryImage = (path) => {
+        if (!path) return "https://cdn-icons-png.flaticon.com/512/822/822143.png";
+
+        // If it's already a full URL
+        if (path.startsWith("http")) return path;
+
+        // Ensure path starts with a slash if it doesn't have one, but check if we need to remove duplicate slashes
+        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+        return `${BACKEND_URL}${cleanPath}`;
+    };
+
     return (
         <div className="min-h-screen bg-gray-50 font-sans pb-20">
             <div className="max-w-7xl mx-auto px-4 pt-8">
@@ -130,19 +155,42 @@ function AllPharmacyProducts() {
                         </div>
                     </div>
 
-                    {/* --- CATEGORY SELECTOR --- */}
-                    <div className="mt-8 border-t border-gray-100 pt-6">
-                        <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
-                            {CATEGORIES.map((cat) => (
+                    {/* --- CATEGORY SELECTOR (Circular with Text & Count Below) --- */}
+                    <div className="mt-10 border-t border-gray-100 pt-8">
+                        <div className="flex items-start gap-8 overflow-x-auto pb-6 no-scrollbar">
+                            {categories.map((cat) => (
                                 <button
-                                    key={cat}
-                                    onClick={() => handleFilterChange('category', cat)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all border ${activeCategory === cat
-                                        ? "bg-[#08B36A] text-white border-[#08B36A] shadow-sm"
-                                        : "bg-white text-gray-600 border-gray-200 hover:border-[#08B36A] hover:text-[#08B36A]"
-                                        }`}
+                                    key={cat.name}
+                                    onClick={() => handleFilterChange('category', cat.name)}
+                                    className="flex flex-col items-center min-w-[90px] group transition-all"
                                 >
-                                    {cat}
+                                    {/* Circular Image Wrapper */}
+                                    <div className={`relative w-20 h-20 rounded-full flex items-center justify-center mb-2 transition-all duration-300 border-2 ${activeCategory === cat.name
+                                        ? "border-[#08B36A] bg-green-50 scale-110 shadow-lg shadow-green-100"
+                                        : "border-gray-100 bg-white group-hover:border-[#08B36A]/50"
+                                        }`}>
+                                        <div className="w-full h-full rounded-full overflow-hidden bg-white">
+                                            <img
+                                                src={getCategoryImage(cat.image)}
+                                                alt={cat.name}
+                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                                onError={(e) => { e.target.src = "https://cdn-icons-png.flaticon.com/512/822/822143.png" }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Name and Count Below */}
+                                    <div className="flex flex-col items-center gap-0.5">
+                                        <span className={`text-[11px] md:text-xs font-bold text-center leading-tight transition-colors ${activeCategory === cat.name ? "text-[#08B36A]" : "text-gray-600 group-hover:text-[#08B36A]"
+                                            }`}>
+                                            {cat.name}
+                                        </span>
+                                        {cat.productCount !== null && (
+                                            <span className="text-[10px] text-gray-400 font-medium">
+                                                {cat.productCount} Items
+                                            </span>
+                                        )}
+                                    </div>
                                 </button>
                             ))}
                         </div>
@@ -178,14 +226,12 @@ function AllPharmacyProducts() {
                                     className="group flex flex-col bg-white border border-gray-200 rounded-2xl p-4 hover:shadow-xl hover:border-[#08B36A]/30 transition-all duration-300 cursor-pointer"
                                 >
                                     <div className="relative aspect-square w-full mb-4 bg-gray-50 rounded-xl overflow-hidden">
-                                        {/* Prescription Tag */}
                                         {product.prescription_required === "YES" && (
                                             <div className="absolute top-2 left-2 z-10 bg-red-50 text-red-600 text-[10px] font-bold px-2 py-0.5 rounded border border-red-100">
                                                 Rx Required
                                             </div>
                                         )}
 
-                                        {/* Discount Tag */}
                                         {product.discont_percent && parseInt(product.discont_percent) > 0 && (
                                             <div className="absolute top-2 right-2 z-10 bg-amber-400 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">
                                                 {product.discont_percent}% OFF

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
     ChevronRight,
@@ -18,35 +18,42 @@ import {
     CheckCircle2,
     Trash2,
     Store,
-    Info
+    Info,
+    X
 } from 'lucide-react';
 import UserAPI from '@/app/services/UserAPI';
 import { useCart } from '@/app/context/CartContext';
 import { toast } from 'react-hot-toast';
 
+// const BACKEND_URL = "http://192.168.1.9:5002";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5002";
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=800&auto=format&fit=crop";
 
 function ProductDetailPage() {
     const { id } = useParams();
     const router = useRouter();
 
-    // Updated to use Pharmacy specific states from Context
     const {
         pharmacyCart,
         addPharmacyToCart,
         updatePharmacyCartQuantity,
-        loading: cartLoading,
         removePharmacyItem,
+        clearFullCart,
     } = useCart();
 
     const [product, setProduct] = useState(null);
     const [vendors, setVendors] = useState([]);
+    const [selectedVendorIndex, setSelectedVendorIndex] = useState(0); 
     const [loading, setLoading] = useState(true);
     const [quantity, setQuantity] = useState(1);
     const [activeTab, setActiveTab] = useState('overview');
     const [processingId, setProcessingId] = useState(null);
+    
+    // Modal state for cart conflict
+    const [showConflictModal, setShowConflictModal] = useState(false);
+    const [pendingVendor, setPendingVendor] = useState(null);
 
-    // Find if current product is in pharmacy cart
+    // Check if product is in cart
     const cartProduct = pharmacyCart?.items?.find(item =>
         (item.medicineId?._id === id || item.medicineId === id)
     );
@@ -73,11 +80,12 @@ function ProductDetailPage() {
                 const res = await UserAPI.pharmacyProductDetail(id, params);
 
                 if (res && res.success) {
-                    setProduct(res.medicineData);
-                    setVendors(res.vendors || []);
+                    setProduct(res.data.medicineDetails);
+                    setVendors(res.data.availableInPharmacies || []);
                 }
             } catch (err) {
                 console.error("Error fetching product details", err);
+                toast.error("Failed to load product details");
             } finally {
                 setLoading(false);
             }
@@ -85,7 +93,6 @@ function ProductDetailPage() {
         if (id) fetchDetail();
     }, [id]);
 
-    // Sync quantity when cart data changes
     useEffect(() => {
         if (cartProduct) {
             setQuantity(cartProduct.quantity);
@@ -94,12 +101,9 @@ function ProductDetailPage() {
         }
     }, [cartProduct]);
 
-    // --- QUANTITY UPDATE LOGIC ---
     const handleUpdateQuantity = async (action) => {
         if (action === 'dec' && quantity <= 1) {
-            if (isAdded) {
-                await handleCartAction(); // Remove if dec below 1
-            }
+            if (isAdded) await handleCartAction();
             return;
         }
 
@@ -118,30 +122,39 @@ function ProductDetailPage() {
         }
     };
 
-    // --- ADD / REMOVE LOGIC ---
     const handleCartAction = async (selectedVendor = null) => {
-        const vendor = selectedVendor || vendors[0];
+        const vendor = selectedVendor || vendors[selectedVendorIndex] || vendors[0];
 
         if (!vendor) {
             toast.error("No pharmacy available for this product");
             return;
         }
 
+        // Logic to detect pharmacy conflict
+        if (!isAdded || selectedVendor) {
+            const currentPharmacyIdInCart = pharmacyCart?.items?.[0]?.pharmacyId?._id || pharmacyCart?.items?.[0]?.pharmacyId;
+            
+            if (currentPharmacyIdInCart && currentPharmacyIdInCart !== vendor.pharmacyId) {
+                setPendingVendor(vendor);
+                setShowConflictModal(true);
+                return;
+            }
+        }
+
         try {
             setProcessingId(id);
 
             if (isAdded && !selectedVendor) {
-                // REMOVE LOGIC: Using 'dec' action to 0 removes it via your controller logic
                 await removePharmacyItem(id);
                 toast.success("Removed from cart");
             } else {
-                // ADD LOGIC
                 await addPharmacyToCart(
                     vendor.pharmacyId,
                     id,
                     quantity,
                     "Full Course"
                 );
+                toast.success(`Added to cart from ${vendor.name}`);
             }
         } catch (error) {
             console.error("Cart Error:", error);
@@ -149,6 +162,33 @@ function ProductDetailPage() {
         } finally {
             setProcessingId(null);
         }
+    };
+
+    const handleConfirmClearCart = async () => {
+        if (!pendingVendor) return;
+        try {
+            setProcessingId(id);
+            await clearFullCart();
+            await addPharmacyToCart(
+                pendingVendor.pharmacyId,
+                id,
+                quantity,
+                "Full Course"
+            );
+            toast.success(`Cart cleared and added from ${pendingVendor.name}`);
+            setShowConflictModal(false);
+            setPendingVendor(null);
+        } catch (error) {
+            toast.error("Failed to update cart");
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    const getImageUrl = (path) => {
+        if (!path) return FALLBACK_IMAGE;
+        if (path.startsWith('http')) return path;
+        return `${BACKEND_URL}/${path.replace('public/', '')}`;
     };
 
     if (loading) return (
@@ -161,18 +201,52 @@ function ProductDetailPage() {
     );
 
     if (!product) return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+        <div className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center">
             <h2 className="text-lg font-bold text-gray-800">Product Not Found</h2>
-            <button onClick={() => router.back()} className="mt-4 px-6 py-2 bg-[#08B36A] text-white rounded-lg font-bold text-sm">
+            <p className="text-gray-500 mb-6">The medicine you are looking for is unavailable.</p>
+            <button onClick={() => router.back()} className="px-6 py-2 bg-[#08B36A] text-white rounded-lg font-bold text-sm">
                 Go Back
             </button>
         </div>
     );
 
-    const savings = parseInt(product.mrp) - parseInt(product.best_price);
+    const currentPrice = vendors[selectedVendorIndex]?.price || product.best_price;
+    const currentMrp = vendors[selectedVendorIndex]?.mrp || product.mrp;
+    const savings = parseInt(currentMrp) - parseInt(currentPrice);
 
     return (
         <div className="min-h-screen bg-[#F9FAFB] font-sans antialiased text-slate-900">
+            {/* Conflict Modal */}
+            {showConflictModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+                        <div className="p-8 text-center">
+                            <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <AlertCircle size={32} className="text-amber-500" />
+                            </div>
+                            <h3 className="text-xl font-black text-slate-900 mb-2 uppercase tracking-tight">Replace cart items?</h3>
+                            <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                                Your cart contains items from another pharmacy. Adding this will clear your current cart. Do you want to continue?
+                            </p>
+                        </div>
+                        <div className="flex border-t border-gray-100">
+                            <button 
+                                onClick={() => { setShowConflictModal(false); setPendingVendor(null); }}
+                                className="flex-1 px-6 py-4 text-xs font-black uppercase tracking-widest text-slate-400 hover:bg-gray-50 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleConfirmClearCart}
+                                className="flex-1 px-6 py-4 text-xs font-black uppercase tracking-widest bg-[#08B36A] text-white hover:bg-slate-900 transition-colors"
+                            >
+                                Clear & Add
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* --- BREADCRUMB --- */}
             <div className="bg-white border-b border-gray-200">
                 <div className="max-w-7xl mx-auto px-4 md:px-6 py-3.5">
@@ -204,9 +278,9 @@ function ProductDetailPage() {
                                             <ShieldAlert size={12} /> Rx Required
                                         </span>
                                     )}
-                                    {product.discont_percent && (
+                                    {(vendors[selectedVendorIndex]?.discount || parseInt(product.discont_percent)) > 0 && (
                                         <span className="bg-amber-500 text-white text-[10px] font-black px-2.5 py-1 rounded shadow-sm uppercase">
-                                            {product.discont_percent} OFF
+                                            {vendors[selectedVendorIndex]?.discount || product.discont_percent} OFF
                                         </span>
                                     )}
                                 </div>
@@ -238,9 +312,9 @@ function ProductDetailPage() {
                             <div className="py-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
                                 <div>
                                     <div className="flex items-center gap-3">
-                                        <span className="text-4xl font-black text-slate-900">₹{product.best_price}</span>
+                                        <span className="text-4xl font-black text-slate-900">₹{currentPrice}</span>
                                         <div className="flex flex-col">
-                                            <span className="text-gray-400 line-through text-sm font-bold">MRP ₹{product.mrp}</span>
+                                            <span className="text-gray-400 line-through text-sm font-bold">MRP ₹{currentMrp}</span>
                                             <span className="text-[#08B36A] text-[10px] font-black uppercase tracking-tighter italic">Save ₹{savings}</span>
                                         </div>
                                     </div>
@@ -286,7 +360,7 @@ function ProductDetailPage() {
 
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-6 pt-6 border-t border-gray-50">
                                 <QuickInfo label="Primary Use" value={product.primary_use} />
-                                <QuickInfo label="Total Sellers" value={`${product.vendorCount} Vendors`} />
+                                <QuickInfo label="Total Sellers" value={`${product.totalSellers || vendors.length} Vendors`} />
                                 <QuickInfo label="Synonym" value={product.salt_synonmys} />
                             </div>
                         </div>
@@ -302,25 +376,40 @@ function ProductDetailPage() {
 
                             <div className="space-y-3">
                                 {vendors.map((vendor, index) => {
+                                    const isSelected = selectedVendorIndex === index;
                                     return (
-                                        <div key={index} className="p-4 bg-[#FBFBFB] border border-gray-100 rounded-xl hover:border-[#08B36A]/30 transition-all group">
+                                        <div
+                                            key={index}
+                                            onClick={() => setSelectedVendorIndex(index)}
+                                            className={`p-4 border rounded-xl transition-all group cursor-pointer ${isSelected ? "bg-emerald-50/30 border-[#08B36A] shadow-sm" : "bg-[#FBFBFB] border-gray-100 hover:border-[#08B36A]/30"}`}
+                                        >
                                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <p className="font-bold text-slate-800 text-sm group-hover:text-[#08B36A] transition-colors">{vendor.pharmacyName}</p>
-                                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${vendor.isOpen === "Open Now" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                                                            {vendor.isOpen}
-                                                        </span>
+                                                <div className="flex-1 flex gap-4">
+                                                    <div className="w-12 h-12 rounded-lg overflow-hidden border border-gray-100 shrink-0">
+                                                        <img
+                                                            src={getImageUrl(vendor.image)}
+                                                            className="w-full h-full object-cover"
+                                                            alt={vendor.name}
+                                                            onError={(e) => e.target.src = "https://cdn-icons-png.flaticon.com/512/822/822143.png"}
+                                                        />
                                                     </div>
-                                                    <div className="flex flex-wrap gap-x-4 gap-y-2">
-                                                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
-                                                            <MapPin size={12} className="text-[#08B36A]" /> {vendor.distance} km • {vendor.city}
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <p className={`font-bold text-sm transition-colors ${isSelected ? "text-[#08B36A]" : "text-slate-800 group-hover:text-[#08B36A]"}`}>{vendor.name}</p>
+                                                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${vendor.isOpen.includes("Open") ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                                                                {vendor.isOpen}
+                                                            </span>
                                                         </div>
-                                                        {vendor.isHomeDelivery && (
-                                                            <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-bold">
-                                                                <Truck size={12} /> Home Delivery
+                                                        <div className="flex flex-wrap gap-x-4 gap-y-2">
+                                                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                                                                <MapPin size={12} className="text-[#08B36A]" /> {vendor.distance} km • {vendor.address}
                                                             </div>
-                                                        )}
+                                                            {vendor.isHomeDelivery && (
+                                                                <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-bold">
+                                                                    <Truck size={12} /> Home Delivery
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center justify-between md:flex-col md:items-end gap-3 border-t md:border-t-0 pt-3 md:pt-0">
@@ -328,12 +417,15 @@ function ProductDetailPage() {
                                                         <p className="text-lg font-black text-slate-900">₹{vendor.price}</p>
                                                         <div className="flex items-center gap-2">
                                                             <span className="text-[10px] text-gray-400 line-through">₹{vendor.mrp}</span>
-                                                            <span className="text-[10px] text-orange-600 font-black">{vendor.discount}% OFF</span>
+                                                            {vendor.discount > 0 && <span className="text-[10px] text-orange-600 font-black">{vendor.discount}% OFF</span>}
                                                         </div>
                                                     </div>
                                                     <button
-                                                        onClick={() => handleCartAction(vendor)}
-                                                        className="bg-white border border-gray-200 text-gray-700 p-2 rounded-lg hover:bg-[#08B36A] hover:text-white transition-all shadow-sm"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleCartAction(vendor);
+                                                        }}
+                                                        className={`p-2 rounded-lg transition-all shadow-sm ${isSelected ? "bg-[#08B36A] text-white" : "bg-white border border-gray-200 text-gray-700 hover:bg-[#08B36A] hover:text-white"}`}
                                                     >
                                                         <ShoppingCart size={16} />
                                                     </button>

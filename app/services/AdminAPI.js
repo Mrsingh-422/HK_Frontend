@@ -386,12 +386,11 @@ const AdminAPI = {
         const response = await api.post('/admin/vendor-km-limit/set-km-limit', data);
         return response.data;
     },
-
     // Fetch all vendor KM limits
     adminGetVendorKMLimits: async () => {
         const response = await api.get('/admin/vendor-km-limit/get-km-limits');
         return response.data;
-    }
+    },
 
 };
 

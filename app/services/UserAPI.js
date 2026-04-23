@@ -38,10 +38,10 @@ const UserAPI = {
         const response = await publicApi.get("/user/labs/standard-packages/female");
         return response.data;
     },
-        getWomensTests: async () => {
-            const response = await publicApi.get("/user/labs/standard-tests/female");
-            return response.data;
-        },
+    getWomensTests: async () => {
+        const response = await publicApi.get("/user/labs/standard-tests/female");
+        return response.data;
+    },
 
     getStandardTestCatalog: async () => {
         const response = await publicApi.get("/user/labs/standard-tests");
@@ -95,14 +95,14 @@ const UserAPI = {
         const response = await publicApi.post(`/user/labs/${labId}/inventory-packages/search`, payload);
         return response.data;
     },
-    getFemalePackages: async () => {
-        const response = await publicApi.get("/user/labs/standard-packages/female");
-        return response.data;
-    },
-    getFemaleTests: async () => {
-        const response = await publicApi.get("/user/labs/standard-tests/female");
-        return response.data;
-    },
+    // getFemalePackages: async () => {
+    //     const response = await publicApi.get("/user/labs/standard-packages/female");
+    //     return response.data;
+    // },
+    // getFemaleTests: async () => {
+    //     const response = await publicApi.get("/user/labs/standard-tests/female");
+    //     return response.data;
+    // },
     checkoutLab: async (checkoutData) => {
         /**
          * Expected checkoutData object:
@@ -176,6 +176,21 @@ const UserAPI = {
     getSinglePharmacyMedicines: async (pharmacyId, params) => {
         // params example: { page: 1, limit: 10 }
         const response = await publicApi.get(`/user/medicine/pharmacies/${pharmacyId}`, { params });
+        return response.data;
+    },
+
+    getPharmacyCategories: async () => {
+        const response = await publicApi.get(`/user/pharmacy/categories`);
+        return response.data;
+    },
+
+    getPharmacySlots: async (pharmacyId, date) => {
+        const response = await authApi.get("/user/pharmacy/slots", {
+            params: {
+                pharmacyId,
+                date // This will be sent as ?pharmacyId=...&date=YYYY-MM-DD
+            }
+        });
         return response.data;
     },
 
@@ -369,6 +384,10 @@ const UserAPI = {
     },
     getLabDeliveryCharges: async (params) => {
         const response = await authApi.get("/user/labs/delivery-charges", { params });
+        return response.data;
+    },
+    getPharmacyDeliveryCharges: async (params) => {
+        const response = await authApi.get("/user/pharmacy/delivery-charges", { params });
         return response.data;
     },
     getAvailableCoupons: async () => {
