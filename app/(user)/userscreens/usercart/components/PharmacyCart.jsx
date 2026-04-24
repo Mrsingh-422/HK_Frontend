@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaPills, FaSpinner, FaTruck, FaFilePrescription, FaPrescriptionBottleAlt, FaMinus, FaPlus, FaClock, FaCalendarAlt, FaChevronRight, FaCamera, FaTrash, FaCheckCircle, FaStore } from 'react-icons/fa';
+import { FaPills, FaSpinner, FaTruck, FaFilePrescription, FaPrescriptionBottleAlt, FaMinus, FaPlus, FaClock, FaCalendarAlt, FaChevronRight, FaCamera, FaTrash, FaCheckCircle, FaStore, FaShieldAlt } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
 import UserAPI from '@/app/services/UserAPI';
@@ -52,9 +52,9 @@ const PharmacyCart = () => {
         return pharmacyItems.some(item => item.medicineId?.prescription_required === "YES");
     }, [pharmacyItems]);
 
+    // FIXED: Improved handleFileChange to ensure upload triggers every time
     const handleFileChange = (e) => {
         const files = Array.from(e.target.files);
-        // Requirement: Max 5 images
         if (prescriptionFiles.length + files.length > 5) {
             return toast.error("Maximum 5 prescription images allowed");
         }
@@ -62,7 +62,15 @@ const PharmacyCart = () => {
         if (validFiles.length !== files.length) {
             toast.error("Only image files are allowed");
         }
+        
         setPrescriptionFiles(prev => [...prev, ...validFiles]);
+        
+        // CRITICAL: Reset the input value so the same file can be picked again if deleted
+        e.target.value = null;
+        
+        if (validFiles.length > 0) {
+            toast.success(`${validFiles.length} file(s) added to prescription list`);
+        }
     };
 
     const removeFile = (index) => {
@@ -149,7 +157,6 @@ const PharmacyCart = () => {
             shippingFee = subtotal >= 500 ? 0 : 40;
         }
 
-        // If self pickup, shipping is 0
         if (collectionType === 'Self Pickup') shippingFee = 0;
 
         const fastFee = (deliveryOption === 'fast' && deliveryChargesConfig && collectionType === 'Home Delivery') ? deliveryChargesConfig.fastDeliveryExtra : 0;
@@ -168,32 +175,36 @@ const PharmacyCart = () => {
         };
     }, [subtotal, serverDiscount, slotFee, deliveryOption, deliveryChargesConfig, collectionType]);
 
-    // --- FINAL CHECKOUT HANDLER ---
+    // --- FINAL CHECKOUT HANDLER (FIXED FOR MULTIPART) ---
     const onConfirmCheckout = async () => {
         if (collectionType === 'Home Delivery' && !selectedAddress) return toast.error("Please select a delivery address");
-        if (needsPrescription && prescriptionFiles.length === 0) return toast.error("Prescription upload is required");
+        
+        // Prescription Validation
+        if (needsPrescription && prescriptionFiles.length === 0) {
+            return toast.error("One or more medicines in your cart require a valid prescription. Please upload it.");
+        }
 
         setIsSubmitting(true);
         try {
             const formData = new FormData();
 
-            // 1. Appointment Date/Time Logic (YYYY-MM-DD / HH:MM AM/PM)
+            // 1. Appointment Date/Time Logic
             let appDate = new Date().toISOString().split('T')[0];
             let appTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
             if (deliveryOption === 'slot' && rawSlotData) {
-                appDate = rawSlotData.date; // Should be YYYY-MM-DD
-                appTime = rawSlotData.time; // Should be HH:MM AM/PM
+                appDate = rawSlotData.date; 
+                appTime = rawSlotData.time; 
             }
 
-            // 2. Append Text Fields
+            // 2. Append Text Fields (Exactly as per backend endpoint specs)
             formData.append('appointmentDate', appDate);
             formData.append('appointmentTime', appTime);
             formData.append('collectionType', collectionType);
             formData.append('isRapid', deliveryOption === 'fast' ? "true" : "false");
             formData.append('paymentMethod', "COD");
 
-            // Send address as Stringified JSON
+            // Address as Stringified JSON
             if (selectedAddress) {
                 formData.append('address', JSON.stringify({
                     name: selectedAddress.name,
@@ -209,11 +220,12 @@ const PharmacyCart = () => {
 
             if (appliedCouponName) formData.append('couponName', appliedCouponName);
 
-            // 3. Append Files (Max 5)
+            // 3. Append Files (Array of Files)
             prescriptionFiles.forEach((file) => {
                 formData.append('prescriptionImages', file);
             });
 
+            // Call API
             const res = await UserAPI.checkoutPharmacyOrder(formData);
 
             if (res.success) {
@@ -242,7 +254,7 @@ const PharmacyCart = () => {
     }
 
     return (
-        <div className="bg-[#F8FAFC] min-h-screen pb-20">
+        <div className="bg-[#F8FAFC] min-h-screen pb-20 font-['Plus_Jakarta_Sans']">
             <div className="bg-white border-b border-gray-100 px-4 py-4 mb-6">
                 <div className="max-w-7xl mx-auto flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
                     <span className="hover:text-emerald-600 cursor-pointer" onClick={() => router.push('/')}>Home</span>
@@ -262,69 +274,64 @@ const PharmacyCart = () => {
                             </h2>
                             <div className="space-y-3">
                                 {pharmacyItems.map((item) => (
-                                    <div key={item._id} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
-                                        <div className="w-20 h-20 bg-slate-50 rounded-xl flex items-center justify-center border border-gray-50 flex-shrink-0 overflow-hidden">
-                                            {item.medicineId?.image_url?.[0] ? <img src={item.medicineId.image_url[0]} className="w-full h-full object-contain p-2 mix-blend-multiply" /> : <FaPills size={24} className="text-emerald-600 opacity-20" />}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <h3 className="font-bold text-slate-900 text-md leading-tight">{item.name}</h3>
-                                                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter mt-1">{item.medicineId?.manufacturers}</p>
+                                    <div key={item._id} className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col shadow-sm hover:shadow-md transition-shadow">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-20 h-20 bg-slate-50 rounded-xl flex items-center justify-center border border-gray-50 flex-shrink-0 overflow-hidden">
+                                                {item.medicineId?.image_url?.[0] ? <img src={item.medicineId.image_url[0]} className="w-full h-full object-contain p-2 mix-blend-multiply" /> : <FaPills size={24} className="text-emerald-600 opacity-20" />}
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h3 className="font-bold text-slate-900 text-md leading-tight">{item.name}</h3>
+                                                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter mt-1">{item.medicineId?.manufacturers}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="font-black text-slate-900 text-lg">₹{(item.price * item.quantity).toLocaleString()}</p>
+                                                        <button onClick={() => removePharmacyItem(item.medicineId._id)} className="text-[10px] text-rose-500 font-black uppercase tracking-wider hover:underline">Remove</button>
+                                                    </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="font-black text-slate-900 text-lg">₹{(item.price * item.quantity).toLocaleString()}</p>
-                                                    <button onClick={() => removePharmacyItem(item.medicineId._id)} className="text-[10px] text-rose-500 font-black uppercase tracking-wider hover:underline">Remove</button>
+                                                <div className="flex items-center justify-between mt-3">
+                                                    <div className="flex items-center bg-slate-50 border border-slate-100 rounded-lg w-fit overflow-hidden">
+                                                        <button onClick={() => updatePharmacyCartQuantity(item.medicineId._id, 'dec')} className="px-3 py-1.5 hover:bg-white text-slate-400 transition-colors"><FaMinus size={10} /></button>
+                                                        <span className="px-4 text-xs font-black text-slate-900 border-x border-slate-100">{item.quantity}</span>
+                                                        <button onClick={() => updatePharmacyCartQuantity(item.medicineId._id, 'inc')} className="px-3 py-1.5 hover:bg-white text-slate-400 transition-colors"><FaPlus size={10} /></button>
+                                                    </div>
+
+                                                    {/* UPLOAD Rx INSIDE CARD */}
+                                                    {item.medicineId?.prescription_required === "YES" && (
+                                                        <label className="flex items-center gap-2 bg-rose-50 text-rose-600 px-3 py-1.5 rounded-lg border border-rose-100 cursor-pointer hover:bg-rose-100 transition-colors">
+                                                            <FaCamera size={12} />
+                                                            <span className="text-[9px] font-black uppercase">Upload Rx</span>
+                                                            <input type="file" hidden accept="image/*" multiple onChange={handleFileChange} />
+                                                        </label>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <div className="mt-3 flex items-center bg-slate-50 border border-slate-100 rounded-lg w-fit overflow-hidden">
-                                                <button onClick={() => updatePharmacyCartQuantity(item.medicineId._id, 'dec')} className="px-3 py-1.5 hover:bg-white text-slate-400 transition-colors"><FaMinus size={10} /></button>
-                                                <span className="px-4 text-xs font-black text-slate-900 border-x border-slate-100">{item.quantity}</span>
-                                                <button onClick={() => updatePharmacyCartQuantity(item.medicineId._id, 'inc')} className="px-3 py-1.5 hover:bg-white text-slate-400 transition-colors"><FaPlus size={10} /></button>
-                                            </div>
                                         </div>
+
+                                        {/* PREVIEW INSIDE CARD */}
+                                        {item.medicineId?.prescription_required === "YES" && prescriptionFiles.length > 0 && (
+                                            <div className="mt-4 pt-4 border-t border-slate-50">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <FaCheckCircle className="text-emerald-500" size={10} />
+                                                    <span className="text-[9px] font-black uppercase text-slate-400">Prescription Files ({prescriptionFiles.length}/5)</span>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {prescriptionFiles.map((file, idx) => (
+                                                        <div key={idx} className="relative w-12 h-12 rounded-lg overflow-hidden border border-gray-100 group">
+                                                            <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" />
+                                                            <button onClick={() => removeFile(idx)} className="absolute inset-0 bg-rose-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <FaTrash size={8} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
                         </div>
-
-                        {needsPrescription && (
-                            <div className="space-y-4">
-                                <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
-                                    <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px]">!</span>
-                                    Upload Prescription
-                                </h2>
-                                <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm space-y-4">
-                                    <div className="flex items-start gap-4 p-4 bg-amber-50 border border-amber-100 rounded-xl">
-                                        <FaFilePrescription className="text-amber-600 shrink-0 mt-1" size={18} />
-                                        <div className="space-y-1">
-                                            <p className="text-xs font-black text-amber-900 uppercase">Prescription Required</p>
-                                            <p className="text-[10px] text-amber-700 font-bold leading-tight">Your order contains medicines that require a prescription. Please upload at least one image.</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-                                        {prescriptionFiles.map((file, idx) => (
-                                            <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 group">
-                                                <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" />
-                                                <button onClick={() => removeFile(idx)} className="absolute top-1 right-1 bg-rose-500 text-white p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"><FaTrash size={10} /></button>
-                                            </div>
-                                        ))}
-                                        {prescriptionFiles.length < 5 && (
-                                            <label className="aspect-square border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-slate-50 cursor-pointer transition-colors group">
-                                                <FaCamera className="text-gray-300 group-hover:text-emerald-500 transition-colors" size={20} />
-                                                <span className="text-[9px] font-black text-gray-400 uppercase">Add Image</span>
-                                                <input type="file" hidden accept="image/*" multiple onChange={handleFileChange} name="prescriptionImages" />
-                                            </label>
-                                        )}
-                                    </div>
-                                    {prescriptionFiles.length > 0 && (
-                                        <div className="flex items-center gap-2 text-emerald-600 text-[10px] font-black uppercase">
-                                            <FaCheckCircle /> {prescriptionFiles.length} Prescription(s) Added
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
 
                         <div className="space-y-4">
                             <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">

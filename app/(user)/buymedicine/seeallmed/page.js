@@ -9,6 +9,7 @@ import {
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 import AllPharmacyProducts from "./components/AllPharmacyProducts";
+import SecondNavbar from "../../components/SecondNavbar";
 
 // --- SKELETON COMPONENT ---
 const PharmacyCardSkeleton = () => (
@@ -117,8 +118,9 @@ export default function AllMedicinesPage() {
 
     return (
         <div className="min-h-screen font-sans bg-[#f8fafc] pb-20">
+            <SecondNavbar />
             {/* STICKY NAV */}
-            <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 py-4">
+            {/* <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 py-4">
                 <div className="max-w-6xl mx-auto flex items-center justify-between">
                     <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-500 font-bold text-xs uppercase tracking-widest hover:text-[#08B36A] transition-colors">
                         <FaArrowLeft /> Back
@@ -128,9 +130,9 @@ export default function AllMedicinesPage() {
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-800">Pharmacy Hub</span>
                     </div>
                 </div>
-            </nav>
+            </nav> */}
 
-            <div className="max-w-6xl mx-auto pt-4 px-4">
+            <div className="max-w-8xl mx-auto pt-4 px-4">
 
                 {/* SIMPLIFIED SEARCH BAR */}
                 <div className="mb-10">

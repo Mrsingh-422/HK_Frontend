@@ -17,13 +17,13 @@ function page() {
         <>
             <SecondNavbar />
             <OnlinePharmacy />
-            <FeaturedProducts />
-            <DeclareThePast />
-            <TheBestOfBest />
-            <BestSellings />
-            <RecomendedMedicines />
-            <AboutUsMed />
-            <OurPharmacyPartners />
+            {/* <FeaturedProducts /> */}
+            {/* <DeclareThePast /> */}
+            {/* <TheBestOfBest /> */}
+            {/* <BestSellings /> */}
+            {/* <RecomendedMedicines /> */}
+            {/* <AboutUsMed /> */}
+            {/* <OurPharmacyPartners /> */}
             <FromHealthMed />
         </>
     )
