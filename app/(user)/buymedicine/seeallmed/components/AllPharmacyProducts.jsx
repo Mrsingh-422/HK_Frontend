@@ -35,7 +35,6 @@ function AllPharmacyProducts() {
     const router = useRouter();
 
     const [products, setProducts] = useState([]);
-    const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -44,27 +43,6 @@ function AllPharmacyProducts() {
     const [activeCategory, setActiveCategory] = useState("All");
 
     const limit = 12;
-
-    // Fetch Categories
-    useEffect(() => {
-        const fetchCategories = async () => {
-            try {
-                const res = await UserAPI.getPharmacyCategories();
-                if (res && res.success) {
-                    // Prepend "All" category
-                    const allCat = {
-                        name: "All",
-                        productCount: null,
-                        image: "https://cdn-icons-png.flaticon.com/512/822/822143.png"
-                    };
-                    setCategories([allCat, ...res.data]);
-                }
-            } catch (error) {
-                console.error("Failed to fetch categories:", error);
-            }
-        };
-        fetchCategories();
-    }, []);
 
     const fetchProducts = useCallback(async () => {
         setLoading(true);
@@ -99,111 +77,20 @@ function AllPharmacyProducts() {
         );
     }, [products, activeCategory]);
 
-    const handleFilterChange = (type, value) => {
-        if (type === 'category') setActiveCategory(value);
-        if (type === 'search') setSearchTerm(value);
-        setCurrentPage(1);
-    };
-
     const handleProductClick = (productId) => {
         router.push(`/buymedicine/singleproductdetail/${productId}`);
     };
 
-    // Robust Image Helper specifically for backend URL
-    const getCategoryImage = (path) => {
-        if (!path) return "https://cdn-icons-png.flaticon.com/512/822/822143.png";
-        if (path.startsWith("http")) return path;
-        const cleanPath = path.startsWith('/') ? path : `/${path}`;
-        return `${BACKEND_URL}${cleanPath}`;
-    };
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] font-sans pb-20">
             <div className="max-w-7xl mx-auto px-6 pt-10">
 
                 {/* --- HEADER SECTION --- */}
-                <div className="bg-white rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-8 mb-10 overflow-hidden relative">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50/50 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-                    
-                    <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-                        <div>
-                            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Pharmacy Store</h1>
-                            <div className="flex items-center gap-2 text-slate-400 mt-2 text-xs font-bold uppercase tracking-widest">
-                                <span>Home</span>
-                                <ChevronRightIcon size={12} className="text-slate-300" />
-                                <span className="text-[#08B36A]">{activeCategory}</span>
-                            </div>
-                        </div>
 
-                        {/* Search Bar */}
-                        <div className="relative w-full lg:w-[450px] group">
-                            <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#08B36A] transition-colors" />
-                            <input
-                                type="text"
-                                className="w-full pl-12 pr-12 py-4 bg-slate-50/80 border border-slate-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-emerald-500/5 focus:border-[#08B36A] outline-none transition-all text-sm font-semibold"
-                                placeholder="Search medicines, healthcare products..."
-                                value={searchTerm}
-                                onChange={(e) => handleFilterChange('search', e.target.value)}
-                            />
-                            {searchTerm && (
-                                <button onClick={() => handleFilterChange('search', "")} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 transition-colors">
-                                    <X size={18} />
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* --- CATEGORY SELECTOR --- */}
-                    <div className="mt-12 pt-10 border-t border-slate-50">
-                        <div className="flex items-start gap-10 overflow-x-auto pb-6 no-scrollbar mask-edge">
-                            {categories.map((cat) => (
-                                <button
-                                    key={cat.name}
-                                    onClick={() => handleFilterChange('category', cat.name)}
-                                    className="flex flex-col items-center min-w-[100px] group transition-all"
-                                >
-                                    {/* Circular Image Wrapper */}
-                                    <div className={`relative w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-all duration-500 ${activeCategory === cat.name
-                                        ? "ring-4 ring-emerald-500/10 scale-110"
-                                        : "group-hover:scale-105"
-                                        }`}>
-                                        <div className={`w-full h-full rounded-full overflow-hidden p-1 bg-white border-2 transition-all duration-300 ${activeCategory === cat.name ? "border-[#08B36A] shadow-xl shadow-emerald-100" : "border-slate-100 group-hover:border-slate-200"}`}>
-                                            <img
-                                                src={getCategoryImage(cat.image)}
-                                                alt={cat.name}
-                                                className="w-full h-full object-cover rounded-full"
-                                                onError={(e) => { e.target.src = "https://cdn-icons-png.flaticon.com/512/822/822143.png" }}
-                                            />
-                                        </div>
-                                        {activeCategory === cat.name && (
-                                            <div className="absolute -bottom-1 bg-[#08B36A] text-white rounded-full p-1 shadow-lg">
-                                                <Zap size={10} fill="currentColor" />
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Name and Count */}
-                                    <div className="flex flex-col items-center gap-1">
-                                        <span className={`text-[11px] font-black text-center uppercase tracking-tighter leading-tight transition-colors ${activeCategory === cat.name ? "text-[#08B36A]" : "text-slate-500 group-hover:text-slate-800"
-                                            }`}>
-                                            {cat.name}
-                                        </span>
-                                        {cat.productCount !== null && (
-                                            <span className="text-[9px] text-slate-400 font-extrabold px-2 py-0.5 bg-slate-100 rounded-full">
-                                                {cat.productCount}
-                                            </span>
-                                        )}
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                {/* --- RESULTS INFO --- */}
                 <div className="flex items-center justify-between mb-8 px-2">
                     <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">
-                        Showing <span className="text-slate-900">{activeCategory}</span> 
+                        Showing <span className="text-slate-900">{activeCategory}</span>
                         <span className="ml-2 px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-500 font-bold tracking-normal">{totalProducts} Items</span>
                     </h2>
                     <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-[10px] font-black cursor-pointer hover:border-[#08B36A] hover:text-[#08B36A] transition-all shadow-sm">
@@ -231,7 +118,7 @@ function AllPharmacyProducts() {
                                 >
                                     <div className="relative aspect-square w-full mb-6 bg-slate-50 rounded-3xl overflow-hidden">
                                         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                        
+
                                         {product.prescription_required === "YES" && (
                                             <div className="absolute top-3 left-3 z-10 bg-white/90 backdrop-blur-md text-red-600 text-[9px] font-black px-2.5 py-1 rounded-xl border border-red-50 flex items-center gap-1 shadow-sm uppercase tracking-wider">
                                                 <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" /> Rx Required

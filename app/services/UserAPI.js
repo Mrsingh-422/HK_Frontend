@@ -407,6 +407,7 @@ const UserAPI = {
         return response.data;
     },
     checkoutPharmacyOrder: async (checkoutData) => {
+        console.log("Checkout Data for Pharmacy:", checkoutData);
         const response = await authApi.post("/user/pharmacy/checkout", checkoutData);
         return response.data;
     },
@@ -459,7 +460,7 @@ const UserAPI = {
     clearCart: async () => {
         const response = await authApi.post("/user/cart/lab/clear");
         return response.data;
-    },
+    }, 
 
 
     updateCartQuantity: async (updateData) => {

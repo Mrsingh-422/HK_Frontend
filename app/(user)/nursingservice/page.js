@@ -19,13 +19,13 @@ function page() {
             <SecondNavbar />
             <FindMyNurse />
             <FindMyNurseTwo />
-            <AllNursingServices />
-            <NursePackages />
-            <NursingPosts />
+            {/* <AllNursingServices /> */}
+            {/* <NursePackages /> */}
+            {/* <NursingPosts /> */}
             <OurNursingServices />
             <ExperiencedNurses />
             <OnlyTheBestCare />
-            <OurNursingPartners />
+            {/* <OurNursingPartners /> */}
             <FromHealthNursing />
         </>
     )
