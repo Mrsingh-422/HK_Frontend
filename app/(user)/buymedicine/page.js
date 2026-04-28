@@ -11,12 +11,16 @@ import RecomendedMedicines from './components/RecomendedMedicines'
 import AboutUsMed from './components/AboutUsMed'
 import FromHealthMed from './components/FromHealthMed'
 import OurPharmacyPartners from './components/OurPharmacyPartners'
+import NearByMedicines from './components/NearByMedicines'
+import BrandLogos from './components/BrandLogos'
 
 function page() {
     return (
         <>
             <SecondNavbar />
             <OnlinePharmacy />
+            <NearByMedicines />
+            <BrandLogos />
             {/* <FeaturedProducts /> */}
             {/* <DeclareThePast /> */}
             {/* <TheBestOfBest /> */}

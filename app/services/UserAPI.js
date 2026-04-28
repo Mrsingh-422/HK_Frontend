@@ -464,7 +464,7 @@ const UserAPI = {
     clearCart: async () => {
         const response = await authApi.post("/user/cart/lab/clear");
         return response.data;
-    }, 
+    },
 
 
     updateCartQuantity: async (updateData) => {
@@ -497,7 +497,32 @@ const UserAPI = {
     checkoutLabCart: async (checkoutData) => {
         const response = await authApi.post("/user/labs/checkout", checkoutData);
         return response.data;
-    }
+    },
+
+
+
+    // Nurse api 
+    getNurseServices: async (data) => {
+        // data example: { lat: 30.7333, lng: 76.7233 }
+        const response = await publicApi.post("/user/nurse/list", data);
+        return response.data;
+    },
+
+    nurseServiceDetail: async (serviceId) => {
+        const response = await publicApi.get(`/user/nurse/details/${serviceId}`);
+        return response.data;
+    },
+
+    getNurseSlots: async (nurseId, params) => {
+        // nurseId: "69b9931b8efeb5adbcce739d"
+        // params: { date: "2026-04-29" }
+
+        const response = await publicApi.get(
+            `/user/nurse/availability/${nurseId}`,
+            { params }
+        );
+        return response.data;
+    },
 
 
 

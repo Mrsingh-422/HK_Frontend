@@ -8,9 +8,8 @@ import {
   FaFilePrescription, FaCloudUploadAlt, FaTimesCircle
 } from "react-icons/fa";
 
-import { NURSES_DATA } from "../../../constants/constants";
-import NurseDetailsModal from "./otherComponents/NurseDetailsModel";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import UserAPI from "@/app/services/UserAPI";
 
 const STATIC_PAGE_DATA = {
   headerTag: "Professional Home Healthcare",
@@ -26,12 +25,15 @@ function FindMyNurse() {
 
   const [pageData, setPageData] = useState(STATIC_PAGE_DATA);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedNurse, setSelectedNurse] = useState(null);
+  
+  // API Data State
+  const [nurseServices, setNurseServices] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Prescription State
   const [prescriptionFile, setPrescriptionFile] = useState(null);
 
+  // 1. Fetch Page Content
   useEffect(() => {
     const fetchContent = async () => {
       try {
@@ -44,15 +46,40 @@ function FindMyNurse() {
     fetchContent();
   }, [getNursePageData]);
 
+  // 2. Fetch Nurse Services using userCoords from localStorage
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        setLoading(true);
+        // Get coordinates from local storage
+        const storedCoords = localStorage.getItem("userCoords");
+        const coords = storedCoords 
+          ? JSON.parse(storedCoords) 
+          : { lat: 30.738056414623948, lng: 76.66049906744976 }; // Default fallback
+
+        const res = await UserAPI.getNurseServices(coords);
+        if (res?.success) {
+          setNurseServices(res.data);
+        }
+      } catch (error) {
+        console.error("Error fetching nurse services:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchServices();
+  }, []);
+
   const handleBooking = (id) => {
-    router.push(`/nursingservice/nurse/${id}`);
+    // Navigating to the specific detail route requested
+    router.push(`/nursingservice/nurseservicedetail/${id}`);
   };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
       setPrescriptionFile(file);
-      // Logic for uploading to server can go here
       alert(`Prescription "${file.name}" selected successfully!`);
     }
   };
@@ -63,21 +90,14 @@ function FindMyNurse() {
   };
 
   const visibleNurses = useMemo(() => {
-    return NURSES_DATA.filter((n) =>
+    return nurseServices.filter((n) =>
       n.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      n.speciality.toLowerCase().includes(searchTerm.toLowerCase())
+      n.topServices.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()))
     ).slice(0, 6);
-  }, [searchTerm]);
+  }, [searchTerm, nurseServices]);
 
   return (
     <div className="min-h-screen bg-[#FDFEFF] font-sans selection:bg-teal-100">
-      <NurseDetailsModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        nurse={selectedNurse}
-      />
-
-      {/* Hidden File Input */}
       <input
         type="file"
         ref={fileInputRef}
@@ -88,22 +108,18 @@ function FindMyNurse() {
 
       {/* ================= 1. ENHANCED HERO SECTION ================= */}
       <section className="relative pt-12 pb-24 lg:pt-20 lg:pb-32 px-6 overflow-hidden">
-        {/* Decorative Background Elements */}
         <div className="absolute top-0 left-0 w-full h-full -z-10 overflow-hidden">
           <div className="absolute top-[-10%] right-[-5%] w-[40%] h-[60%] bg-teal-50/50 rounded-full blur-[120px]" />
           <div className="absolute bottom-0 left-[-5%] w-[30%] h-[40%] bg-indigo-50/50 rounded-full blur-[100px]" />
         </div>
 
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-
-          {/* Left Content */}
           <div className="lg:col-span-7 space-y-8">
             <div className="flex flex-col space-y-4">
               <div className="inline-flex items-center gap-2 w-fit px-4 py-1.5 rounded-full bg-white border border-teal-100 shadow-sm">
                 <span className="flex h-2 w-2 rounded-full bg-teal-500 animate-pulse" />
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-600">{pageData.headerTag}</span>
               </div>
-
               <h1 className="text-5xl md:text-7xl font-black text-slate-900 leading-[1.05] tracking-tight whitespace-pre-line">
                 {pageData.mainTitle}
               </h1>
@@ -113,7 +129,6 @@ function FindMyNurse() {
               {pageData.description}
             </p>
 
-            {/* SEARCH & UPLOAD CONTROL CENTER */}
             <div className="relative max-w-2xl space-y-4">
               <div className="bg-white rounded-[2.5rem] p-2 shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-slate-100 flex flex-col md:flex-row items-center gap-2">
                 <div className="relative flex-1 w-full group">
@@ -131,7 +146,6 @@ function FindMyNurse() {
                 </button>
               </div>
 
-              {/* Prescription Upload Button */}
               <div className="flex flex-col md:flex-row items-center gap-4">
                 <button
                   onClick={() => fileInputRef.current.click()}
@@ -154,7 +168,6 @@ function FindMyNurse() {
                 )}
               </div>
 
-              {/* Quick Trust Indicators */}
               <div className="flex flex-wrap gap-6 mt-6 px-6">
                 <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase">
                   <FaCheckCircle className="text-teal-500" /> Government Verified
@@ -165,7 +178,6 @@ function FindMyNurse() {
               </div>
             </div>
 
-            {/* Social Proof */}
             <div className="flex items-center gap-4 pt-4">
               <div className="flex -space-x-3">
                 {[1, 2, 3, 4].map(i => (
@@ -179,7 +191,6 @@ function FindMyNurse() {
             </div>
           </div>
 
-          {/* Right Visual (Bento Style) */}
           <div className="lg:col-span-5 relative">
             <div className="relative z-10 bg-white p-4 rounded-[3.5rem] shadow-2xl border border-slate-50">
               <img
@@ -187,8 +198,6 @@ function FindMyNurse() {
                 alt="Nursing Care"
                 className="rounded-[2.5rem] w-full h-[500px] object-cover"
               />
-
-              {/* Floating Stat Card */}
               <div className="absolute top-12 -left-8 bg-white/90 backdrop-blur-md p-5 rounded-3xl shadow-xl border border-white/50 flex items-center gap-4 animate-bounce-slow">
                 <div className="w-12 h-12 bg-teal-500 rounded-2xl flex items-center justify-center text-white text-xl shadow-lg shadow-teal-200">
                   <FaHandHoldingHeart />
@@ -198,8 +207,6 @@ function FindMyNurse() {
                   <p className="text-xl font-black text-slate-900">Under 20 Min</p>
                 </div>
               </div>
-
-              {/* Bottom Card */}
               <div className="absolute -bottom-6 -right-6 bg-slate-900 p-6 rounded-[2.5rem] shadow-2xl text-white">
                 <div className="flex items-center gap-4">
                   <div className="text-3xl font-black">4.9</div>
@@ -214,7 +221,6 @@ function FindMyNurse() {
               </div>
             </div>
           </div>
-
         </div>
       </section>
 
@@ -236,59 +242,63 @@ function FindMyNurse() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-          {visibleNurses.map((nurse) => (
-            <div
-              key={nurse.id}
-              onClick={() => handleBooking(nurse.id)}
-              className="group bg-white rounded-[2.5rem] p-6 border border-slate-100 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.1)] transition-all cursor-pointer relative hover:-translate-y-3 duration-300"
-            >
-              {/* Image Area */}
-              <div className="relative mb-6 aspect-video rounded-[2rem] overflow-hidden">
-                <img
-                  src={nurse.image}
-                  alt={nurse.name}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700"
-                />
-                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-sm">
-                  <FaStar className="text-amber-400 text-xs" />
-                  <span className="font-black text-xs text-slate-900">{nurse.rating}</span>
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-2xl font-black text-slate-900 group-hover:text-teal-600 transition-colors leading-tight">
-                    {nurse.name}
-                  </h3>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="px-3 py-1 bg-teal-50 text-teal-700 text-[10px] font-black uppercase rounded-lg">
-                      {nurse.speciality}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1">
-                      <FaCheckCircle className="text-teal-500" /> Verified
-                    </span>
+        {loading ? (
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+             {[1,2,3].map(n => <div key={n} className="h-80 bg-slate-50 animate-pulse rounded-[2.5rem]" />)}
+           </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+            {visibleNurses.map((nurse) => (
+              <div
+                key={nurse._id}
+                onClick={() => handleBooking(nurse._id)}
+                className="group bg-white rounded-[2.5rem] p-6 border border-slate-100 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.1)] transition-all cursor-pointer relative hover:-translate-y-3 duration-300"
+              >
+                <div className="relative mb-6 aspect-video rounded-[2rem] overflow-hidden">
+                  <img
+                    src={nurse.profileImage}
+                    alt={nurse.name}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700"
+                  />
+                  <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-sm">
+                    <FaStar className="text-amber-400 text-xs" />
+                    <span className="font-black text-xs text-slate-900">4.9</span>
                   </div>
                 </div>
 
-                <p className="text-slate-500 text-sm leading-relaxed line-clamp-2 italic">
-                  "{nurse.description}"
-                </p>
-
-                <div className="pt-5 border-t border-slate-50 flex items-center justify-between">
+                <div className="space-y-4">
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Starting from</p>
-                    <p className="text-2xl font-black text-slate-900">₹{nurse.price}<span className="text-xs text-slate-400 font-medium"> / visit</span></p>
+                    <h3 className="text-2xl font-black text-slate-900 group-hover:text-teal-600 transition-colors leading-tight">
+                      {nurse.name}
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span className="px-3 py-1 bg-teal-50 text-teal-700 text-[10px] font-black uppercase rounded-lg">
+                        {nurse.topServices[0] || "General Nursing"}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1">
+                        <FaCheckCircle className="text-teal-500" /> {nurse.city}
+                      </span>
+                    </div>
                   </div>
-                  <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center group-hover:bg-teal-600 transition-all shadow-lg">
-                    <FaArrowRight />
+
+                  <p className="text-slate-500 text-sm leading-relaxed line-clamp-2 italic">
+                    "Expert services including {nurse.topServices.join(", ")}"
+                  </p>
+
+                  <div className="pt-5 border-t border-slate-50 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Starting from</p>
+                      <p className="text-2xl font-black text-slate-900">₹{nurse.startingPrice}<span className="text-xs text-slate-400 font-medium"> / visit</span></p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center group-hover:bg-teal-600 transition-all shadow-lg">
+                      <FaArrowRight />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         <div className="mt-20 text-center">
           <button
