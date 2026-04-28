@@ -30,4 +30,5 @@ const PharmacyDeliverySection = ({ deliveryOption, setDeliveryOption, selectedSl
         </div>
     );
 };
+
 export default PharmacyDeliverySection;

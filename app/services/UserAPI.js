@@ -411,6 +411,10 @@ const UserAPI = {
         const response = await authApi.post("/user/pharmacy/checkout", checkoutData);
         return response.data;
     },
+    placePharmacyOrder: async (orderData) => {
+        const response = await authApi.post("/user/pharmacy/place-order", orderData);
+        return response.data;
+    },
     bookLabTest: async (bookingData) => {
         const response = await authApi.post("/user/labs/book", bookingData);
         return response.data;

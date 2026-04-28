@@ -31,7 +31,7 @@ const PharmacyCart = () => {
 
     // Delivery & Slot States
     const [deliveryOption, setDeliveryOption] = useState('fast');
-    const [collectionType] = useState('Home Delivery');
+    const [collectionType] = useState('Home Delivery'); // Hardcoded to Home Delivery only
     const [selectedSlot, setSelectedSlot] = useState(null);
     const [rawSlotData, setRawSlotData] = useState(null);
     const [slotFee, setSlotFee] = useState(0);
@@ -57,13 +57,16 @@ const PharmacyCart = () => {
         if (prescriptionFiles.length + files.length > 5) {
             return toast.error("Maximum 5 prescription images allowed");
         }
-        const validFiles = files.filter(file => file && file.type.startsWith('image/'));
+        const validFiles = files.filter(file => file.type.startsWith('image/'));
+        if (validFiles.length !== files.length) {
+            toast.error("Only image files are allowed");
+        }
 
         setPrescriptionFiles(prev => [...prev, ...validFiles]);
         e.target.value = null;
 
         if (validFiles.length > 0) {
-            toast.success(`${validFiles.length} file(s) added`);
+            toast.success(`${validFiles.length} file(s) added to prescription list`);
         }
     };
 
@@ -147,6 +150,7 @@ const PharmacyCart = () => {
 
         if (deliveryChargesConfig) {
             freeThreshold = deliveryChargesConfig.freeDeliveryThreshold;
+
             if (deliveryOption === 'fast') {
                 fastFee = deliveryChargesConfig.fastDeliveryExtra || 0;
                 shippingFee = 0;
@@ -174,66 +178,95 @@ const PharmacyCart = () => {
     }, [subtotal, serverDiscount, slotFee, deliveryOption, deliveryChargesConfig]);
 
     const onConfirmCheckout = async () => {
-        if (!selectedAddress) return toast.error("Please select a delivery address");
+        if (!selectedAddress) {
+            return toast.error("Please select a delivery address");
+        }
 
-        // FIXED VALIDATION: Ensure even 1 image passes the check
-        if (needsPrescription && (!prescriptionFiles || prescriptionFiles.length === 0)) {
-            return toast.error("One or more medicines in your cart require a valid prescription. Please upload it.");
+        if (needsPrescription && prescriptionFiles.length === 0) {
+            return toast.error("One or more medicines require a prescription. Please upload it.");
         }
 
         setIsSubmitting(true);
-        try {
-            const formData = new FormData();
 
-            // 1. DATE & TIME LOGIC
-            let appDate = new Date().toISOString().split('T')[0];
-            let appTime = "Immediate"; // Default for Rapid/Fast
+        try {
+            // 1. Prepare Date and Time
+            let appDate = new Date().toISOString();
+            let appTime = new Date().toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
 
             if (deliveryOption === 'slot' && rawSlotData) {
-                appDate = rawSlotData.date;
+                // Convert YYYY-MM-DD to ISO String for consistency with your backend sample
+                appDate = new Date(rawSlotData.date).toISOString();
                 appTime = rawSlotData.time;
-            } else if (deliveryOption === 'standard') {
-                appTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
             }
 
-            // 2. TEXT FIELDS (Strictly as per requested keys)
+            // 2. Prepare Form Data
+            const formData = new FormData();
+
+            formData.append('pharmacyId', pharmacyId);
+            formData.append('collectionType', collectionType);
             formData.append('appointmentDate', appDate);
             formData.append('appointmentTime', appTime);
-            formData.append('collectionType', "Home Delivery");
-            formData.append('paymentMethod', "COD");
-            formData.append('isRapid', deliveryOption === 'fast' ? "true" : "false");
+            formData.append('isRapid', deliveryOption === 'fast');
+            formData.append('paymentMethod', 'COD');
 
-            // 3. ADDRESS (Clean JSON Stringify)
+            // 3. Address Object
             const addressData = {
                 name: selectedAddress.name,
                 phone: selectedAddress.phone,
                 houseNo: selectedAddress.houseNo,
+                sector: selectedAddress.sector,
+                country: selectedAddress.country,
+                landmark: selectedAddress.landmark,
                 city: selectedAddress.city,
-                pincode: selectedAddress.pincode,
                 state: selectedAddress.state,
-                landmark: selectedAddress.landmark || "",
+                pincode: selectedAddress.pincode,
                 addressType: selectedAddress.addressType
             };
             formData.append('address', JSON.stringify(addressData));
 
-            if (appliedCouponName) formData.append('couponName', appliedCouponName);
+            // 4. Bill Summary
+            const billSummary = {
+                itemTotal: totals.subtotal,
+                deliveryCharge: totals.shippingFee,
+                rapidDeliveryCharge: totals.fastFee,
+                slotCharge: totals.slotFee,
+                couponDiscount: totals.discount,
+                couponId: appliedCouponName || null,
+                totalAmount: totals.total
+            };
+            formData.append('billSummary', JSON.stringify(billSummary));
 
-            // 4. FILES (Append individually)
+            // 5. Items
+            const itemsToSend = pharmacyItems.map(item => ({
+                medicineId: item.medicineId._id,
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity,
+                duration: "Full Course"
+            }));
+            formData.append('items', JSON.stringify(itemsToSend));
+
+            // 6. Prescription Images
             prescriptionFiles.forEach((file) => {
                 formData.append('prescriptionImages', file);
             });
-            alert(formData.addressData);
 
-            const res = await UserAPI.checkoutPharmacyOrder(formData);
+            // 7. API Call
+            const res = await UserAPI.placePharmacyOrder(formData);
 
             if (res.success) {
-                toast.success("Order Placed Successfully!");
+                toast.success(res.message || "Order Placed Successfully!");
                 await clearFullCart();
-                router.push(`/order-success/pharmacy?id=${res.data?._id || ''}`);
+                router.push(`/order-success/pharmacy?id=${res.orderId || res.data?._id || ''}`);
             }
+
         } catch (error) {
             console.error("Checkout Error:", error);
-            toast.error(error.response?.data?.message || "Failed to place order. Check your connection.");
+            toast.error(error.response?.data?.message || "Failed to place order");
         } finally {
             setIsSubmitting(false);
         }
@@ -296,7 +329,7 @@ const PharmacyCart = () => {
                                                     </div>
                                                     {item.medicineId?.prescription_required === "YES" && (
                                                         <span className="flex items-center gap-1.5 text-rose-500 text-[9px] font-black uppercase bg-rose-50 px-2 py-1 rounded-md border border-rose-100">
-                                                            <FaFilePrescription size={10} /> Rx Required
+                                                            <FaFilePrescription size={10} /> Prescription Required
                                                         </span>
                                                     )}
                                                 </div>
@@ -318,11 +351,11 @@ const PharmacyCart = () => {
                                         <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
                                             <FaCamera className="text-rose-500" size={20} />
                                         </div>
-                                        <h3 className="text-sm font-black text-slate-800 mb-1">Prescription Image</h3>
-                                        <p className="text-[11px] text-slate-400 font-medium mb-4">Please upload a valid prescription for the medicines in your cart.</p>
+                                        <h3 className="text-sm font-black text-slate-800 mb-1">Prescription Needed</h3>
+                                        <p className="text-[11px] text-slate-400 font-medium mb-4">Please upload a clear image of your doctor's prescription to proceed.</p>
 
                                         <label className="inline-flex items-center justify-center px-6 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer hover:bg-slate-800 transition-colors">
-                                            <span>Add Image ({prescriptionFiles.length}/5)</span>
+                                            <span>Select Files ({prescriptionFiles.length}/5)</span>
                                             <input type="file" hidden accept="image/*" multiple onChange={handleFileChange} />
                                         </label>
 
@@ -331,11 +364,7 @@ const PharmacyCart = () => {
                                                 <div className="flex flex-wrap gap-3 justify-center">
                                                     {prescriptionFiles.map((file, idx) => (
                                                         <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-emerald-500 group">
-                                                            <img
-                                                                src={file ? URL.createObjectURL(file) : ''}
-                                                                className="w-full h-full object-cover"
-                                                                alt="Rx Preview"
-                                                            />
+                                                            <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" />
                                                             <button onClick={() => removeFile(idx)} className="absolute inset-0 bg-rose-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                                 <FaTrash size={12} />
                                                             </button>
