@@ -15,7 +15,7 @@ function page() {
         <>
             <SecondNavbar />
             <FindEmergencyAmbulance />
-            <FindReferralAmbulance />
+            {/* <FindReferralAmbulance /> */}
             <EmergencyAmbulanceFacility />
             <AccidentalEmergency />
             <MedicalEmergency />
