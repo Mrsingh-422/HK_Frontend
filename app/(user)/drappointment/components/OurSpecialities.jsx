@@ -65,41 +65,41 @@ function OurSpecialities() {
               Our <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#08B36A] to-emerald-800">Specialities.</span>
             </h2>
           </div>
-          
+
           <div className="flex items-center gap-4">
-             <button className="w-14 h-14 rounded-2xl border border-slate-100 bg-white flex items-center justify-center text-slate-400 hover:text-[#08B36A] hover:border-[#08B36A] hover:shadow-xl hover:shadow-emerald-100 transition-all">
-                <FaArrowLeft size={14} />
-             </button>
-             <button className="w-14 h-14 rounded-2xl border border-slate-100 bg-white flex items-center justify-center text-slate-400 hover:text-[#08B36A] hover:border-[#08B36A] hover:shadow-xl hover:shadow-emerald-100 transition-all">
-                <FaArrowRight size={14} />
-             </button>
+            <button className="w-14 h-14 rounded-2xl border border-slate-100 bg-white flex items-center justify-center text-slate-400 hover:text-[#08B36A] hover:border-[#08B36A] hover:shadow-xl hover:shadow-emerald-100 transition-all">
+              <FaArrowLeft size={14} />
+            </button>
+            <button className="w-14 h-14 rounded-2xl border border-slate-100 bg-white flex items-center justify-center text-slate-400 hover:text-[#08B36A] hover:border-[#08B36A] hover:shadow-xl hover:shadow-emerald-100 transition-all">
+              <FaArrowRight size={14} />
+            </button>
           </div>
         </div>
       </div>
 
       {/* Marquee Wrapper */}
-      <div 
+      <div
         className="relative w-full cursor-grab active:cursor-grabbing"
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
         onTouchStart={() => setIsPaused(true)}
         onTouchEnd={() => setIsPaused(false)}
       >
-        <div 
+        <div
           className="flex gap-8 md:gap-12 animate-speciality-marquee"
-          style={{ 
+          style={{
             animationPlayState: isPaused ? 'paused' : 'running',
             width: 'max-content'
           }}
         >
           {displayData.map((item, index) => (
-            <div 
+            <div
               key={`${item.id}-${index}`}
               className="w-[300px] sm:w-[350px] md:w-[420px] flex-shrink-0 bg-white border border-slate-100 rounded-[3rem] p-10 shadow-[0_20px_50px_rgba(0,0,0,0.02)] hover:shadow-[0_40px_80px_rgba(8,179,106,0.1)] transition-all duration-700 flex flex-col group relative overflow-hidden"
             >
               {/* Editorial Index Number */}
               <span className="absolute top-10 right-10 text-5xl font-black text-gray-300 group-hover:text-emerald-50 transition-colors duration-500">
-                0{ (index % 5) + 1 }
+                0{(index % 5) + 1}
               </span>
 
               {/* Tag */}
@@ -146,15 +146,16 @@ function OurSpecialities() {
 
       {/* Footer CTA */}
       <div className="mt-20 flex flex-col items-center">
-         <button className="bg-slate-900 text-white px-14 py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl hover:bg-[#08B36A] transition-all active:scale-95">
-            View All Specialized Panels
-         </button>
-         <p className="mt-8 text-slate-400 text-[10px] font-black uppercase tracking-[0.4em]">
-            Precision accuracy verified by NABL Experts
-         </p>
+        <button className="bg-slate-900 text-white px-14 py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl hover:bg-[#08B36A] transition-all active:scale-95">
+          View All Specialized Panels
+        </button>
+        <p className="mt-8 text-slate-400 text-[10px] font-black uppercase tracking-[0.4em]">
+          Precision accuracy verified by NABL Experts
+        </p>
       </div>
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @keyframes speciality-marquee {
           0% { transform: translateX(0); }
           100% { transform: translateX(-50%); }

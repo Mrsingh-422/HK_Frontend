@@ -2,12 +2,12 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  FaStar, 
-  FaMapMarkerAlt, 
-  FaUserMd, 
-  FaPlus, 
-  FaCheckCircle, 
+import {
+  FaStar,
+  FaMapMarkerAlt,
+  FaUserMd,
+  FaPlus,
+  FaCheckCircle,
   FaChevronRight,
   FaBriefcase
 } from 'react-icons/fa';
@@ -58,7 +58,7 @@ function SomeDoctors() {
   return (
     <div className="py-10 bg-[#FDFEFF]">
       <div className="max-w-7xl mx-auto px-6">
-        
+
         {/* --- Header Section --- */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
           <div className="max-w-2xl">
@@ -70,11 +70,11 @@ function SomeDoctors() {
               Top Rated <span className="text-emerald-500">Doctors.</span>
             </h2>
             <p className="text-slate-500 text-sm md:text-base font-medium leading-relaxed">
-              Consult with India's leading medical experts. Verified professionals 
+              Consult with India's leading medical experts. Verified professionals
               with years of clinical experience across various specialties.
             </p>
           </div>
-          <button 
+          <button
             onClick={() => router.push('/drappointment/seealldoctors')}
             className="group flex items-center gap-3 text-xs font-black uppercase tracking-widest text-slate-900 hover:text-emerald-600 transition-all"
           >
@@ -85,25 +85,25 @@ function SomeDoctors() {
         {/* --- Doctor Grid --- */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
           {DOCTORS.map((doc) => (
-            <div 
+            <div
               key={doc._id}
               onClick={() => handleDoctorClick(doc._id)}
               className="group cursor-pointer relative bg-white rounded-[3.5rem] p-5 shadow-xl shadow-slate-200/40 border border-slate-50 transition-all duration-500 hover:shadow-2xl hover:-translate-y-2"
             >
               {/* Image Container */}
               <div className="relative h-72 w-full rounded-[2.8rem] overflow-hidden mb-6 bg-slate-100">
-                <img 
-                  src={doc.image} 
+                <img
+                  src={doc.image}
                   alt={doc.name}
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
-                
+
                 {/* Status Badges */}
                 <div className="absolute top-5 left-5">
-                    <span className="bg-white/90 backdrop-blur-md text-slate-900 text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div> Available Today
-                    </span>
+                  <span className="bg-white/90 backdrop-blur-md text-slate-900 text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div> Available Today
+                  </span>
                 </div>
 
                 <div className="absolute bottom-5 left-5 flex items-center gap-2 text-white">
@@ -131,12 +131,12 @@ function SomeDoctors() {
                 <div className="bg-slate-50 rounded-[2.2rem] p-6 border border-slate-100 flex flex-col gap-4 group-hover:bg-emerald-50 group-hover:border-emerald-100 transition-colors">
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <FaBriefcase className="text-slate-400" size={14} />
-                        <span className="text-xs font-bold text-slate-600">{doc.experience}</span>
+                      <FaBriefcase className="text-slate-400" size={14} />
+                      <span className="text-xs font-bold text-slate-600">{doc.experience}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <FaMapMarkerAlt className="text-slate-400" size={14} />
-                        <span className="text-xs font-bold text-slate-600 truncate max-w-[100px]">{doc.hospital}</span>
+                      <FaMapMarkerAlt className="text-slate-400" size={14} />
+                      <span className="text-xs font-bold text-slate-600 truncate max-w-[100px]">{doc.hospital}</span>
                     </div>
                   </div>
 
@@ -144,8 +144,8 @@ function SomeDoctors() {
 
                   <div className="flex items-center justify-between">
                     <div>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Consultation Fee</p>
-                        <p className="text-xl font-black text-slate-900">₹{doc.fee}</p>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Consultation Fee</p>
+                      <p className="text-xl font-black text-slate-900">₹{doc.fee}</p>
                     </div>
                     <div className="h-12 w-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center transition-all group-hover:bg-emerald-500 group-hover:scale-110 shadow-lg">
                       <FaPlus size={14} />
@@ -159,7 +159,7 @@ function SomeDoctors() {
 
         {/* --- Global CTA --- */}
         <div className="mt-20 flex flex-col items-center">
-          <button 
+          <button
             onClick={() => router.push('/drappointment/seealldoctors')}
             className="bg-slate-900 text-white px-12 py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl hover:bg-emerald-500 transition-all active:scale-95"
           >
