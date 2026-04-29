@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { FaPlusSquare, FaChevronRight, FaHospitalSymbol } from "react-icons/fa";
+import { FaPlusSquare, FaChevronRight, FaHospitalSymbol, FaUserShield, FaArrowRight } from "react-icons/fa";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
@@ -23,30 +23,30 @@ function OurDoctorsOurPriority() {
     ],
 
     images: [
-      "https://images.unsplash.com/photo-1576091160550-2173dba999ef",
-      "https://images.unsplash.com/photo-1580281657527-47f249e8f4df",
-      "https://images.unsplash.com/photo-1537368910025-700350fe46c7"
+      "https://png.pngtree.com/png-clipart/20231002/original/pngtree-young-afro-professional-doctor-png-image_13227671.png",
+      "https://static.vecteezy.com/system/resources/thumbnails/028/287/555/small/an-indian-young-female-doctor-isolated-on-green-ai-generated-photo.jpg",
+      "https://plus.unsplash.com/premium_photo-1673953510158-174d4060db8b?fm=jpg&q=60&w=3000&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8bWVkaWNhbCUyMGRvY3RvcnxlbnwwfHwwfHx8MA%3D%3D"
     ]
   });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await getDoctorsPriorityContent();
-        if (res?.success && res?.data) {
-          setData({
-            title: res.data.title || "",
-            description: res.data.description || "",
-            points: res.data.points || [],
-            images: res.data.images || []
-          });
-        }
-      } catch (err) {
-        console.error("Error fetching Doctors Priority content:", err);
-      }
-    };
-    fetchData();
-  }, []);
+  // useEffect(() => {
+  //   const fetchData = async () => {
+  //     try {
+  //       const res = await getDoctorsPriorityContent();
+  //       if (res?.success && res?.data) {
+  //         setData({
+  //           title: res.data.title || "",
+  //           description: res.data.description || "",
+  //           points: res.data.points || [],
+  //           images: res.data.images || []
+  //         });
+  //       }
+  //     } catch (err) {
+  //       console.error("Error fetching Doctors Priority content:", err);
+  //     }
+  //   };
+  //   fetchData();
+  // }, []);
 
   // Carousel Logic
   useEffect(() => {
@@ -59,64 +59,95 @@ function OurDoctorsOurPriority() {
   }, [data.images.length]);
 
   return (
-    <section className="py-16 md:py-15 bg-[#f8fafc] overflow-hidden font-sans">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+    <section className="py-20 md:py-10 bg-[#FDFEFF] font-sans relative overflow-hidden">
+      {/* Background Decorative Glows */}
+      <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-emerald-50/50 rounded-full blur-[120px] -ml-64 -mt-64" />
+      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-slate-50 rounded-full blur-[100px] -mr-48 -mb-48" />
 
-          {/* LEFT SECTION: IMAGE CAROUSEL */}
-          <div className="relative order-1 lg:order-1">
-            <div className="absolute -inset-4 bg-slate-50 rounded-[2.5rem] -rotate-2 hidden lg:block"></div>
+      <div className="max-w-7xl mx-auto px-6 relative z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 lg:gap-24 items-center">
 
-            <div className="relative h-[350px] sm:h-[450px] md:h-[550px] w-full rounded-3xl overflow-hidden shadow-2xl border-4 border-white bg-slate-100">
+          {/* LEFT SECTION: PREMIUM IMAGE CAROUSEL */}
+          <div className="lg:col-span-6 relative order-1 group">
+            {/* Artistic Frame Backdrop */}
+            <div className="absolute -inset-4 bg-slate-50 rounded-[4rem] -rotate-2 transition-transform group-hover:rotate-0 duration-700 hidden lg:block border border-slate-100"></div>
+
+            <div className="relative h-[400px] sm:h-[500px] md:h-[600px] w-full rounded-[3.5rem] overflow-hidden shadow-[0_40px_100px_-20px_rgba(0,0,0,0.12)] border-[10px] border-white bg-white">
               {data.images.length > 0 ? (
                 data.images.map((img, index) => (
                   <div
                     key={index}
-                    className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImg ? "opacity-100 z-10" : "opacity-0 z-0"
-                      }`}
+                    className={`absolute inset-0 transition-all duration-[1500ms] ease-in-out transform ${
+                      index === currentImg ? "opacity-100 scale-100 z-10" : "opacity-0 scale-110 z-0"
+                    }`}
                   >
                     <img
-                      src={`${API_URL}${img}`}
-                      alt={`Slide ${index}`}
+                      src={img.startsWith('http') ? img : `${API_URL}${img}`}
+                      alt={`Professional Doctor Slide ${index}`}
                       className="w-full h-full object-cover"
                     />
+                    {/* Subtle Shadow Gradient */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent"></div>
                   </div>
                 ))
               ) : (
-                <div className="flex items-center justify-center h-full bg-slate-200">No Images Uploaded</div>
+                <div className="flex items-center justify-center h-full bg-slate-100 text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+                  No Assets Available
+                </div>
               )}
 
-              <div className="absolute bottom-6 left-6 z-20 bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-lg border border-[#08B36A]/20 flex items-center gap-4">
-                <div className="bg-[#08B36A] p-3 rounded-xl text-white">
+              {/* Floating Status Card */}
+              <div className="absolute bottom-10 left-10 z-20 bg-white/90 backdrop-blur-md px-6 py-4 rounded-2xl shadow-2xl border border-white/50 flex items-center gap-4 animate-in fade-in slide-in-from-left-4 duration-1000">
+                <div className="bg-[#08B36A] w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">
                   <FaHospitalSymbol className="text-xl" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Status</p>
-                  <p className="text-sm font-bold text-slate-800">Available 24/7</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Clinic Status</p>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <p className="text-sm font-black text-slate-900">Always On-Call</p>
+                  </div>
                 </div>
+              </div>
+
+              {/* Progress Indicators */}
+              <div className="absolute bottom-10 right-10 z-20 flex flex-col gap-2">
+                {data.images.map((_, i) => (
+                   <div key={i} className={`w-1.5 transition-all duration-500 rounded-full ${i === currentImg ? 'h-8 bg-white' : 'h-2 bg-white/40'}`}></div>
+                ))}
               </div>
             </div>
           </div>
 
-          {/* RIGHT SECTION: CONTENT */}
-          <div className="space-y-8 order-2 lg:order-2">
-            <div className="space-y-4">
-              <h2 className="text-3xl md:text-5xl lg:text-5xl font-black text-slate-900 leading-[1.1] tracking-tight">
-                {/* Dynamically wrap words in span if needed, or just display title */}
-                {data.title}
+          {/* RIGHT SECTION: PREMIUM CONTENT */}
+          <div className="lg:col-span-6 space-y-10 order-2">
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                  <div className="h-1.5 w-12 bg-[#08B36A] rounded-full"></div>
+                  <span className="text-[11px] font-black uppercase tracking-[0.4em] text-[#08B36A]">Priority Healthcare</span>
+              </div>
+
+              <h2 className="text-4xl md:text-6xl font-black text-slate-900 leading-[1.1] tracking-tighter">
+                {data.title.split(' ').map((word, i) => (
+                  <span key={i} className={word.toLowerCase() === 'priority' ? 'text-[#08B36A]' : ''}>
+                    {word}{' '}
+                  </span>
+                ))}
               </h2>
-              <p className="text-slate-600 text-base md:text-lg leading-relaxed max-w-xl">
+
+              <p className="text-slate-500 text-lg md:text-xl font-medium leading-relaxed max-w-xl">
                 {data.description}
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
+            {/* Dynamic Interactive Points */}
+            <div className="space-y-4">
               {data.points.map((point, index) => (
-                <div key={index} className="flex items-center gap-4 group">
-                  <div className="flex-shrink-0 text-[#08B36A] transition-transform group-hover:scale-125 duration-300">
-                    <FaPlusSquare className="text-xl md:text-2xl" />
+                <div key={index} className="flex items-center gap-5 group p-2 rounded-2xl transition-all duration-300 hover:bg-emerald-50/50">
+                  <div className="flex-shrink-0 w-10 h-10 md:w-12 md:h-12 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center text-[#08B36A] group-hover:bg-[#08B36A] group-hover:text-white group-hover:scale-110 transition-all duration-500">
+                    <FaPlusSquare className="text-lg md:text-xl" />
                   </div>
-                  <span className="text-slate-700 font-bold text-sm md:text-base group-hover:text-[#08B36A] transition-colors">
+                  <span className="text-slate-700 font-bold text-base md:text-lg group-hover:text-slate-900 transition-colors">
                     {point}
                   </span>
                 </div>
@@ -124,10 +155,23 @@ function OurDoctorsOurPriority() {
             </div>
 
             <div className="pt-6">
-              <button className="group border-2 border-[#08B36A] text-[#08B36A] font-black px-10 py-4 rounded-xl hover:bg-[#08B36A] hover:text-white transition-all duration-300 active:scale-95 flex items-center gap-3 uppercase tracking-widest text-sm shadow-lg shadow-[#08B36A]/10">
-                Know More
-                <FaChevronRight className="text-xs group-hover:translate-x-1 transition-transform" />
+              <button className="bg-slate-900 text-white font-black px-12 py-5 rounded-2xl hover:bg-[#08B36A] transition-all duration-500 active:scale-95 flex items-center gap-4 uppercase tracking-[0.2em] text-[10px] shadow-2xl hover:-translate-y-1 group">
+                Consult With Experts
+                <FaArrowRight className="text-xs group-hover:translate-x-2 transition-transform" />
               </button>
+              
+              <div className="mt-8 flex items-center gap-4">
+                  <div className="flex -space-x-3">
+                      {[1,2,3,4].map(i => (
+                          <div key={i} className="w-10 h-10 rounded-full border-2 border-white bg-slate-200 overflow-hidden shadow-sm">
+                              <img src={`https://i.pravatar.cc/100?img=${i+40}`} alt="doctor" />
+                          </div>
+                      ))}
+                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      Trusted by <span className="text-slate-900">500+ Verified Specialists</span>
+                  </p>
+              </div>
             </div>
           </div>
 

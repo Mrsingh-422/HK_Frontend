@@ -8,6 +8,9 @@ import {
     FaStethoscope, FaChevronDown, FaWeight, FaCalendarAlt, FaLanguage, FaStickyNote
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
+import SlotPicker from "../othercomponents/SlotPicker";
+
+// --- IMPORT THE COMPONENT --- 
 
 const BASE_URL = "http://localhost:5000";
 
@@ -22,23 +25,23 @@ function BookingDetailsContent() {
     const serviceId = searchParams.get("serviceId");
     const serviceTitle = searchParams.get("serviceTitle");
     const serviceType = searchParams.get("serviceType");
-    const date = searchParams.get("bookingDate");
-    const slotTime = searchParams.get("slotTime");
-    const displayTime = searchParams.get("displayTime");
     const basePrice = parseFloat(searchParams.get("servicePrice") || 0);
-    const extraFee = parseFloat(searchParams.get("extraFee") || 0);
-    const totalAmount = basePrice + extraFee;
 
     // Data States
     const [addresses, setAddresses] = useState([]);
     const [familyMembers, setFamilyMembers] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    // Slot Selection States (Managed by Component)
+    const [selectedDate, setSelectedDate] = useState("");
+    const [selectedSlotTime, setSelectedSlotTime] = useState("");
+    const [displayTime, setDisplayTime] = useState("");
+    const [extraFee, setExtraFee] = useState(0);
+
     // Selection & Form States
     const [selectedAddressId, setSelectedAddressId] = useState(null);
     const [selectedFamilyId, setSelectedFamilyId] = useState(null);
     
-    // New Form Fields from Screenshot
     const [location, setLocation] = useState("At Home");
     const [patientDetails, setPatientDetails] = useState({
         fullName: "",
@@ -53,6 +56,8 @@ function BookingDetailsContent() {
         language: "English",
         instructions: ""
     });
+
+    const totalAmount = basePrice + extraFee;
 
     useEffect(() => {
         const fetchBookingData = async () => {
@@ -82,7 +87,13 @@ function BookingDetailsContent() {
         fetchBookingData();
     }, []);
 
-    // Auto-populate fields when family member is selected
+    const handleSlotSelection = (slotData) => {
+        setSelectedDate(slotData.date);
+        setSelectedSlotTime(slotData.slotTime);
+        setDisplayTime(slotData.displayTime);
+        setExtraFee(slotData.extraFee);
+    };
+
     const handleSelectFamily = (member) => {
         setSelectedFamilyId(member._id);
         setPatientDetails({
@@ -94,6 +105,7 @@ function BookingDetailsContent() {
     };
 
     const handleFinalBooking = () => {
+        if (!selectedSlotTime) return alert("Please select a time slot");
         if (!selectedFamilyId && !patientDetails.fullName) return alert("Please select or enter patient details");
         if (!selectedAddressId) return alert("Please select a visit address");
 
@@ -102,8 +114,8 @@ function BookingDetailsContent() {
             serviceId,
             familyMemberId: selectedFamilyId,
             addressId: selectedAddressId,
-            date,
-            slotTime,
+            date: selectedDate,
+            slotTime: selectedSlotTime,
             displayTime,
             totalAmount,
             additionalInfo: {
@@ -116,7 +128,6 @@ function BookingDetailsContent() {
 
         console.log("Final Booking Payload:", bookingPayload);
         alert("Booking Confirmed! Proceeding to Payment...");
-        // router.push('/payment');
     };
 
     if (loading) {
@@ -174,6 +185,9 @@ function BookingDetailsContent() {
                                 alt="Service" 
                             />
                         </div>
+
+                        {/* --- SLOT PICKER COMPONENT CALL --- */}
+                        <SlotPicker nurseId={nurseId} onSlotSelect={handleSlotSelection} />
 
                         {/* 2. Who is this appointment for */}
                         <section className="space-y-4">
@@ -393,12 +407,12 @@ function BookingDetailsContent() {
                                     <div className="bg-white/5 p-4 rounded-2xl">
                                         <FaCalendarCheck className="text-teal-400 mb-1" />
                                         <p className="text-[9px] font-bold text-slate-400 uppercase">Date</p>
-                                        <p className="font-bold text-xs">{date}</p>
+                                        <p className="font-bold text-xs">{selectedDate || "Not selected"}</p>
                                     </div>
                                     <div className="bg-white/5 p-4 rounded-2xl">
                                         <FaClock className="text-teal-400 mb-1" />
                                         <p className="text-[9px] font-bold text-slate-400 uppercase">Time</p>
-                                        <p className="font-bold text-xs">{displayTime}</p>
+                                        <p className="font-bold text-xs">{displayTime || "Not selected"}</p>
                                     </div>
                                 </div>
 

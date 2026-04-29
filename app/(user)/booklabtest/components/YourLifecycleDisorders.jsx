@@ -1,122 +1,167 @@
-import React, { useState } from "react";
-import { FaArrowLeft, FaArrowRight, FaStethoscope, FaSyringe, FaMicroscope, FaDna, FaHeartbeat } from "react-icons/fa";
+"use client";
+
+import React, { useState, useRef } from "react";
+// ERROR FIXED: Changed from "next/router" to "next/navigation"
+import { useRouter } from "next/navigation"; 
+import { 
+  FaArrowLeft, FaArrowRight, FaStethoscope, FaSyringe, 
+  FaMicroscope, FaDna, FaHeartbeat, FaLongArrowAltRight 
+} from "react-icons/fa";
 
 const disorders = [
   {
     id: 1,
     title: "Gynecological Disorders",
-    desc: "Promote your healthy eating habits",
-    icon: <FaStethoscope className="text-4xl text-emerald-500" />,
+    desc: "Promote your healthy eating habits with specialized screenings.",
+    icon: <FaStethoscope />,
+    tag: "Women Health"
   },
   {
     id: 2,
     title: "Myasthenia Gravis",
     desc: "Comprehensive diagnostic testing for neuromuscular health.",
-    icon: <FaSyringe className="text-4xl text-emerald-500" />,
+    icon: <FaSyringe />,
+    tag: "Neuromuscular"
   },
   {
     id: 3,
-    title: "Disorders of Endocrine System",
-    desc: "Promote your healthy eating habits",
-    icon: <FaMicroscope className="text-4xl text-emerald-500" />,
+    title: "Endocrine System",
+    desc: "Advanced analysis of hormonal and metabolic functions.",
+    icon: <FaMicroscope />,
+    tag: "Hormonal"
   },
   {
     id: 4,
     title: "Pharmacogenomics",
     desc: "Analyze how your genes affect your response to drugs.",
-    icon: <FaDna className="text-4xl text-emerald-500" />,
+    icon: <FaDna />,
+    tag: "Genetics"
   },
   {
     id: 5,
     title: "Autoimmune Disorders",
     desc: "Advanced screening for systemic immune responses.",
-    icon: <FaHeartbeat className="text-4xl text-emerald-500" />,
+    icon: <FaHeartbeat />,
+    tag: "Immunity"
   },
 ];
 
-// Double the data for seamless infinite loop
-const displayData = [...disorders, ...disorders];
-
 function YourLifecycleDisorders() {
-  const [isPaused, setIsPaused] = useState(false);
+  const scrollRef = useRef(null);
+  const router = useRouter();
+
+  const scroll = (direction) => {
+    if (scrollRef.current) {
+      const { scrollLeft, clientWidth } = scrollRef.current;
+      const scrollTo = direction === 'left' ? scrollLeft - clientWidth / 2 : scrollLeft + clientWidth / 2;
+      scrollRef.current.scrollTo({ left: scrollTo, behavior: 'smooth' });
+    }
+  };
 
   return (
-    <div className="py-12 md:py-20 bg-[#f8fafc] overflow-hidden">
-      <div className="max-w-7xl mx-auto px-4 text-center mb-10 md:mb-16">
-        {/* Top Header with Arrows */}
-        <div className="flex items-center justify-center gap-4 mb-2">
-          <FaArrowLeft className="text-emerald-500 cursor-pointer hover:scale-110 transition-transform" />
-          <span className="text-emerald-500 font-bold text-lg md:text-xl">How's Treated You</span>
-          <FaArrowRight className="text-emerald-500 cursor-pointer hover:scale-110 transition-transform" />
-        </div>
-
-        {/* Main Title */}
-        <h1 className="text-3xl md:text-6xl font-black text-slate-800 tracking-tight">
-          Your Lifecycle disorders!
-        </h1>
+    <div className="py-24 bg-[#FDFDFD] relative overflow-hidden">
+      {/* Abstract Background Elements */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none">
+        <div className="absolute top-20 left-10 w-64 h-64 bg-emerald-50 rounded-full blur-3xl opacity-60" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-slate-50 rounded-full blur-3xl opacity-60" />
       </div>
 
-      {/* Marquee Section */}
-      <div 
-        className="relative w-full"
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => setIsPaused(false)}
-        onTouchStart={() => setIsPaused(true)}
-        onTouchEnd={() => setIsPaused(false)}
-      >
-        <div 
-          className="flex gap-4 md:gap-8 animate-lifecycle-marquee"
-          style={{ 
-            animationPlayState: isPaused ? 'paused' : 'running',
-            width: 'max-content'
-          }}
-        >
-          {displayData.map((item, index) => (
-            <div 
-              key={`${item.id}-${index}`}
-              className="w-[260px] sm:w-[280px] md:w-[320px] flex-shrink-0 bg-white border border-slate-100 rounded-[2rem] p-8 shadow-sm hover:shadow-2xl transition-all duration-500 flex flex-col items-center text-center group"
+      <div className="max-w-7xl mx-auto px-6 relative z-10">
+        
+        {/* --- Header with Modern Typography --- */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-10 mb-16">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Lifecycle Specialized</span>
+            </div>
+            <h2 className="text-4xl md:text-7xl font-black text-slate-900 tracking-tighter">
+              Lifecycle <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-teal-600">Disorders.</span>
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => scroll('left')}
+              className="w-14 h-14 rounded-2xl border border-slate-100 bg-white flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:border-emerald-200 hover:shadow-lg hover:shadow-emerald-100 transition-all active:scale-90"
             >
-              {/* Icon Container */}
-              <div className="w-24 h-24 md:w-32 md:h-32 bg-slate-50 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-                <div className="p-4 border-2 border-dashed border-emerald-200 rounded-xl">
-                    {item.icon}
+              <FaArrowLeft size={14} />
+            </button>
+            <button 
+              onClick={() => scroll('right')}
+              className="w-14 h-14 rounded-2xl border border-slate-100 bg-white flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:border-emerald-200 hover:shadow-lg hover:shadow-emerald-100 transition-all active:scale-90"
+            >
+              <FaArrowRight size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* --- Horizontal Interaction Area --- */}
+        <div 
+          ref={scrollRef}
+          className="flex gap-8 overflow-x-auto pb-12 pt-4 no-scrollbar snap-x"
+        >
+          {disorders.map((item) => (
+            <div 
+              key={item.id}
+              className="min-w-[300px] md:min-w-[380px] snap-center group relative bg-white rounded-[2.5rem] p-10 border border-slate-50 shadow-[0_20px_50px_rgba(0,0,0,0.02)] hover:shadow-[0_40px_80px_rgba(16,185,129,0.1)] transition-all duration-500"
+            >
+              {/* Category Tag */}
+              <span className="inline-block px-4 py-1.5 rounded-full bg-emerald-50 text-[#059669] text-[9px] font-black uppercase tracking-widest mb-8">
+                {item.tag}
+              </span>
+
+              {/* Icon with Glass Effect */}
+              <div className="relative w-20 h-20 mb-10">
+                <div className="absolute inset-0 bg-emerald-500/10 rounded-3xl rotate-6 group-hover:rotate-12 transition-transform duration-500" />
+                <div className="absolute inset-0 bg-white border border-emerald-100 rounded-3xl flex items-center justify-center text-3xl text-emerald-500 shadow-sm group-hover:-translate-y-2 transition-transform duration-500">
+                  {item.icon}
                 </div>
               </div>
 
-              {/* Title */}
-              <h3 className="text-emerald-500 font-bold text-lg md:text-xl mb-4 min-h-[56px] flex items-center">
-                {item.title}
-              </h3>
+              {/* Text Content */}
+              <div className="space-y-4 mb-10">
+                <h3 className="text-2xl font-black text-slate-900 group-hover:text-emerald-600 transition-colors">
+                  {item.title}
+                </h3>
+                <p className="text-slate-500 text-sm md:text-base font-medium leading-relaxed">
+                  {item.desc}
+                </p>
+              </div>
 
-              {/* Description */}
-              <p className="text-slate-500 text-sm md:text-base leading-relaxed mb-8 min-h-[48px]">
-                {item.desc}
-              </p>
-
-              {/* Button */}
-              <button className="bg-[#10b981] hover:bg-slate-900 text-white font-bold py-2.5 px-8 rounded-xl transition-all shadow-md active:scale-95 text-sm">
-                Book A Test
+              {/* Action Button */}
+              <button className="flex items-center gap-3 text-[11px] font-black uppercase tracking-widest text-slate-900 group-hover:text-emerald-500 transition-all">
+                Learn More <FaLongArrowAltRight className="text-emerald-500 group-hover:translate-x-2 transition-transform" />
               </button>
+
+              {/* Hover Decorative Line */}
+              <div className="absolute bottom-0 left-10 right-10 h-1 bg-emerald-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 rounded-full" />
             </div>
           ))}
         </div>
+
+        {/* --- Global CTA --- */}
+        <div className="mt-16 flex flex-col items-center">
+            <button
+            onClick={() => router.push('/booklabtest/seealltests')}
+            className="bg-slate-900 text-white px-14 py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl hover:bg-emerald-500 transition-all active:scale-95">
+                Book A Specialized Test
+            </button>
+            <p className="mt-8 text-slate-400 text-[9px] font-black uppercase tracking-[0.4em]">
+                Diagnostic accuracy verified by NABL Experts
+            </p>
+        </div>
       </div>
 
-      {/* Responsive Styles & Animation */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes lifecycle-marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
+      <style jsx global>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
         }
-        .animate-lifecycle-marquee {
-          animation: lifecycle-marquee 35s linear infinite;
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
-        @media (max-width: 768px) {
-          .animate-lifecycle-marquee {
-            animation: lifecycle-marquee 25s linear infinite;
-          }
-        }
-      `}} />
+      `}</style>
     </div>
   );
 }

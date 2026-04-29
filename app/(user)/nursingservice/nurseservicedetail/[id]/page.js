@@ -2,15 +2,15 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { 
-  FaStar, FaMapMarkerAlt, FaBriefcase, FaCheckCircle, 
-  FaArrowLeft, FaPhoneAlt, FaEnvelope, FaFileMedical, 
+import {
+  FaStar, FaMapMarkerAlt, FaBriefcase, FaCheckCircle,
+  FaArrowLeft, FaPhoneAlt, FaEnvelope, FaFileMedical,
   FaStethoscope, FaCapsules, FaClock, FaClipboardList,
   FaImages, FaCalendarAlt, FaTimes, FaCrown
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
-const BASE_URL = "http://localhost:5000"; 
+const BASE_URL = "http://localhost:5000";
 
 function NurseServiceDetailPage() {
   const { id } = useParams();
@@ -18,14 +18,6 @@ function NurseServiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [nurseData, setNurseData] = useState(null);
   const [activeTab, setSelectedTab] = useState("");
-
-  // Booking Modal States
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedService, setSelectedService] = useState(null);
-  const [slots, setSlots] = useState([]);
-  const [loadingSlots, setLoadingSlots] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedSlot, setSelectedSlot] = useState(null);
 
   const getImageUrl = (path) => {
     if (!path) return "https://img.freepik.com/free-photo/medical-specialist-taking-care-patient_23-2148962551.jpg";
@@ -54,52 +46,17 @@ function NurseServiceDetailPage() {
     if (id) fetchDetail();
   }, [id]);
 
-  // Fetch Slots when Date changes or Modal opens
-  useEffect(() => {
-    if (isModalOpen && nurseData?._id) {
-      fetchAvailableSlots();
-    }
-  }, [selectedDate, isModalOpen]);
-
-  const fetchAvailableSlots = async () => {
-    try {
-      setLoadingSlots(true);
-      const res = await UserAPI.getNurseSlots(nurseData._id, { date: selectedDate });
-      if (res?.success) {
-        setSlots(res.data);
-      }
-    } catch (error) {
-      console.error("Error fetching slots:", error);
-    } finally {
-      setLoadingSlots(false);
-    }
-  };
-
-  const handleOpenBooking = (service) => {
-    setSelectedService(service);
-    setIsModalOpen(true);
-  };
-
-  const handleConfirmBooking = () => {
-    if (!selectedSlot) return alert("Please select a time slot");
-
-    // Prepare all data to be passed to the booking details page
+  const handleBookNow = (service) => {
+    // Navigate to booking details page and pass necessary IDs
+    // The slot selection logic will now happen on that page
     const queryParams = new URLSearchParams({
       nurseId: nurseData._id,
+      serviceId: service._id,
       nurseName: nurseData.name,
-      nurseImage: nurseData.profileImage || "",
-      nurseCity: nurseData.city,
-      serviceId: selectedService._id,
-      serviceTitle: selectedService.title,
-      servicePrice: selectedService.price.toString(),
-      serviceType: selectedService.type,
-      bookingDate: selectedDate,
-      slotTime: selectedSlot.time,
-      displayTime: selectedSlot.displayTime,
-      extraFee: (selectedSlot.extraFee || 0).toString(),
+      serviceTitle: service.title,
+      servicePrice: service.price,
     }).toString();
 
-    // Navigate to checkout with all details in query string
     router.push(`/nursingservice/booking-details?${queryParams}`);
   };
 
@@ -123,91 +80,6 @@ function NurseServiceDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#FDFEFF] font-sans pb-20">
-      {/* --- Booking Modal --- */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-          <div className="relative bg-white w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
-            <div className="p-8 space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-2xl font-black text-slate-900">Select Schedule</h3>
-                <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-rose-50 hover:text-rose-500 transition-all">
-                  <FaTimes />
-                </button>
-              </div>
-
-              {/* Date Selection */}
-              <div className="space-y-3">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                  <FaCalendarAlt className="text-teal-500" /> Choose Appointment Date
-                </label>
-                <input 
-                  type="date" 
-                  value={selectedDate}
-                  min={new Date().toISOString().split('T')[0]}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-teal-500/20 transition-all"
-                />
-              </div>
-
-              {/* Slots Selection */}
-              <div className="space-y-4">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                  <FaClock className="text-teal-500" /> Available Time Slots
-                </label>
-                
-                {loadingSlots ? (
-                  <div className="flex justify-center py-10">
-                    <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                ) : (
-                  <div className="max-h-[300px] overflow-y-auto pr-2 space-y-4 custom-scrollbar">
-                    {slots.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-3">
-                        {slots.map((slot, index) => (
-                          <button
-                            key={index}
-                            disabled={!slot.isAvailable}
-                            onClick={() => setSelectedSlot(slot)}
-                            className={`relative p-4 rounded-2xl border-2 transition-all flex flex-col items-start gap-1 ${
-                              !slot.isAvailable 
-                                ? "opacity-40 cursor-not-allowed bg-slate-50 border-slate-100" 
-                                : selectedSlot?.time === slot.time
-                                ? "border-teal-500 bg-teal-50 shadow-md"
-                                : "border-slate-100 bg-white hover:border-teal-200"
-                            }`}
-                          >
-                            <span className="font-black text-slate-900">{slot.displayTime}</span>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">{slot.category}</span>
-                            {slot.isPremium && (
-                              <div className="absolute top-2 right-2 flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-0.5 rounded-lg text-[9px] font-black">
-                                <FaCrown className="text-amber-500" /> +₹{slot.extraFee}
-                              </div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                        <p className="text-sm font-bold text-slate-400">No slots available for this date.</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Action */}
-              <button 
-                onClick={handleConfirmBooking}
-                className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black hover:bg-teal-600 transition-all shadow-xl active:scale-95 flex items-center justify-center gap-3"
-              >
-                Confirm Appointment <FaCheckCircle />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* --- Header / Hero Section --- */}
       <div className="relative h-[300px] md:h-[400px] w-full bg-slate-900 overflow-hidden">
         <div className="absolute inset-0 opacity-40">
@@ -269,11 +141,11 @@ function NurseServiceDetailPage() {
                       </div>
                       {service.photos?.length > 1 && (
                         <div className="flex gap-2">
-                           {service.photos.slice(1, 4).map((img, idx) => (
-                             <div key={idx} className="w-12 h-12 rounded-xl overflow-hidden border border-slate-100">
-                               <img src={getImageUrl(img)} className="w-full h-full object-cover" alt="gal" />
-                             </div>
-                           ))}
+                          {service.photos.slice(1, 4).map((img, idx) => (
+                            <div key={idx} className="w-12 h-12 rounded-xl overflow-hidden border border-slate-100">
+                              <img src={getImageUrl(img)} className="w-full h-full object-cover" alt="gal" />
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -282,8 +154,8 @@ function NurseServiceDetailPage() {
                       <div className="flex flex-wrap justify-between items-start gap-4">
                         <div>
                           <div className="flex items-center gap-2 mb-2">
-                              <span className="px-3 py-1 bg-teal-50 text-teal-600 text-[10px] font-black uppercase rounded-lg">{service.type}</span>
-                              {service.prescriptionRequired && <span className="flex items-center gap-1 text-[10px] font-black text-rose-500 uppercase bg-rose-50 px-2 py-1 rounded-lg"><FaFileMedical /> Prescription Reqd.</span>}
+                            <span className="px-3 py-1 bg-teal-50 text-teal-600 text-[10px] font-black uppercase rounded-lg">{service.type}</span>
+                            {service.prescriptionRequired && <span className="flex items-center gap-1 text-[10px] font-black text-rose-500 uppercase bg-rose-50 px-2 py-1 rounded-lg"><FaFileMedical /> Prescription Reqd.</span>}
                           </div>
                           <h3 className="text-2xl font-black text-slate-900">{service.title}</h3>
                         </div>
@@ -299,7 +171,7 @@ function NurseServiceDetailPage() {
                         </div>
                         <div className="flex items-center gap-3 text-[13px] font-medium text-slate-600"><div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-500"><FaClock /></div><span>{service.servicesOffered}</span></div>
                       </div>
-                      <button onClick={() => handleOpenBooking(service)} className="w-full mt-4 bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-teal-600 transition-all active:scale-95 shadow-xl flex items-center justify-center gap-3">
+                      <button onClick={() => handleBookNow(service)} className="w-full mt-4 bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-teal-600 transition-all active:scale-95 shadow-xl flex items-center justify-center gap-3">
                         Book This Package <FaArrowLeft className="rotate-180" />
                       </button>
                     </div>
@@ -321,7 +193,7 @@ function NurseServiceDetailPage() {
           </div>
         </div>
       </div>
-      
+
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }

@@ -13,6 +13,7 @@ import FromHealthMed from './components/FromHealthMed'
 import OurPharmacyPartners from './components/OurPharmacyPartners'
 import NearByMedicines from './components/NearByMedicines'
 import BrandLogos from './components/BrandLogos'
+import PharmaciesNearMe from './components/PharmaciesNearMe'
 
 function page() {
     return (
@@ -21,6 +22,7 @@ function page() {
             <OnlinePharmacy />
             <NearByMedicines />
             <BrandLogos />
+            <PharmaciesNearMe />
             {/* <FeaturedProducts /> */}
             {/* <DeclareThePast /> */}
             {/* <TheBestOfBest /> */}

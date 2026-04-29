@@ -18,7 +18,7 @@ function page() {
         <>
             <SecondNavbar />
             <FindMyNurse />
-            <FindMyNurseTwo />
+            {/* <FindMyNurseTwo /> */}
             {/* <AllNursingServices /> */}
             {/* <NursePackages /> */}
             {/* <NursingPosts /> */}

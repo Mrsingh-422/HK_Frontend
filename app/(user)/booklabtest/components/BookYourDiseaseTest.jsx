@@ -9,61 +9,7 @@ import {
 } from "react-icons/fa";
 import TestDetailsModal from "./otherComponents/TestDetailsModal";
 import { useGlobalContext } from "@/app/context/GlobalContext";
-
-const INITIAL_PACKAGES = [
-  {
-    id: 9,
-    name: "Complete Women's Health",
-    vendor: "Metro Labs",
-    price: "₹6,500",
-    discountPrice: "₹3,999",
-    category: "Women",
-    image: "https://images.unsplash.com/photo-1584515933487-779824d29309?auto=format&fit=crop&w=400&q=80",
-    rating: 4.9,
-    distance: 1.2,
-    tests: "55 Parameters",
-    isTrending: true
-  },
-  {
-    id: 14,
-    name: "PCOS Advanced Panel",
-    vendor: "Wellness Path",
-    price: "₹2,500",
-    discountPrice: "₹1,499",
-    category: "Women",
-    image: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80",
-    rating: 4.7,
-    distance: 2.5,
-    tests: "12 Parameters",
-    isTrending: false
-  },
-  {
-    id: 4,
-    name: "Heart Health Check",
-    vendor: "City Care",
-    price: "₹4,500",
-    discountPrice: "₹2,799",
-    category: "Heart",
-    image: "https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&w=400&q=80",
-    rating: 4.8,
-    distance: 2.1,
-    tests: "25 Parameters",
-    isTrending: true
-  },
-  {
-    id: 5,
-    name: "Thyroid Profile",
-    vendor: "Prime Diagnostics",
-    price: "₹1,800",
-    discountPrice: "₹899",
-    category: "Diabetes",
-    image: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=400&q=80",
-    rating: 4.5,
-    distance: 3.8,
-    tests: "10 Parameters",
-    isTrending: false
-  },
-];
+import UserAPI from "@/app/services/UserAPI";
 
 function BookYourDiseaseTest() {
   const router = useRouter();
@@ -71,6 +17,8 @@ function BookYourDiseaseTest() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [selectedPkg, setSelectedPkg] = useState(null);
+  const [labTests, setLabTests] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -81,18 +29,61 @@ function BookYourDiseaseTest() {
     searchLabel: "Search for tests, packages or symptoms..."
   });
 
+  // Array of 4 static clinical images for the tests
+  const STATIC_TEST_IMAGES = [
+    "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=500&q=80", // MRI / Radiology
+    "https://bridgehealth.in/images/new-website/radiology/lab-test-bg.webp", // Lab / Microscope
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSvpgUkk1fJT4QjY3o_AK2ZzrhV9YF9RNu6Xw&s", // Blood Vials
+    "https://plus.unsplash.com/premium_photo-1663011253265-9b5cb2b5ac92?fm=jpg&q=60&w=3000&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8bGFiJTIwdGVzdHxlbnwwfHwwfHx8MA%3D%3D"  // Clinical Checkup
+  ];
+
+  // Fetch dynamic data from API
+  useEffect(() => {
+    const fetchTests = async () => {
+      try {
+        setLoading(true);
+        const res = await UserAPI.getStandardTestCatalog();
+        if (res?.success) {
+          setLabTests(res.data);
+        }
+      } catch (error) {
+        console.error("Error fetching lab tests:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTests();
+  }, []);
+
   const filteredPackages = useMemo(() => {
-    return INITIAL_PACKAGES.filter((pkg) => {
-      const matchesSearch = pkg.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = activeCategory === "All" || pkg.category === activeCategory;
+    return labTests.filter((pkg) => {
+      const matchesSearch = pkg.testName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = activeCategory === "All" || 
+                               pkg.mainCategory === activeCategory || 
+                               pkg.category === activeCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [searchTerm, activeCategory]);
+  }, [searchTerm, activeCategory, labTests]);
 
   const handleSeeAll = () => {
-    sessionStorage.setItem("allTestPackages", JSON.stringify(INITIAL_PACKAGES));
+    sessionStorage.setItem("allTestPackages", JSON.stringify(labTests));
     router.push("/booklabtest/seealltests");
   };
+
+  // Helper to map API data to your UI structure with specific static images
+  const getDisplayData = (pkg, index) => ({
+    id: pkg._id,
+    name: pkg.testName,
+    vendor: `${pkg.vendorCount} Verified Labs`,
+    price: `₹${pkg.standardMRP}`,
+    discountPrice: `₹${pkg.minPrice}`,
+    category: pkg.mainCategory,
+    // Cycle through the 4 static images
+    image: STATIC_TEST_IMAGES[index % 4],
+    rating: 4.8,
+    tests: `${pkg.parameters?.length || 0} Parameters`,
+    isTrending: pkg.vendorCount > 2
+  });
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20 font-sans text-slate-900">
@@ -164,7 +155,7 @@ function BookYourDiseaseTest() {
             <button onClick={handleSeeAll} className="text-[#08B36A] font-black text-xs uppercase hover:underline">See All</button>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
-            {["All", "Women", "Heart", "Diabetes", "Full Body"].map((cat) => (
+            {["All", "Women", "Radiology", "Heart", "Diabetes", "Full Body"].map((cat) => (
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
@@ -207,7 +198,7 @@ function BookYourDiseaseTest() {
           <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-400/10 rounded-full blur-[100px] -mr-32 -mt-32"></div>
         </section>
 
-        {/* --- 5. MAIN PRODUCT GRID (2 Mobile / 4 Desktop) --- */}
+        {/* --- 5. MAIN PRODUCT GRID (Limited to 4 items) --- */}
         <section>
           <div className="flex flex-col sm:flex-row justify-between items-end mb-10 gap-4">
             <div>
@@ -218,44 +209,56 @@ function BookYourDiseaseTest() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-8">
-            {filteredPackages.map((pkg) => (
-              <div key={pkg.id} className="group bg-white rounded-[2rem] border border-slate-100 flex flex-col hover:shadow-2xl hover:shadow-[#08B36A]/10 transition-all duration-500 overflow-hidden">
-                <div className="relative aspect-square overflow-hidden bg-slate-50">
-                  <img src={pkg.image} alt={pkg.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                  {pkg.isTrending && (
-                    <div className="absolute top-4 left-4 bg-red-500 text-white text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest shadow-lg">Trending</div>
-                  )}
-                  <div className="absolute bottom-4 right-4 bg-white/95 backdrop-blur px-2 py-1 rounded-xl text-[9px] font-black flex items-center gap-1 shadow-md">
-                    <FaStar className="text-yellow-400" /> {pkg.rating}
-                  </div>
-                </div>
-
-                <div className="p-4 sm:p-6 flex flex-col flex-1">
-                  <span className="text-[9px] font-black text-[#08B36A] uppercase tracking-tighter mb-1">{pkg.vendor}</span>
-                  <h3 className="text-sm sm:text-base font-black text-slate-800 line-clamp-2 leading-tight mb-4 h-10">
-                    {pkg.name}
-                  </h3>
-
-                  <div className="text-[10px] text-slate-400 font-bold mb-6 flex items-center gap-2">
-                    <FaCheckCircle className="text-[#08B36A]" /> {pkg.tests}
-                  </div>
-
-                  <div className="mt-auto pt-4 border-t border-slate-50 flex flex-col gap-3">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-xl font-black text-slate-900">{pkg.discountPrice}</span>
-                      <span className="text-[10px] text-slate-300 line-through font-bold">{pkg.price}</span>
+            {filteredPackages.slice(0, 4).map((test, index) => {
+              const display = getDisplayData(test, index);
+              return (
+                <div onClick={() => router.push(`/booklabtest/testdetails/${display.id}`)} key={display.id} className="group cursor-pointer bg-white rounded-[2rem] border border-slate-100 flex flex-col hover:shadow-2xl hover:shadow-[#08B36A]/10 transition-all duration-500 overflow-hidden">
+                  <div className="relative aspect-square overflow-hidden bg-slate-50">
+                    <img src={display.image} alt={display.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                    {display.isTrending && (
+                      <div className="absolute top-4 left-4 bg-red-500 text-white text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest shadow-lg">Trending</div>
+                    )}
+                    <div className="absolute bottom-4 right-4 bg-white/95 backdrop-blur px-2 py-1 rounded-xl text-[9px] font-black flex items-center gap-1 shadow-md">
+                      <FaStar className="text-yellow-400" /> {display.rating}
                     </div>
-                    <button
-                      onClick={() => setSelectedPkg(pkg) || setIsModalOpen(true)}
-                      className="w-full bg-slate-900 text-white py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#08B36A] transition-all active:scale-95"
-                    >
-                      Book Now
-                    </button>
+                  </div>
+
+                  <div className="p-4 sm:p-6 flex flex-col flex-1">
+                    <span className="text-[9px] font-black text-[#08B36A] uppercase tracking-tighter mb-1">{display.vendor}</span>
+                    <h3 className="text-sm sm:text-base font-black text-slate-800 line-clamp-2 leading-tight mb-4 h-10">
+                      {display.name}
+                    </h3>
+
+                    <div className="text-[10px] text-slate-400 font-bold mb-6 flex items-center gap-2">
+                      <FaCheckCircle className="text-[#08B36A]" /> {display.tests}
+                    </div>
+
+                    <div className="mt-auto pt-4 border-t border-slate-50 flex flex-col gap-3">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xl font-black text-slate-900">{display.discountPrice}</span>
+                        <span className="text-[10px] text-slate-300 line-through font-bold">{display.price}</span>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPkg(test) || setIsModalOpen(true);
+                        }}
+                        className="w-full bg-slate-900 text-white py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#08B36A] transition-all active:scale-95"
+                      >
+                        Book Now
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
+
+          {loading && (
+             <div className="flex justify-center py-20">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-[#08B36A]"></div>
+             </div>
+          )}
         </section>
 
         {/* --- 6. TRUST FOOTER --- */}

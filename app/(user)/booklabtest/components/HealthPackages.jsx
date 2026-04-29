@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     FaArrowRight,
     FaCheckCircle,
@@ -12,22 +12,53 @@ import {
     FaStar,
     FaPlus
 } from "react-icons/fa";
-import { INITIAL_PACKAGES } from "../../../constants/constants";
 import { useRouter } from "next/navigation";
 import TestDetailsModal from "./otherComponents/TestDetailsModal";
+import UserAPI from "@/app/services/UserAPI";
 
 export default function HealthPackagesLanding() {
     const router = useRouter();
+    const [packages, setPackages] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [selectedPackage, setSelectedPackage] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // Show only the first 3 or 4 top packages for the landing page
-    const featuredPackages = INITIAL_PACKAGES.slice(0, 3);
+    // 3 Static images for the first three packages
+    const STATIC_IMAGES = [
+        "https://idronline.org/wp-content/uploads/2020/12/OGFB4B0.jpg.webp",
+        "https://plus.unsplash.com/premium_photo-1673953509975-576678fa6710?fm=jpg&q=60&w=3000&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8aGVhbHRofGVufDB8fDB8fHww",
+        "https://images.unsplash.com/photo-1551076805-e1869033e561?auto=format&fit=crop&w=800&q=80"
+    ];
 
-    const handleBookClick = (pkg) => {
+    useEffect(() => {
+        const fetchPackages = async () => {
+            try {
+                setLoading(true);
+                const res = await UserAPI.getStandardPackageCatalog({ limit: 10 });
+                if (res?.success) {
+                    setPackages(res.data);
+                }
+            } catch (error) {
+                console.error("Error fetching packages:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchPackages();
+    }, []);
+
+    const handleBookClick = (e, pkg) => {
+        e.stopPropagation(); // Prevent navigation when clicking the book button
         setSelectedPackage(pkg);
         setIsModalOpen(true);
     };
+
+    const handleNavigate = (id) => {
+        router.push(`/booklabtest/packagedetails/${id}`);
+    };
+
+    // Slice to show only 3 packages as requested
+    const featuredPackages = packages.slice(0, 3);
 
     return (
         <section className="py-24 bg-[#FDFDFD]">
@@ -64,81 +95,101 @@ export default function HealthPackagesLanding() {
                     </button>
                 </div>
 
-                {/* --- STATIC E-COMMERCE GRID --- */}
+                {/* --- DYNAMIC E-COMMERCE GRID --- */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                    {featuredPackages.map((pkg) => (
-                        <div 
-                            key={pkg.id}
-                            className="group bg-white rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/40 hover:shadow-2xl hover:shadow-emerald-200/30 transition-all duration-500 flex flex-col overflow-hidden"
-                        >
-                            {/* Image & Badges */}
-                            <div className="relative h-60 overflow-hidden m-4 rounded-[2.2rem]">
-                                <img 
-                                    src={pkg.image} 
-                                    alt={pkg.name} 
-                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
-                                
-                                {/* Floating Badges */}
-                                <div className="absolute top-5 left-5 flex flex-col gap-2">
-                                    <span className="bg-white/90 backdrop-blur-md text-slate-900 text-[9px] font-black px-3 py-1.5 rounded-xl shadow-sm uppercase tracking-widest">
-                                        {pkg.testCount || "60+"} Parameters
-                                    </span>
-                                </div>
+                    {loading ? (
+                        [1, 2, 3].map((i) => (
+                            <div key={i} className="h-[500px] bg-slate-100 animate-pulse rounded-[3rem]"></div>
+                        ))
+                    ) : (
+                        featuredPackages.map((pkg, index) => {
+                            const discountPrice = pkg.minPrice || pkg.standardMRP;
+                            const discountPercent = pkg.standardMRP > discountPrice 
+                                ? Math.round(((pkg.standardMRP - discountPrice) / pkg.standardMRP) * 100) 
+                                : 0;
 
-                                <div className="absolute top-5 right-5">
-                                    <div className="bg-orange-500 text-white text-[9px] font-black px-3 py-1.5 rounded-xl shadow-lg uppercase tracking-widest flex items-center gap-1">
-                                        <FaStar size={8}/> Bestseller
-                                    </div>
-                                </div>
-
-                                <div className="absolute bottom-5 left-5 flex items-center gap-2 text-white">
-                                    <div className="h-8 w-8 rounded-full bg-[#08B36A] flex items-center justify-center">
-                                        <FaCheckCircle size={14}/>
-                                    </div>
-                                    <span className="text-[10px] font-black uppercase tracking-widest">NABL Accredited</span>
-                                </div>
-                            </div>
-
-                            {/* Package Content */}
-                            <div className="px-8 pb-8 flex-1 flex flex-col">
-                                <h3 className="text-2xl font-black text-slate-900 leading-tight mb-4 group-hover:text-emerald-600 transition-colors line-clamp-2">
-                                    {pkg.name}
-                                </h3>
-
-                                {/* Feature Pills */}
-                                <div className="flex flex-wrap gap-2 mb-8">
-                                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                        <FaRegClock className="text-emerald-500" /> 24h Reports
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                        <FaRegHospital className="text-emerald-500" /> Home Pickup
-                                    </div>
-                                </div>
-
-                                {/* PRICE & ACTION SECTION */}
-                                <div className="mt-auto pt-6 border-t border-slate-50 flex items-center justify-between">
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-xs text-slate-400 line-through font-bold">₹2,999</span>
-                                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase">Save 60%</span>
+                            return (
+                                <div 
+                                    key={pkg._id}
+                                    onClick={() => handleNavigate(pkg._id)}
+                                    className="group bg-white cursor-pointer rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/40 hover:shadow-2xl hover:shadow-emerald-200/30 transition-all duration-500 flex flex-col overflow-hidden"
+                                >
+                                    {/* Image & Badges */}
+                                    <div className="relative h-60 overflow-hidden m-4 rounded-[2.2rem]">
+                                        <img 
+                                            src={STATIC_IMAGES[index] || STATIC_IMAGES[0]} 
+                                            alt={pkg.packageName} 
+                                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
+                                        
+                                        {/* Floating Badges */}
+                                        <div className="absolute top-5 left-5 flex flex-col gap-2">
+                                            <span className="bg-white/90 backdrop-blur-md text-slate-900 text-[9px] font-black px-3 py-1.5 rounded-xl shadow-sm uppercase tracking-widest">
+                                                {pkg.testCount || "0"} Parameters
+                                            </span>
                                         </div>
-                                        <span className="text-3xl font-black text-slate-900 tracking-tighter">
-                                            {pkg.price}
-                                        </span>
+
+                                        {pkg.tags?.includes("Best Seller") && (
+                                            <div className="absolute top-5 right-5">
+                                                <div className="bg-orange-500 text-white text-[9px] font-black px-3 py-1.5 rounded-xl shadow-lg uppercase tracking-widest flex items-center gap-1">
+                                                    <FaStar size={8}/> Bestseller
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="absolute bottom-5 left-5 flex items-center gap-2 text-white">
+                                            <div className="h-8 w-8 rounded-full bg-[#08B36A] flex items-center justify-center">
+                                                <FaCheckCircle size={14}/>
+                                            </div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest">NABL Accredited</span>
+                                        </div>
                                     </div>
 
-                                    <button 
-                                        onClick={() => handleBookClick(pkg)}
-                                        className="h-16 w-16 bg-slate-900 text-white rounded-[1.5rem] flex items-center justify-center hover:bg-emerald-500 transition-all duration-300 shadow-xl shadow-slate-200 group/btn"
-                                    >
-                                        <FaPlus className="group-hover:rotate-90 transition-transform" />
-                                    </button>
+                                    {/* Package Content */}
+                                    <div className="px-8 pb-8 flex-1 flex flex-col">
+                                        <h3 className="text-2xl font-black text-slate-900 leading-tight mb-4 group-hover:text-emerald-600 transition-colors line-clamp-2">
+                                            {pkg.packageName}
+                                        </h3>
+
+                                        {/* Feature Pills */}
+                                        <div className="flex flex-wrap gap-2 mb-8">
+                                            <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                <FaRegClock className="text-emerald-500" /> {pkg.reportTime}
+                                            </div>
+                                            <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                <FaRegHospital className="text-emerald-500" /> Home Pickup
+                                            </div>
+                                        </div>
+
+                                        {/* PRICE & ACTION SECTION */}
+                                        <div className="mt-auto pt-6 border-t border-slate-50 flex items-center justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    {pkg.standardMRP > discountPrice && (
+                                                        <span className="text-xs text-slate-400 line-through font-bold">₹{pkg.standardMRP}</span>
+                                                    )}
+                                                    {discountPercent > 0 && (
+                                                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase">Save {discountPercent}%</span>
+                                                    )}
+                                                </div>
+                                                <span className="text-3xl font-black text-slate-900 tracking-tighter">
+                                                    ₹{discountPrice}
+                                                </span>
+                                            </div>
+
+                                            <button 
+                                                onClick={(e) => handleBookClick(e, pkg)}
+                                                className="h-16 w-16 bg-slate-900 text-white rounded-[1.5rem] flex items-center justify-center hover:bg-emerald-500 transition-all duration-300 shadow-xl shadow-slate-200 group/btn"
+                                            >
+                                                <FaPlus className="group-hover:rotate-90 transition-transform" />
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
-                    ))}
+                            );
+                        })
+                    )}
                 </div>
 
                 {/* --- BOTTOM TRUST BAR --- */}

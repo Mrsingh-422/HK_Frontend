@@ -9,14 +9,16 @@ import OurDoctorsOurPriority from './components/OurDoctorsOurPriority'
 import HowToSecure from './components/HowToSecure'
 import FromHealthDr from './components/FromHealthDr'
 import FindMyConsultant from './components/FindMyConsultant'
+import SomeDoctors from './components/SomeDoctors'
 
 function page() {
   return (
     <>
     <SecondNavbar />
     <FindMyDoctor />
-    <FindMyConsultant />
-    <OurAllSpecialistsTeam />
+    <SomeDoctors />
+    {/* <FindMyConsultant /> */}
+    {/* <OurAllSpecialistsTeam /> */}
     <OurSpecialities />
     <OurDoctorsOurPriority />
     <HowToSecure />

@@ -24,7 +24,7 @@ function page() {
       <HealthPackages />
       {/* <PopularTest /> */}
       <YourLifecycleDisorders />
-      <MonthlyOffers />
+      {/* <MonthlyOffers /> */}
       <HowItWorks />
       {/* <LabCare /> */}
       {/* <AboutUsLaboratory /> */}

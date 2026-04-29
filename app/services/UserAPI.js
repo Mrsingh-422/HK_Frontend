@@ -193,6 +193,17 @@ const UserAPI = {
         });
         return response.data;
     },
+    getTrendingMedicines: async (data) => {
+        const response = await publicApi.post(`/user/pharmacy/trending-medicines`, data);
+        return response.data;
+    },
+    searchMedicineSuggestions: async (data) => {
+        const response = await publicApi.post(
+            `/user/pharmacy/search-suggestions`,
+            data
+        );
+        return response.data;
+    },
 
     // ==========================================
     // PRIVATE METHODS (Token Required)
@@ -498,6 +509,7 @@ const UserAPI = {
         const response = await authApi.post("/user/labs/checkout", checkoutData);
         return response.data;
     },
+
 
 
 
