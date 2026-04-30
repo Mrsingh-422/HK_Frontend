@@ -12,12 +12,20 @@ import ExperiencedNurses from './components/ExperiencedNurses'
 import OnlyTheBestCare from './components/OnlyTheBestCare'
 import OurNursingPartners from './components/OurNursingPartners'
 import FromHealthNursing from './components/FromHealthNursing'
+import NurseHero from './components/NurseHero'
+import NursingPlans from './components/NursingPlans'
+import DailyCarePlan from './components/DailyCarePlan'
+import BookingSteps from './components/BookingSteps'
 
 function page() {
     return (
         <>
             <SecondNavbar />
+            <NurseHero />
             <FindMyNurse />
+            <DailyCarePlan />
+            <NursingPlans />
+            <BookingSteps />
             {/* <FindMyNurseTwo /> */}
             {/* <AllNursingServices /> */}
             {/* <NursePackages /> */}
