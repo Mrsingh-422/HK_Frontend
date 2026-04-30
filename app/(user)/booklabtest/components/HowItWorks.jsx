@@ -67,33 +67,36 @@ function HowItWorks() {
     }, []);
 
     return (
-        <section className="py-16 md:py-15 bg-[#f8fafc]">
-            <div className="max-w-7xl mx-auto px-6">
+        <section className="py-12 md:py-20 lg:py-24 bg-[#f8fafc]">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6">
 
                 {/* Section Heading */}
-                <div className="text-center mb-16 md:mb-20">
-                    <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight">
+                <div className="text-center mb-12 md:mb-20">
+                    <h2 className="text-2xl sm:text-3xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
                         {data.mainTitle}
                     </h2>
-                    <div className="w-16 h-1.5 bg-emerald-500 mx-auto mt-4 rounded-full"></div>
+                    <div className="w-12 md:w-16 h-1.5 bg-emerald-500 mx-auto mt-3 md:mt-4 rounded-full"></div>
                 </div>
 
                 {/* Steps Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-16">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-12 lg:gap-16">
                     {data.steps.map((step, index) => (
-                        <div key={step.id || index} className="group flex flex-col items-center text-center">
+                        <div 
+                            key={step.id || index} 
+                            className="group flex flex-col items-center text-center px-2 sm:px-4 md:px-0"
+                        >
 
                             {/* Icon Container */}
-                            <div className={`w-24 h-24 md:w-32 md:h-32 ${ColorMap[step.colorKey] || "bg-slate-50"} rounded-3xl flex items-center justify-center text-4xl md:text-5xl mb-8 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-inner`}>
+                            <div className={`w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 ${ColorMap[step.colorKey] || "bg-slate-50"} rounded-2xl md:rounded-3xl flex items-center justify-center text-3xl sm:text-4xl md:text-5xl mb-6 md:mb-8 transition-transform duration-500 group-hover:scale-105 md:group-hover:scale-110 md:group-hover:rotate-3 shadow-inner ring-1 ring-black/[0.03]`}>
                                 {IconMap[step.iconKey] || <FaMicroscope />}
                             </div>
 
                             {/* Text Content */}
-                            <h3 className="text-xl md:text-2xl font-bold text-slate-800 mb-4">
+                            <h3 className="text-lg sm:text-xl md:text-2xl font-extrabold text-slate-800 mb-2 md:mb-4 leading-snug">
                                 {step.title}
                             </h3>
 
-                            <p className="text-slate-500 leading-relaxed text-sm md:text-base max-w-sm">
+                            <p className="text-slate-500 leading-relaxed text-sm md:text-base max-w-xs sm:max-w-sm font-medium opacity-90">
                                 {step.desc}
                             </p>
                         </div>

@@ -99,15 +99,15 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
     };
 
     if (loading) return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
             {[1, 2, 3, 4, 5, 6].map(i => (
-                <div key={i} className="h-80 bg-slate-50 animate-pulse rounded-[2rem] border border-slate-100" />
+                <div key={i} className="h-48 md:h-80 bg-slate-50 animate-pulse rounded-2xl md:rounded-[2rem] border border-slate-100" />
             ))}
         </div>
     );
 
     return (
-        <div className="bg-transparent space-y-10">
+        <div className="bg-transparent space-y-6 md:space-y-10">
             <PackageDetailsModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
@@ -116,14 +116,14 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
 
             {/* Total Results Counter */}
             {totalResults > 0 && (
-                <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <div className="flex items-center gap-2 mb-2 px-1">
+                    <span className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">
                         Showing {packages.length} of {totalResults} packages
                     </span>
                 </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
                 {packages.map((pkg) => {
                     const isAdded = cartItemIds.includes(pkg._id);
                     
@@ -142,63 +142,63 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                         <div
                             key={pkg._id}
                             onClick={() => handleCardClick(pkg)}
-                            className="group relative bg-white rounded-[2rem] border border-slate-100 hover:border-emerald-500/30 hover:shadow-[0_20px_50px_rgba(8,179,106,0.12)] transition-all duration-500 flex flex-col overflow-hidden cursor-pointer"
+                            className="group relative bg-white rounded-[1.25rem] md:rounded-[2rem] border border-slate-100 hover:border-emerald-500/30 hover:shadow-[0_20px_50px_rgba(8,179,106,0.12)] transition-all duration-500 flex flex-col overflow-hidden cursor-pointer"
                         >
-                            {/* Labs Count Badge (Only show if no specific lab is selected) */}
+                            {/* Labs Count Badge */}
                             {!selectedLabId && pkg.vendorCount > 0 && (
-                                <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-2xl shadow-sm flex items-center gap-2 border border-slate-100">
-                                    <FaClinicMedical className="text-emerald-500 text-xs" />
-                                    <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">
-                                        {pkg.vendorCount} Labs Available
+                                <div className="absolute top-2 md:top-4 left-2 md:left-4 z-10 bg-white/90 backdrop-blur-md px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg md:rounded-2xl shadow-sm flex items-center gap-1 md:gap-2 border border-slate-100">
+                                    <FaClinicMedical className="text-emerald-500 text-[8px] md:text-xs" />
+                                    <span className="text-[7px] md:text-[10px] font-black text-slate-700 uppercase tracking-tight">
+                                        {pkg.vendorCount} Labs
                                     </span>
                                 </div>
                             )}
 
                             {/* Image Section */}
-                            <div className="relative h-48 w-full overflow-hidden bg-slate-100">
+                            <div className="relative h-28 sm:h-36 md:h-48 w-full overflow-hidden bg-slate-100">
                                 <img
                                     src={imageSrc}
                                     className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
                                     alt={displayName}
                                     onError={(e) => {
-                                        e.target.src = FALLBACK_IMAGE; // Secondary fallback if URL is broken
+                                        e.target.src = FALLBACK_IMAGE; 
                                     }}
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
 
                                 {strikePrice > displayPrice && (
-                                    <div className="absolute bottom-4 right-4 bg-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg">
-                                        SAVE {Math.round(((strikePrice - displayPrice) / strikePrice) * 100)}%
+                                    <div className="absolute bottom-2 md:bottom-4 right-2 md:right-4 bg-orange-500 text-white text-[7px] md:text-[10px] font-black px-1.5 md:px-3 py-0.5 md:py-1 rounded-full shadow-lg">
+                                        -{Math.round(((strikePrice - displayPrice) / strikePrice) * 100)}%
                                     </div>
                                 )}
                             </div>
 
                             {/* Content Section */}
-                            <div className="p-6 flex-1 flex flex-col">
-                                <div className="flex justify-between items-start mb-3">
-                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg uppercase tracking-wider">
+                            <div className="p-3 md:p-6 flex-1 flex flex-col">
+                                <div className="flex justify-between items-start mb-2 md:mb-3">
+                                    <span className="text-[7px] md:text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg uppercase tracking-wider">
                                         {pkg.mainCategory || pkg.category || 'Wellness'}
                                     </span>
-                                    <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
-                                        <FaStar className="text-amber-400 text-[10px]" />
-                                        <span className="text-slate-700 font-bold text-[10px]">4.9</span>
+                                    <div className="flex items-center gap-1 bg-amber-50 px-1 md:px-2 py-0.5 md:py-1 rounded-md md:rounded-lg border border-amber-100">
+                                        <FaStar className="text-amber-400 text-[8px] md:text-[10px]" />
+                                        <span className="text-slate-700 font-bold text-[8px] md:text-[10px]">4.9</span>
                                     </div>
                                 </div>
 
-                                <h3 className="text-lg font-bold text-slate-800 line-clamp-2 h-14 leading-tight mb-4 group-hover:text-emerald-600 transition-colors">
+                                <h3 className="text-xs md:text-lg font-bold text-slate-800 line-clamp-2 h-8 md:h-14 leading-tight mb-2 md:mb-4 group-hover:text-emerald-600 transition-colors">
                                     {displayName}
                                 </h3>
 
-                                <div className="flex items-center gap-4 mb-6">
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center">
-                                            <FaFlask className="text-emerald-500 text-[10px]" />
+                                <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-3 md:mb-6">
+                                    <div className="flex items-center gap-1 md:gap-1.5">
+                                        <div className="w-4 h-4 md:w-6 md:h-6 rounded-full bg-slate-50 flex items-center justify-center">
+                                            <FaFlask className="text-emerald-500 text-[8px] md:text-[10px]" />
                                         </div>
-                                        <span className="text-xs font-medium text-slate-500">
-                                            {testCount} {testCount > 1 ? 'Tests' : 'Test'}
+                                        <span className="text-[9px] md:text-xs font-medium text-slate-500">
+                                            {testCount} Tests
                                         </span>
                                     </div>
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="hidden sm:flex items-center gap-1.5">
                                         <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center">
                                             <FaCheckCircle className="text-blue-500 text-[10px]" />
                                         </div>
@@ -207,15 +207,12 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                                 </div>
 
                                 {/* Pricing & Action */}
-                                <div className="mt-auto pt-5 border-t border-slate-50 flex items-center justify-between gap-4">
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
-                                            {selectedLabId ? "Offer Price" : "Starts From"}
-                                        </p>
-                                        <div className="flex items-baseline gap-1.5">
-                                            <span className="text-2xl font-black text-slate-900">₹{displayPrice}</span>
+                                <div className="mt-auto pt-3 md:pt-5 border-t border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 md:gap-4">
+                                    <div className="flex flex-col">
+                                        <div className="flex items-baseline gap-1 md:gap-1.5">
+                                            <span className="text-lg md:text-2xl font-black text-slate-900">₹{displayPrice}</span>
                                             {strikePrice > displayPrice && (
-                                                <span className="text-xs text-slate-300 line-through font-medium">₹{strikePrice}</span>
+                                                <span className="text-[9px] md:text-xs text-slate-300 line-through font-medium">₹{strikePrice}</span>
                                             )}
                                         </div>
                                     </div>
@@ -225,14 +222,14 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                                             e.stopPropagation();
                                             handleCardClick(pkg);
                                         }}
-                                        className={`px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all duration-300 shadow-md active:scale-95 ${
+                                        className={`w-full sm:w-auto px-3 md:px-6 py-2 md:py-3 rounded-xl md:rounded-2xl font-bold text-[9px] md:text-xs flex items-center justify-center gap-1 md:gap-2 transition-all duration-300 shadow-md active:scale-95 ${
                                             isAdded 
-                                            ? "bg-slate-100 text-slate-500 cursor-default" 
+                                            ? "bg-slate-100 text-slate-400 cursor-default" 
                                             : "bg-emerald-600 text-white hover:bg-slate-900 shadow-emerald-200"
                                         }`}
                                     >
-                                        {isAdded ? "In Cart" : "Book Now"}
-                                        {!isAdded && <FaChevronRight size={10} />}
+                                        {isAdded ? "In Cart" : "Book"}
+                                        {!isAdded && <FaChevronRight size={8} className="md:size-[10px]" />}
                                     </button>
                                 </div>
                             </div>
@@ -243,24 +240,27 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
 
             {/* PAGINATION CONTROLS */}
             {totalPages > 1 && (
-                <div className="flex justify-center items-center gap-2 pt-8">
+                <div className="flex justify-center items-center gap-1.5 md:gap-2 pt-4 md:pt-8">
                     <button
                         onClick={() => handlePageChange(currentPage - 1)}
                         disabled={currentPage === 1}
-                        className="p-3 rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                        className="p-2 md:p-3 rounded-lg md:rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
                     >
-                        <FaChevronLeft className="text-slate-600 text-xs" />
+                        <FaChevronLeft className="text-slate-600 text-[10px] md:text-xs" />
                     </button>
                     
                     {[...Array(totalPages)].map((_, i) => {
                         const pageNum = i + 1;
-                        if (totalPages > 5 && Math.abs(pageNum - currentPage) > 2) return null;
+                        if (totalPages > 5 && Math.abs(pageNum - currentPage) > 1) {
+                            if (pageNum === 1 || pageNum === totalPages) return <span key={pageNum} className="text-slate-300">...</span>;
+                            return null;
+                        }
 
                         return (
                             <button
                                 key={pageNum}
                                 onClick={() => handlePageChange(pageNum)}
-                                className={`w-10 h-10 rounded-xl text-xs font-bold transition-all ${
+                                className={`w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold transition-all ${
                                     currentPage === pageNum
                                         ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200"
                                         : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -274,21 +274,21 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                     <button
                         onClick={() => handlePageChange(currentPage + 1)}
                         disabled={currentPage === totalPages}
-                        className="p-3 rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
+                        className="p-2 md:p-3 rounded-lg md:rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
                     >
-                        <FaChevronRight className="text-slate-600 text-xs" />
+                        <FaChevronRight className="text-slate-600 text-[10px] md:text-xs" />
                     </button>
                 </div>
             )}
 
             {/* Empty State */}
             {packages.length === 0 && !loading && (
-                <div className="text-center py-24 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200 mx-4">
-                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
-                        <FaFlask className="text-slate-300 text-xl" />
+                <div className="text-center py-16 md:py-24 bg-slate-50 rounded-[2rem] md:rounded-[3rem] border-2 border-dashed border-slate-200 mx-2 md:mx-4">
+                    <div className="w-12 h-12 md:w-16 md:h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                        <FaFlask className="text-slate-300 text-base md:text-xl" />
                     </div>
-                    <h3 className="text-slate-800 font-bold text-lg">No packages found</h3>
-                    <p className="text-slate-400 text-sm max-w-xs mx-auto">Try searching for something else or check another laboratory.</p>
+                    <h3 className="text-slate-800 font-bold text-sm md:text-lg">No packages found</h3>
+                    <p className="text-slate-400 text-[10px] md:text-sm max-w-xs mx-auto">Try searching for something else or check another laboratory.</p>
                 </div>
             )}
         </div>

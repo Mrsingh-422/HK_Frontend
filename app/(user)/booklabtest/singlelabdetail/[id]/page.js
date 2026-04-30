@@ -165,7 +165,7 @@ export default function LabDetailsPage() {
             </div>
 
             {/* --- CATALOG SECTION --- */}
-            <main className="max-w-7xl mx-auto px-4 md:px-8 pb-32">
+            <main className="max-w-7xl mx-auto px-2 md:px-8 pb-32">
                 <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm min-h-[600px]">
                     {/* Catalog Navigation */}
                     <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 px-8 pt-6 gap-6">
@@ -186,7 +186,7 @@ export default function LabDetailsPage() {
                         </div>
                     </div>
 
-                    <div className="p-8">
+                    <div className="p-2 md:p-8">
                         {activeTab === "packages" ? (
                             <PackagesList selectedLabId={id} searchTerm={searchTerm} />
                         ) : (
