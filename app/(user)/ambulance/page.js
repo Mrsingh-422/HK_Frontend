@@ -9,11 +9,13 @@ import AccidentalEmergency from './components/AccidentalEmergency'
 import MedicalEmergency from './components/MedicalEmergency'
 import ReferralAmbulanceServices from './components/ReferralAmbulanceServices'
 import AmbulancePartners from './components/AmbulancePartners'
+import AmbulanceHero from './components/AmbulanceHero'
 
 function page() {
     return (
         <>
             <SecondNavbar />
+            {/* <AmbulanceHero /> */}
             <FindEmergencyAmbulance />
             {/* <FindReferralAmbulance /> */}
             <EmergencyAmbulanceFacility />

@@ -189,7 +189,7 @@ export const AuthProvider = ({ children }) => {
     const registerAsDoctorAppointment = async (userData) => {
         try {
             setLoading(true);
-            const response = await axios.post(`${API_URL}/auth/register/doctor-appointment`, userData);
+            const response = await axios.post(`${API_URL}/api/auth/doctor/register`, userData);
             const { token, user } = response.data;
             setUser(user);
             return response.data;
@@ -224,11 +224,17 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const registerAsDoctor = async (userData) => {
+        const response = await axios.post(`${API_URL}/api/auth/doctor/register`, userData);
+        // We don't set user yet because OTP is pending
+        return response.data;
+    };
+
     const loginAsDoctorAppointment = async (userData) => {
         try {
             setLoading(true);
             const response = await axios.post(
-                `${API_URL}/auth/login/doctor-appointment`,
+                `${API_URL}/api/auth/doctor/login`,
                 userData
             );
             const { token, user } = response.data;
@@ -237,6 +243,44 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
             const message = error.response?.data?.message || "Login failed";
             return Promise.reject(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+    // Verify OTP & Save Token
+    const verifyDoctorOtp = async (phone, otp) => {
+        const response = await axios.post(`${API_URL}/api/auth/doctor/verify-otp`, { phone, otp });
+        if (response.data.token) {
+            localStorage.setItem("doctorToken", response.data.token);
+            setUser(response.data.user); // Now set user in context
+        }
+        return response.data;
+    };
+    // Upload Documents (Step 3)
+    const uploadDoctorDocs = async (formData) => {
+        const token = localStorage.getItem("doctorToken");
+        const response = await axios.put(`${API_URL}/api/auth/doctor/upload-docs`, formData, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+                Authorization: `Bearer ${token}`,
+            },
+        });
+        return response.data;
+    };
+
+    const uploadDoctorDocuments = async (formData) => {
+        try {
+            setLoading(true);
+            const token = localStorage.getItem("token");
+            const response = await axios.put(`${API_URL}/api/auth/doctor/upload-docs`, formData, {
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error.response?.data?.message || "Document upload failed");
         } finally {
             setLoading(false);
         }
@@ -470,6 +514,8 @@ export const AuthProvider = ({ children }) => {
             uploadPharmacyDocuments,
             uploadNurseDocuments,
             loginFireHeadquarter,
+            verifyDoctorOtp,
+            uploadDoctorDocuments,
         }}>
             {children}
         </AuthContext.Provider>

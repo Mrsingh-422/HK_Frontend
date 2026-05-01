@@ -1,28 +1,62 @@
 "use client";
 import React, { useState } from "react";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import { useAuth } from "@/app/context/AuthContext"; // Ensure this path is correct
+import { useRouter } from "next/navigation";
+import DoctorAPI from "@/app/services/DoctorAPI";
 
 function LoginAsDoctorAppointment() {
   const { openModal, closeModal } = useGlobalContext();
+  const { setUser } = useAuth();
+  const router = useRouter();
 
   // ✅ State for form fields
-  const [mobile, setMobile] = useState("");
+  const [mobile, setMobile] = useState(""); // This will act as identifier (email or phone)
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
+  
+  // ✅ Logic States
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   // ✅ Submit Function
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+    setLoading(true);
 
-    const appointmentDoctorData = {
-      mobile,
-      password,
-      remember,
-      role: "doctor_appointment",
-    };
+    // Identify if user entered email or phone
+    const loginData = mobile.includes("@")
+      ? { email: mobile, password }
+      : { phone: mobile, password };
 
-    console.log("Doctor Appointment Login Data:", appointmentDoctorData);
-    alert("Doctor Appointment Login API called (dummy)!");
+    try {
+      const response = await DoctorAPI.login(loginData);
+      
+      // Store Token
+      localStorage.setItem("doctorToken", response.token);
+      
+      // Update Global User State
+      if (setUser) setUser(response.user || response.data);
+
+      // ✅ Navigation Logic based on your API requirements
+      const status = response.profileStatus;
+
+      if (response.fullAccess && status === "Approved") {
+        // Only approved doctors go to dashboard
+        router.push("/vendors/doctor/dashboard");
+        closeModal();
+      } else {
+        // Incomplete, Pending, or Rejected doctors go to documents page
+        router.push("/vendors/doctor/documents");
+        closeModal();
+      }
+      
+    } catch (err) {
+      setError(err.response?.data?.message || "Login failed. Please check your credentials.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -45,9 +79,12 @@ function LoginAsDoctorAppointment() {
             Get Started
           </h2>
 
+          {/* Error Message Display */}
+          {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+
           <input
             type="text"
-            placeholder="Enter your mobile number"
+            placeholder="Enter your mobile number or email"
             className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
             value={mobile}
             onChange={(e) => setMobile(e.target.value)}
@@ -82,10 +119,11 @@ function LoginAsDoctorAppointment() {
 
           {/* Login Button */}
           <button
-            className="w-full md:w-auto mt-5 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-7 rounded text-base transition-colors"
+            className="w-full md:w-auto mt-5 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-7 rounded text-base transition-colors disabled:bg-gray-400"
             onClick={handleSubmit}
+            disabled={loading}
           >
-            Login →
+            {loading ? "Verifying..." : "Login →"}
           </button>
 
           <p className="mt-4 text-[15px] text-gray-700">
@@ -93,7 +131,7 @@ function LoginAsDoctorAppointment() {
             <span
               className="font-bold cursor-pointer hover:underline"
               onClick={() => {
-                closeModal(); // Fixed: Added parentheses
+                closeModal(); 
                 openModal("register");
               }}
             >

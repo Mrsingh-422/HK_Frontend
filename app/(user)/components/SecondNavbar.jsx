@@ -18,7 +18,8 @@ function SecondNavbar() {
             <div className="snav-left">
                 <Link href='/' >
                 <img
-                    src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1742900654_Health_Kangaroo-1_1.png"
+                    // src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1742900654_Health_Kangaroo-1_1.png"
+                    src="/logo.png"
                     alt="Health Kangaroo"
                     className="snav-logo"
                 /></Link>

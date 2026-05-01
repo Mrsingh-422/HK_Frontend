@@ -30,7 +30,7 @@ const PLANS = [
         border: "border-emerald-500",
         text: "text-emerald-700",
         accent: "bg-emerald-500",
-        shadow: "shadow-2xl shadow-emerald-200",
+        shadow: "shadow-2xl shadow-emerald-200", 
         popular: true,
         features: ["Weekly Nursing Visits", "Medication Management", "Priority Response", "Unlimited Consults", "Basic Physiotherapy"]
     },

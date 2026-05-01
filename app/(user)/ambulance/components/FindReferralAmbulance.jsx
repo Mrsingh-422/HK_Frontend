@@ -7,7 +7,6 @@ import {
   FaTimes, FaArrowRight, FaMapMarkerAlt, FaChevronRight
 } from "react-icons/fa";
 import { useGlobalContext } from "@/app/context/GlobalContext";
-import ShowAmbulanceModal from "../components/otherComponents/ShowAmbulancsModel";
 
 // --- Hardcoded Referral Categories ---
 const REFERRAL_CATEGORIES = [
@@ -57,8 +56,6 @@ function FindReferralAmbulance() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("recommended");
-  const [selectedAmbulance, setSelectedAmbulance] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -96,11 +93,6 @@ function FindReferralAmbulance() {
 
   return (
     <div className="min-h-screen py-8 md:py-16 px-4 sm:px-6 lg:px-8 font-sans bg-gray-50/30">
-      <ShowAmbulanceModal
-        isOpen={isModalOpen}
-        ambulance={selectedAmbulance}
-        onClose={() => setIsModalOpen(false)}
-      />
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10">
 
