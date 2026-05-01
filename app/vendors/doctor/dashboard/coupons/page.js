@@ -19,7 +19,6 @@ import {
   FaHeartbeat
 } from 'react-icons/fa'
 import { toast } from 'react-hot-toast'
-import NurseVendorAPI from '@/app/services/NurseVendorAPI';
 
 export default function NursePromotionsPage() {
   
@@ -46,7 +45,6 @@ export default function NursePromotionsPage() {
   const fetchCoupons = async () => {
     try {
       setLoading(true);
-      const res = await NurseVendorAPI.listCoupons();
       if (res.success) {
         setCoupons(res.data || []);
       }

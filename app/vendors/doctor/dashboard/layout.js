@@ -129,21 +129,21 @@ export default function DoctorVendorLayout({ children }) {
 
     // 🌟 Sidebar Menu Items (Naye 5 items ko end me add kar diya gaya hai) 🌟
     const menuItems =[
-        { name: 'Dashboard', href: '/vendors/doctor', icon: FaChartLine },
-        { name: 'Appointments', href: '/vendors/doctor/appointments', icon: FaCalendarCheck },
-        { name: 'Availability', href: '/vendors/doctor/availability', icon: FaClock },          
-        { name: 'Coupons', href: '/vendors/doctor/coupons', icon: FaTicketAlt },                
-        { name: 'Consultation History', href: '/vendors/doctor/consultation-history', icon: FaHistory },
-        { name: 'Wallet & Earnings', href: '/vendors/doctor/wallet', icon: FaWallet },
-        { name: 'Documents', href: '/vendors/doctor/documents', icon: FaFileAlt },              
-        { name: 'Chats', href: '/vendors/doctor/chats', icon: FaComments }, 
+        { name: 'Dashboard', href: '/vendors/doctor/dashboard', icon: FaChartLine },
+        { name: 'Appointments', href: '/vendors/doctor/dashboard/appointments', icon: FaCalendarCheck },
+        { name: 'Availability', href: '/vendors/doctor/dashboard/availability', icon: FaClock },          
+        { name: 'Coupons', href: '/vendors/doctor/dashboard/coupons', icon: FaTicketAlt },                
+        { name: 'Consultation History', href: '/vendors/doctor/dashboard/consultation-history', icon: FaHistory },
+        { name: 'Wallet & Earnings', href: '/vendors/doctor/dashboard/wallet', icon: FaWallet },
+        { name: 'Documents', href: '/vendors/doctor/dashboard/documents', icon: FaFileAlt },              
+        { name: 'Chats', href: '/vendors/doctor/dashboard/chats', icon: FaComments }, 
         
         // ---- Ye Naye 5 items hain image ke mutabik ----
-        { name: 'Emergency Case', href: '/vendors/doctor/emergency-case', icon: FaAmbulance },
-        { name: 'Admission Case', href: '/vendors/doctor/admission-case', icon: FaHospital },
-        { name: 'History', href: '/vendors/doctor/history', icon: FaNotesMedical },
-        { name: 'Emergency Request', href: '/vendors/doctor/emergency-request', icon: FaMedkit },
-        { name: 'Hospital Request', href: '/vendors/doctor/hospital-request', icon: FaBriefcaseMedical },
+        { name: 'Emergency Case', href: '/vendors/doctor/dashboard/emergency-case', icon: FaAmbulance },
+        { name: 'Admission Case', href: '/vendors/doctor/dashboard/admission-case', icon: FaHospital },
+        { name: 'History', href: '/vendors/doctor/dashboard/history', icon: FaNotesMedical },
+        { name: 'Emergency Request', href: '/vendors/doctor/dashboard/emergency-request', icon: FaMedkit },
+        { name: 'Hospital Request', href: '/vendors/doctor/dashboard/hospital-request', icon: FaBriefcaseMedical },
     ];
 
     return (
