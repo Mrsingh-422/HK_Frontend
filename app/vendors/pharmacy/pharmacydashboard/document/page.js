@@ -1,207 +1,312 @@
-"use client";
-import React, { useState } from "react";
-import { Plus, Trash2, X, Eye, FileImage, ShieldCheck, Clock } from "lucide-react";
+'use client'
+import React, { useState, useEffect } from 'react'
+import { 
+  FaCheckCircle, 
+  FaEye, 
+  FaDownload, 
+  FaShieldAlt, 
+  FaHistory,
+  FaFileAlt,
+  FaClock,
+  FaPlus,
+  FaTimes,
+  FaCloudUploadAlt,
+  FaEdit,
+  FaPrescriptionBottleAlt
+} from 'react-icons/fa'
+import PharmacyVendorAPI from '@/app/services/PharmacyVendorAPI';
+import { toast } from 'react-hot-toast';
 
-export default function DoctorDocuments() {
-  // State for Full Screen Image Modal
-  const [selectedImage, setSelectedImage] = useState(null);
+export default function PharmacyDocumentsPage() {
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  const [docList, setDocList] = useState([]);
+  const [stats, setStats] = useState({ total: 0, lastUpdated: '---' });
+  
+  // Update Modal States
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('pharmacyImages');
+  const [selectedFile, setSelectedFile] = useState(null);
 
-  // Dummy Data for Documents
-  const [documents, setDocuments] = useState([
-    {
-      id: 1,
-      title: "Council Certificate",
-      category: "Mandatory Document",
-      uploadDate: "12 Oct 2025",
-      status: "Verified",
-      // Dummy Document Image
-      imageUrl: "https://images.unsplash.com/photo-1586281380349-632531db7ed4?q=80&w=600&auto=format&fit=crop", 
-    },
-    {
-      id: 2,
-      title: "Medical Licence",
-      category: "Mandatory Document",
-      uploadDate: "15 Oct 2025",
-      status: "Verified",
-      imageUrl: "https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?q=80&w=600&auto=format&fit=crop",
-    },
-    {
-      id: 3,
-      title: "Photo ID (Aadhar/PAN)",
-      category: "Identity Proof",
-      uploadDate: "20 Nov 2025",
-      status: "Pending",
-      imageUrl: "https://images.unsplash.com/photo-1628731338870-17686dc10c0b?q=80&w=600&auto=format&fit=crop",
-    },
-    {
-      id: 4,
-      title: "Doctor Signature",
-      category: "Profile Detail",
-      uploadDate: "22 Nov 2025",
-      status: "Verified",
-      imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f8/Stylized_signature_of_John_Hancock.svg/1200px-Stylized_signature_of_John_Hancock.svg.png",
-    },
-    {
-      id: 5,
-      title: "MBBS Degree",
-      category: "Qualification",
-      uploadDate: "01 Dec 2025",
-      status: "Verified",
-      imageUrl: "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?q=80&w=600&auto=format&fit=crop",
-    },
-  ]);
+  // Helper to format image URL (Handles both forward and backslashes from DB)
+  const formatImagePath = (path) => {
+    if (!path) return null;
+    const cleanPath = path.replace(/^public[\\/]/, '').replace(/\\/g, '/');
+    return `${process.env.NEXT_PUBLIC_BACKEND_URL}/${cleanPath}`;
+  };
 
-  // Handle Delete
-  const handleDelete = (id) => {
-    if (window.confirm("Are you sure you want to delete this document?")) {
-      setDocuments(documents.filter((doc) => doc.id !== id));
+  const fetchPharmacyDocs = async () => {
+    try {
+      setLoading(true);
+      const res = await PharmacyVendorAPI.getPharmacyProfile();
+      if (res.success) {
+        const data = res.data;
+        const docs = data.documents || {};
+        
+        const formattedDocs = [];
+
+        // 1. Handle Profile Image (Top level)
+        if (data.profileImage) {
+          formattedDocs.push({
+            id: 'profile',
+            categoryKey: 'profileImage',
+            title: "Pharmacy Branding",
+            type: "Identity",
+            status: data.profileStatus || "Approved",
+            image: formatImagePath(data.profileImage)
+          });
+        }
+
+        // 2. Define categories based on your Pharmacy Backend Response
+        const categories = [
+          { key: 'pharmacyImages', title: 'Store Photos', type: 'Infrastructure' },
+          { key: 'pharmacyCertificates', title: 'Pharmacy Certificate', type: 'Accreditation' },
+          { key: 'pharmacyLicenses', title: 'Pharmacy License', type: 'Legal Permit' },
+          { key: 'gstCertificates', title: 'GST Document', type: 'Taxation' },
+          { key: 'drugLicenses', title: 'Drug License', type: 'Compliance' },
+          { key: 'otherCertificates', title: 'Additional Document', type: 'Support Doc' }
+        ];
+
+        // 3. Map Array-based documents
+        categories.forEach(cat => {
+          if (docs[cat.key] && Array.isArray(docs[cat.key])) {
+            docs[cat.key].forEach((img, index) => {
+              formattedDocs.push({
+                id: `${cat.key}-${index}`,
+                categoryKey: cat.key,
+                title: docs[cat.key].length > 1 ? `${cat.title} ${index + 1}` : cat.title,
+                type: cat.type,
+                status: "Approved",
+                image: formatImagePath(img)
+              });
+            });
+          }
+        });
+
+        setDocList(formattedDocs);
+        setStats({
+          total: formattedDocs.length,
+          lastUpdated: data.updatedAt ? new Date(data.updatedAt).toLocaleDateString() : '---'
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to load pharmacy documents");
+    } finally {
+      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchPharmacyDocs();
+  }, []);
+
+  const handleUpload = async (e) => {
+    e.preventDefault();
+    if (!selectedFile) return toast.error("Please select a file first");
+
+    try {
+      setUpdating(true);
+      const formData = new FormData();
+      
+      // The backend expects the file attached to the specific category key
+      formData.append(selectedCategory, selectedFile);
+
+      const res = await PharmacyVendorAPI.updatePharmacyProfile(formData);
+      if (res.success) {
+        toast.success(`Document uploaded successfully!`);
+        setIsModalOpen(false);
+        setSelectedFile(null);
+        fetchPharmacyDocs(); // Refresh UI
+      }
+    } catch (error) {
+      toast.error("Failed to upload document");
+      console.error(error);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const openUpdateModal = (category = 'pharmacyImages') => {
+    setSelectedCategory(category);
+    setIsModalOpen(true);
+  };
+
+  if (loading) return <div className="p-20 text-center font-bold text-slate-400 animate-pulse tracking-widest">OPENING PHARMACY VAULT...</div>;
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6 md:p-10 font-sans relative">
-      <div className="max-w-7xl mx-auto">
-        
-        {/* === Header Section === */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">My Documents</h1>
-            <p className="text-sm text-gray-500 mt-1">Manage and view all your uploaded certificates and proofs.</p>
+    <div className="w-full min-h-screen bg-[#f8fafc] p-4 md:p-10 font-sans text-slate-900">
+      
+      {/* HEADER SECTION */}
+      <div className="max-w-7xl mx-auto mb-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2 text-xs font-bold text-[#08B36A] uppercase tracking-widest mb-2">
+              <FaShieldAlt /> Verified Pharmacy Provider
+            </div>
+            <h1 className="text-3xl md:text-4xl font-black text-slate-900 mb-3 tracking-tight">
+              Compliance Vault
+            </h1>
+            <p className="text-slate-500 text-sm md:text-base leading-relaxed">
+              Securely manage your pharmacy licenses, drug permits, and store certifications. 
+              Keeping these documents valid ensures your <span className="text-[#08B36A] font-bold">Trusted Vendor</span> 
+              badge remains active.
+            </p>
           </div>
-          <button className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 text-sm font-semibold transition-all shadow-sm shadow-emerald-200">
-            <Plus size={18} strokeWidth={2.5} /> Add New Document
-          </button>
-        </div>
-
-        {/* === Table Section === */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
-                  <th className="px-6 py-4 font-semibold">Document</th>
-                  <th className="px-6 py-4 font-semibold">Category</th>
-                  <th className="px-6 py-4 font-semibold">Upload Date</th>
-                  <th className="px-6 py-4 font-semibold">Status</th>
-                  <th className="px-6 py-4 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {documents.map((doc) => (
-                  <tr key={doc.id} className="hover:bg-gray-50/50 transition-colors group">
-                    
-                    {/* Image & Title Column */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-4">
-                        {/* Thumbnail */}
-                        <div 
-                          onClick={() => setSelectedImage(doc.imageUrl)}
-                          className="w-12 h-12 rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-emerald-500 transition-all shrink-0"
-                        >
-                          {doc.imageUrl ? (
-                            <img src={doc.imageUrl} alt={doc.title} className="w-full h-full object-cover bg-white" />
-                          ) : (
-                            <FileImage size={20} className="text-gray-400" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-800">{doc.title}</p>
-                          <p className="text-xs text-gray-400 mt-0.5 sm:hidden">{doc.category}</p>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Category Column */}
-                    <td className="px-6 py-4 text-sm text-gray-600 hidden sm:table-cell">
-                      {doc.category}
-                    </td>
-
-                    {/* Date Column */}
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {doc.uploadDate}
-                    </td>
-
-                    {/* Status Column */}
-                    <td className="px-6 py-4">
-                      {doc.status === "Verified" ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100">
-                          <ShieldCheck size={14} /> Verified
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-100">
-                          <Clock size={14} /> Pending
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Actions Column */}
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => setSelectedImage(doc.imageUrl)}
-                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="View Full Document"
-                        >
-                          <Eye size={18} />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(doc.id)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete Document"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            
-            {/* Empty State Fallback */}
-            {documents.length === 0 && (
-              <div className="p-12 text-center flex flex-col items-center justify-center">
-                <FileImage size={48} className="text-gray-300 mb-4" />
-                <h3 className="text-lg font-bold text-gray-700">No Documents Found</h3>
-                <p className="text-gray-500 text-sm mt-1">Upload your certificates and IDs to get verified.</p>
-              </div>
-            )}
+          <div className="flex items-center gap-4">
+             <div className="h-14 w-14 rounded-2xl bg-green-50 flex items-center justify-center text-[#08B36A] border border-green-100 shadow-sm">
+                <FaCheckCircle size={28} />
+             </div>
           </div>
         </div>
       </div>
 
-      {/* ========================================= */}
-      {/* FULL SCREEN IMAGE MODAL                   */}
-      {/* ========================================= */}
-      {selectedImage && (
-        <div 
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 opacity-100 transition-opacity"
-          onClick={() => setSelectedImage(null)} // Click outside to close
-        >
-          {/* Close Button */}
-          <button 
-            className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors backdrop-blur-md"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedImage(null);
-            }}
-          >
-            <X size={24} />
-          </button>
+      {/* STATS STRIP */}
+      <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
+         <div className="bg-white p-6 rounded-2xl border border-slate-200 flex items-center gap-4">
+            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center"><FaFileAlt size={20}/></div>
+            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Archive Size</p><p className="font-bold text-slate-800">{stats.total} Documents</p></div>
+         </div>
+         <div className="bg-white p-6 rounded-2xl border border-slate-200 flex items-center gap-4">
+            <div className="w-12 h-12 bg-green-50 text-green-600 rounded-xl flex items-center justify-center"><FaPrescriptionBottleAlt size={20}/></div>
+            <div><p className="text-[10px] font-bold text-slate-400 uppercase">License Status</p><p className="font-bold text-slate-800">Operational</p></div>
+         </div>
+         <div className="bg-white p-6 rounded-2xl border border-slate-200 flex items-center gap-4">
+            <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center"><FaHistory size={20}/></div>
+            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Last Sync</p><p className="font-bold text-slate-800">{stats.lastUpdated}</p></div>
+         </div>
+      </div>
 
-          {/* Image Container */}
-          <div 
-            className="relative max-w-5xl max-h-full w-auto h-auto rounded-lg overflow-hidden shadow-2xl bg-white flex items-center justify-center"
-            onClick={(e) => e.stopPropagation()} // Prevent close when clicking ON the image
-          >
-            <img 
-              src={selectedImage} 
-              alt="Document Full View" 
-              className="max-w-full max-h-[85vh] object-contain block"
-            />
+      {/* DOCUMENTS GRID */}
+      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {docList.map((doc) => (
+          <div key={doc.id} className="group relative bg-white rounded-[2rem] border border-slate-200 overflow-hidden hover:border-[#08B36A] transition-all duration-500 hover:shadow-2xl shadow-sm flex flex-col">
+            
+            {/* Action Overlay Header */}
+            <div className="absolute top-4 right-4 z-20 flex gap-2">
+                <button onClick={() => openUpdateModal(doc.categoryKey)} className="w-10 h-10 bg-white/90 backdrop-blur shadow-sm rounded-full flex items-center justify-center text-slate-600 hover:text-[#08B36A] transition-all hover:scale-110">
+                    <FaEdit size={16} />
+                </button>
+                <a href={doc.image} target="_blank" download className="w-10 h-10 bg-white/90 backdrop-blur shadow-sm rounded-full flex items-center justify-center text-slate-600 hover:text-[#08B36A] transition-all hover:scale-110">
+                    <FaDownload size={16} />
+                </a>
+            </div>
+
+            {/* Preview Area */}
+            <div className="relative aspect-[16/11] overflow-hidden bg-slate-50 p-4">
+              <div className="w-full h-full rounded-2xl overflow-hidden relative shadow-inner border border-slate-100">
+                <img 
+                  src={doc.image} 
+                  alt={doc.title} 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                  onError={(e) => e.target.src = 'https://via.placeholder.com/600x400?text=Pharma+Doc'}
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center">
+                    <a href={doc.image} target="_blank" className="bg-white text-slate-900 font-bold px-6 py-2 rounded-xl flex items-center gap-2 hover:bg-[#08B36A] hover:text-white transition-colors">
+                        <FaEye /> View
+                    </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-7">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                    <span className="text-[10px] font-black text-[#08B36A] uppercase tracking-[0.2em] block mb-1">{doc.type}</span>
+                    <h3 className="font-bold text-slate-800 text-lg">{doc.title}</h3>
+                </div>
+                <span className="px-3 py-1 bg-green-50 text-green-600 text-[9px] font-black rounded-full border border-green-100 uppercase">
+                    {doc.status}
+                </span>
+              </div>
+              <div className="pt-5 border-t border-slate-50 flex items-center justify-between text-slate-400">
+                <div className="flex items-center gap-2 text-xs">
+                    <FaClock className="text-slate-300"/> Valid Document
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {/* UPLOAD PLACEHOLDER */}
+        <div 
+          onClick={() => openUpdateModal()}
+          className="border-2 border-dashed border-slate-200 rounded-[2rem] flex flex-col items-center justify-center p-10 hover:border-[#08B36A] hover:bg-green-50/20 transition-all cursor-pointer group min-h-[380px]"
+        >
+           <div className="w-16 h-16 bg-slate-50 text-slate-300 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-[#08B36A] group-hover:text-white transition-all duration-500">
+              <FaPlus size={24} />
+           </div>
+           <p className="font-bold text-slate-800">Add New Document</p>
+           <p className="text-[11px] text-slate-400 mt-2 text-center max-w-[220px]">Upload Pharmacy licenses, GST or store images (JPG, PNG, PDF).</p>
+        </div>
+      </div>
+
+      {/* UPDATE MODAL */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
+          
+          <div className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+            <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+              <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Upload to Vault</h2>
+              <button onClick={() => setIsModalOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
+                <FaTimes size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpload} className="p-8 space-y-6">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Document Category</label>
+                <select 
+                  value={selectedCategory} 
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 outline-none focus:border-[#08B36A] font-bold text-slate-700 transition-all appearance-none"
+                >
+                  <option value="pharmacyImages">Pharmacy Store Images</option>
+                  <option value="pharmacyCertificates">Pharmacy Certificates</option>
+                  <option value="pharmacyLicenses">Pharmacy Licenses</option>
+                  <option value="gstCertificates">GST Certificates</option>
+                  <option value="drugLicenses">Drug License</option>
+                  <option value="profileImage">Pharmacy Profile Photo</option>
+                  <option value="otherCertificates">Other Certificates</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">File Upload</label>
+                <div className="relative">
+                  <input 
+                    type="file" 
+                    onChange={(e) => setSelectedFile(e.target.files[0])}
+                    className="hidden" 
+                    id="pharma-file-input"
+                    accept="image/*,application/pdf"
+                  />
+                  <label 
+                    htmlFor="pharma-file-input" 
+                    className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-3xl p-12 hover:border-[#08B36A] hover:bg-green-50/30 cursor-pointer transition-all"
+                  >
+                    <FaCloudUploadAlt size={48} className={selectedFile ? "text-[#08B36A] animate-bounce" : "text-slate-200"} />
+                    <span className="mt-4 text-sm font-bold text-slate-700">
+                      {selectedFile ? selectedFile.name : "Select File"}
+                    </span>
+                    <span className="text-[10px] text-slate-400 mt-1">High resolution images preferred</span>
+                  </label>
+                </div>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={updating || !selectedFile}
+                className="w-full bg-[#08B36A] hover:bg-green-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-green-100 transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
+              >
+                {updating ? "Syncing with Server..." : "Upload Document"}
+              </button>
+            </form>
           </div>
         </div>
       )}
     </div>
-  );
+  )
 }

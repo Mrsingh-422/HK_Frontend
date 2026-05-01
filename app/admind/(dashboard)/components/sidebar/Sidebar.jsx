@@ -72,7 +72,6 @@ export default function Sidebar() {
         if (pathname.includes("/withdraw-request")) setOpenMenu("/admind/manage-withdraw");
         if (pathname.includes("/settings")) setOpenMenu("settings");
 
-
         if (pathname.includes("/vendors/lab")) {
             setOpenMenu("vendors");
             setOpenSubMenu("lab");
@@ -103,11 +102,6 @@ export default function Sidebar() {
                     <span>Dashboard</span>
                 </Link>
 
-                <Link href="/admind/locationfilter" className={`menu-item ${isActive("/admind/locationfilter") ? "active" : ""}`}>
-                    <FaTachometerAlt className="icon" />
-                    <span>Location Filter</span>
-                </Link>
-
                 {/* Admin Earning */}
                 <Link href="/admind/earning" className={`menu-item ${isActive("/admind/earning") ? "active" : ""}`}>
                     <FaMoneyBillWave className="icon" />
@@ -127,11 +121,17 @@ export default function Sidebar() {
                     </div>
                 )}
 
-                {/* Manage Users */}
-                <Link href="/admind/users" className={`menu-item ${isActive("/admind/managedrivers") ? "active" : ""}`}>
+                {/* Users */}
+                <div className={`menu-item dropdown ${isParentActive("/admind/users") ? "active" : ""}`} onClick={() => toggleMenu("users")}>
                     <FaUsers className="icon" />
-                    <span>Manage Users</span>
-                </Link>
+                    <span>Users</span>
+                    {openMenu === "users" ? <FaChevronDown className="arrow rotate" /> : <FaChevronRight className="arrow" />}
+                </div>
+                {openMenu === "users" && (
+                    <div className="submenu fade-in">
+                        <Link href="/admind/users/manageusers" className={`submenu-link ${isActive("/admind/users/manageusers") ? "sub-active" : ""}`}>Manage Users</Link>
+                    </div>
+                )}
 
                 {/* Vendors */}
                 <div className={`menu-item dropdown ${isParentActive("/admind/vendors") ? "active" : ""}`} onClick={() => toggleMenu("vendors")}>
@@ -219,6 +219,7 @@ export default function Sidebar() {
                     <div className="submenu fade-in">
                         <Link href="/admind/managemedicines/approvedmedicines" className={`submenu-link ${isActive("/admind/managemedicines/approvedmedicines") ? "sub-active" : ""}`}>Approve Medicine</Link>
                         <Link href="/admind/managemedicines/manageallmedicines" className={`submenu-link ${isActive("/admind/managemedicines/manageallmedicines") ? "sub-active" : ""}`}>Manage All Medicines</Link>
+                        <Link href="/admind/managemedicines/managecategories" className={`submenu-link ${isActive("/admind/managemedicines/managecategories") ? "sub-active" : ""}`}>Manage Categories </Link>
                     </div>
                 )}
 
@@ -234,17 +235,32 @@ export default function Sidebar() {
                     <span>Manage Hospital</span>
                 </Link>
 
-                {/* Manage App Banners */}
-                <Link href="/admind/appbanners" className={`menu-item ${isActive("/admind/appbanners") ? "active" : ""}`}>
+                {/* App Banners */}
+                <div className={`menu-item dropdown ${isParentActive("/admind/appbanners") ? "active" : ""}`} onClick={() => toggleMenu("appbanners")}>
                     <FaImages className="icon" />
                     <span>App Banners</span>
-                </Link>
+                    {openMenu === "appbanners" ? <FaChevronDown className="arrow rotate" /> : <FaChevronRight className="arrow" />}
+                </div>
+                {openMenu === "appbanners" && (
+                    <div className="submenu fade-in">
+                        <Link href="/admind/appbanners/homescreen" className={`submenu-link ${isActive("/admind/appbanners/homescreen") ? "sub-active" : ""}`}>App Home Banners</Link>
+                        <Link href="/admind/appbanners/nurse" className={`submenu-link ${isActive("/admind/appbanners/nurse") ? "sub-active" : ""}`}>App Nurse Banners</Link>
+                        <Link href="/admind/appbanners/medicine" className={`submenu-link ${isActive("/admind/appbanners/medicine") ? "sub-active" : ""}`}>App Medicine Banners</Link>
+                    </div>
+                )}
 
-                {/* Manage Articles */}
-                <Link href="/admind/articles" className={`menu-item ${isActive("/admind/articles") ? "active" : ""}`}>
-                    <FaImages className="icon" />
+                {/* Articles */}
+                <div className={`menu-item dropdown ${isParentActive("/admind/articles") ? "active" : ""}`} onClick={() => toggleMenu("articles")}>
+                    <FaNewspaper className="icon" />
                     <span>Articles</span>
-                </Link>
+                    {openMenu === "articles" ? <FaChevronDown className="arrow rotate" /> : <FaChevronRight className="arrow" />}
+                </div>
+                {openMenu === "articles" && (
+                    <div className="submenu fade-in">
+                        <Link href="/admind/articles/health" className={`submenu-link ${isActive("/admind/articles/health") ? "sub-active" : ""}`}>Health Articles</Link>
+                        <Link href="/admind/articles/medical" className={`submenu-link ${isActive("/admind/articles/medical") ? "sub-active" : ""}`}>Medical Articles</Link>
+                    </div>
+                )}
 
                 {/* Manage Coupon */}
                 <Link href="/admind/managecoupon" className={`menu-item ${isActive("/admind/managecoupon") ? "active" : ""}`}>

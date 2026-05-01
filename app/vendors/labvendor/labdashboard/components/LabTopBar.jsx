@@ -1,14 +1,47 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { 
-  FaBars, FaBell, FaUserCircle, FaSearch, 
+  FaBars, FaBell, FaUserCircle, 
   FaSignOutAlt, FaChevronDown 
 } from 'react-icons/fa'
+import LabVendorAPI from '@/app/services/LabVendorAPI'
+ // Adjust this path
 
 export default function LabTopBar({ onMobileMenuClick }) {
+  const router = useRouter();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [userData, setUserData] = useState({ name: 'Loading...', image: null });
   const dropdownRef = useRef(null);
+
+  // 1. Fetch Actual Profile Data
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await LabVendorAPI.getLabProfile();
+        if (res.success) {
+          setUserData({
+            name: res.data.name || 'Lab Provider',
+            image: res.data.profileImage || null
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch topbar profile", err);
+        setUserData({ name: 'Lab User', image: null });
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  // 2. Real Sign Out Logic
+  const handleSignOut = () => {
+    localStorage.removeItem('labToken');
+    localStorage.removeItem('pharmacyToken');
+    localStorage.removeItem('nurseToken');
+    // Add any other local storage keys you use for auth
+    router.push('/login'); // Redirect to your login page
+  };
 
   // Close dropdown when clicked outside
   useEffect(() => {
@@ -23,9 +56,8 @@ export default function LabTopBar({ onMobileMenuClick }) {
     };
   },[]);
 
-  // Dropdown Menu Items Array
   const menuItems =[
-    { name: 'Profile', href: '/vendors/labvendor/lab-profile', icon: FaUserCircle },
+    { name: 'Profile', href: '/vendors/labvendor/labdashboard/lab-profile', icon: FaUserCircle },
   ];
 
   return (
@@ -60,9 +92,21 @@ export default function LabTopBar({ onMobileMenuClick }) {
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             className="flex items-center gap-2 hover:bg-gray-50 p-1.5 pr-2 rounded-xl transition-all text-left border border-transparent hover:border-gray-200"
           >
-            <FaUserCircle size={32} className="text-gray-400" />
+            {/* Dynamic Avatar */}
+            {userData.image ? (
+                <img 
+                    src={userData.image} 
+                    alt="Profile" 
+                    className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                />
+            ) : (
+                <FaUserCircle size={32} className="text-gray-400" />
+            )}
+
             <div className="hidden md:block">
-              <p className="text-sm font-bold text-gray-700 leading-tight">Admin User</p>
+              <p className="text-sm font-bold text-gray-700 leading-tight truncate max-w-[120px]">
+                {userData.name}
+              </p>
               <p className="text-xs font-medium text-gray-500">Lab Manager</p>
             </div>
             <FaChevronDown 
@@ -77,13 +121,11 @@ export default function LabTopBar({ onMobileMenuClick }) {
           {isDropdownOpen && (
             <div className="absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] border border-gray-100 py-2 z-50 animate-in fade-in zoom-in duration-200 origin-top-right">
               
-              {/* Mobile View Profile Details */}
               <div className="block md:hidden px-4 py-3 border-b border-gray-100 mb-1 bg-gray-50/50">
-                <p className="text-sm font-bold text-gray-800">Admin User</p>
+                <p className="text-sm font-bold text-gray-800">{userData.name}</p>
                 <p className="text-xs font-medium text-gray-500">Lab Manager</p>
               </div>
 
-              {/* Dynamic Menu Items (Profile Link) */}
               {menuItems.map((item, index) => (
                 <Link 
                   key={index}
@@ -98,12 +140,9 @@ export default function LabTopBar({ onMobileMenuClick }) {
 
               <div className="my-1 border-t border-gray-100"></div>
 
-              {/* Sign Out Button */}
+              {/* Real Sign Out Button */}
               <button 
-                onClick={() => {
-                  setIsDropdownOpen(false);
-                  alert("Logged out successfully!");
-                }}
+                onClick={handleSignOut}
                 className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-semibold text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors"
               >
                 <FaSignOutAlt className="text-lg opacity-80" />

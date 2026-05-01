@@ -19,7 +19,8 @@ const menuItems = [
     { name: 'Manage Phlebotomist', href: '/vendors/labvendor/labdashboard/ManagePhlebotomist', icon: FaVials },
     { name: 'Assign Phlebotomist', href: '/vendors/labvendor/labdashboard/assign-phlebotomist', icon: FaUserMd },
     { name: 'Track Phlebotomist', href: '/vendors/labvendor/labdashboard/track-phlebotomist', icon: FaMapMarkedAlt },
-    { name: 'My Packages', href: '/vendors/labvendor/labdashboard/packages', icon: FaBoxOpen },
+    { name: 'Manage Tests', href: '/vendors/labvendor/labdashboard/tests', icon: FaVials }, // Added Tests here
+    { name: 'Manage Packages', href: '/vendors/labvendor/labdashboard/packages', icon: FaBoxOpen },
     { name: 'Add Services', href: '/vendors/labvendor/labdashboard/addservices', icon: FaPlusSquare },
     { name: 'Upload Reports', href: '/vendors/labvendor/labdashboard/upload-reports', icon: FaFileMedical },
     { name: 'Manage Documents', href: '/vendors/labvendor/labdashboard/manage-documents', icon: FaFolderOpen },

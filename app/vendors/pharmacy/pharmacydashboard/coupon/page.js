@@ -1,320 +1,393 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   FaTicketAlt, 
   FaTrashAlt, 
   FaPercent, 
   FaRupeeSign, 
-  FaCalendarAlt,
   FaTag,
   FaEdit,
-  FaTimes
+  FaTimes,
+  FaSyncAlt,
+  FaLayerGroup,
+  FaStopwatch,
+  FaRocket,
+  FaPowerOff,
+  FaPlus,
+  FaPills,
+  FaMedkit,
+  FaPrescriptionBottleAlt
 } from 'react-icons/fa'
+import { toast } from 'react-hot-toast'
+import PharmacyVendorAPI from '@/app/services/PharmacyVendorAPI';
 
-export default function PromotionsPage() {
+export default function PharmacyPromotionsPage() {
   
-  // State for Form Inputs
-  const[couponCode, setCouponCode] = useState('');
-  const [discount, setDiscount] = useState('');
-  const[minAmount, setMinAmount] = useState('');
-  const [startDate, setStartDate] = useState(''); // Added Start Date State
-  const [expiryDate, setExpiryDate] = useState('');
-  
-  // State for Editing
+  const [loading, setLoading] = useState(false);
+  const [coupons, setCoupons] = useState([]); 
+  const [isModalOpen, setIsModalOpen] = useState(false); 
   const [editingId, setEditingId] = useState(null);
 
-  // Dummy Data for Generated Coupons (Added startDate)
-  const [coupons, setCoupons] = useState([
-    { id: 1, code: 'HEALTH20', discount: 20, minAmount: 1500, startDate: '2026-03-15', expiryDate: '2026-04-15' },
-    { id: 2, code: 'NEWUSER10', discount: 10, minAmount: 500, startDate: '2026-04-01', expiryDate: '2026-05-01' },
-    { id: 3, code: 'HKLAB50', discount: 50, minAmount: 3000, startDate: '2026-03-01', expiryDate: '2026-03-30' },
-  ]);
+  // Form state matching Documentation params exactly
+  const [formData, setFormData] = useState({
+    couponName: '',
+    discountPercentage: '',
+    maxDiscount: '',
+    minOrderAmount: '',
+    maxUsagePerUser: 1,
+    startDate: '',
+    expiryDate: ''
+  });
 
-  // Handle Generate / Update Form Submit
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if(!couponCode || !discount || !minAmount || !startDate || !expiryDate) return; // Added startDate validation
+  useEffect(() => {
+    fetchCoupons();
+  }, []);
 
-    if (editingId) {
-      // Update Existing Coupon
-      setCoupons(coupons.map(coupon => 
-        coupon.id === editingId ? {
-          ...coupon,
-          code: couponCode.toUpperCase(),
-          discount: Number(discount),
-          minAmount: Number(minAmount),
-          startDate: startDate, // Added startDate
-          expiryDate: expiryDate
-        } : coupon
-      ));
-      alert('Coupon Updated Successfully!');
-    } else {
-      // Add New Coupon
-      const newCoupon = {
-        id: Date.now(),
-        code: couponCode.toUpperCase(),
-        discount: Number(discount),
-        minAmount: Number(minAmount),
-        startDate: startDate, // Added startDate
-        expiryDate: expiryDate
-      };
-      setCoupons([newCoupon, ...coupons]);
-      alert('New Coupon Generated!');
+  const fetchCoupons = async () => {
+    try {
+      setLoading(true);
+      const res = await PharmacyVendorAPI.listCoupons();
+      if (res.success) {
+        setCoupons(res.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching coupons:", error);
+      toast.error("Failed to load pharmacy coupons");
+    } finally {
+      setLoading(false);
     }
-    
-    // Clear Form & Reset Edit State
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+  };
+
+  const openAddModal = () => {
     resetForm();
+    setIsModalOpen(true);
   };
 
-  // Handle Edit Click (Populates Form)
-  const handleEditClick = (coupon) => {
-    setCouponCode(coupon.code);
-    setDiscount(coupon.discount);
-    setMinAmount(coupon.minAmount);
-    setStartDate(coupon.startDate); // Populate startDate
-    setExpiryDate(coupon.expiryDate);
-    setEditingId(coupon.id);
-  };
-
-  // Reset Form Handler
   const resetForm = () => {
-    setCouponCode('');
-    setDiscount('');
-    setMinAmount('');
-    setStartDate(''); // Reset startDate
-    setExpiryDate('');
+    setFormData({
+      couponName: '',
+      discountPercentage: '',
+      maxDiscount: '',
+      minOrderAmount: '',
+      maxUsagePerUser: 1,
+      startDate: '',
+      expiryDate: ''
+    });
     setEditingId(null);
   };
 
-  // Handle Delete Coupon
-  const handleDelete = (id) => {
-    const isConfirmed = window.confirm("Are you sure you want to delete this coupon?");
-    if(isConfirmed){
-      setCoupons(coupons.filter(c => c.id !== id));
+  const closeModal = () => {
+    resetForm();
+    setIsModalOpen(false);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validations based on Documentation
+    if (Number(formData.discountPercentage) < 1 || Number(formData.discountPercentage) > 100) {
+        return toast.error("Discount must be between 1% and 100%");
+    }
+
+    const today = new Date().setHours(0,0,0,0);
+    const selectedExpiry = new Date(formData.expiryDate).setHours(0,0,0,0);
+    if (selectedExpiry < today) {
+        return toast.error("Expiry date must be in the future");
+    }
+
+    try {
+      setLoading(true);
+      const payload = {
+        ...formData,
+        discountPercentage: Number(formData.discountPercentage),
+        maxDiscount: Number(formData.maxDiscount),
+        minOrderAmount: Number(formData.minOrderAmount),
+        maxUsagePerUser: Number(formData.maxUsagePerUser)
+      };
+
+      if (editingId) {
+        await PharmacyVendorAPI.updateCoupon(editingId, payload);
+        toast.success('Pharmacy Coupon Updated!');
+      } else {
+        await PharmacyVendorAPI.addCoupon(payload);
+        toast.success('New Pharmacy Coupon Created!');
+      }
+      closeModal();
+      fetchCoupons();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Action failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditClick = (coupon) => {
+    setEditingId(coupon._id);
+    setFormData({
+      couponName: coupon.couponName,
+      discountPercentage: coupon.discountPercentage,
+      maxDiscount: coupon.maxDiscount,
+      minOrderAmount: coupon.minOrderAmount,
+      maxUsagePerUser: coupon.maxUsagePerUser || 1,
+      startDate: coupon.startDate ? coupon.startDate.split('T')[0] : '',
+      expiryDate: coupon.expiryDate ? coupon.expiryDate.split('T')[0] : ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm("Delete this pharmacy coupon?")) {
+      try {
+        await PharmacyVendorAPI.deleteCoupon(id);
+        toast.success("Coupon removed from pharmacy inventory");
+        fetchCoupons();
+      } catch (error) {
+        toast.error("Delete operation failed");
+      }
+    }
+  };
+
+  const handleToggleStatus = async (id) => {
+    try {
+      const res = await PharmacyVendorAPI.toggleCoupon(id);
+      toast.success(res.message);
+      fetchCoupons();
+    } catch (error) {
+      toast.error("Status toggle failed");
     }
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full pb-20 bg-gray-50 min-h-screen">
       
       {/* HEADER SECTION */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[#1e3a8a] flex items-center gap-2">
-          <FaTicketAlt className="text-[#08B36A]"/> Promotions & Coupons
-        </h1>
-        <p className="text-gray-500 text-sm mt-1">Generate or edit discount codes to attract more patients to your lab.</p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4 p-6">
+        <div>
+          <h1 className="text-3xl font-black text-[#1e3a8a] flex items-center gap-3">
+            <div className="p-3 bg-[#08B36A] text-white rounded-2xl shadow-lg shadow-green-100">
+              <FaMedkit size={24}/>
+            </div>
+            Pharmacy Central
+          </h1>
+          <p className="text-gray-500 font-medium text-sm mt-2">Manage medicine discounts and healthcare promotional codes.</p>
+        </div>
+        <div className="flex gap-3">
+            <button onClick={fetchCoupons} className="p-4 bg-white text-gray-400 rounded-2xl border border-gray-200 hover:text-[#08B36A] hover:border-[#08B36A] transition-all active:scale-95 shadow-sm">
+                <FaSyncAlt className={loading ? 'animate-spin' : ''} />
+            </button>
+            <button 
+                onClick={openAddModal}
+                className="bg-[#08B36A] hover:bg-green-600 text-white font-black py-4 px-8 rounded-2xl flex items-center gap-2 shadow-xl shadow-green-100 transition-all active:scale-95 uppercase tracking-tighter text-sm"
+            >
+                <FaPlus /> Create Pharma Coupon
+            </button>
+        </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        
-        {/* ========================================= */}
-        {/* LEFT COLUMN: GENERATE / EDIT FORM         */}
-        {/* ========================================= */}
-        <div className="w-full lg:w-1/3">
-          <div className={`bg-white p-6 rounded-2xl border shadow-sm sticky top-6 transition-all duration-300 ${editingId ? 'border-blue-300 shadow-blue-100' : 'border-gray-100'}`}>
+      {/* DYNAMIC LIST AREA */}
+      <div className="px-6">
+      {coupons.length > 0 ? (
+        <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-8">
+          {coupons.map((coupon) => (
+            <div 
+              key={coupon._id} 
+              className={`flex bg-white rounded-[2rem] shadow-sm border-2 overflow-hidden hover:shadow-xl transition-all relative group ${!coupon.isActive ? 'opacity-60 grayscale-[0.4]' : 'border-white'}`}
+            >
+              
+              {/* Left Side: Branding/Value (Color: #08B36A) */}
+              <div className={`text-white w-24 sm:w-28 flex flex-col justify-center items-center border-r-2 border-dashed border-white/30 relative shadow-inner ${coupon.isAdminCreated ? 'bg-indigo-600' : (coupon.isActive ? 'bg-[#08B36A]' : 'bg-gray-400')}`}>
+                <div className="absolute -top-4 -right-4 w-8 h-8 bg-gray-50 rounded-full border border-gray-100"></div>
+                <div className="absolute -bottom-4 -right-4 w-8 h-8 bg-gray-50 rounded-full border border-gray-100"></div>
+                
+                <span className="text-3xl font-black">{coupon.discountPercentage}</span>
+                <span className="text-[10px] font-black tracking-widest uppercase opacity-80">% OFF</span>
+              </div>
+
+              {/* Right Side: Details */}
+              <div className="p-6 flex-1 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-1">
+                    <h3 className="text-xl font-black text-gray-900 tracking-tighter uppercase leading-none">{coupon.couponName}</h3>
+                    {coupon.isAdminCreated && (
+                      <span className="bg-indigo-100 text-indigo-700 text-[8px] font-black px-2 py-0.5 rounded-md border border-indigo-200">GLOBAL PHARMA</span>
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-y-2 gap-x-4 mt-4">
+                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400">
+                        <FaRupeeSign className="text-gray-300"/> Min: <span className="text-gray-700 font-black">₹{coupon.minOrderAmount}</span>
+                     </div>
+                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400">
+                        <FaPrescriptionBottleAlt className="text-gray-300"/> Max: <span className="text-[#08B36A] font-black">₹{coupon.maxDiscount}</span>
+                     </div>
+                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 w-full">
+                        <FaStopwatch className="text-red-300"/> Expires: <span className="text-red-500 font-black uppercase">{new Date(coupon.expiryDate).toLocaleDateString('en-GB')}</span>
+                     </div>
+                  </div>
+                </div>
+                
+                {/* Actions: Admin coupons cannot be edited/deleted by vendor */}
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-50">
+                  <div className="flex items-center gap-1">
+                    {!coupon.isAdminCreated ? (
+                      <>
+                        <button onClick={() => handleEditClick(coupon)} className="p-2 text-gray-400 hover:text-blue-600 transition-all" title="Edit">
+                          <FaEdit size={16} />
+                        </button>
+                        <button onClick={() => handleDelete(coupon._id)} className="p-2 text-gray-400 hover:text-red-500 transition-all" title="Delete">
+                          <FaTrashAlt size={15} />
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-[8px] font-bold text-gray-300 uppercase tracking-widest">Read Only</span>
+                    )}
+                  </div>
+
+                  <button 
+                    onClick={() => handleToggleStatus(coupon._id)}
+                    disabled={coupon.isAdminCreated}
+                    className={`flex items-center gap-2 text-[9px] font-black px-4 py-2 rounded-xl border transition-all active:scale-95 ${coupon.isActive ? 'bg-green-50 text-green-600 border-green-200' : 'bg-red-50 text-red-600 border-red-200'} ${coupon.isAdminCreated ? 'cursor-not-allowed' : ''}`}
+                  >
+                    {coupon.isActive ? <><FaPowerOff size={10}/> LIVE</> : <><FaPowerOff size={10}/> PAUSED</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* Empty State */
+        <div className="bg-white rounded-[3rem] border-2 border-dashed border-gray-200 p-24 flex flex-col items-center justify-center text-center shadow-sm max-w-4xl mx-auto">
+          <div className="w-28 h-28 bg-gray-50 rounded-[2.5rem] flex items-center justify-center mb-8 border border-gray-100">
+            <FaPills className="text-5xl text-gray-200" />
+          </div>
+          <h3 className="text-2xl font-black text-gray-800 mb-2 tracking-tight">No Active Pharmacy Promos</h3>
+          <p className="text-sm text-gray-400 max-w-xs mx-auto leading-relaxed font-medium">
+            Boost your medicine sales by launching your first promotional campaign!
+          </p>
+        </div>
+      )}
+      </div>
+
+      {/* MODAL FORM SECTION */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[1000] p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-[450px] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
             
-            <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-3">
-              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                {editingId ? <FaEdit className="text-blue-500"/> : <FaTag className="text-[#08B36A]"/>} 
-                {editingId ? 'Edit Coupon' : 'Generate Coupon'}
-              </h2>
-              {/* Show Cancel Edit Button if in edit mode */}
-              {editingId && (
-                <button onClick={resetForm} className="text-xs font-bold text-gray-400 hover:text-red-500 flex items-center gap-1 transition-colors">
-                  <FaTimes /> Cancel
-                </button>
-              )}
+            <div className="flex justify-between items-center p-8 border-b border-gray-50 bg-[#08B36A] text-white">
+              <div>
+                <h2 className="text-2xl font-black uppercase tracking-tight leading-none">
+                   {editingId ? 'Edit Coupon' : 'Create Coupon'}
+                </h2>
+                <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-70">Pharmacy Configuration</p>
+              </div>
+              <button onClick={closeModal} className="p-2 bg-black/10 rounded-full hover:bg-black/20 transition-all">
+                <FaTimes size={18}/>
+              </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="p-8 space-y-6">
               
-              {/* Coupon Code */}
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">Coupon Code <span className="text-red-500">*</span></label>
-                <input 
-                  type="text" 
-                  value={couponCode}
-                  onChange={(e) => setCouponCode(e.target.value)}
-                  placeholder="e.g. GET20" 
-                  className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20 focus:border-[#08B36A] text-gray-800 font-bold uppercase transition-all"
-                  required 
-                />
-              </div>
-
-              {/* Discount Percentage */}
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">Discount Percentage <span className="text-red-500">*</span></label>
+              <div className="space-y-1">
+                <label className="label-style">Coupon Code (Unique)</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FaPercent className="text-gray-400 text-sm" />
-                  </div>
-                  <input 
-                    type="number" 
-                    value={discount}
-                    onChange={(e) => setDiscount(e.target.value)}
-                    placeholder="e.g. 15" 
-                    min="1" max="100"
-                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20 focus:border-[#08B36A] text-gray-800 font-bold transition-all"
-                    required 
-                  />
+                      <FaTag className="absolute right-5 top-5 text-gray-400 text-sm ml-4"/>
+                   <input
+                    name="couponName" type="text" value={formData.couponName} onChange={handleChange}
+                    placeholder="E.G. PHARMA10" required
+                    className="input-style pl-11 uppercase font-black tracking-widest"
+                   />
                 </div>
               </div>
 
-              {/* Minimum Order Amount */}
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1.5">Min. Order Amount <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FaRupeeSign className="text-gray-400 text-sm" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="label-style">Discount (%)</label>
+                  <div className="relative">
+                    <FaPercent className="absolute right-5 top-5 text-[#08B36A] text-xs ml-4"/>
+                    <input name="discountPercentage" type="number" value={formData.discountPercentage} onChange={handleChange} placeholder="1-100" required className="input-style pl-10" />
                   </div>
-                  <input 
-                    type="number" 
-                    value={minAmount}
-                    onChange={(e) => setMinAmount(e.target.value)}
-                    placeholder="e.g. 1000" 
-                    min="0"
-                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20 focus:border-[#08B36A] text-gray-800 font-bold transition-all"
-                    required 
-                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="label-style">Max Cap (₹)</label>
+                  <div className="relative">
+                    <FaRupeeSign className="absolute right-5 top-5 text-[#08B36A] text-xs ml-4"/>
+                    <input name="maxDiscount" type="number" value={formData.maxDiscount} onChange={handleChange} placeholder="0" required className="input-style pl-10" />
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                {/* Start Date */}
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Start Date <span className="text-red-500">*</span></label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="label-style">Min Order (₹)</label>
+                  <input name="minOrderAmount" type="number" value={formData.minOrderAmount} onChange={handleChange} placeholder="₹" required className="input-style" />
+                </div>
+                <div className="space-y-1">
+                  <label className="label-style">User Limit</label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <FaCalendarAlt className="text-gray-400 text-sm" />
-                    </div>
-                    <input 
-                      type="date" 
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full pl-10 pr-2 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20 focus:border-[#08B36A] text-gray-800 text-sm font-bold transition-all"
-                      required 
-                    />
+                    <FaLayerGroup className="absolute right-5 top-5 text-gray-400 text-sm ml-4"/>
+                    <input name="maxUsagePerUser" type="number" value={formData.maxUsagePerUser} onChange={handleChange} placeholder="Limit" required className="input-style pl-11" />
                   </div>
                 </div>
+              </div>
 
-                {/* Expiry Date */}
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Expiry Date <span className="text-red-500">*</span></label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <FaCalendarAlt className="text-gray-400 text-sm" />
-                    </div>
-                    <input 
-                      type="date" 
-                      value={expiryDate}
-                      onChange={(e) => setExpiryDate(e.target.value)}
-                      className="w-full pl-10 pr-2 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20 focus:border-[#08B36A] text-gray-800 text-sm font-bold transition-all"
-                      required 
-                    />
+              <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                      <label className="label-style">Start Date</label>
+                      <input name="startDate" type="date" value={formData.startDate} onChange={handleChange} required className="input-style text-xs" />
                   </div>
-                </div>
+                  <div className="space-y-1">
+                      <label className="label-style">End Date</label>
+                      <input name="expiryDate" type="date" value={formData.expiryDate} onChange={handleChange} required className="input-style text-xs" />
+                  </div>
               </div>
 
               <button 
-                type="submit" 
-                className={`w-full mt-2 py-3 font-bold rounded-xl shadow-md transition-all hover:-translate-y-0.5 flex justify-center items-center gap-2 ${
-                  editingId 
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200' 
-                    : 'bg-[#08B36A] hover:bg-green-600 text-white shadow-green-200'
-                }`}
+                type="submit" disabled={loading}
+                className="w-full py-5 font-black rounded-3xl shadow-xl transition-all text-white flex justify-center items-center gap-3 active:scale-95 bg-[#08B36A] hover:bg-green-600 uppercase tracking-tighter text-sm"
               >
-                {editingId ? 'UPDATE COUPON' : 'GENERATE COUPON'}
+                {loading ? <FaSyncAlt className="animate-spin"/> : (editingId ? 'Save Changes' : 'Generate Coupon')}
               </button>
             </form>
           </div>
         </div>
+      )}
 
-        {/* ========================================= */}
-        {/* RIGHT COLUMN: COUPONS LIST                */}
-        {/* ========================================= */}
-        <div className="w-full lg:w-2/3">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-[#1e3a8a]">Active Coupons ({coupons.length})</h2>
-          </div>
-
-          {coupons.length > 0 ? (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-              {coupons.map((coupon) => (
-                <div 
-                  key={coupon.id} 
-                  className={`flex bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition-all group ${
-                    editingId === coupon.id ? 'border-blue-400 ring-2 ring-blue-100 scale-[1.02]' : 'border-gray-200'
-                  }`}
-                >
-                  
-                  {/* Left Side: Discount Box (Ticket cut style) */}
-                  <div className={`text-white w-28 flex flex-col justify-center items-center border-r-2 border-dashed border-white relative transition-colors ${
-                    editingId === coupon.id ? 'bg-blue-500' : 'bg-[#08B36A]'
-                  }`}>
-                    <div className="absolute -top-3 -right-3 w-6 h-6 bg-gray-50 rounded-full"></div>
-                    <div className="absolute -bottom-3 -right-3 w-6 h-6 bg-gray-50 rounded-full"></div>
-                    
-                    <span className="text-3xl font-black">{coupon.discount}%</span>
-                    <span className="text-xs font-bold tracking-widest opacity-90 uppercase mt-0.5">OFF</span>
-                  </div>
-
-                  {/* Right Side: Details & Action */}
-                  <div className="p-4 flex-1 flex flex-col justify-between bg-white relative">
-                    <div>
-                      <h3 className="text-lg font-black text-gray-800 tracking-wide">{coupon.code}</h3>
-                      <div className="text-xs text-gray-500 font-medium mt-1.5 space-y-1">
-                        <p className="flex items-center gap-1.5"><FaRupeeSign className="text-gray-400"/> Min. Order: <span className="text-gray-700 font-bold">₹{coupon.minAmount}</span></p>
-                        <p className="flex items-center gap-1.5"><FaCalendarAlt className="text-emerald-500"/> Starts: <span className="text-emerald-600 font-bold">{coupon.startDate}</span></p>
-                        <p className="flex items-center gap-1.5"><FaCalendarAlt className="text-red-400"/> Expires: <span className="text-red-500 font-bold">{coupon.expiryDate}</span></p>
-                      </div>
-                    </div>
-                    
-                    {/* Action Buttons (Edit & Delete) */}
-                    <div className="absolute bottom-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      
-                      {/* Edit Button */}
-                      <button 
-                        onClick={() => handleEditClick(coupon)}
-                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-                        title="Edit Coupon"
-                      >
-                        <FaEdit size={16} />
-                      </button>
-
-                      {/* Delete Button */}
-                      <button 
-                        onClick={() => handleDelete(coupon.id)}
-                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
-                        title="Delete Coupon"
-                      >
-                        <FaTrashAlt size={16} />
-                      </button>
-                    </div>
-
-                    {/* "Editing..." Badge */}
-                    {editingId === coupon.id && (
-                      <span className="absolute top-4 right-4 text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full animate-pulse">
-                        EDITING
-                      </span>
-                    )}
-
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            /* Empty State */
-            <div className="bg-white rounded-2xl border border-gray-100 p-12 flex flex-col items-center justify-center text-center shadow-sm">
-              <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                <FaTicketAlt className="text-4xl text-gray-300" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-800 mb-1">No Active Coupons</h3>
-              <p className="text-sm text-gray-500 max-w-sm">You haven't generated any coupons yet. Create one from the left panel to boost your sales!</p>
-            </div>
-          )}
-        </div>
-
-      </div>
+      <style jsx>{`
+        .label-style {
+          display: block;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          font-weight: 900;
+          font-size: 0.6rem;
+          color: #9ca3af;
+          margin-bottom: 0.5rem;
+          margin-left: 0.5rem;
+        }
+        .input-style {
+          width: 100%;
+          padding: 14px 18px;
+          background-color: #f8fafc;
+          border-radius: 1.25rem;
+          border: 1px solid #f1f5f9;
+          font-weight: 800;
+          color: #1e293b;
+          font-size: 0.875rem;
+          outline: none;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .input-style:focus {
+          background-color: white;
+          border-color: #08B36A;
+          box-shadow: 0 10px 25px -5px rgba(8, 179, 106, 0.1);
+          transform: translateY(-1px);
+        }
+      `}</style>
     </div>
   )
 }
