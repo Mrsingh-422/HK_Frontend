@@ -1,10 +1,10 @@
 "use client";
 import React, { useState } from "react";
-import { useAuth } from "@/app/context/AuthContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import FireStationAPI from "@/app/services/FireStationAPI";
 
 function LoginAsFireStation() {
-    const [phone, setPhone] = useState("");
+    const [identifier, setIdentifier] = useState(""); // Changed from phone to identifier
     const [password, setPassword] = useState("");
     const [remember, setRemember] = useState(false);
 
@@ -13,36 +13,44 @@ function LoginAsFireStation() {
     const [success, setSuccess] = useState("");
 
     const { openModal, closeModal } = useGlobalContext();
-    const { loginAsUser } = useAuth();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError("");
         setSuccess("");
 
-        if (!phone || !password) {
-            setError("Please enter phone number and password.");
+        if (!identifier || !password) {
+            setError("Please enter phone number/email and password.");
             return;
         }
 
         try {
             setLoading(true);
 
+            // Logic to check if input is email or phone
+            const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
+
             const userLoginData = {
-                phone,
+                [isEmail ? "email" : "phone"]: identifier, // Dynamically sets key as email or phone
                 password,
                 remember,
             };
 
-            await loginAsUser(userLoginData);
+            const response = await FireStationAPI.LoginFireStation(userLoginData);
+
+            const token = response?.token || response?.data?.token;
+            
+            if (token) {
+                localStorage.setItem("firestationToken", token);
+            }
 
             setSuccess("Login successful! Redirecting...");
 
             setTimeout(() => {
-                closeModal(); // Fixed: added parentheses
+                closeModal();
             }, 1500);
         } catch (err) {
-            setError(err?.response?.data?.message || "Invalid phone or password.");
+            setError(err?.response?.data?.message || "Invalid credentials.");
         } finally {
             setLoading(false);
         }
@@ -84,13 +92,13 @@ function LoginAsFireStation() {
 
                     <input
                         type="text"
-                        placeholder="Enter your phone number"
+                        placeholder="Enter phone number or email"
                         className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
                     />
                     <p className="text-[13px] text-gray-500 mb-3 text-left">
-                        We'll never share your phone with anyone else.
+                        We'll never share your details with anyone else.
                     </p>
 
                     <input

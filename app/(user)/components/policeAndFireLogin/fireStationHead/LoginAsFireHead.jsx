@@ -1,10 +1,10 @@
 "use client";
 import React, { useState, useMemo } from "react";
-import { useRouter } from "next/navigation"; // Added for redirection
-import { useAuth } from "@/app/context/AuthContext";
+import { useRouter } from "next/navigation"; 
 import { useGlobalContext } from "@/app/context/GlobalContext";
 // Import libphonenumber-js functions
 import { getCountries, getCountryCallingCode } from "libphonenumber-js";
+import FireStationAPI from "@/app/services/FireStationAPI";
 
 function LoginAsFireHead() {
   const [identifier, setIdentifier] = useState(""); // phone OR email
@@ -18,7 +18,6 @@ function LoginAsFireHead() {
 
   const router = useRouter(); // Initialize router
   const { openModal, closeModal } = useGlobalContext();
-  const { loginFireHeadquarter } = useAuth(); 
 
   // Generate the list of Country Dialing Codes
   const countryCallingCodes = useMemo(() => {
@@ -46,24 +45,18 @@ function LoginAsFireHead() {
       // 1. Detect if input is an email
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
 
-      // 2. Construct the data object
+      // 2. Construct the data object dynamically
       const loginData = {
+        [isEmail ? "email" : "phone"]: isEmail ? identifier : identifier.replace(/\s+/g, ""),
         password: password,
         remember: remember,
+        ...(isEmail ? {} : { countryCode: countryDialCode }) // Only add countryCode if not email
       };
 
-      if (isEmail) {
-        loginData.email = identifier;
-      } else {
-        loginData.phone = identifier.replace(/\s+/g, "");
-        loginData.countryCode = countryDialCode; 
-      }
-
-      // 3. Send to API
-      const response = await loginFireHeadquarter(loginData);
+      // 3. Send to API via LoginFireHQ
+      const response = await FireStationAPI.LoginFireHQ(loginData);
 
       // 4. Save token specifically as fireheadquarterToken
-      // (Assuming your API response returns the token in response.token or response.data.token)
       const token = response?.token || response?.data?.token;
       if (token) {
         localStorage.setItem("fireheadquarterToken", token);
@@ -74,7 +67,7 @@ function LoginAsFireHead() {
       // 5. Redirect and close modal
       setTimeout(() => {
         closeModal();
-        router.push("/policeandfire/fireheadquarter");
+        // router.push("/policeandfire/fireheadquarter");
       }, 1500);
 
     } catch (err) {
