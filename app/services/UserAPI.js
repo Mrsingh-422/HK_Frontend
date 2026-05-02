@@ -141,7 +141,7 @@ const UserAPI = {
         return response.data;
     },
 
-    //Medicine apis all 
+    //Pharmacy apis all 
     getAllPharmacies: async (payload) => {
         // payload should be { lat, lng, search, etc. }
         const response = await publicApi.post("/user/pharmacy/list", payload);
@@ -159,31 +159,26 @@ const UserAPI = {
         const response = await publicApi.get(`/user/pharmacy/pharmacy-suggestions?query=${query}`);
         return response.data;
     },
-
     getPharmacyProductsAll: async (params) => {
         // params example: { page: 1, limit: 10 }
         const response = await publicApi.get(`/user/pharmacy/standard-list`, { params });
         return response.data;
     },
-
     pharmacyProductDetail: async (productId, params) => {
         // vendorId example: "69df18ad0cf05769b93d6761"
         // params example: { lat: 30.7333, lng: 76.7233 }
         const response = await publicApi.get(`/user/pharmacy/medicine-details/${productId}`, { params });
         return response.data;
     },
-
     getSinglePharmacyMedicines: async (pharmacyId, params) => {
         // params example: { page: 1, limit: 10 }
         const response = await publicApi.get(`/user/medicine/pharmacies/${pharmacyId}`, { params });
         return response.data;
     },
-
     getPharmacyCategories: async () => {
         const response = await publicApi.get(`/user/pharmacy/categories`);
         return response.data;
     },
-
     getPharmacySlots: async (pharmacyId, date) => {
         const response = await authApi.get("/user/pharmacy/slots", {
             params: {
@@ -202,6 +197,16 @@ const UserAPI = {
             `/user/pharmacy/search-suggestions`,
             data
         );
+        return response.data;
+    },
+    addPharmacyToCart: async (cartData) => {
+        // cartData should contain productId, pharmacyId, quantity, etc.
+        const response = await authApi.post("/user/cart/pharmacy/add", cartData);
+        return response.data;
+    },
+    updatePharmacyCartQuantity: async (updateData) => {
+        // updateData usually contains itemId and new quantity
+        const response = await authApi.put("/user/cart/pharmacy/quantity", updateData);
         return response.data;
     },
 
@@ -443,22 +448,22 @@ const UserAPI = {
     },
 
     // --- Tracking & History ---
-    getMyBookings: async () => {
-        const response = await authApi.get("/user/labs/my-bookings");
-        return response.data;
-    },
-    getBookingTrackingDetails: async (id) => {
-        const response = await authApi.get(`/user/labs/details/${id}/track`);
-        return response.data;
-    },
-    cancelBooking: async (id, reason) => {
-        const response = await authApi.put(`/user/labs/cancel/${id}`, { reason });
-        return response.data;
-    },
-    rateLabOrder: async (ratingData) => {
-        const response = await authApi.post("/user/labs/rate", ratingData);
-        return response.data;
-    },
+    // getMyBookings: async () => {
+    //     const response = await authApi.get("/user/labs/my-bookings");
+    //     return response.data;
+    // },
+    // getBookingTrackingDetails: async (id) => {
+    //     const response = await authApi.get(`/user/labs/details/${id}/track`);
+    //     return response.data;
+    // },
+    // cancelBooking: async (id, reason) => {
+    //     const response = await authApi.put(`/user/labs/cancel/${id}`, { reason });
+    //     return response.data;
+    // },
+    // rateLabOrder: async (ratingData) => {
+    //     const response = await authApi.post("/user/labs/rate", ratingData);
+    //     return response.data;
+    // },
 
     // --- Cart Management ---
     getMyCart: async () => {
@@ -483,28 +488,14 @@ const UserAPI = {
         const response = await authApi.put("/user/cart/quantity", updateData);
         return response.data;
     },
-
     removeCartItem: async (itemId) => {
         const response = await authApi.delete(`/user/cart/item/${itemId}`);
         return response.data;
     },
-
     removePharmacyItem: async (itemId) => {
         const response = await authApi.delete(`/user/cart/pharmacy/item/${itemId}`);
         return response.data;
     },
-
-    addPharmacyToCart: async (cartData) => {
-        // cartData should contain productId, pharmacyId, quantity, etc.
-        const response = await authApi.post("/user/cart/pharmacy/add", cartData);
-        return response.data;
-    },
-    updatePharmacyCartQuantity: async (updateData) => {
-        // updateData usually contains itemId and new quantity
-        const response = await authApi.put("/user/cart/pharmacy/quantity", updateData);
-        return response.data;
-    },
-
     checkoutLabCart: async (checkoutData) => {
         const response = await authApi.post("/user/labs/checkout", checkoutData);
         return response.data;
@@ -528,11 +519,7 @@ const UserAPI = {
     getNurseSlots: async (nurseId, params) => {
         // nurseId: "69b9931b8efeb5adbcce739d"
         // params: { date: "2026-04-29" }
-
-        const response = await publicApi.get(
-            `/user/nurse/availability/${nurseId}`,
-            { params }
-        );
+        const response = await publicApi.get(`/user/nurse/availability/${nurseId}`, { params });
         return response.data;
     },
 
