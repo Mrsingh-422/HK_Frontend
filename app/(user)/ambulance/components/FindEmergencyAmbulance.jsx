@@ -1,47 +1,19 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import React, { useState, useMemo, useEffect } from "react";
-import { 
-    FaFilter, FaStar, FaMapMarkerAlt, 
-    FaAmbulance, FaArrowRight, FaChevronDown 
+import React, { useState, useMemo } from "react";
+import {
+    FaFilter, FaStar, FaMapMarkerAlt,
+    FaAmbulance, FaArrowRight, FaChevronDown
 } from "react-icons/fa";
 import { AMBULANCE_DATA } from "../../../constants/constants";
-import { useGlobalContext } from "@/app/context/GlobalContext";
-import AmbulanceHero from "./AmbulanceHero";
 
 function FindEmergencyAmbulance() {
     const router = useRouter();
-    const { getAmbulancePageData } = useGlobalContext();
-
-    const [pageData, setPageData] = useState({
-        headerTag: "Emergency Response Network",
-        mainTitle: "Every Second Counts. \nBook an Ambulance.",
-        description: "India's fastest emergency response network. Real-time tracking and immediate dispatch.",
-        searchPlaceholder: "Search Emergency Ambulance",
-    });
-
     const [searchTerm, setSearchTerm] = useState("");
     const [sortBy, setSortBy] = useState("recommended");
-    const [selectedAmbulance, setSelectedAmbulance] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchContent = async () => {
-            try {
-                const res = await getAmbulancePageData();
-                if (res?.success && res?.data) setPageData(res.data);
-            } catch (err) {
-                console.error("Failed to fetch ambulance data");
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchContent();
-    }, [getAmbulancePageData]);
-
-    // Filtering and Sorting Logic
+    // Filtering and Sorting Logic based on search input from Hero
     const filteredAmbulances = useMemo(() => {
         let filtered = AMBULANCE_DATA.filter((item) =>
             item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -51,36 +23,19 @@ function FindEmergencyAmbulance() {
         if (sortBy === "price-low") filtered.sort((a, b) => a.price - b.price);
         if (sortBy === "distance") filtered.sort((a, b) => a.distance - b.distance);
         if (sortBy === "rating") filtered.sort((a, b) => b.rating - a.rating);
-        
+
         return filtered;
-    }, [searchTerm, sortBy]);
+    }, [sortBy]);
 
     const visibleAmbulances = filteredAmbulances.slice(0, 6);
     const hasMore = filteredAmbulances.length > 6;
 
-    if (isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-white">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-red-600 border-solid border-gray-200"></div>
-                    <p className="text-slate-500 font-bold animate-pulse text-sm uppercase tracking-widest">Locating Units...</p>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="min-h-screen bg-[#FDFEFF] font-sans text-slate-900">
-            {/* Component 1: Hero Section */}
-            <AmbulanceHero 
-                pageData={pageData} 
-                searchTerm={searchTerm} 
-                setSearchTerm={setSearchTerm} 
-            />
-
-            {/* Component 2: Results Section */}
+            {/* The Hero component now fetches its own API data */}
+            {/* Results Section */}
             <section className="max-w-7xl mx-auto px-6 pb-32">
-                
+
                 {/* Header & Filter Bar */}
                 <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
                     <div className="text-center md:text-left">
@@ -114,18 +69,14 @@ function FindEmergencyAmbulance() {
                         visibleAmbulances.map((item) => (
                             <div
                                 key={item.id}
-                                onClick={() => {
-                                    setSelectedAmbulance(item);
-                                    setIsModalOpen(true);
-                                }}
                                 className="group bg-white rounded-[2.5rem] p-4 border border-slate-100 hover:border-red-200 hover:shadow-[0_20px_50px_rgba(220,38,38,0.08)] transition-all duration-300 cursor-pointer"
                             >
                                 {/* Image Container */}
                                 <div className="relative mb-5 aspect-[16/10] rounded-[2rem] overflow-hidden bg-slate-100">
-                                    <img 
-                                        src={item.image} 
-                                        alt={item.name} 
-                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                                    <img
+                                        src={item.image}
+                                        alt={item.name}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                     />
                                     <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-2xl flex items-center gap-1.5 shadow-sm">
                                         <FaStar className="text-amber-400 text-xs" />
@@ -179,7 +130,7 @@ function FindEmergencyAmbulance() {
                             </div>
                             <h3 className="text-2xl font-black text-slate-800">No Ambulances Found</h3>
                             <p className="text-slate-500 mt-2">Try adjusting your filters or search term.</p>
-                            <button 
+                            <button
                                 onClick={() => setSearchTerm("")}
                                 className="mt-6 text-red-600 font-black text-sm underline hover:text-red-700"
                             >
@@ -196,7 +147,7 @@ function FindEmergencyAmbulance() {
                             onClick={() => router.push("/ambulance/seeallambulances")}
                             className="group inline-flex items-center gap-4 bg-white border-2 border-slate-900 text-slate-900 px-12 py-5 rounded-full font-black hover:bg-slate-900 hover:text-white transition-all duration-300 shadow-xl"
                         >
-                            Explore All Units 
+                            Explore All Units
                             <FaArrowRight className="group-hover:translate-x-2 transition-transform" />
                         </button>
                     </div>

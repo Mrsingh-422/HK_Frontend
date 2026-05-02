@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { FaChevronRight, FaCheckCircle, FaClock } from "react-icons/fa";
+import { FaChevronRight, FaCheckCircle, FaClock, FaHeartbeat, FaStethoscope } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
@@ -53,84 +53,106 @@ function MedicalEmergency() {
   }, [data.carouselImages]);
 
   return (
-    <section className="py-12 md:py-24 bg-white font-sans overflow-hidden">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="py-20 md:py-32 bg-white font-sans overflow-hidden relative">
+      
+      {/* Decorative Background Elements */}
+      <div className="absolute top-0 right-0 w-1/3 h-full bg-slate-50/50 -skew-x-6 translate-x-20 pointer-events-none"></div>
+      <FaHeartbeat className="absolute bottom-10 right-10 text-[15rem] text-slate-50 pointer-events-none" />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-20 items-center">
+      <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-center">
 
           {/* LEFT SECTION: CONTENT */}
-          <div className="order-2 lg:order-1 space-y-6 md:space-y-8">
+          <div className="lg:col-span-6 order-2 lg:order-1 space-y-8">
+            
             <div className="space-y-4">
-              <h2 className="text-4xl md:text-5xl lg:text-7xl font-black text-slate-900 leading-tight tracking-tight whitespace-pre-line">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="h-px w-8 bg-[#08B36A]"></div>
+                <span className="text-[#08B36A] font-black text-xs uppercase tracking-[0.3em]">Critical Care</span>
+              </div>
+              <h2 className="text-5xl md:text-6xl lg:text-8xl font-black text-slate-900 leading-[0.9] tracking-tighter whitespace-pre-line">
                 {data.title}
               </h2>
-              <div className="w-20 h-1.5 bg-[#08B36A] rounded-full opacity-30"></div>
             </div>
 
-            <p className="text-slate-600 text-base md:text-xl leading-relaxed max-w-xl">
-              {data.description}
-            </p>
+            <div className="relative">
+                <p className="text-slate-600 text-lg md:text-xl leading-relaxed max-w-xl border-l-4 border-[#08B36A] pl-6 py-2">
+                {data.description}
+                </p>
+            </div>
 
-            <div className="flex items-center gap-3 text-[#08B36A] font-bold text-lg md:text-2xl pt-2">
-              <FaCheckCircle className="flex-shrink-0 animate-pulse" />
-              <span>{data.highlightText}</span>
+            {/* Feature Highlights */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex items-center gap-3 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
+                    <FaCheckCircle className="text-[#08B36A] text-xl animate-pulse flex-shrink-0" />
+                    <span className="font-bold text-slate-700 text-sm">{data.highlightText}</span>
+                </div>
+                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <FaClock className="text-slate-400 text-xl flex-shrink-0" />
+                    <span className="font-bold text-slate-700 text-sm">24/7 Rapid Response</span>
+                </div>
             </div>
 
             <div className="pt-6">
               <button
                 onClick={() => router.push('/ambulance/seeallambulances')}
-                className="cursor-pointer group relative border-2 border-[#08B36A] text-[#08B36A] font-black px-10 py-4 rounded-xl hover:bg-[#08B36A] hover:text-white transition-all duration-300 active:scale-95 flex items-center justify-center gap-3 uppercase tracking-widest text-sm shadow-lg shadow-[#08B36A]/10">
+                className="group w-full sm:w-auto bg-slate-900 text-white font-black px-12 py-5 rounded-[2rem] hover:bg-[#08B36A] transition-all duration-500 active:scale-95 flex items-center justify-center gap-4 uppercase tracking-[0.2em] text-xs shadow-2xl shadow-slate-900/20"
+              >
                 {data.buttonText || "Book Now"}
-                <FaChevronRight className="text-xs group-hover:translate-x-1 transition-transform" />
+                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white group-hover:text-[#08B36A] transition-colors">
+                    <FaChevronRight className="text-[10px]" />
+                </div>
               </button>
-            </div>
-
-            <div className="flex gap-6 pt-4 border-t border-slate-50 md:hidden">
-              <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-wider">
-                <FaClock className="text-[#08B36A]" /> 24/7 Response
-              </div>
             </div>
           </div>
 
           {/* RIGHT SECTION: DYNAMIC IMAGE CAROUSEL */}
-          <div className="relative order-1 lg:order-2 group">
-            <div className="absolute -inset-4 bg-slate-50 rounded-[2.5rem] rotate-2 hidden lg:block"></div>
+          <div className="lg:col-span-6 relative order-1 lg:order-2 group">
+            
+            {/* Background Geometric Shapes */}
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-emerald-50 rounded-full blur-3xl"></div>
+            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-red-50 rounded-full blur-3xl"></div>
 
-            <div className="relative h-[280px] sm:h-[400px] md:h-[500px] w-full rounded-[2rem] md:rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white bg-slate-200">
+            <div className="relative h-[350px] sm:h-[450px] md:h-[600px] w-full rounded-[3.5rem] overflow-hidden shadow-[0_50px_100px_-20px_rgba(0,0,0,0.15)] border-[10px] border-white bg-slate-100">
               {data.carouselImages && data.carouselImages.length > 0 ? (
                 data.carouselImages.map((img, index) => (
                   <div
                     key={index}
-                    className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentImg ? "opacity-100 z-10 scale-100" : "opacity-0 z-0 scale-105"
-                      }`}
+                    className={`absolute inset-0 transition-all duration-1000 ease-in-out ${index === currentImg ? "opacity-100 scale-100" : "opacity-0 scale-110"}`}
                   >
                     <img
-                      // DYNAMIC URL LOGIC: Prepend API_URL if path is relative (/uploads/...)
                       src={img.startsWith("http") ? img : `${API_URL}${img}`}
                       alt={`Emergency Facility ${index + 1}`}
-                      className="w-full h-full object-cover transition-transform duration-[3000ms]"
-                      style={{ transform: index === currentImg ? 'scale(1)' : 'scale(1.1)' }}
-                      // FALLBACK LOGIC: Shows placeholder if image fails to load
+                      className="w-full h-full object-cover"
                       onError={(e) => { e.target.src = "https://via.placeholder.com/1000x800?text=Medical+Image+Not+Found"; }}
                     />
+                    {/* Gradient Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-tr from-slate-900/40 via-transparent to-transparent"></div>
                   </div>
                 ))
               ) : (
                 <div className="flex items-center justify-center h-full bg-slate-100 text-slate-400">No Images Available</div>
               )}
 
-              <div className="absolute bottom-6 right-8 z-20 flex gap-2">
+              {/* Custom Navigation Indicators */}
+              <div className="absolute bottom-10 left-10 z-20 flex gap-3">
                 {data.carouselImages?.map((_, idx) => (
                   <div
                     key={idx}
-                    className={`h-1.5 transition-all duration-300 rounded-full ${idx === currentImg ? "w-8 bg-[#08B36A]" : "w-2 bg-white/60"
-                      }`}
+                    className={`h-1.5 transition-all duration-500 rounded-full ${idx === currentImg ? "w-12 bg-[#08B36A]" : "w-4 bg-white/40"}`}
                   />
                 ))}
               </div>
 
-              <div className="absolute top-6 right-6 z-20 bg-red-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg animate-pulse">
-                Live Status
+              {/* Status Floating Badge */}
+              <div className="absolute top-10 right-10 z-20 bg-white/90 backdrop-blur-md p-5 rounded-3xl shadow-xl flex items-center gap-4 border border-white">
+                 <div className="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-red-200">
+                    <FaStethoscope className="text-xl" />
+                 </div>
+                 <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Status</p>
+                    <p className="text-sm font-black text-slate-900 uppercase">Emergency Ready</p>
+                 </div>
               </div>
             </div>
           </div>

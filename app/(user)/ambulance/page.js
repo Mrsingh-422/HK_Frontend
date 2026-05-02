@@ -10,18 +10,22 @@ import MedicalEmergency from './components/MedicalEmergency'
 import ReferralAmbulanceServices from './components/ReferralAmbulanceServices'
 import AmbulancePartners from './components/AmbulancePartners'
 import AmbulanceHero from './components/AmbulanceHero'
+import HowToBookAmbulance from './components/HowToBookAmbulance'
+import AmbulanceEquipment from './components/AmbulanceEquipment'
 
 function page() {
     return (
         <>
             <SecondNavbar />
-            {/* <AmbulanceHero /> */}
+            <AmbulanceHero />
             <FindEmergencyAmbulance />
             {/* <FindReferralAmbulance /> */}
             <EmergencyAmbulanceFacility />
-            <AccidentalEmergency />
+            <HowToBookAmbulance/>
+            <AmbulanceEquipment />
+            {/* <AccidentalEmergency /> */}
             <MedicalEmergency />
-            <ReferralAmbulanceServices />
+            {/* <ReferralAmbulanceServices /> */}
             <AmbulancePartners />
         </>
     )

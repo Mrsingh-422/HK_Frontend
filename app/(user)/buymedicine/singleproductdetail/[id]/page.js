@@ -101,6 +101,14 @@ function ProductDetailPage() {
     }, [cartProduct]);
 
     const handleUpdateQuantity = async (action) => {
+        // --- AUTH CHECK ---
+        const token = localStorage.getItem('userToken');
+        if (!token) {
+            toast.error("Please login to update cart quantity");
+            router.push('/');
+            return;
+        }
+
         if (action === 'dec' && quantity <= 1) {
             if (isAdded) await handleCartAction();
             return;
@@ -122,6 +130,14 @@ function ProductDetailPage() {
     };
 
     const handleCartAction = async (selectedVendor = null) => {
+        // --- AUTH CHECK ---
+        const token = localStorage.getItem('userToken');
+        if (!token) {
+            toast.error("Please login to add items to cart");
+            router.push('/');
+            return;
+        }
+
         const vendor = selectedVendor || vendors[selectedVendorIndex] || vendors[0];
 
         if (!vendor) {

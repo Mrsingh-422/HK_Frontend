@@ -7,9 +7,6 @@ import {
     FaChevronDown, FaFilter, FaMapMarkerAlt, FaLocationArrow
 } from "react-icons/fa";
 import { AMBULANCE_DATA } from '../../../constants/constants';
-// Note: Fixed the likely spelling typo from 'ShowAmbulancsModel' to 'ShowAmbulanceModal' 
-// if you renamed the file, otherwise keep your spelling.
-import ShowAmbulanceModal from "../components/otherComponents/ShowAmbulancsModel"; 
 
 const CATEGORIES = ["All", "ICU", "ALS", "BLS", "PTV", "NNA"];
 
@@ -18,9 +15,6 @@ export default function AllAmbulancesPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [sortBy, setSortBy] = useState("distance");
     const [activeCategory, setActiveCategory] = useState("All");
-
-    const [selectedAmbulance, setSelectedAmbulance] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
 
     const handleSelectAmbulance = (ambulance) => {
         setSelectedAmbulance(ambulance);
@@ -51,12 +45,6 @@ export default function AllAmbulancesPage() {
 
     return (
         <div className="min-h-screen font-sans selection:bg-[#08B36A]/10 bg-white">
-            
-            <ShowAmbulanceModal
-                isOpen={isModalOpen} // CRITICAL: Added this to trigger visibility
-                ambulance={selectedAmbulance}
-                onClose={closeModal}
-            />
 
             {/* NAV BAR */}
             <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 py-7">

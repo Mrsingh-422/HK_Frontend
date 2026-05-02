@@ -1,7 +1,8 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { FaAmbulance, FaMapMarkerAlt, FaPhoneAlt } from "react-icons/fa";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
 const AMBULANCE_CATEGORIES = [
     { label: "ALS", img: "https://cdn-icons-png.flaticon.com/512/1032/1032989.png", fullForm: "Advanced Life Support" },
@@ -10,7 +11,28 @@ const AMBULANCE_CATEGORIES = [
     { label: "Mortuary", img: "https://cdn-icons-png.flaticon.com/512/4320/4320355.png", fullForm: "Mortuary Van" },
 ];
 
-const AmbulanceHero = ({ pageData, searchTerm, setSearchTerm }) => {
+const AmbulanceHero = ({ searchTerm, setSearchTerm }) => {
+    const { getAmbulancePageData } = useGlobalContext();
+    const [pageData, setPageData] = useState({
+        headerTag: "Emergency Response Network",
+        mainTitle: "Every Second Counts. \nBook an Ambulance.",
+        description: "India's fastest emergency response network. Real-time tracking and immediate dispatch.",
+        searchPlaceholder: "Search Emergency Ambulance",
+    });
+
+    // API calling moved here inside the Hero
+    useEffect(() => {
+        const fetchContent = async () => {
+            try {
+                const res = await getAmbulancePageData();
+                if (res?.success && res?.data) setPageData(res.data);
+            } catch (err) {
+                console.error("Failed to fetch ambulance hero data", err);
+            }
+        };
+        fetchContent();
+    }, [getAmbulancePageData]);
+
     return (
         <section className="relative pt-16 pb-24 px-6 overflow-hidden">
             <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
