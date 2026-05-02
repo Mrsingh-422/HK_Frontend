@@ -7,11 +7,13 @@ import HospitalFacilities from './components/HospitalFacilities'
 import HowItWorks from './components/HowItWorks'
 import OurHospitalPartners from './components/OurHospitalPartners'
 import FromHealthHospital from './components/FromHealthHospital'
+import HospitalHero from './components/HospitalHero'
 
 function page() {
     return (
         <>
             <SecondNavbar />
+            <HospitalHero />
             <FindHospital />
             <HospitalFacilities />
             <HowItWorks />
