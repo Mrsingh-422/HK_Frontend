@@ -1,0 +1,117 @@
+import axios from 'axios';
+
+const baseURL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+// ===============================
+// 1. PUBLIC API (NO TOKEN)
+// ===============================
+const publicApi = axios.create({
+    baseURL,
+    headers: {
+        'Content-Type': 'application/json',
+    },
+});
+
+// ===============================
+// 2. POLICE HEAD API
+// ===============================
+const policeHeadApi = axios.create({
+    baseURL,
+    headers: {
+        'Content-Type': 'application/json',
+    },
+});
+
+policeHeadApi.interceptors.request.use((config) => {
+    if (typeof window !== 'undefined') {
+        const token = localStorage.getItem('policeHeadToken');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+    }
+    return config;
+}, (error) => Promise.reject(error));
+
+// ===============================
+// 3. POLICE STATION API
+// ===============================
+const policeStationApi = axios.create({
+    baseURL,
+    headers: {
+        'Content-Type': 'application/json',
+    },
+});
+
+policeStationApi.interceptors.request.use((config) => {
+    if (typeof window !== 'undefined') {
+        const token = localStorage.getItem('policeStationToken');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+    }
+    return config;
+}, (error) => Promise.reject(error));
+
+// ===============================
+// 4. POLICE STAFF API
+// ===============================
+const policeStaffApi = axios.create({
+    baseURL,
+    headers: {
+        'Content-Type': 'application/json',
+    },
+});
+
+policeStaffApi.interceptors.request.use((config) => {
+    if (typeof window !== 'undefined') {
+        const token = localStorage.getItem('policeStaffToken');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+    }
+    return config;
+}, (error) => Promise.reject(error));
+
+
+// ===============================
+// API METHODS
+// ===============================
+const PoliceAPI = {
+
+    // 🔓 PUBLIC APIs
+    loginPoliceHead: async (data) => {
+        const res = await publicApi.post('/police-head/login', data);
+        return res.data;
+    },
+
+    loginPoliceStation: async (data) => {
+        const res = await publicApi.post('/police-station/login', data);
+        return res.data;
+    },
+
+    loginPoliceStaff: async (data) => {
+        const res = await publicApi.post('/police-staff/login', data);
+        return res.data;
+    },
+
+    // 🔒 POLICE HEAD APIs
+    getHeadDashboard: async () => {
+        const res = await policeHeadApi.get('/police-head/dashboard');
+        return res.data;
+    },
+
+    // 🔒 POLICE STATION APIs
+    getStationDashboard: async () => {
+        const res = await policeStationApi.get('/police-station/dashboard');
+        return res.data;
+    },
+
+    // 🔒 POLICE STAFF APIs
+    getStaffDashboard: async () => {
+        const res = await policeStaffApi.get('/police-staff/dashboard');
+        return res.data;
+    },
+
+};
+
+export default PoliceAPI;

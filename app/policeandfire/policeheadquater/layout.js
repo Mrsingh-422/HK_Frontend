@@ -78,14 +78,14 @@ export default function LabVendorLayout({ children }) {
                     })}
                 </nav>
  
-                <div className="p-4 border-t border-gray-100 flex justify-center lg:flex hidden">
+                {/* <div className="p-4 border-t border-gray-100 flex justify-center lg:flex hidden">
                     <button
                         onClick={() => setIsCollapsed(!isCollapsed)}
                         className="p-2 rounded-full bg-gray-50 text-gray-500 hover:bg-[#08B36A] hover:text-white transition-colors"
                     >
                         {isCollapsed ? <FaChevronRight size={14} /> : <FaChevronLeft size={14} />}
                     </button>
-                </div>
+                </div> */}
             </aside>
  
             <div className="flex-1 flex flex-col min-w-0">
