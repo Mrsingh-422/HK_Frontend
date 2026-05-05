@@ -1,11 +1,11 @@
 "use client";
 import React, { useState } from "react";
-import { useAuth } from "@/app/context/AuthContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import { useRouter } from "next/navigation";
+import PoliceAPI from "@/app/services/PoliceAPI";
 
 function PoliceStationHead() {
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState(""); // Changed from phone to email
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
 
@@ -14,7 +14,6 @@ function PoliceStationHead() {
   const [success, setSuccess] = useState("");
 
   const { openModal, closeModal } = useGlobalContext();
-  const { loginAsUser } = useAuth(); // Keeping the same logic as your source
 
   const router = useRouter();
 
@@ -23,8 +22,8 @@ function PoliceStationHead() {
     setError("");
     setSuccess("");
 
-    if (!phone || !password) {
-      setError("Please enter phone number and password.");
+    if (!email || !password) {
+      setError("Please enter email and password.");
       return;
     }
 
@@ -32,21 +31,26 @@ function PoliceStationHead() {
       setLoading(true);
 
       const userLoginData = {
-        phone,
+        email, // Sending email to backend
         password,
-        remember,
       };
 
-      // await loginAsUser(userLoginData);
-      router.push('/policeandfire/policeheadquater');
+      // --- BACKEND CALL ---
+      const res = await PoliceAPI.loginPoliceHead(userLoginData);
+      
+      // Store the token as requested
+      if (res && res.token) {
+        localStorage.setItem('policeHeadToken', res.token);
+      }
 
       setSuccess("Login successful! Redirecting...");
 
       setTimeout(() => {
-        closeModal(); // Added parentheses to fix the bug in original code
+        router.push('/policeandfire/policeheadquater');
+        closeModal(); 
       }, 1500);
     } catch (err) {
-      setError(err?.response?.data?.message || "Invalid phone or password.");
+      setError(err?.response?.data?.message || "Invalid email or password.");
     } finally {
       setLoading(false);
     }
@@ -87,14 +91,14 @@ function PoliceStationHead() {
           )}
 
           <input
-            type="text"
-            placeholder="Enter your phone number"
+            type="email"
+            placeholder="Enter your email address"
             className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
           <p className="text-[13px] text-gray-500 mb-3 text-left">
-            We'll never share your phone with anyone else.
+            We'll never share your email with anyone else.
           </p>
 
           <input

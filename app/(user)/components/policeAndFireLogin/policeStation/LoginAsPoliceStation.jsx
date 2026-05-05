@@ -1,11 +1,11 @@
 "use client";
 import React, { useState } from "react";
-import { useAuth } from "@/app/context/AuthContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import { useRouter } from "next/navigation";
+import PoliceAPI from "@/app/services/PoliceAPI"; // Ensure this import path is correct
 
 function LoginAsPoliceStation() {
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState(""); // Changed from phone to email
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
 
@@ -14,7 +14,6 @@ function LoginAsPoliceStation() {
   const [success, setSuccess] = useState("");
 
   const { openModal, closeModal } = useGlobalContext();
-  const { loginAsUser } = useAuth();
 
   const router = useRouter()
 
@@ -23,8 +22,8 @@ function LoginAsPoliceStation() {
     setError("");
     setSuccess("");
 
-    if (!phone || !password) {
-      setError("Please enter phone number and password.");
+    if (!email || !password) {
+      setError("Please enter email and password.");
       return;
     }
 
@@ -32,21 +31,26 @@ function LoginAsPoliceStation() {
       setLoading(true);
 
       const userLoginData = {
-        phone,
+        email, // Sending email to backend
         password,
-        remember,
       };
 
-      // await loginAsUser(userLoginData);
-      router.push("/policeandfire/policestation");
+      // --- BACKEND CALL ---
+      const res = await PoliceAPI.loginPoliceStation(userLoginData);
+
+      // Store the specific token as requested
+      if (res && res.token) {
+        localStorage.setItem('policeStationToken', res.token);
+      }
 
       setSuccess("Login successful! Redirecting...");
 
       setTimeout(() => {
-        closeModal(); // Added parentheses to ensure function executes
+        router.push("/policeandfire/policestation");
+        closeModal();
       }, 1500);
     } catch (err) {
-      setError(err?.response?.data?.message || "Invalid phone or password.");
+      setError(err?.response?.data?.message || "Invalid email or password.");
     } finally {
       setLoading(false);
     }
@@ -56,7 +60,7 @@ function LoginAsPoliceStation() {
     <div className="w-full bg-white">
       {/* TOP LOGIN BOX */}
       <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
-        
+
         {/* LEFT IMAGE - Hidden on mobile, visible from md up */}
         <div className="hidden md:block flex-shrink-0">
           <img
@@ -87,14 +91,14 @@ function LoginAsPoliceStation() {
           )}
 
           <input
-            type="text"
-            placeholder="Enter your phone number"
+            type="email"
+            placeholder="Enter your email address"
             className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
           <p className="text-[13px] text-gray-500 mb-3 text-left">
-            We'll never share your phone with anyone else.
+            We'll never share your email with anyone else.
           </p>
 
           <input
@@ -116,7 +120,7 @@ function LoginAsPoliceStation() {
               Remember Password
             </label>
 
-            <span 
+            <span
               className="cursor-pointer hover:underline text-[#333]"
               onClick={() => openModal("forgotPassword")}
             >
@@ -140,8 +144,8 @@ function LoginAsPoliceStation() {
           Police Station
         </h3>
         <p className="text-sm md:text-base leading-relaxed text-[#333]">
-          Lorem ipsum dolor sit amet consectetur adipisicing elit. Molestias eius, 
-          quas ipsa quam maiores nobis eveniet quasi repellat aliquid dolorem omnis 
+          Lorem ipsum dolor sit amet consectetur adipisicing elit. Molestias eius,
+          quas ipsa quam maiores nobis eveniet quasi repellat aliquid dolorem omnis
           nostrum quia hic facere nam ab quo consequatur quisquam!
         </p>
       </div>

@@ -1,6 +1,27 @@
 'use client'
 import React from 'react'
 import { FaFileMedical, FaExclamationCircle, FaHistory, FaClock, FaShieldAlt, FaMapMarkerAlt, FaExternalLinkAlt } from 'react-icons/fa'
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  BarChart, Bar, Cell 
+} from 'recharts';
+
+// Mock data for graphs
+const weeklyData = [
+  { day: 'Mon', fresh: 4, pending: 2, history: 10 },
+  { day: 'Tue', fresh: 7, pending: 4, history: 12 },
+  { day: 'Wed', fresh: 5, pending: 3, history: 15 },
+  { day: 'Thu', fresh: 12, pending: 6, history: 20 },
+  { day: 'Fri', fresh: 8, pending: 4, history: 18 },
+  { day: 'Sat', fresh: 15, pending: 8, history: 25 },
+  { day: 'Sun', fresh: 10, pending: 5, history: 22 },
+];
+
+const distributionData = [
+  { name: 'Fresh', value: 12, color: '#2563eb' },
+  { name: 'Pending', value: 6, color: '#ea580c' },
+  { name: 'History', value: 42, color: '#08B36A' },
+];
 
 export default function PoliceStationDashboard() {
   return (
@@ -25,21 +46,55 @@ export default function PoliceStationDashboard() {
         <CompactStatCard title="History Case" count="42" label="Resolved" color="emerald" icon={<FaHistory/>} />
       </div>
 
-      {/* 3. Live Activity Feed */}
-      <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-50 flex justify-between items-center">
-            <h2 className="text-lg font-black text-slate-800 flex items-center gap-3">
-                <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-ping"></span>
-                Emergency Case Broadcasts
-            </h2>
-            <button className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-[#08B36A] transition-colors">
-                Refresh Feed
-            </button>
+      {/* 3. Graphs Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Weekly Trend Graph */}
+        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Case Trends</h2>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">LAST 7 DAYS</span>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={weeklyData}>
+                <defs>
+                  <linearGradient id="colorFresh" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#08B36A" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#08B36A" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#94a3b8'}} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#94a3b8'}} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                />
+                <Area type="monotone" dataKey="fresh" stroke="#08B36A" strokeWidth={3} fillOpacity={1} fill="url(#colorFresh)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="p-4 space-y-2">
-            <ActivityRow victim="Nitish Sharma" type="Road Accident" loc="Sector 74" time="2 mins ago" status="Critical" />
-            <ActivityRow victim="Arjun Singh" type="Assault" loc="Tdi City" time="15 mins ago" status="Stable" />
-            <ActivityRow victim="Priya Verma" type="Suspected Poisoning" loc="Phase 7" time="1 hour ago" status="Investigating" />
+
+        {/* Distribution Graph */}
+        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Case Distribution</h2>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">ALL TIME</span>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={distributionData} margin={{ top: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 700, fill: '#64748b'}} dy={10} />
+                <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '12px', border: 'none' }} />
+                <Bar dataKey="value" radius={[10, 10, 0, 0]} barSize={40}>
+                  {distributionData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
     </div>
@@ -74,32 +129,6 @@ function CompactStatCard({ title, count, label, color, icon }) {
                         <h2 className={`text-4xl font-black tracking-tight ${colors[color].split(' ')[0]}`}>{count}</h2>
                         <span className="text-[10px] font-bold text-slate-300 uppercase">{label}</span>
                     </div>
-                </div>
-            </div>
-        </div>
-    )
-}
-
-function ActivityRow({ victim, type, loc, time, status }) {
-    return (
-        <div className="flex items-center justify-between p-4 hover:bg-slate-50/80 rounded-2xl transition-all group border border-transparent hover:border-slate-100">
-            <div className="flex items-center gap-4">
-                <div className="w-11 h-11 bg-white border border-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-blue-500 transition-all">
-                    <FaShieldAlt size={18} />
-                </div>
-                <div>
-                    <p className="text-sm font-black text-slate-800 tracking-tight leading-none mb-1">{victim}</p>
-                    <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-black text-red-500 uppercase px-1.5 py-0.5 bg-red-50 rounded">{type}</span>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1 tracking-wider"><FaMapMarkerAlt size={8} /> {loc}</span>
-                    </div>
-                </div>
-            </div>
-            <div className="text-right">
-                <p className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1 justify-end"><FaClock size={8}/> {time}</p>
-                <div className="mt-1 flex items-center justify-end gap-2">
-                    <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest leading-none">{status}</span>
-                    <FaExternalLinkAlt size={8} className="text-slate-200 group-hover:text-[#08B36A] transition-colors" />
                 </div>
             </div>
         </div>

@@ -80,17 +80,21 @@ const PoliceAPI = {
 
     // 🔓 PUBLIC APIs
     loginPoliceHead: async (data) => {
-        const res = await publicApi.post('/police-head/login', data);
+        const res = await publicApi.post('/policeStation/auth/login', data);
+
+        // Check if the token exists in the response and store it
+        if (res.data && res.data.token) {
+            localStorage.setItem('policeHeadToken', res.data.token);
+        }
+
         return res.data;
     },
 
     loginPoliceStation: async (data) => {
         const res = await publicApi.post('/police-station/login', data);
-        return res.data;
-    },
-
-    loginPoliceStaff: async (data) => {
-        const res = await publicApi.post('/police-staff/login', data);
+        if(res.data && res.data.token) {
+            localStorage.setItem('policeStationToken', res.data.token);
+        }
         return res.data;
     },
 
@@ -103,12 +107,6 @@ const PoliceAPI = {
     // 🔒 POLICE STATION APIs
     getStationDashboard: async () => {
         const res = await policeStationApi.get('/police-station/dashboard');
-        return res.data;
-    },
-
-    // 🔒 POLICE STAFF APIs
-    getStaffDashboard: async () => {
-        const res = await policeStaffApi.get('/police-staff/dashboard');
         return res.data;
     },
 
