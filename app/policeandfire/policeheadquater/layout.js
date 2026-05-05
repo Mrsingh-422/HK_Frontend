@@ -12,9 +12,9 @@ import {
     FaChevronLeft,
     FaChevronRight
 } from "react-icons/fa";
+import TopbarPoliceHeadquarter from './components/TopbarPoliceHeadquarter'
 
 // Updated import name
-import TopbarPoliceHeadquarter from '../components/topbarpoliceheadquater';
  
 export default function LabVendorLayout({ children }) {
     const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -40,7 +40,7 @@ export default function LabVendorLayout({ children }) {
                 ${isCollapsed ? 'w-20' : 'w-64'}
             `}>
                 <div className="p-4 border-b border-gray-50 flex items-center justify-center min-h-[70px]">
-                    <Link href="/vendors/labvendor" className="flex items-center justify-center overflow-hidden">
+                    <Link href="/policeandfire/policeheadquater" className="flex items-center justify-center overflow-hidden">
                         {isCollapsed ? (
                             <Image src="/logo.png" alt="HK Logo" width={40} height={40} className="object-contain" />
                         ) : (

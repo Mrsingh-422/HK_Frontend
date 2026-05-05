@@ -2,7 +2,7 @@
 import React, { useState } from 'react'
 import { RiMenuFoldLine, RiMenuUnfoldLine } from 'react-icons/ri'
 import { FaUserCircle, FaUserAlt, FaShieldAlt } from 'react-icons/fa'
-import { IoChevronDown, IoLogOutOutline } from 'react-icons/io5'
+import { IoChevronDown, IoLogOutOutline, IoNotificationsOutline } from 'react-icons/io5'
 import Link from 'next/link'
 
 export default function TopbarPoliceHeadquarter({ onToggleSidebar, isCollapsed }) {
@@ -35,8 +35,20 @@ export default function TopbarPoliceHeadquarter({ onToggleSidebar, isCollapsed }
         </div>
       </div>
 
-      {/* Right Side: Officer Profile Section */}
-      <div className="flex items-center relative">
+      {/* Right Side: Notifications & Officer Profile Section */}
+      <div className="flex items-center gap-2 sm:gap-4 relative">
+        
+        {/* Notification Icon */}
+        <button className="relative p-2.5 text-slate-500 hover:text-[#08B36A] hover:bg-green-50 rounded-xl transition-all duration-200 group">
+          <IoNotificationsOutline size={24} />
+          {/* Notification Badge */}
+          <span className="absolute top-2 right-2 w-4 h-4 bg-red-500 border-2 border-white text-white text-[9px] font-black flex items-center justify-center rounded-full shadow-sm group-hover:scale-110 transition-transform">
+            3
+          </span>
+        </button>
+
+        <div className="h-8 w-[1px] bg-gray-100 mx-1 hidden md:block"></div>
+
         <button 
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
           className="group flex items-center gap-3 pl-3 pr-1 py-1.5 rounded-2xl hover:bg-gray-50 transition-all border border-transparent hover:border-gray-100"
@@ -80,12 +92,12 @@ export default function TopbarPoliceHeadquarter({ onToggleSidebar, isCollapsed }
               </div>
 
               <Link 
-                href="/vendors/nursevendor/profile" 
+                href="/policeandfire/policeheadquater/profile" 
                 className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-green-50 hover:text-[#08B36A] transition-colors"
                 onClick={() => setIsDropdownOpen(false)}
               >
                 <FaUserAlt size={13} />
-                Duty Profile
+                Profile
               </Link>
               
               <div className="h-px bg-gray-100 my-1 mx-2"></div>

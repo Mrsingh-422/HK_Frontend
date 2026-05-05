@@ -12,22 +12,16 @@ import {
   FaTimes,
   FaHospital,
   FaUserInjured,
-  FaExclamationTriangle,
-  FaPhoneAlt,
-  FaIdBadge
+  FaExclamationTriangle
 } from 'react-icons/fa'
+import DeployStationModal from '../components/DeployStationModal';
+
+// --- NEW IMPORT ---
 
 export default function FreshCasePoliceTable() {
   const [selectedCase, setSelectedCase] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
-
-  // Mock Data for Officers (Demo Data)
-  const officers = [
-    { id: "POL-101", name: "Inspector Vikram Singh", area: "Sector 74", status: "Available" },
-    { id: "POL-105", name: "SI Rajesh Kumar", area: "Phase 7", status: "Available" },
-    { id: "POL-112", name: "Officer Amit Verma", area: "Tdi City", status: "On Duty" },
-  ];
 
   // Mock Data
   const [freshCases] = useState([
@@ -103,7 +97,7 @@ export default function FreshCasePoliceTable() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       
-      {/* --- STATS SUMMARY (High Priority Removed) --- */}
+      {/* --- STATS SUMMARY --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <StatMini label="Today's Fresh Cases" value="14" color="text-blue-600" />
         <StatMini label="Assigned Today" value="08" color="text-emerald-600" />
@@ -261,50 +255,23 @@ export default function FreshCasePoliceTable() {
                 </div>
                 <div className="p-8 bg-slate-50 flex justify-end gap-3">
                     <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 text-slate-500 font-black text-[11px] uppercase tracking-widest hover:text-slate-800">Close Registry</button>
-                    <button onClick={() => { setIsModalOpen(false); setIsDeployModalOpen(true); }} className="bg-[#08B36A] text-white px-8 py-3 rounded-2xl text-[11px] font-black shadow-xl shadow-green-100 uppercase tracking-widest">Deploy Officer</button>
+                    <button onClick={() => { setIsModalOpen(false); setIsDeployModalOpen(true); }} className="bg-[#08B36A] text-white px-8 py-3 rounded-2xl text-[11px] font-black shadow-xl shadow-green-100 uppercase tracking-widest">Assign Station</button>
                 </div>
             </div>
         </div>
       )}
 
-      {/* --- DEPLOY OFFICER MODAL --- */}
-      {isDeployModalOpen && selectedCase && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsDeployModalOpen(false)}></div>
-            <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className="p-6 border-b border-slate-50 flex justify-between items-center">
-                    <h3 className="text-lg font-black text-slate-800">Deploy Officer for {selectedCase.id}</h3>
-                    <button onClick={() => setIsDeployModalOpen(false)} className="text-slate-300 hover:text-red-500"><FaTimes size={18} /></button>
-                </div>
-                <div className="p-6 space-y-4">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Select Available Officer</p>
-                    <div className="space-y-2">
-                        {officers.map(officer => (
-                            <div key={officer.id} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl hover:border-[#08B36A] cursor-pointer group transition-all">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-slate-400 group-hover:text-[#08B36A] transition-colors"><FaIdBadge /></div>
-                                    <div>
-                                        <p className="text-sm font-bold text-slate-800">{officer.name}</p>
-                                        <p className="text-[10px] font-bold text-slate-400">{officer.id} • {officer.area}</p>
-                                    </div>
-                                </div>
-                                <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-md ${officer.status === 'Available' ? 'bg-green-100 text-green-600' : 'bg-slate-200 text-slate-500'}`}>{officer.status}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="p-6 bg-slate-50 flex gap-3">
-                    <button onClick={() => setIsDeployModalOpen(false)} className="flex-1 bg-white border border-slate-200 py-3 rounded-xl font-black text-[11px] text-slate-500">CANCEL</button>
-                    <button onClick={() => setIsDeployModalOpen(false)} className="flex-1 bg-[#08B36A] py-3 rounded-xl font-black text-[11px] text-white shadow-lg shadow-green-100">CONFIRM DEPLOYMENT</button>
-                </div>
-            </div>
-        </div>
-      )}
+      {/* --- REUSABLE DEPLOY MODAL CALL --- */}
+      <DeployStationModal 
+        isOpen={isDeployModalOpen}
+        onClose={() => setIsDeployModalOpen(false)}
+        selectedCase={selectedCase}
+      />
+
     </div>
   )
 }
 
-// Small helper component for mini stats
 function StatMini({ label, value, color }) {
   return (
     <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
@@ -314,7 +281,6 @@ function StatMini({ label, value, color }) {
   )
 }
 
-// Modal info field helper
 function InfoItem({ label, value, color = "text-slate-700" }) {
     return (
         <div>

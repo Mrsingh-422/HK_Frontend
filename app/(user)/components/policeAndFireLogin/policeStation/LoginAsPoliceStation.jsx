@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { useAuth } from "@/app/context/AuthContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import { useRouter } from "next/navigation";
 
 function LoginAsPoliceStation() {
   const [phone, setPhone] = useState("");
@@ -14,6 +15,8 @@ function LoginAsPoliceStation() {
 
   const { openModal, closeModal } = useGlobalContext();
   const { loginAsUser } = useAuth();
+
+  const router = useRouter()
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,7 +37,8 @@ function LoginAsPoliceStation() {
         remember,
       };
 
-      await loginAsUser(userLoginData);
+      // await loginAsUser(userLoginData);
+      router.push("/policeandfire/policestation");
 
       setSuccess("Login successful! Redirecting...");
 

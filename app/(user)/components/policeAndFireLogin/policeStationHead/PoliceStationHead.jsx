@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { useAuth } from "@/app/context/AuthContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import { useRouter } from "next/navigation";
 
 function PoliceStationHead() {
   const [phone, setPhone] = useState("");
@@ -14,6 +15,8 @@ function PoliceStationHead() {
 
   const { openModal, closeModal } = useGlobalContext();
   const { loginAsUser } = useAuth(); // Keeping the same logic as your source
+
+  const router = useRouter();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,7 +37,8 @@ function PoliceStationHead() {
         remember,
       };
 
-      await loginAsUser(userLoginData);
+      // await loginAsUser(userLoginData);
+      router.push('/policeandfire/policeheadquater');
 
       setSuccess("Login successful! Redirecting...");
 
@@ -52,7 +56,7 @@ function PoliceStationHead() {
     <div className="w-full bg-white">
       {/* TOP LOGIN BOX */}
       <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
-        
+
         {/* LEFT IMAGE - Hidden on mobile, visible from md up */}
         <div className="hidden md:block flex-shrink-0">
           <img
@@ -112,7 +116,7 @@ function PoliceStationHead() {
               Remember Password
             </label>
 
-            <span 
+            <span
               className="cursor-pointer hover:underline text-[#333]"
               onClick={() => openModal("forgotPassword")}
             >
@@ -136,8 +140,8 @@ function PoliceStationHead() {
           Police Station HeadQuarter
         </h3>
         <p className="text-sm md:text-base leading-relaxed text-[#333]">
-          Lorem ipsum dolor sit amet consectetur adipisicing elit. Molestias eius, 
-          quas ipsa quam maiores nobis eveniet quasi repellat aliquid dolorem omnis 
+          Lorem ipsum dolor sit amet consectetur adipisicing elit. Molestias eius,
+          quas ipsa quam maiores nobis eveniet quasi repellat aliquid dolorem omnis
           nostrum quia hic facere nam ab quo consequatur quisquam!
         </p>
       </div>
