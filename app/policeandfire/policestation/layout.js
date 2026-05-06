@@ -103,15 +103,7 @@ export default function PoliceStationLayout({ children }) {
                     })}
                 </nav>
  
-                {/* BOTTOM TOGGLE */}
-                <div className="p-4 border-t border-gray-50 flex justify-center lg:flex hidden">
-                    <button
-                        onClick={() => setIsCollapsed(!isCollapsed)}
-                        className="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:bg-[#08B36A] hover:text-white transition-all flex items-center justify-center"
-                    >
-                        {isCollapsed ? <FaChevronRight size={12} /> : <FaChevronLeft size={12} />}
-                    </button>
-                </div>
+                
             </aside>
  
             {/* --- MAIN CONTENT --- */}

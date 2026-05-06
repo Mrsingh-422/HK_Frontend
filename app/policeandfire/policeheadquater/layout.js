@@ -25,6 +25,7 @@ export default function LabVendorLayout({ children }) {
         { name: 'Fresh Case', href: '/policeandfire/policeheadquater/freshcase', icon: FaFileMedicalAlt },
         { name: 'Pending', href: '/policeandfire/policeheadquater/pendingcase', icon: FaClipboardList },
         { name: 'History', href: '/policeandfire/policeheadquater/history', icon: FaHistory },
+        { name: 'Create Case', href: '/policeandfire/policeheadquater/createcase', icon: FaFileMedicalAlt },
         { name: 'Manage Police Station', href: '/policeandfire/policeheadquater/managepolicestation', icon: FaUserShield },
         { name: 'Terms & Conditions', href: '/policeandfire/policeheadquater/termsandconditions', icon: FaCog },
     ];
