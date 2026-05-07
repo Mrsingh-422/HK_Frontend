@@ -31,8 +31,23 @@ export default function PoliceStationLayout({ children }) {
           icon: FaClipboardList 
         },
         { 
+          name: 'Manage Staff', 
+          href: '/policeandfire/policestation/managestaff',
+          icon: FaClipboardList 
+        },
+        { 
+          name: 'Staff Roster', 
+          href: '/policeandfire/policestation/staffroster',
+          icon: FaClipboardList 
+        },
+        { 
           name: 'History', 
           href: '/policeandfire/policestation/history', 
+          icon: FaHistory 
+        },
+        { 
+          name: 'Jurisdiction Areas', 
+          href: '/policeandfire/policestation/jurdictionarea', 
           icon: FaHistory 
         },
         { 

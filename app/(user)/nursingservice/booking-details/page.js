@@ -1,18 +1,15 @@
 "use client";
 
-import React, { useState, useEffect, Suspense, useMemo } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
-    FaArrowLeft, FaMapMarkerAlt, FaUserFriends, FaCheckCircle,
-    FaCalendarCheck, FaClock, FaPlus, FaPhone, FaCrown, FaUserCircle, 
-    FaStethoscope, FaChevronDown, FaWeight, FaCalendarAlt, FaLanguage, FaStickyNote
+    FaArrowLeft, FaCheckCircle, FaPlus, FaUserCircle, 
+    FaChevronDown, FaStethoscope, FaClipboardList, FaHeartbeat
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
-import SlotPicker from "../othercomponents/SlotPicker";
 
-// --- IMPORT THE COMPONENT --- 
-
-const BASE_URL = "http://localhost:5000";
+// const BASE_URL = "http://192.168.1.26:5002";
+const BASE_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}`;
 
 function BookingDetailsContent() {
     const searchParams = useSearchParams();
@@ -24,24 +21,14 @@ function BookingDetailsContent() {
     const nurseImage = searchParams.get("nurseImage");
     const serviceId = searchParams.get("serviceId");
     const serviceTitle = searchParams.get("serviceTitle");
-    const serviceType = searchParams.get("serviceType");
     const basePrice = parseFloat(searchParams.get("servicePrice") || 0);
 
     // Data States
-    const [addresses, setAddresses] = useState([]);
     const [familyMembers, setFamilyMembers] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Slot Selection States (Managed by Component)
-    const [selectedDate, setSelectedDate] = useState("");
-    const [selectedSlotTime, setSelectedSlotTime] = useState("");
-    const [displayTime, setDisplayTime] = useState("");
-    const [extraFee, setExtraFee] = useState(0);
-
     // Selection & Form States
-    const [selectedAddressId, setSelectedAddressId] = useState(null);
     const [selectedFamilyId, setSelectedFamilyId] = useState(null);
-    
     const [location, setLocation] = useState("At Home");
     const [patientDetails, setPatientDetails] = useState({
         fullName: "",
@@ -57,23 +44,11 @@ function BookingDetailsContent() {
         instructions: ""
     });
 
-    const totalAmount = basePrice + extraFee;
-
     useEffect(() => {
         const fetchBookingData = async () => {
             try {
                 setLoading(true);
-                const [addrRes, familyRes] = await Promise.all([
-                    UserAPI.getUserAddresses(),
-                    UserAPI.getFamilyMembers()
-                ]);
-
-                if (addrRes?.success) {
-                    setAddresses(addrRes.data);
-                    const defaultAddr = addrRes.data.find(a => a.isDefault);
-                    if (defaultAddr) setSelectedAddressId(defaultAddr._id);
-                }
-
+                const familyRes = await UserAPI.getFamilyMembers();
                 if (familyRes?.success) {
                     setFamilyMembers(familyRes.data);
                 }
@@ -87,13 +62,6 @@ function BookingDetailsContent() {
         fetchBookingData();
     }, []);
 
-    const handleSlotSelection = (slotData) => {
-        setSelectedDate(slotData.date);
-        setSelectedSlotTime(slotData.slotTime);
-        setDisplayTime(slotData.displayTime);
-        setExtraFee(slotData.extraFee);
-    };
-
     const handleSelectFamily = (member) => {
         setSelectedFamilyId(member._id);
         setPatientDetails({
@@ -105,29 +73,32 @@ function BookingDetailsContent() {
     };
 
     const handleFinalBooking = () => {
-        if (!selectedSlotTime) return alert("Please select a time slot");
-        if (!selectedFamilyId && !patientDetails.fullName) return alert("Please select or enter patient details");
-        if (!selectedAddressId) return alert("Please select a visit address");
+        if (!patientDetails.fullName || !patientDetails.age) {
+            return alert("Please fill in patient details");
+        }
 
-        const bookingPayload = {
+        const queryParams = new URLSearchParams({
             nurseId,
+            nurseName,
+            nurseImage,
             serviceId,
-            familyMemberId: selectedFamilyId,
-            addressId: selectedAddressId,
-            date: selectedDate,
-            slotTime: selectedSlotTime,
-            displayTime,
-            totalAmount,
-            additionalInfo: {
-                location,
-                patientDetails,
-                triageFacility,
-                healthDetails
-            }
-        };
+            serviceTitle,
+            servicePrice: basePrice.toString(),
+            familyMemberId: selectedFamilyId || "",
+            location,
+            patientName: patientDetails.fullName,
+            patientAge: patientDetails.age,
+            patientGender: patientDetails.gender,
+            patientRelation: patientDetails.relation,
+            triage: triageFacility,
+            weight: healthDetails.weight,
+            dob: healthDetails.dob,
+            language: healthDetails.language,
+            instructions: healthDetails.instructions
+        }).toString();
 
-        console.log("Final Booking Payload:", bookingPayload);
-        alert("Booking Confirmed! Proceeding to Payment...");
+        // Navigate to scheduling page for Slots and Address selection
+        router.push(`/nursingservice/appointment-scheduling?${queryParams}`);
     };
 
     if (loading) {
@@ -152,7 +123,7 @@ function BookingDetailsContent() {
                     <button onClick={() => router.back()} className="text-slate-900 p-2 hover:bg-slate-100 rounded-full transition-all">
                         <FaArrowLeft />
                     </button>
-                    <h1 className="text-xl font-black text-slate-900">Appointment</h1>
+                    <h1 className="text-xl font-black text-slate-900">Patient Information</h1>
                 </div>
             </div>
 
@@ -169,10 +140,10 @@ function BookingDetailsContent() {
                                     {serviceTitle || "Professional Nursing Care"}
                                 </h2>
                                 <p className="text-[#3A8F76] text-xs font-bold leading-relaxed">
-                                    Certified nurse for ICU, Post-surgery and elderly care.
+                                    Complete the patient profile to proceed with {nurseName}.
                                 </p>
                                 <ul className="space-y-1">
-                                    {['Verified', 'Background checked', 'Live Tracking'].map(item => (
+                                    {['Verified Expert', 'Background checked'].map(item => (
                                         <li key={item} className="flex items-center gap-2 text-[10px] font-black text-[#0D5F46]">
                                             <FaCheckCircle className="text-xs" /> {item}
                                         </li>
@@ -186,10 +157,7 @@ function BookingDetailsContent() {
                             />
                         </div>
 
-                        {/* --- SLOT PICKER COMPONENT CALL --- */}
-                        <SlotPicker nurseId={nurseId} onSlotSelect={handleSlotSelection} />
-
-                        {/* 2. Who is this appointment for */}
+                        {/* 2. Family Members */}
                         <section className="space-y-4">
                             <h3 className="font-black text-slate-800 ml-2">Who is this appointment for</h3>
                             <div className="flex items-start gap-6 overflow-x-auto pb-4 custom-scrollbar">
@@ -213,12 +181,12 @@ function BookingDetailsContent() {
                                         </span>
                                     </button>
                                 ))}
-                                <button className="flex flex-col items-center gap-2 min-w-[80px]">
+                                {/* <button className="flex flex-col items-center gap-2 min-w-[80px]">
                                     <div className="w-16 h-16 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 bg-white">
                                         <FaPlus />
                                     </div>
                                     <span className="text-[10px] font-black text-slate-500">Add New</span>
-                                </button>
+                                </button> */}
                             </div>
                         </section>
 
@@ -226,7 +194,7 @@ function BookingDetailsContent() {
                         <section className="bg-[#F1F9F6] p-6 rounded-[2rem] space-y-4">
                             <h4 className="text-sm font-black text-slate-800">Assessment Location</h4>
                             <div className="relative">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Where should we meet?</label>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Where should the nurse visit?</label>
                                 <div className="relative">
                                     <select 
                                         value={location}
@@ -252,7 +220,7 @@ function BookingDetailsContent() {
                                         value={patientDetails.fullName}
                                         onChange={(e) => setPatientDetails({...patientDetails, fullName: e.target.value})}
                                         className="w-full bg-white rounded-xl p-4 text-sm font-bold text-slate-700 outline-none"
-                                        placeholder="Mishal Jackson"
+                                        placeholder="Enter name"
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
@@ -263,7 +231,7 @@ function BookingDetailsContent() {
                                             value={patientDetails.age}
                                             onChange={(e) => setPatientDetails({...patientDetails, age: e.target.value})}
                                             className="w-full bg-white rounded-xl p-4 text-sm font-bold text-slate-700 outline-none"
-                                            placeholder="34"
+                                            placeholder="Ex: 45"
                                         />
                                     </div>
                                     <div className="relative">
@@ -299,9 +267,9 @@ function BookingDetailsContent() {
 
                         {/* 5. Triage Facility */}
                         <section className="bg-[#F1F9F6] p-6 rounded-[2rem] space-y-4">
-                            <h4 className="text-sm font-black text-slate-800">Triage Facility</h4>
+                            <h4 className="text-sm font-black text-slate-800">Triage Facility (Urgency)</h4>
                             <div className="relative">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Choose Triage Facility</label>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Select Urgency Level</label>
                                 <select 
                                     value={triageFacility}
                                     onChange={(e) => setTriageFacility(e.target.value)}
@@ -358,81 +326,48 @@ function BookingDetailsContent() {
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Special Instructions</label>
                                 <textarea 
-                                    placeholder="Please ring the doorbell upon arrival..."
+                                    placeholder="Provide any medical history or special needs..."
                                     className="w-full bg-white rounded-2xl p-4 text-sm font-medium text-slate-600 outline-none h-24 resize-none"
                                     onChange={(e) => setHealthDetails({...healthDetails, instructions: e.target.value})}
                                 />
                             </div>
                         </section>
-
-                        {/* 7. Address Selection */}
-                        <section className="space-y-4">
-                            <div className="flex items-center justify-between px-2">
-                                <h3 className="font-black text-slate-800">Visit Address</h3>
-                                <button className="text-teal-600 text-xs font-black uppercase flex items-center gap-1"><FaPlus /> Add</button>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {addresses.map((addr) => (
-                                    <div
-                                        key={addr._id}
-                                        onClick={() => setSelectedAddressId(addr._id)}
-                                        className={`cursor-pointer p-6 rounded-[2rem] border-2 transition-all relative ${selectedAddressId === addr._id
-                                                ? "border-teal-500 bg-teal-50/30"
-                                                : "border-slate-100 bg-white"
-                                            }`}
-                                    >
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-[10px] font-black uppercase px-2 py-1 bg-slate-900 text-white rounded-lg">{addr.addressType}</span>
-                                            {selectedAddressId === addr._id && <FaCheckCircle className="text-teal-500" />}
-                                        </div>
-                                        <p className="text-xs font-bold text-slate-500 leading-relaxed">{addr.houseNo}, {addr.landmark}, {addr.city}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
                     </div>
 
-                    {/* Right Column: Checkout Summary */}
+                    {/* Right Column: Summary Card */}
                     <div className="lg:col-span-4">
                         <div className="bg-slate-900 rounded-[3rem] p-8 text-white sticky top-28 shadow-2xl overflow-hidden">
-                            <h3 className="text-xl font-black mb-8">Summary</h3>
+                            <h3 className="text-xl font-black mb-8">Booking Summary</h3>
                             <div className="space-y-6">
                                 <div className="space-y-1">
-                                    <p className="text-[10px] font-black uppercase text-teal-400 tracking-widest">Nurse & Service</p>
+                                    <p className="text-[10px] font-black uppercase text-teal-400 tracking-widest">Nurse</p>
                                     <p className="font-bold text-slate-200">{nurseName}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black uppercase text-teal-400 tracking-widest">Service</p>
                                     <p className="text-sm font-black">{serviceTitle}</p>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-white/5 p-4 rounded-2xl">
-                                        <FaCalendarCheck className="text-teal-400 mb-1" />
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Date</p>
-                                        <p className="font-bold text-xs">{selectedDate || "Not selected"}</p>
+                                <div className="bg-white/5 p-4 rounded-2xl flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-full bg-teal-500/20 flex items-center justify-center text-teal-400">
+                                        <FaClipboardList />
                                     </div>
-                                    <div className="bg-white/5 p-4 rounded-2xl">
-                                        <FaClock className="text-teal-400 mb-1" />
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Time</p>
-                                        <p className="font-bold text-xs">{displayTime || "Not selected"}</p>
+                                    <div>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Next Step</p>
+                                        <p className="font-bold text-xs">Schedule Date & Time</p>
                                     </div>
                                 </div>
 
                                 <div className="h-px bg-white/10" />
 
                                 <div className="space-y-3">
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-slate-400">Base Fee</span>
-                                        <span className="font-bold text-slate-200">₹{basePrice}</span>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-400 text-sm">Estimated Total</span>
+                                        <span className="text-2xl font-black text-teal-400">₹{basePrice}</span>
                                     </div>
-                                    {extraFee > 0 && (
-                                        <div className="flex justify-between text-sm text-amber-400">
-                                            <span className="font-bold">Premium Slot</span>
-                                            <span className="font-bold">+ ₹{extraFee}</span>
-                                        </div>
-                                    )}
-                                    <div className="pt-4 border-t border-white/10 flex justify-between items-center">
-                                        <span className="font-black text-lg">Total</span>
-                                        <span className="text-3xl font-black text-teal-400">₹{totalAmount}</span>
-                                    </div>
+                                    <p className="text-[9px] text-slate-500 leading-relaxed italic">
+                                        * Final amount may vary based on premium slot selection and distance.
+                                    </p>
                                 </div>
 
                                 <button

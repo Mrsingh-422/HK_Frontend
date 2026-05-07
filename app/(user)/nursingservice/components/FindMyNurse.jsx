@@ -14,6 +14,8 @@ import UserAPI from "@/app/services/UserAPI";
 
 // Premium Static Image for Nursing
 const STATIC_NURSE_IMAGE = "https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=2070&auto=format&fit=crop";
+// const BASE_URL = "http://192.168.1.26:5002/";
+const BASE_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}/`;
 
 function FindMyNurse() {
   const router = useRouter();
@@ -87,9 +89,10 @@ function FindMyNurse() {
                 {/* Image Section */}
                 <div className="relative aspect-[4/5] sm:aspect-square rounded-[1.5rem] sm:rounded-[2.2rem] overflow-hidden bg-slate-100 mb-4">
                   <img 
-                    src={STATIC_NURSE_IMAGE} 
+                    src={nurse.profileImage ? `${BASE_URL}${nurse.profileImage.replace('public/', '')}` : STATIC_NURSE_IMAGE} 
                     alt={nurse.name} 
-                    className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" 
+                    className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                    onError={(e) => { e.target.src = STATIC_NURSE_IMAGE; }}
                   />
                   
                   {/* Experience Badge */}
@@ -106,7 +109,7 @@ function FindMyNurse() {
                   <div className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4">
                     <div className="bg-slate-900/80 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1">
                       <FaStar className="text-amber-400 text-[8px] sm:text-[10px]" />
-                      <span className="text-white font-bold text-[9px] sm:text-[11px]">4.9</span>
+                      <span className="text-white font-bold text-[9px] sm:text-[11px]">{nurse.rating > 0 ? nurse.rating : "New"}</span>
                     </div>
                   </div>
                 </div>

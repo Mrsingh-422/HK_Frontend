@@ -6,11 +6,11 @@ import {
   FaStar, FaMapMarkerAlt, FaBriefcase, FaCheckCircle,
   FaArrowLeft, FaPhoneAlt, FaEnvelope, FaFileMedical,
   FaStethoscope, FaCapsules, FaClock, FaClipboardList,
-  FaImages, FaCalendarAlt, FaTimes, FaCrown
+  FaImages, FaCalendarAlt, FaTimes, FaCrown, FaBoxOpen
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = "http://192.168.1.26:5002";
 
 function NurseServiceDetailPage() {
   const { id } = useParams();
@@ -47,14 +47,12 @@ function NurseServiceDetailPage() {
   }, [id]);
 
   const handleBookNow = (service) => {
-    // Navigate to booking details page and pass necessary IDs
-    // The slot selection logic will now happen on that page
     const queryParams = new URLSearchParams({
       nurseId: nurseData._id,
       serviceId: service._id,
       nurseName: nurseData.name,
       serviceTitle: service.title,
-      servicePrice: service.price,
+      servicePrice: service.pricing?.oneDay?.final || 0,
     }).toString();
 
     router.push(`/nursingservice/booking-details?${queryParams}`);
@@ -99,11 +97,11 @@ function NurseServiceDetailPage() {
               <div className="flex flex-wrap items-center gap-4">
                 <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">{nurseData.name}</h1>
                 <div className="bg-amber-100 text-amber-700 px-3 py-1 rounded-lg flex items-center gap-2 font-bold text-sm">
-                  <FaStar className="text-amber-500" /> 4.9 (120+ Reviews)
+                  <FaStar className="text-amber-500" /> 4.9 (New Agency)
                 </div>
               </div>
               <div className="flex flex-wrap gap-6 text-slate-600 font-medium">
-                <div className="flex items-center gap-2"><FaMapMarkerAlt className="text-teal-500" /> {nurseData.city}</div>
+                <div className="flex items-center gap-2"><FaMapMarkerAlt className="text-teal-500" /> {nurseData.city}, {nurseData.state}</div>
                 <div className="flex items-center gap-2"><FaBriefcase className="text-teal-500" /> {nurseData.experienceYears} Years Exp.</div>
               </div>
             </div>
@@ -116,7 +114,7 @@ function NurseServiceDetailPage() {
           <section className="space-y-4">
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">About Agency</h2>
             <div className="h-1.5 w-12 bg-teal-500 rounded-full mb-6" />
-            <p className="text-slate-500 text-lg leading-relaxed">{nurseData.about || `Professional healthcare agency in ${nurseData.city}.`}</p>
+            <p className="text-slate-500 text-lg leading-relaxed">{nurseData.about || `Professional healthcare agency providing expert nursing services in ${nurseData.city}. Specialist in ${nurseData.role} care.`}</p>
           </section>
 
           <section className="space-y-8">
@@ -160,17 +158,30 @@ function NurseServiceDetailPage() {
                           <h3 className="text-2xl font-black text-slate-900">{service.title}</h3>
                         </div>
                         <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 text-center">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">Starting Price</p>
-                          <p className="text-3xl font-black text-slate-900">₹{service.price}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">Daily Price</p>
+                          <p className="text-3xl font-black text-teal-600">₹{service.pricing?.oneDay?.final}</p>
+                          {service.pricing?.oneDay?.discount > 0 && (
+                            <p className="text-[10px] font-bold text-rose-500 line-through">₹{service.pricing?.oneDay?.base}</p>
+                          )}
                         </div>
                       </div>
                       <p className="text-slate-500 text-sm leading-relaxed italic">"{service.description}"</p>
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-4">
-                        <div className="flex items-center gap-3 text-[13px] font-medium text-slate-600"><div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-500"><FaStethoscope /></div><span>{service.procedureIncluded}</span></div>
-                        <div className="flex items-center gap-3 text-[13px] font-medium text-slate-600"><div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-500"><FaCapsules /></div>
+                        <div className="flex items-center gap-3 text-[13px] font-medium text-slate-600">
+                          <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-500"><FaStethoscope /></div>
+                          <span>Professional Care & Monitoring</span>
                         </div>
-                        <div className="flex items-center gap-3 text-[13px] font-medium text-slate-600"><div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-500"><FaClock /></div><span>{service.servicesOffered}</span></div>
+                        <div className="flex items-center gap-3 text-[13px] font-medium text-slate-600">
+                          <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-500"><FaBoxOpen /></div>
+                          <span className="truncate">{service.consumablesUsed?.map(c => c.masterItemId.itemName).join(", ") || "Standard Medical Kit"}</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-[13px] font-medium text-slate-600">
+                          <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-500"><FaClock /></div>
+                          <span>Available for {nurseData.availability?.startTime} - {nurseData.availability?.endTime}</span>
+                        </div>
                       </div>
+
                       <button onClick={() => handleBookNow(service)} className="w-full mt-4 bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-teal-600 transition-all active:scale-95 shadow-xl flex items-center justify-center gap-3">
                         Book This Package <FaArrowLeft className="rotate-180" />
                       </button>
@@ -186,8 +197,28 @@ function NurseServiceDetailPage() {
           <div className="bg-slate-900 rounded-[3rem] p-8 text-white sticky top-8">
             <h3 className="text-xl font-black mb-6">Contact Agency</h3>
             <div className="space-y-6">
-              <div className="flex items-center gap-4"><div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-teal-400"><FaPhoneAlt /></div><div><p className="text-[10px] font-bold text-slate-400 uppercase">Support Line</p><p className="font-bold">{nurseData.phone}</p></div></div>
-              <div className="flex items-center gap-4"><div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-teal-400"><FaEnvelope /></div><div><p className="text-[10px] font-bold text-slate-400 uppercase">Email</p><p className="font-bold truncate max-w-[200px]">{nurseData.email}</p></div></div>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-teal-400"><FaPhoneAlt /></div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Support Line</p>
+                  <p className="font-bold">{nurseData.phone}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-teal-400"><FaEnvelope /></div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Email</p>
+                  <p className="font-bold truncate max-w-[200px]">{nurseData.email}</p>
+                </div>
+              </div>
+              <div className="pt-4 border-t border-white/10">
+                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Service Availability</p>
+                <div className="flex flex-wrap gap-2">
+                  {nurseData.availability?.morningSlots && <span className="text-[9px] bg-teal-500/20 text-teal-300 px-2 py-1 rounded">Morning</span>}
+                  {nurseData.availability?.afternoonSlots && <span className="text-[9px] bg-teal-500/20 text-teal-300 px-2 py-1 rounded">Afternoon</span>}
+                  {nurseData.availability?.eveningSlots && <span className="text-[9px] bg-teal-500/20 text-teal-300 px-2 py-1 rounded">Evening</span>}
+                </div>
+              </div>
               <button className="w-full bg-teal-500 text-white py-4 rounded-2xl font-black hover:bg-teal-400 transition-all">Talk to Coordinator</button>
             </div>
           </div>
