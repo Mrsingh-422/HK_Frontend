@@ -505,23 +505,36 @@ const UserAPI = {
 
 
     // Nurse api 
-    getNurseServices: async (data) => {
-        // data example: { lat: 30.7333, lng: 76.7233 }
-        const response = await publicApi.post("/user/nurse/list", data);
+    // ... existing apis
+    getNurseServices: async (coords) => {
+        const response = await publicApi.post("/user/nurse/list", coords);
         return response.data;
     },
-
-    nurseServiceDetail: async (serviceId) => {
-        const response = await publicApi.get(`/user/nurse/details/${serviceId}`);
+    nurseServiceDetail: async (id) => {
+        const response = await publicApi.get(`/user/nurse/details/${id}`);
         return response.data;
     },
-
-    getNurseSlots: async (nurseId, params) => {
-        // nurseId: "69b9931b8efeb5adbcce739d"
-        // params: { date: "2026-04-29" }
-        const response = await publicApi.get(`/user/nurse/availability/${nurseId}`, { params });
+    getNurseSlots: async (nurseId, query) => {
+        // query: ?serviceId=..&packageId=..&isPackage=true&type=Hourly
+        const response = await publicApi.get(`/user/nurse/availability/${nurseId}?${query}`);
         return response.data;
     },
+    getCheckoutBreakdown: async (payload) => {
+        const response = await authApi.post("/user/nurse/checkout", payload);
+        return response.data;
+    },
+    processBooking: async (payload) => {
+        const response = await authApi.post("/user/nurse/book", payload);
+        return response.data;
+    },
+    // getFamilyMembers: async () => {
+    //     const response = await authApi.get("/api/auth/user/profile"); // or your specific endpoint
+    //     return response.data;
+    // },
+    getUserAddresses: async () => {
+        const response = await authApi.get("/api/auth/user/addresses");
+        return response.data;
+    }
 
 
 

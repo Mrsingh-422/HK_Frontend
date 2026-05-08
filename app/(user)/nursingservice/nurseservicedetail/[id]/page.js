@@ -1,29 +1,25 @@
 "use client";
-
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   FaStar, FaMapMarkerAlt, FaBriefcase, FaCheckCircle,
-  FaArrowLeft, FaPhoneAlt, FaEnvelope, FaFileMedical,
-  FaStethoscope, FaCapsules, FaClock, FaClipboardList,
-  FaImages, FaCalendarAlt, FaTimes, FaCrown, FaBoxOpen
+  FaArrowLeft, FaPhoneAlt, FaEnvelope, FaClock, FaBoxOpen
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
-const BASE_URL = "http://192.168.1.26:5002";
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://192.168.1.26:5002";
 
-function NurseServiceDetailPage() {
+export default function NurseServiceDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [nurseData, setNurseData] = useState(null);
-  const [activeTab, setSelectedTab] = useState("");
+  const [activeTab, setActiveTab] = useState("service");
 
   const getImageUrl = (path) => {
     if (!path) return "https://img.freepik.com/free-photo/medical-specialist-taking-care-patient_23-2148962551.jpg";
     if (path.startsWith("http")) return path;
-    const cleanPath = path.replace(/^public\//, "");
-    return `${BASE_URL}/${cleanPath}`.replace(/([^:]\/)\/+/g, "$1");
+    return `${BASE_URL}/${path.replace(/^public\//, "")}`.replace(/([^:]\/)\/+/g, "$1");
   };
 
   useEffect(() => {
@@ -31,14 +27,9 @@ function NurseServiceDetailPage() {
       try {
         setLoading(true);
         const res = await UserAPI.nurseServiceDetail(id);
-        if (res?.success) {
-          setNurseData(res.data);
-          if (res.data.services?.length > 0) {
-            setSelectedTab(res.data.services[0].type);
-          }
-        }
+        if (res?.success) setNurseData(res.data);
       } catch (error) {
-        console.error("Error fetching nurse details:", error);
+        console.error("Error:", error);
       } finally {
         setLoading(false);
       }
@@ -46,40 +37,41 @@ function NurseServiceDetailPage() {
     if (id) fetchDetail();
   }, [id]);
 
-  const handleBookNow = (service) => {
-    const queryParams = new URLSearchParams({
-      nurseId: nurseData._id,
-      serviceId: service._id,
-      nurseName: nurseData.name,
-      serviceTitle: service.title,
-      servicePrice: service.pricing?.oneDay?.final || 0,
-    }).toString();
+  const handleProceed = (item) => {
+    const isPkg = activeTab === "package";
 
-    router.push(`/nursingservice/booking-details?${queryParams}`);
+    // DATA FOR BACKEND SCHEMA
+    const bookingInitiation = {
+      nurseId: nurseData._id,
+      serviceId: !isPkg ? item._id : undefined,
+      packageId: isPkg ? item._id : undefined,
+
+      // Snapshot of service at time of booking
+      serviceDetails: {
+        title: isPkg ? item.packageName : item.title,
+        type: isPkg ? "Package" : "Service",
+        duration: item.duration || "Per Visit",
+        basePrice: item.pricing?.oneDay?.final || 0,
+        procedureIncluded: item.procedures?.join(", ") || "Standard",
+        servicesOffered: item.description || ""
+      },
+
+      // Flat fields for calculations
+      basePrice: item.pricing?.oneDay?.final || 0,
+      nurseName: nurseData.name,
+      nurseImage: nurseData.profileImage
+    };
+
+    sessionStorage.setItem("pendingNurseBooking", JSON.stringify(bookingInitiation));
+    router.push(`/nursingservice/booking-details`);
   };
 
-  const serviceTypes = useMemo(() => {
-    if (!nurseData?.services) return [];
-    return [...new Set(nurseData.services.map((s) => s.type))];
-  }, [nurseData]);
-
-  const filteredServices = useMemo(() => {
-    if (!nurseData?.services) return [];
-    return nurseData.services.filter((s) => s.type === activeTab);
-  }, [nurseData, activeTab]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-teal-500"></div>
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-white"><div className="animate-spin rounded-full h-12 w-12 border-t-4 border-teal-500"></div></div>;
 
   return (
     <div className="min-h-screen bg-[#FDFEFF] font-sans pb-20">
-      {/* --- Header / Hero Section --- */}
-      <div className="relative h-[300px] md:h-[400px] w-full bg-slate-900 overflow-hidden">
+      {/* Header / Hero Section */}
+      <div className="relative h-[350px] w-full bg-slate-900 overflow-hidden">
         <div className="absolute inset-0 opacity-40">
           <img src={getImageUrl(nurseData.profileImage)} className="w-full h-full object-cover blur-sm" alt="bg" />
         </div>
@@ -94,145 +86,64 @@ function NurseServiceDetailPage() {
               <div className="absolute -bottom-2 -right-2 bg-teal-500 text-white p-2 rounded-xl shadow-lg"><FaCheckCircle /></div>
             </div>
             <div className="flex-1 space-y-2">
-              <div className="flex flex-wrap items-center gap-4">
-                <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">{nurseData.name}</h1>
-                <div className="bg-amber-100 text-amber-700 px-3 py-1 rounded-lg flex items-center gap-2 font-bold text-sm">
-                  <FaStar className="text-amber-500" /> 4.9 (New Agency)
-                </div>
-              </div>
+              <h1 className="text-4xl md:text-5xl font-black text-slate-900">{nurseData.name}</h1>
               <div className="flex flex-wrap gap-6 text-slate-600 font-medium">
-                <div className="flex items-center gap-2"><FaMapMarkerAlt className="text-teal-500" /> {nurseData.city}, {nurseData.state}</div>
+                <div className="flex items-center gap-2"><FaMapMarkerAlt className="text-teal-500" /> {nurseData.city}</div>
                 <div className="flex items-center gap-2"><FaBriefcase className="text-teal-500" /> {nurseData.experienceYears} Years Exp.</div>
+                <div className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-bold">★ 4.9 Verified</div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 mt-12 grid grid-cols-1 lg:grid-cols-12 gap-12">
-        <div className="lg:col-span-8 space-y-12">
-          <section className="space-y-4">
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">About Agency</h2>
-            <div className="h-1.5 w-12 bg-teal-500 rounded-full mb-6" />
-            <p className="text-slate-500 text-lg leading-relaxed">{nurseData.about || `Professional healthcare agency providing expert nursing services in ${nurseData.city}. Specialist in ${nurseData.role} care.`}</p>
-          </section>
+      <div className="max-w-7xl mx-auto px-6 mt-12">
+        {/* Tabs */}
+        <div className="flex bg-slate-100 p-2 rounded-3xl w-fit mb-10">
+          <button onClick={() => setActiveTab("service")} className={`px-8 py-3 rounded-2xl text-sm font-black transition-all ${activeTab === 'service' ? "bg-white text-teal-600 shadow-md" : "text-slate-500"}`}>SERVICES</button>
+          <button onClick={() => setActiveTab("package")} className={`px-8 py-3 rounded-2xl text-sm font-black transition-all ${activeTab === 'package' ? "bg-white text-teal-600 shadow-md" : "text-slate-500"}`}>PACKAGES</button>
+        </div>
 
-          <section className="space-y-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-100 pb-4">
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Care Packages</h2>
-              <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1 overflow-x-auto">
-                {serviceTypes.map((type) => (
-                  <button key={type} onClick={() => setSelectedTab(type)} className={`whitespace-nowrap px-6 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === type ? "bg-white text-teal-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-                    {type}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-8">
-              {filteredServices.map((service) => (
-                <div key={service._id} className="bg-white border border-slate-100 rounded-[2.5rem] p-6 md:p-8 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.1)] transition-all group">
-                  <div className="flex flex-col md:flex-row gap-8">
-                    <div className="w-full md:w-56 space-y-3 flex-shrink-0">
-                      <div className="w-full h-56 rounded-3xl overflow-hidden bg-slate-100 border border-slate-50">
-                        <img src={getImageUrl(service.photos?.[0])} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt="service" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+          <div className="lg:col-span-8 space-y-8">
+            {(activeTab === "service" ? (nurseData.services || []) : (nurseData.packages || [])).map((item) => (
+              <div key={item._id} className="bg-white border border-slate-100 rounded-[2.5rem] p-6 md:p-8 shadow-sm hover:shadow-xl transition-all">
+                <div className="flex flex-col md:flex-row gap-8">
+                  <div className="w-full md:w-56 flex-shrink-0">
+                    <img src={getImageUrl(item.photos?.[0])} className="w-full h-56 rounded-3xl object-cover" alt="img" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-2xl font-black text-slate-900">{item.title || item.packageName}</h3>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Daily Starts</p>
+                        <p className="text-3xl font-black text-teal-600">₹{item.pricing?.oneDay?.final}</p>
                       </div>
-                      {service.photos?.length > 1 && (
-                        <div className="flex gap-2">
-                          {service.photos.slice(1, 4).map((img, idx) => (
-                            <div key={idx} className="w-12 h-12 rounded-xl overflow-hidden border border-slate-100">
-                              <img src={getImageUrl(img)} className="w-full h-full object-cover" alt="gal" />
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
-
-                    <div className="flex-1 space-y-4">
-                      <div className="flex flex-wrap justify-between items-start gap-4">
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="px-3 py-1 bg-teal-50 text-teal-600 text-[10px] font-black uppercase rounded-lg">{service.type}</span>
-                            {service.prescriptionRequired && <span className="flex items-center gap-1 text-[10px] font-black text-rose-500 uppercase bg-rose-50 px-2 py-1 rounded-lg"><FaFileMedical /> Prescription Reqd.</span>}
-                          </div>
-                          <h3 className="text-2xl font-black text-slate-900">{service.title}</h3>
-                        </div>
-                        <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 text-center">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">Daily Price</p>
-                          <p className="text-3xl font-black text-teal-600">₹{service.pricing?.oneDay?.final}</p>
-                          {service.pricing?.oneDay?.discount > 0 && (
-                            <p className="text-[10px] font-bold text-rose-500 line-through">₹{service.pricing?.oneDay?.base}</p>
-                          )}
-                        </div>
-                      </div>
-                      <p className="text-slate-500 text-sm leading-relaxed italic">"{service.description}"</p>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-4">
-                        <div className="flex items-center gap-3 text-[13px] font-medium text-slate-600">
-                          <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-500"><FaStethoscope /></div>
-                          <span>Professional Care & Monitoring</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-[13px] font-medium text-slate-600">
-                          <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-500"><FaBoxOpen /></div>
-                          <span className="truncate">{service.consumablesUsed?.map(c => c.masterItemId.itemName).join(", ") || "Standard Medical Kit"}</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-[13px] font-medium text-slate-600">
-                          <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-500"><FaClock /></div>
-                          <span>Available for {nurseData.availability?.startTime} - {nurseData.availability?.endTime}</span>
-                        </div>
-                      </div>
-
-                      <button onClick={() => handleBookNow(service)} className="w-full mt-4 bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-teal-600 transition-all active:scale-95 shadow-xl flex items-center justify-center gap-3">
-                        Book This Package <FaArrowLeft className="rotate-180" />
-                      </button>
+                    <p className="text-slate-500 text-sm mb-6 line-clamp-2">{item.description}</p>
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-600"><FaClock className="text-teal-500" /> {nurseData.availability?.startTime} - {nurseData.availability?.endTime}</div>
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-600"><FaBoxOpen className="text-teal-500" /> Med Kit Incl.</div>
                     </div>
+                    <button onClick={() => handleProceed(item)} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-teal-600 transition-all">Select & Continue</button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </section>
-        </div>
+              </div>
+            ))}
+          </div>
 
-        <div className="lg:col-span-4 space-y-6">
-          <div className="bg-slate-900 rounded-[3rem] p-8 text-white sticky top-8">
-            <h3 className="text-xl font-black mb-6">Contact Agency</h3>
-            <div className="space-y-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-teal-400"><FaPhoneAlt /></div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Support Line</p>
-                  <p className="font-bold">{nurseData.phone}</p>
-                </div>
+          <div className="lg:col-span-4">
+            <div className="bg-slate-900 rounded-[3rem] p-8 text-white sticky top-28">
+              <h3 className="text-xl font-black mb-6">Support</h3>
+              <div className="space-y-6">
+                <div className="flex items-center gap-4"><FaPhoneAlt className="text-teal-400" /> <div><p className="text-[10px] text-slate-400">Phone</p><p className="font-bold">{nurseData.phone}</p></div></div>
+                <div className="flex items-center gap-4"><FaEnvelope className="text-teal-400" /> <div><p className="text-[10px] text-slate-400">Email</p><p className="font-bold truncate max-w-[150px]">{nurseData.email}</p></div></div>
+                <button className="w-full bg-teal-500 py-4 rounded-2xl font-black mt-4">Chat with Coordinator</button>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-teal-400"><FaEnvelope /></div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Email</p>
-                  <p className="font-bold truncate max-w-[200px]">{nurseData.email}</p>
-                </div>
-              </div>
-              <div className="pt-4 border-t border-white/10">
-                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Service Availability</p>
-                <div className="flex flex-wrap gap-2">
-                  {nurseData.availability?.morningSlots && <span className="text-[9px] bg-teal-500/20 text-teal-300 px-2 py-1 rounded">Morning</span>}
-                  {nurseData.availability?.afternoonSlots && <span className="text-[9px] bg-teal-500/20 text-teal-300 px-2 py-1 rounded">Afternoon</span>}
-                  {nurseData.availability?.eveningSlots && <span className="text-[9px] bg-teal-500/20 text-teal-300 px-2 py-1 rounded">Evening</span>}
-                </div>
-              </div>
-              <button className="w-full bg-teal-500 text-white py-4 rounded-2xl font-black hover:bg-teal-400 transition-all">Talk to Coordinator</button>
             </div>
           </div>
         </div>
       </div>
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-      `}</style>
     </div>
   );
 }
-
-export default NurseServiceDetailPage;

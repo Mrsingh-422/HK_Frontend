@@ -59,8 +59,7 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
 
         if (mode === "One day One Time") {
             if (selectedSlot) {
-                // FIXED: For Single mode, only add date extra fee, NOT the slot premium surcharge
-                totalSurcharge = dateExtra; // Removed selectedSlot.premiumSurcharge
+                totalSurcharge = dateExtra + (selectedSlot.premiumSurcharge || 0);
                 startTime = selectedSlot.time;
                 endTime = moment(selectedSlot.time, "HH:mm").add(1, 'hour').format("HH:mm");
                 calculatedTotalPrice = selectedSlot.totalSlotPrice + dateExtra;
@@ -74,7 +73,7 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                 const endM = moment(endTime, "HH:mm");
                 const hours = endM.diff(startM, 'hours');
 
-                // Logic: Only FIRST slot premium is added, middle/end ignored (for Hourly mode)
+                // Logic: Only FIRST slot premium is added, middle/end ignored
                 totalSurcharge = dateExtra + (hourlyStartSlot.premiumSurcharge || 0);
                 calculatedTotalPrice = (avail.serviceBasePrice * (hours > 0 ? hours : 1)) + totalSurcharge;
             }
