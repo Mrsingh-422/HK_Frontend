@@ -1,12 +1,14 @@
 'use client'
-import React from 'react'
+import PoliceAPI from '@/app/services/PoliceAPI';
+import React, { useState, useEffect } from 'react'
 import { FaFileMedical, FaExclamationCircle, FaHistory, FaClock, FaShieldAlt, FaMapMarkerAlt, FaExternalLinkAlt } from 'react-icons/fa'
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   BarChart, Bar, Cell 
 } from 'recharts';
 
-// Mock data for graphs
+
+// Mock data for weekly trends (since API only provides totals currently)
 const weeklyData = [
   { day: 'Mon', fresh: 4, pending: 2, history: 10 },
   { day: 'Tue', fresh: 7, pending: 4, history: 12 },
@@ -17,21 +19,53 @@ const weeklyData = [
   { day: 'Sun', fresh: 10, pending: 5, history: 22 },
 ];
 
-const distributionData = [
-  { name: 'Fresh', value: 12, color: '#2563eb' },
-  { name: 'Pending', value: 6, color: '#ea580c' },
-  { name: 'History', value: 42, color: '#08B36A' },
-];
-
 export default function PoliceStationDashboard() {
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState({
+    welcomeName: "Officer",
+    stats: { fresh: 0, pending: 0, closed: 0 }
+  });
+
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        setLoading(true);
+        const response = await PoliceAPI.getStationDashboard();
+        if (response.success) {
+          setDashboardData(response.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch dashboard:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboard();
+  }, []);
+
+  // Update distribution data based on API stats
+  const distributionData = [
+    { name: 'Fresh', value: dashboardData.stats.fresh, color: '#2563eb' },
+    { name: 'Pending', value: dashboardData.stats.pending, color: '#ea580c' },
+    { name: 'History', value: dashboardData.stats.closed, color: '#08B36A' },
+  ];
+
+  if (loading) {
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#08B36A]"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
       
-      {/* 1. Header Area - More compact spacing */}
+      {/* 1. Header Area */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Station Dashboard</h1>
-          <p className="text-slate-500 font-medium text-sm">Monitoring Real-time Activity • Sector 74 Precinct</p>
+          <p className="text-slate-500 font-medium text-sm">Welcome back, {dashboardData.welcomeName} • Monitoring Activity</p>
         </div>
         <div className="bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm hidden md:block">
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Active Precinct</p>
@@ -39,11 +73,29 @@ export default function PoliceStationDashboard() {
         </div>
       </div>
 
-      {/* 2. Numerical Stat Section (Redesigned for Compactness) */}
+      {/* 2. Numerical Stat Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <CompactStatCard title="Fresh Case" count="12" label="New Reports" color="blue" icon={<FaFileMedical/>} />
-        <CompactStatCard title="Pending Case" count="06" label="Investigations" color="orange" icon={<FaExclamationCircle/>} />
-        <CompactStatCard title="History Case" count="42" label="Resolved" color="emerald" icon={<FaHistory/>} />
+        <CompactStatCard 
+            title="Fresh Case" 
+            count={dashboardData.stats.fresh.toString().padStart(2, '0')} 
+            label="New Reports" 
+            color="blue" 
+            icon={<FaFileMedical/>} 
+        />
+        <CompactStatCard 
+            title="Pending Case" 
+            count={dashboardData.stats.pending.toString().padStart(2, '0')} 
+            label="Investigations" 
+            color="orange" 
+            icon={<FaExclamationCircle/>} 
+        />
+        <CompactStatCard 
+            title="History Case" 
+            count={dashboardData.stats.closed.toString().padStart(2, '0')} 
+            label="Resolved" 
+            color="emerald" 
+            icon={<FaHistory/>} 
+        />
       </div>
 
       {/* 3. Graphs Section */}
@@ -79,7 +131,7 @@ export default function PoliceStationDashboard() {
         <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Case Distribution</h2>
-            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">ALL TIME</span>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">LIVE STATUS</span>
           </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -111,13 +163,11 @@ function CompactStatCard({ title, count, label, color, icon }) {
     }
     return (
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
-            {/* Smaller Decorative Background Icon */}
             <div className="absolute -right-2 -bottom-2 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity rotate-12 scale-[1.5]">
                 {React.cloneElement(icon, {size: 70})}
             </div>
             
             <div className="relative z-10 flex items-center gap-5">
-                {/* Icon Box - Smaller */}
                 <div className={`w-12 h-12 shrink-0 rounded-xl flex items-center justify-center ${colors[color]} border shadow-inner`}>
                     {React.cloneElement(icon, {size: 18})}
                 </div>
@@ -125,7 +175,6 @@ function CompactStatCard({ title, count, label, color, icon }) {
                 <div className="flex flex-col">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{title}</p>
                     <div className="flex items-baseline gap-2">
-                        {/* Reduced from 8xl to 4xl */}
                         <h2 className={`text-4xl font-black tracking-tight ${colors[color].split(' ')[0]}`}>{count}</h2>
                         <span className="text-[10px] font-bold text-slate-300 uppercase">{label}</span>
                     </div>

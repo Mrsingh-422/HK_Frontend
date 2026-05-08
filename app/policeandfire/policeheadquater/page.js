@@ -1,6 +1,7 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
+
 import { 
   FaShieldAlt, 
   FaHistory, 
@@ -12,8 +13,9 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   BarChart, Bar, Cell 
 } from 'recharts';
+import PoliceAPI from '@/app/services/PoliceAPI';
 
-// --- MOCK DATA FOR GRAPHS ---
+// --- MOCK DATA FOR TREND GRAPH ---
 const trendData = [
   { name: 'Mon', cases: 10 },
   { name: 'Tue', cases: 25 },
@@ -24,13 +26,43 @@ const trendData = [
   { name: 'Sun', cases: 40 },
 ];
 
-const distributionData = [
-  { name: 'Fresh', value: 12, color: '#2563eb' },
-  { name: 'Pending', value: 6, color: '#ea580c' },
-  { name: 'History', value: 42, color: '#08B36A' },
-];
-
 export default function PoliceDashboard() {
+  const [apiData, setApiData] = useState({
+    freshCases: 0,
+    pendingCases: 0,
+    historyCases: 0,
+    officerName: "Loading..."
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        // Calling your specific function
+        const response = await PoliceAPI.getHeadDashboard();
+        if (response.success) {
+          setApiData(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  // Format data for the Distribution Bar Chart using API values
+  const distributionData = [
+    { name: 'Fresh', value: apiData.freshCases, color: '#2563eb' },
+    { name: 'Pending', value: apiData.pendingCases, color: '#ea580c' },
+    { name: 'History', value: apiData.historyCases, color: '#08B36A' },
+  ];
+
+  // Helper to pad numbers (e.g., 5 becomes "05")
+  const formatCount = (num) => num.toString().padStart(2, '0');
+
   return (
     <div className="space-y-8 animate-in fade-in duration-700 font-sans p-2">
       
@@ -38,7 +70,7 @@ export default function PoliceDashboard() {
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Command Center</h1>
-          <p className="text-slate-500 font-medium">Police Headquarters • Mohali Division</p>
+          <p className="text-slate-500 font-medium">{apiData.officerName} • HQ Division</p>
         </div>
         <div className="hidden md:block text-right">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">System Status</p>
@@ -52,7 +84,7 @@ export default function PoliceDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatDataCard 
           title="Fresh Case" 
-          count="00" 
+          count={formatCount(apiData.freshCases)} 
           label="New Reports Today"
           icon={<FaFileMedical />}
           themeColor="blue"
@@ -60,7 +92,7 @@ export default function PoliceDashboard() {
 
         <StatDataCard 
           title="Pending Case" 
-          count="01" 
+          count={formatCount(apiData.pendingCases)} 
           label="Active Investigations"
           icon={<FaExclamationCircle />}
           themeColor="orange"
@@ -68,7 +100,7 @@ export default function PoliceDashboard() {
 
         <StatDataCard 
           title="History Case" 
-          count="42" 
+          count={formatCount(apiData.historyCases)} 
           label="Resolved MLC Cases"
           icon={<FaHistory />}
           themeColor="emerald"

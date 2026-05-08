@@ -1,5 +1,6 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+
 import { 
   FaSearch, 
   FaEye, 
@@ -10,78 +11,54 @@ import {
   FaFilter,
   FaFileExport,
   FaTimes,
-  FaHospital,
   FaUserInjured,
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaBuilding
 } from 'react-icons/fa'
 import DeployStationModal from '../components/DeployStationModal';
-
-// --- NEW IMPORT ---
+import PoliceAPI from '@/app/services/PoliceAPI';
 
 export default function FreshCasePoliceTable() {
+  const [cases, setCases] = useState([]);
+  const [filteredCases, setFilteredCases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  
   const [selectedCase, setSelectedCase] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
 
-  // Mock Data
-  const [freshCases] = useState([
-    { 
-      id: "MLC-88202501", 
-      patient: "Nitish Sharma", 
-      incidentType: "Road Accident", 
-      time: "10:45 AM", 
-      location: "Sector 74, Mohali", 
-      hospital: "Radius Hospital",
-      priority: "High",
-      status: "New",
-      age: "28",
-      gender: "Male",
-      reportedBy: "Dr. Aman Deep",
-      contact: "+91 98765-43210"
-    },
-    { 
-      id: "MLC-88202502", 
-      patient: "Arjun Singh", 
-      incidentType: "Assault", 
-      time: "11:20 AM", 
-      location: "Tdi City, Mohali", 
-      hospital: "City Care",
-      priority: "Critical",
-      status: "Investigating",
-      age: "34",
-      gender: "Male",
-      reportedBy: "Dr. Sunita",
-      contact: "+91 88722-11000"
-    },
-    { 
-      id: "MLC-88202503", 
-      patient: "Priya Verma", 
-      incidentType: "Suspected Poisoning", 
-      time: "12:05 PM", 
-      location: "Phase 7, Mohali", 
-      hospital: "Radius Hospital",
-      priority: "Medium",
-      status: "New",
-      age: "24",
-      gender: "Female",
-      reportedBy: "Dr. Aman Deep",
-      contact: "+91 98765-43210"
-    },
-    { 
-      id: "MLC-88202504", 
-      patient: "Sohan Lal", 
-      incidentType: "Industrial Injury", 
-      time: "01:30 PM", 
-      location: "Industrial Area, Phase 8", 
-      hospital: "Fortis IT",
-      priority: "Medium",
-      status: "New",
-      age: "45",
-      gender: "Male",
-      reportedBy: "Dr. Mike",
-      contact: "+91 77665-55443"
+  // --- FETCH DATA ---
+  const fetchCases = async () => {
+    try {
+      setLoading(true);
+      const response = await PoliceAPI.getAllCases();
+      if (response.success) {
+        // We filter for 'Fresh' and 'Pending' as this is the Fresh Case Table
+        const freshData = response.data.filter(c => c.status === 'Fresh' || c.status === 'Pending');
+        setCases(freshData);
+        setFilteredCases(freshData);
+      }
+    } catch (error) {
+      console.error("Error fetching cases:", error);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    fetchCases();
+  }, []);
+
+  // --- FILTER LOGIC ---
+  useEffect(() => {
+    const filtered = cases.filter(c => 
+        c.caseNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.victimName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.incidentType.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    setFilteredCases(filtered);
+  }, [searchQuery, cases]);
 
   const handleOpenDetails = (caseItem) => {
     setSelectedCase(caseItem);
@@ -89,19 +66,27 @@ export default function FreshCasePoliceTable() {
   };
 
   const handleOpenDeploy = (e, caseItem) => {
-    e.stopPropagation(); // Prevents row click from firing
+    e.stopPropagation();
     setSelectedCase(caseItem);
     setIsDeployModalOpen(true);
   };
 
+  // Helper to format Date
+  const formatDateTime = (dateStr) => {
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " | " + d.toLocaleDateString();
+  };
+
+  if (loading) return <div className="p-10 text-center font-black text-slate-400 animate-pulse">SYNCHRONIZING SECURE DATABASE...</div>
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6">
       
-      {/* --- STATS SUMMARY --- */}
+      {/* --- STATS SUMMARY (Dynamic) --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <StatMini label="Today's Fresh Cases" value="14" color="text-blue-600" />
-        <StatMini label="Assigned Today" value="08" color="text-emerald-600" />
-        <StatMini label="Pending Verification" value="06" color="text-orange-600" />
+        <StatMini label="Today's Fresh Cases" value={cases.length.toString().padStart(2, '0')} color="text-blue-600" />
+        <StatMini label="Critical Severity" value={cases.filter(c => c.severity === 'Critical').length.toString().padStart(2, '0')} color="text-red-600" />
+        <StatMini label="Pending Deployment" value={cases.filter(c => c.status === 'Pending').length.toString().padStart(2, '0')} color="text-orange-600" />
       </div>
 
       {/* --- TABLE CONTAINER --- */}
@@ -111,9 +96,9 @@ export default function FreshCasePoliceTable() {
           <div>
             <h2 className="text-xl font-black text-slate-800 flex items-center gap-3">
               <span className="p-2 bg-green-50 rounded-lg text-[#08B36A]"><FaShieldAlt /></span>
-              Fresh MLC Registry
+              Active Incident Registry
             </h2>
-            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">Law Enforcement Access Only</p>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">HQ Command Monitoring</p>
           </div>
           
           <div className="flex items-center gap-3 w-full md:w-auto">
@@ -121,7 +106,9 @@ export default function FreshCasePoliceTable() {
               <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
               <input 
                 type="text" 
-                placeholder="Search MLC No or Patient..." 
+                placeholder="Search Case No or Victim..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#08B36A]/20 transition-all"
               />
             </div>
@@ -138,44 +125,47 @@ export default function FreshCasePoliceTable() {
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-[0.15em] border-y border-slate-50">
-                <th className="px-6 py-4">MLC Case No</th>
-                <th className="px-6 py-4">Victim / Patient</th>
+                <th className="px-6 py-4">Case Number</th>
+                <th className="px-6 py-4">Victim Information</th>
                 <th className="px-6 py-4">Incident Type</th>
                 <th className="px-6 py-4">Time & Location</th>
                 <th className="px-6 py-4 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {freshCases.map((item) => (
+              {filteredCases.map((item) => (
                 <tr 
-                  key={item.id} 
+                  key={item._id} 
                   onClick={() => handleOpenDetails(item)}
                   className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
                 >
                   <td className="px-6 py-5">
-                    <span className="text-sm font-black text-blue-600 hover:underline">{item.id}</span>
+                    <span className="text-sm font-black text-blue-600 hover:underline">{item.caseNo}</span>
                   </td>
                   
                   <td className="px-6 py-5">
                     <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-700">{item.patient}</span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">{item.hospital}</span>
+                      <span className="text-sm font-bold text-slate-700">{item.victimName}</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{item.victimPhone}</span>
                     </div>
                   </td>
 
                   <td className="px-6 py-5">
-                    <span className="px-3 py-1 bg-red-50 text-red-500 text-[10px] font-black rounded-lg uppercase tracking-wider">
-                      {item.incidentType}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                        <span className={`w-fit px-3 py-1 ${item.severity === 'Critical' ? 'bg-red-50 text-red-500' : 'bg-orange-50 text-orange-500'} text-[10px] font-black rounded-lg uppercase tracking-wider`}>
+                        {item.incidentType}
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">{item.severityLevel}</span>
+                    </div>
                   </td>
 
                   <td className="px-6 py-5">
                     <div className="flex flex-col gap-1 text-slate-500">
                       <div className="flex items-center gap-2 text-xs font-bold">
-                        <FaClock size={10} className="text-[#08B36A]" /> {item.time}
+                        <FaClock size={10} className="text-[#08B36A]" /> {formatDateTime(item.reportedAt)}
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] font-medium">
-                        <FaMapMarkerAlt size={10} className="text-slate-300" /> {item.location}
+                      <div className="flex items-center gap-2 text-[11px] font-medium truncate max-w-[200px]">
+                        <FaMapMarkerAlt size={10} className="text-slate-300" /> {item.address}
                       </div>
                     </div>
                   </td>
@@ -202,10 +192,10 @@ export default function FreshCasePoliceTable() {
         </div>
 
         <div className="p-4 border-t border-slate-50 bg-slate-50/30 flex justify-between items-center">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Showing {freshCases.length} Fresh Reports</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Database Record Count: {filteredCases.length}</span>
           <div className="flex gap-2">
-            <button className="px-3 py-1 text-[10px] font-black text-slate-500 border border-slate-200 rounded-lg bg-white">Prev</button>
-            <button className="px-3 py-1 text-[10px] font-black text-slate-500 border border-slate-200 rounded-lg bg-white">Next</button>
+            <button className="px-3 py-1 text-[10px] font-black text-slate-500 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 transition-colors">Prev</button>
+            <button className="px-3 py-1 text-[10px] font-black text-slate-500 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 transition-colors">Next</button>
           </div>
         </div>
       </div>
@@ -217,13 +207,13 @@ export default function FreshCasePoliceTable() {
             <div className="relative bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-8 border-b border-slate-50 flex justify-between items-start">
                     <div className="flex items-center gap-4">
-                        <div className="p-4 bg-red-50 text-red-500 rounded-2xl shadow-inner">
+                        <div className={`p-4 ${selectedCase.severity === 'Critical' ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'} rounded-2xl shadow-inner`}>
                             <FaShieldAlt size={24} />
                         </div>
                         <div>
-                            <h3 className="text-2xl font-black text-slate-800 tracking-tight">Case Details: {selectedCase.id}</h3>
-                            <p className="text-red-500 font-bold text-[10px] uppercase tracking-[0.15em] mt-1 flex items-center gap-2">
-                                <FaExclamationTriangle /> Urgent Investigation Required
+                            <h3 className="text-2xl font-black text-slate-800 tracking-tight">Case: {selectedCase.caseNo}</h3>
+                            <p className={`${selectedCase.severity === 'Critical' ? 'text-red-500' : 'text-blue-500'} font-bold text-[10px] uppercase tracking-[0.15em] mt-1 flex items-center gap-2`}>
+                                <FaExclamationTriangle /> Severity Level: {selectedCase.severity}
                             </p>
                         </div>
                     </div>
@@ -234,43 +224,46 @@ export default function FreshCasePoliceTable() {
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-4">
                         <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <FaUserInjured /> Patient Information
+                            <FaUserInjured /> Victim Details
                         </h4>
                         <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                            <p className="text-lg font-black text-slate-800">{selectedCase.patient}</p>
-                            <p className="text-xs font-bold text-slate-500 mt-1">{selectedCase.gender}, {selectedCase.age} Years Old</p>
+                            <p className="text-lg font-black text-slate-800">{selectedCase.victimName}</p>
+                            <p className="text-xs font-bold text-slate-500 mt-1">Contact: {selectedCase.victimPhone}</p>
                         </div>
                         <InfoItem label="Incident Type" value={selectedCase.incidentType} color="text-red-500" />
-                        <InfoItem label="Time of Arrival" value={selectedCase.time} />
+                        <InfoItem label="Reported At" value={formatDateTime(selectedCase.reportedAt)} />
                     </div>
                     <div className="space-y-4">
                         <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <FaHospital /> Origin & Reporting
+                            <FaBuilding /> Dispatch Status
                         </h4>
-                        <InfoItem label="Hospital Name" value={selectedCase.hospital} />
-                        <InfoItem label="Reported By" value={selectedCase.reportedBy} />
-                        <InfoItem label="Location of Incident" value={selectedCase.location} />
-                        <InfoItem label="Hospital Contact" value={selectedCase.contact} />
+                        <InfoItem label="Assigned Station" value={selectedCase.stationId?.stationName || "Pending Assignment"} />
+                        <InfoItem label="SHO Name" value={selectedCase.stationId?.shoName || "N/A"} />
+                        <InfoItem label="Incident Address" value={selectedCase.address} />
+                        <InfoItem label="Current Status" value={selectedCase.severityStatus} />
                     </div>
                 </div>
                 <div className="p-8 bg-slate-50 flex justify-end gap-3">
-                    <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 text-slate-500 font-black text-[11px] uppercase tracking-widest hover:text-slate-800">Close Registry</button>
-                    <button onClick={() => { setIsModalOpen(false); setIsDeployModalOpen(true); }} className="bg-[#08B36A] text-white px-8 py-3 rounded-2xl text-[11px] font-black shadow-xl shadow-green-100 uppercase tracking-widest">Assign Station</button>
+                    <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 text-slate-500 font-black text-[11px] uppercase tracking-widest hover:text-slate-800">Close</button>
+                    <button onClick={() => { setIsModalOpen(false); setIsDeployModalOpen(true); }} className="bg-[#08B36A] text-white px-8 py-3 rounded-2xl text-[11px] font-black shadow-xl shadow-green-100 uppercase tracking-widest">Update Dispatch</button>
                 </div>
             </div>
         </div>
       )}
 
-      {/* --- REUSABLE DEPLOY MODAL CALL --- */}
+      {/* --- DEPLOY MODAL --- */}
       <DeployStationModal 
         isOpen={isDeployModalOpen}
         onClose={() => setIsDeployModalOpen(false)}
         selectedCase={selectedCase}
+        refreshData={fetchCases}
       />
 
     </div>
   )
 }
+
+// --- HELPER COMPONENTS ---
 
 function StatMini({ label, value, color }) {
   return (

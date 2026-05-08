@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import PoliceAPI from '@/app/services/PoliceAPI';
+import React, { useState, useEffect } from 'react';
 import { 
   FaShieldAlt, 
   FaPhoneAlt, 
@@ -17,37 +18,77 @@ import {
   FaSave
 } from 'react-icons/fa';
 
+
 export default function PoliceStationProfile() {
   // --- STATE MANAGEMENT ---
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   
-  // Station Data is now in state so it can be updated
+  // Station Data state mapped to your API structure
   const [stationData, setStationData] = useState({
-    name: "Central Police Station",
-    id: "#894-STN-02",
-    grade: "Grade A",
-    sho: "Officer Karan",
-    totalStaff: 42,
-    controlRoom: "+91 11-2345-6789",
-    shoMobile: "+91 98765 43210",
-    officialEmail: "sho.central@police.gov.in",
-    address: "Plot No. 42, Civil Lines, Near District Court, Central District, New Delhi - 110054",
-    imageUrl: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?q=80&w=1000&auto=format&fit=crop" 
+    stationName: "",
+    stationCode: "",
+    shoName: "",
+    jurisdictionArea: "",
+    email: "",
+    phone: "",
+    address: "",
+    activeStaffCount: 0,
+    isActive: true,
+    profileImage: null
   });
 
   // Local state for the form inputs
   const [tempData, setTempData] = useState(stationData);
 
+  // --- FETCH DATA ON MOUNT ---
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        setIsLoading(true);
+        const response = await PoliceAPI.getPoliceStationProfile();
+        if (response.success) {
+          setStationData(response.data);
+          setTempData(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
+
   // --- HANDLERS ---
-  const handleSave = () => {
-    setStationData(tempData);
-    setIsEditing(false);
+  const handleSave = async () => {
+    try {
+      setIsLoading(true);
+      const response = await PoliceAPI.updatePoliceProfile(tempData);
+      if (response.success) {
+        setStationData(tempData);
+        setIsEditing(false);
+      }
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      alert("Failed to update profile");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCancel = () => {
     setTempData(stationData);
     setIsEditing(false);
   };
+
+  if (isLoading && !stationData.stationName) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#08B36A]"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-12 font-sans text-slate-900">
@@ -106,31 +147,31 @@ export default function PoliceStationProfile() {
             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden group">
               <div className="aspect-[4/3] relative overflow-hidden">
                 <img 
-                  src={stationData.imageUrl} 
+                  src={stationData.profileImage || "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?q=80&w=1000&auto=format&fit=crop"} 
                   alt="Station" 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
                 />
                 <div className="absolute top-6 left-6">
                   <span className="px-4 py-1.5 bg-[#08B36A] text-white rounded-full text-[10px] font-black uppercase shadow-xl flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div> Operational 24/7
+                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div> {stationData.isActive ? "Operational 24/7" : "Inactive"}
                   </span>
                 </div>
               </div>
               <div className="p-10 text-center">
-                <h2 className="text-3xl font-black text-slate-800 tracking-tight">{stationData.name}</h2>
+                <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase">{stationData.stationName}</h2>
                 <div className="flex justify-center gap-2 mt-4">
-                  <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-black uppercase tracking-widest">{stationData.id}</span>
-                  <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase tracking-widest">{stationData.grade}</span>
+                  <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-black uppercase tracking-widest">{stationData.stationCode}</span>
+                  <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase tracking-widest">Registry Active</span>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4 mt-10 border-t border-slate-50 pt-10">
                     <div className="text-center">
                         <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Station Officer</p>
-                        <p className="text-sm font-black text-slate-700">{stationData.sho}</p>
+                        <p className="text-sm font-black text-slate-700">{stationData.shoName}</p>
                     </div>
                     <div className="text-center border-l border-slate-100">
                         <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Total Force</p>
-                        <p className="text-sm font-black text-[#08B36A]">{stationData.totalStaff} Active</p>
+                        <p className="text-sm font-black text-[#08B36A]">{stationData.activeStaffCount} Active</p>
                     </div>
                 </div>
               </div>
@@ -146,9 +187,9 @@ export default function PoliceStationProfile() {
                 <div>
                   <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] mb-6 ml-1">Contact Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <DetailCard icon={<FaPhoneAlt/>} label="Control Room Number" val={stationData.controlRoom} color="text-blue-600" bg="bg-blue-50" />
-                    <DetailCard icon={<FaPhoneAlt/>} label="SHO Official Mobile" val={stationData.shoMobile} color="text-emerald-600" bg="bg-emerald-50" />
-                    <DetailCard icon={<FaEnvelope/>} label="Station Official Email" val={stationData.officialEmail} color="text-orange-600" bg="bg-orange-50" />
+                    <DetailCard icon={<FaPhoneAlt/>} label="Contact Number" val={stationData.phone} color="text-blue-600" bg="bg-blue-50" />
+                    <DetailCard icon={<FaUserTie/>} label="Jurisdiction" val={stationData.jurisdictionArea} color="text-emerald-600" bg="bg-emerald-50" />
+                    <DetailCard icon={<FaEnvelope/>} label="Station Official Email" val={stationData.email} color="text-orange-600" bg="bg-orange-50" />
                     <DetailCard icon={<FaCheckCircle/>} label="Network Status" val="100% Encrypted Comms" color="text-purple-600" bg="bg-purple-50" />
                   </div>
                 </div>
@@ -159,7 +200,7 @@ export default function PoliceStationProfile() {
                     <div className="p-10 md:w-3/5 space-y-6">
                       <div className="space-y-2">
                         <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Postal Address</p>
-                        <p className="text-lg font-black text-slate-700 leading-relaxed italic italic">"{stationData.address}"</p>
+                        <p className="text-lg font-black text-slate-700 leading-relaxed italic">"{stationData.address}"</p>
                       </div>
                       <div className="flex gap-4 pt-4">
                         <button className="flex-1 bg-[#08B36A] text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-all">
@@ -178,12 +219,12 @@ export default function PoliceStationProfile() {
               // --- EDIT MODE FORM ---
               <div className="bg-white rounded-[2.5rem] border border-[#08B36A]/20 p-10 shadow-xl space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <EditField label="Station Name" value={tempData.name} onChange={(v) => setTempData({...tempData, name: v})} icon={<FaBuilding/>} />
-                  <EditField label="SHO In-Charge" value={tempData.sho} onChange={(v) => setTempData({...tempData, sho: v})} icon={<FaUserTie/>} />
-                  <EditField label="Control Room" value={tempData.controlRoom} onChange={(v) => setTempData({...tempData, controlRoom: v})} icon={<FaPhoneAlt/>} />
-                  <EditField label="SHO Mobile" value={tempData.shoMobile} onChange={(v) => setTempData({...tempData, shoMobile: v})} icon={<FaPhoneAlt/>} />
-                  <EditField label="Official Email" value={tempData.officialEmail} onChange={(v) => setTempData({...tempData, officialEmail: v})} icon={<FaEnvelope/>} />
-                  <EditField label="Staff Count" value={tempData.totalStaff} type="number" onChange={(v) => setTempData({...tempData, totalStaff: v})} icon={<FaUsers/>} />
+                  <EditField label="Station Name" value={tempData.stationName} onChange={(v) => setTempData({...tempData, stationName: v})} icon={<FaBuilding/>} />
+                  <EditField label="SHO In-Charge" value={tempData.shoName} onChange={(v) => setTempData({...tempData, shoName: v})} icon={<FaUserTie/>} />
+                  <EditField label="Phone Number" value={tempData.phone} onChange={(v) => setTempData({...tempData, phone: v})} icon={<FaPhoneAlt/>} />
+                  <EditField label="Jurisdiction Area" value={tempData.jurisdictionArea} onChange={(v) => setTempData({...tempData, jurisdictionArea: v})} icon={<FaMapMarkerAlt/>} />
+                  <EditField label="Official Email" value={tempData.email} onChange={(v) => setTempData({...tempData, email: v})} icon={<FaEnvelope/>} />
+                  <EditField label="Staff Count" value={tempData.activeStaffCount} type="number" onChange={(v) => setTempData({...tempData, activeStaffCount: v})} icon={<FaUsers/>} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Postal Address</label>
@@ -218,8 +259,7 @@ function DetailCard({ icon, label, val, color, bg }) {
       </div>
       <div>
         <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">{label}</p>
-        <p className="text-base font-black text-slate-700">{val}</p>
-        
+        <p className="text-base font-black text-slate-700">{val || "N/A"}</p>
       </div>
     </div>
   )

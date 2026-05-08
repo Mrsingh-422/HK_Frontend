@@ -1,14 +1,16 @@
 'use client'
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
+import PoliceAPI from '@/app/services/PoliceAPI';
 import { 
     FaRegFileAlt, FaMapMarkerAlt, FaShieldAlt, 
     FaUser, FaPhone, FaTrash, FaPlus, 
-    FaInfoCircle, FaFileUpload, FaCheckCircle,
-    FaExclamationTriangle, FaClock, FaCloudUploadAlt
+    FaFileUpload, FaCheckCircle,
+    FaExclamationTriangle, FaClock, FaCloudUploadAlt,
+    FaBuilding
 } from 'react-icons/fa'
 
 export default function AddPoliceCase() {
-    // 1. Form State
+    // --- 1. STATE MANAGEMENT ---
     const [formData, setFormData] = useState({
         victimName: '',
         victimPhone: '',
@@ -16,13 +18,41 @@ export default function AddPoliceCase() {
         incidentType: 'Theft',
         severity: 'Medium',
         description: '',
+        stationId: '', // Required by schema
+        location: { lat: 0, lng: 0 } // Required by schema
     });
 
-    // 2. Attachments State (Starting empty as requested)
+    const [stations, setStations] = useState([]); // List for dropdown
     const [attachments, setAttachments] = useState([]);
+    const [loading, setLoading] = useState(false);
     const fileInputRef = useRef(null);
 
-    // 3. Handlers
+    // --- 2. INITIAL DATA & GEOLOCATION ---
+    useEffect(() => {
+        // Fetch Stations to assign the case to
+        const getStations = async () => {
+            try {
+                const res = await PoliceAPI.getAllPoliceStations();
+                if (res.success) setStations(res.data);
+            } catch (err) {
+                console.error("Failed to fetch stations", err);
+            }
+        };
+
+        // Get Current Location for the schema
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                setFormData(prev => ({
+                    ...prev,
+                    location: { lat: pos.coords.latitude, lng: pos.coords.longitude }
+                }));
+            });
+        }
+
+        getStations();
+    }, []);
+
+    // --- 3. HANDLERS ---
     const handleInputChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
@@ -30,14 +60,14 @@ export default function AddPoliceCase() {
     const handleFileUpload = (e) => {
         const files = Array.from(e.target.files);
         const newAttachments = files.map(file => ({
-            name: file.name,
-            size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-            type: file.type.split('/')[1].toUpperCase() || 'FILE',
-            rawFile: file // Keeping reference if needed for API
+            fileName: file.name,
+            fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+            fileType: file.type.startsWith('image') ? 'Image' : 'Document', // Matches schema enum
+            fileUrl: "https://placeholder-url.com/file.jpg", // Replace with real S3/Cloudinary upload URL
+            rawFile: file 
         }));
         
         setAttachments(prev => [...prev, ...newAttachments]);
-        // Reset input so same file can be uploaded again if deleted
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
@@ -45,11 +75,40 @@ export default function AddPoliceCase() {
         setAttachments(prev => prev.filter((_, i) => i !== index));
     };
 
-    const handleFormSubmit = (e) => {
+    const handleFormSubmit = async (e) => {
         e.preventDefault();
-        const payload = { ...formData, evidence: attachments };
-        console.log("Submitting Case to Command Center:", payload);
-        alert("Case Broadcasted Successfully!");
+        
+        if (!formData.stationId) {
+            alert("Please select a target Police Station");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const payload = { 
+                ...formData, 
+                evidence: attachments.map(({rawFile, ...rest}) => rest), // Remove rawFile before sending
+                status: 'Fresh' 
+            };
+
+            const response = await PoliceAPI.createCase(payload);
+            
+            if (response.success) {
+                alert(`Case ${response.data.caseNo} Broadcasted Successfully!`);
+                // Reset Form
+                setFormData({
+                    victimName: '', victimPhone: '', address: '',
+                    incidentType: 'Theft', severity: 'Medium', description: '',
+                    stationId: '', location: formData.location
+                });
+                setAttachments([]);
+            }
+        } catch (error) {
+            console.error("Submission Error:", error);
+            alert("Failed to broadcast case. Check console for details.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -61,7 +120,7 @@ export default function AddPoliceCase() {
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <div className="h-2 w-2 rounded-full bg-[#08B36A] animate-pulse" />
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">System Live • encrypted connection</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">HQ Command • Secure Terminal</p>
                         </div>
                         <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-none">
                             Register <span className="text-[#08B36A]">Police Case</span>
@@ -73,8 +132,8 @@ export default function AddPoliceCase() {
                             <FaShieldAlt size={18} />
                         </div>
                         <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Status</p>
-                            <p className="text-xs font-bold text-slate-700 uppercase">Fresh Assignment</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">System</p>
+                            <p className="text-xs font-bold text-slate-700 uppercase">Dispatch Active</p>
                         </div>
                     </div>
                 </div>
@@ -142,11 +201,13 @@ export default function AddPoliceCase() {
                                         value={formData.incidentType}
                                         onChange={(e) => handleInputChange('incidentType', e.target.value)}
                                     >
-                                        <option>Theft</option>
-                                        <option>Assault</option>
-                                        <option>Cyber Crime</option>
-                                        <option>Road Accident</option>
-                                        <option>Other</option>
+                                        <option value="Theft">Theft</option>
+                                        <option value="Assault">Assault</option>
+                                        <option value="Robbery">Robbery</option>
+                                        <option value="Road Accident">Road Accident</option>
+                                        <option value="Murder">Murder</option>
+                                        <option value="Cyber Crime">Cyber Crime</option>
+                                        <option value="Other">Other</option>
                                     </select>
                                 </div>
                                 <div>
@@ -171,23 +232,37 @@ export default function AddPoliceCase() {
                             </div>
                         </div>
 
-                        {/* 3. DESCRIPTION */}
+                        {/* 3. ASSIGNMENT & NARRATIVE */}
                         <div className="bg-white rounded-[2.5rem] border border-slate-200/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
                             <div className="px-8 py-6 border-b border-slate-50 bg-slate-50/50 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100">
-                                        <FaExclamationTriangle className="text-[#08B36A]" size={14} />
+                                        <FaBuilding className="text-[#08B36A]" size={14} />
                                     </div>
-                                    <h2 className="font-black text-slate-800 text-xs uppercase tracking-[0.15em]">Narrative Report</h2>
+                                    <h2 className="font-black text-slate-800 text-xs uppercase tracking-[0.15em]">Station Assignment & Narrative</h2>
                                 </div>
                                 <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-full uppercase">Step 03</span>
                             </div>
-                            <div className="p-8">
+                            <div className="p-8 space-y-6">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-1">Dispatch Target Station</label>
+                                    <select 
+                                        required
+                                        className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-4 text-sm font-bold text-slate-700 outline-none focus:border-[#08B36A]/20 focus:bg-white focus:ring-4 focus:ring-[#08B36A]/5 transition-all appearance-none cursor-pointer"
+                                        value={formData.stationId}
+                                        onChange={(e) => handleInputChange('stationId', e.target.value)}
+                                    >
+                                        <option value="">Select Station...</option>
+                                        {stations.map(s => (
+                                            <option key={s._id} value={s._id}>{s.stationName} ({s.stationCode})</option>
+                                        ))}
+                                    </select>
+                                </div>
                                 <textarea 
                                     required
-                                    rows="6"
+                                    rows="4"
                                     className="w-full bg-slate-50 border-2 border-transparent rounded-[2rem] p-6 text-sm font-medium leading-relaxed text-slate-700 placeholder:text-slate-300 outline-none focus:border-[#08B36A]/20 focus:bg-white focus:ring-4 focus:ring-[#08B36A]/5 transition-all resize-none"
-                                    placeholder="Provide a comprehensive timeline of events..."
+                                    placeholder="Provide detailed incident report..."
                                     value={formData.description}
                                     onChange={(e) => handleInputChange('description', e.target.value)}
                                 ></textarea>
@@ -208,7 +283,6 @@ export default function AddPoliceCase() {
                                     <h3 className="font-black text-[11px] text-slate-800 uppercase tracking-widest">Evidence ({attachments.length})</h3>
                                 </div>
                                 
-                                {/* Hidden File Input */}
                                 <input 
                                     type="file" 
                                     multiple 
@@ -239,8 +313,8 @@ export default function AddPoliceCase() {
                                                 <FaRegFileAlt size={16} />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-[11px] font-black text-slate-700 truncate">{file.name}</p>
-                                                <p className="text-[9px] font-bold text-slate-400 mt-0.5 uppercase">{file.size} • {file.type}</p>
+                                                <p className="text-[11px] font-black text-slate-700 truncate">{file.fileName}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 mt-0.5 uppercase">{file.fileSize} • {file.fileType}</p>
                                             </div>
                                             <button 
                                                 type="button" 
@@ -263,33 +337,36 @@ export default function AddPoliceCase() {
                             <div className="relative z-10">
                                 <div className="flex items-center gap-2 mb-6">
                                     <FaClock className="text-[#08B36A]" size={12} />
-                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Assignment Preview</span>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Transmission Ready</span>
                                 </div>
                                 
-                                <h3 className="text-2xl font-black leading-tight mb-6">Dispatch to Command<br/><span className="text-[#08B36A]">Precinct Center</span></h3>
+                                <h3 className="text-2xl font-black leading-tight mb-6">Broadcast to Command<br/><span className="text-[#08B36A]">Control Hub</span></h3>
                                 
                                 <div className="space-y-4 mb-10">
                                     <div className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/10">
-                                        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-[10px] font-black border border-white/10 text-[#08B36A]">#PS</div>
+                                        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-[10px] font-black border border-white/10 text-[#08B36A]">GPS</div>
                                         <div>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Station</p>
-                                            <p className="text-xs font-black text-white">Vaishali Nagar Precinct</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Co-ordinates</p>
+                                            <p className="text-xs font-black text-white">{formData.location.lat.toFixed(4)}, {formData.location.lng.toFixed(4)}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3 px-2">
                                         <FaCheckCircle className="text-[#08B36A]" size={12} />
-                                        <span className="text-[10px] font-bold text-slate-300 uppercase">Automatic backup enabled</span>
+                                        <span className="text-[10px] font-bold text-slate-300 uppercase">Secure hash verification enabled</span>
                                     </div>
                                 </div>
 
                                 <button 
                                     type="submit"
-                                    className="w-full bg-[#08B36A] hover:bg-[#09c776] text-white py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-[#08B36A]/30 transition-all active:scale-[0.97] flex items-center justify-center gap-3 group"
+                                    disabled={loading}
+                                    className="w-full bg-[#08B36A] hover:bg-[#09c776] text-white py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-[#08B36A]/30 transition-all active:scale-[0.97] flex items-center justify-center gap-3 group disabled:opacity-50"
                                 >
-                                    Broadcast Case
-                                    <div className="w-5 h-5 bg-white/20 rounded-lg flex items-center justify-center group-hover:translate-x-1 transition-transform">
-                                        <FaPlus size={8} />
-                                    </div>
+                                    {loading ? 'Transmitting...' : 'Broadcast Case'}
+                                    {!loading && (
+                                        <div className="w-5 h-5 bg-white/20 rounded-lg flex items-center justify-center group-hover:translate-x-1 transition-transform">
+                                            <FaPlus size={8} />
+                                        </div>
+                                    )}
                                 </button>
                             </div>
                         </div>
