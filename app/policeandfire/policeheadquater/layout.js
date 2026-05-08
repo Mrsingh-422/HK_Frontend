@@ -1,34 +1,50 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image' 
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
-    FaFileMedicalAlt, // Fresh Case
-    FaClipboardList,   // Pending
-    FaHistory,         // History
-    FaCog,             // Setting
-    FaUserShield,      // Police Headquarters
+    FaFileMedicalAlt, 
+    FaClipboardList,   
+    FaHistory,         
+    FaCog,             
+    FaUserShield,      
     FaChevronLeft,
     FaChevronRight
 } from "react-icons/fa";
 import TopbarPoliceHeadquarter from './components/TopbarPoliceHeadquarter'
 
-// Updated import name
- 
 export default function LabVendorLayout({ children }) {
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);  
+    const [isAuthorized, setIsAuthorized] = useState(false); // Auth State
     const pathname = usePathname()
+    const router = useRouter();
  
+    // --- ROUTE PROTECTION LOGIC ---
+    useEffect(() => {
+        const token = localStorage.getItem('policeHeadToken');
+        if (!token) {
+            // Redirect to home/login if token doesn't exist
+            router.push('/'); 
+        } else {
+            // Allow rendering if token exists
+            setIsAuthorized(true);
+        }
+    }, [router]);
+
     const menuItems = [
         { name: 'Fresh Case', href: '/policeandfire/policeheadquater/freshcase', icon: FaFileMedicalAlt },
-        { name: 'Pending', href: '/policeandfire/policeheadquater/pendingcase', icon: FaClipboardList },
-        { name: 'History', href: '/policeandfire/policeheadquater/history', icon: FaHistory },
+        // { name: 'Pending', href: '/policeandfire/policeheadquater/pendingcase', icon: FaClipboardList },
         { name: 'Create Case', href: '/policeandfire/policeheadquater/createcase', icon: FaFileMedicalAlt },
         { name: 'Manage Police Station', href: '/policeandfire/policeheadquater/managepolicestation', icon: FaUserShield },
         { name: 'Terms & Conditions', href: '/policeandfire/policeheadquater/termsandconditions', icon: FaCog },
     ];
+
+    // Prevent rendering children until authorization check is done
+    if (!isAuthorized) {
+        return null; // Or a loading spinner
+    }
  
     return (
         <div className="min-h-screen bg-gray-50 flex">
@@ -78,19 +94,9 @@ export default function LabVendorLayout({ children }) {
                         )
                     })}
                 </nav>
- 
-                {/* <div className="p-4 border-t border-gray-100 flex justify-center lg:flex hidden">
-                    <button
-                        onClick={() => setIsCollapsed(!isCollapsed)}
-                        className="p-2 rounded-full bg-gray-50 text-gray-500 hover:bg-[#08B36A] hover:text-white transition-colors"
-                    >
-                        {isCollapsed ? <FaChevronRight size={14} /> : <FaChevronLeft size={14} />}
-                    </button>
-                </div> */}
             </aside>
  
             <div className="flex-1 flex flex-col min-w-0">
-                {/* Changed component tag name */}
                 <TopbarPoliceHeadquarter 
                     isCollapsed={isCollapsed} 
                     onToggleSidebar={() => setIsCollapsed(!isCollapsed)} 

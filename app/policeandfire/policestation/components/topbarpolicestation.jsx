@@ -1,24 +1,38 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { RiMenuFoldLine, RiMenuUnfoldLine } from 'react-icons/ri'
 import { FaUserCircle, FaUserAlt, FaShieldAlt, FaBell, FaExclamationTriangle } from 'react-icons/fa'
 import { IoChevronDown, IoLogOutOutline } from 'react-icons/io5'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import PoliceAPI from '@/app/services/PoliceAPI' // Assuming the service is at this path
 
 export default function TopbarPoliceStation({ onToggleSidebar, isCollapsed }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false); // Modal State
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false); 
   const [hasNotifications] = useState(true); 
+  const [stationData, setStationData] = useState(null);
   const router = useRouter();
+
+  // --- FETCH STATION PROFILE DATA ---
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await PoliceAPI.getPoliceStationProfile();
+        if (response.success) {
+          setStationData(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching station profile:", error);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   // --- CONFIRMED LOGOUT FUNCTION ---
   const handleConfirmLogout = () => {
-    // Remove the token
     localStorage.removeItem('policeStationToken');
-    // Close modal
     setIsLogoutModalOpen(false);
-    // Redirect to home/login
     router.push('/');
   };
 
@@ -42,7 +56,7 @@ export default function TopbarPoliceStation({ onToggleSidebar, isCollapsed }) {
 
           <div className="hidden sm:flex flex-col">
             <h1 className="text-sm font-black text-slate-800 uppercase tracking-[0.2em] leading-none">
-              Police Station
+              {stationData?.stationName || "Police Station"}
             </h1>
             <p className="text-[10px] font-bold text-[#08B36A] uppercase tracking-widest mt-1.5">
               Precinct Dashboard
@@ -70,16 +84,20 @@ export default function TopbarPoliceStation({ onToggleSidebar, isCollapsed }) {
           >
             <div className="text-right hidden md:block">
               <p className="text-sm font-black text-slate-800 leading-tight group-hover:text-[#08B36A] transition-colors">
-                Officer Karan
+                {stationData?.stationName || "Loading..."}
               </p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                Badge: #9042 • Sector 74
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter truncate max-w-[150px]">
+                {stationData ? `${stationData.stationCode} • ${stationData.jurisdictionArea}` : "Station Officer"}
               </p>
             </div>
             
             <div className="relative">
               <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-300 group-hover:text-[#08B36A] transition-all overflow-hidden border border-slate-200">
-                  <FaUserCircle size={40} className="scale-110" />
+                  {stationData?.profileImage ? (
+                    <img src={stationData.profileImage} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <FaUserCircle size={40} className="scale-110" />
+                  )}
               </div>
               <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full shadow-sm"></div>
             </div>
@@ -103,7 +121,7 @@ export default function TopbarPoliceStation({ onToggleSidebar, isCollapsed }) {
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Duty Status</p>
                   <div className="flex items-center gap-2 mt-2">
                     <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                    <span className="text-xs font-black text-slate-700">Active on Field</span>
+                    <span className="text-xs font-black text-slate-700">{stationData?.isActive ? "Station Active" : "Station Inactive"}</span>
                   </div>
                 </div>
 
@@ -122,7 +140,7 @@ export default function TopbarPoliceStation({ onToggleSidebar, isCollapsed }) {
                   className="w-full text-left flex items-center gap-3 px-5 py-3 text-sm font-black text-red-500 hover:bg-red-50 transition-colors"
                   onClick={() => {
                     setIsDropdownOpen(false);
-                    setIsLogoutModalOpen(true); // Open Modal
+                    setIsLogoutModalOpen(true); 
                   }}
                 >
                   <IoLogOutOutline size={18} />
@@ -137,13 +155,11 @@ export default function TopbarPoliceStation({ onToggleSidebar, isCollapsed }) {
       {/* --- LOGOUT CONFIRMATION MODAL --- */}
       {isLogoutModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300"
             onClick={() => setIsLogoutModalOpen(false)}
           ></div>
           
-          {/* Modal Content */}
           <div className="relative bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-300">
             <div className="flex flex-col items-center text-center">
               <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center text-red-500 mb-6">

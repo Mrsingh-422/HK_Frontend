@@ -192,7 +192,7 @@ const PoliceAPI = {
     },
 
     disptchStaffToCase: async (id, data) => {
-        const res = await policeStationApi.put(`/policeStation/station/cases/assign-staff`, data);
+        const res = await policeStationApi.post(`/policeStation/station/cases/assign-staff`, data);
         return res.data;
     },
 

@@ -1,6 +1,5 @@
 'use client'
 import React, { useState, useEffect } from 'react'
-
 import { 
   FaSearch, 
   FaEye, 
@@ -13,7 +12,8 @@ import {
   FaTimes,
   FaUserInjured,
   FaExclamationTriangle,
-  FaBuilding
+  FaBuilding,
+  FaFolderOpen
 } from 'react-icons/fa'
 import DeployStationModal from '../components/DeployStationModal';
 import PoliceAPI from '@/app/services/PoliceAPI';
@@ -23,6 +23,10 @@ export default function FreshCasePoliceTable() {
   const [filteredCases, setFilteredCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Tab State based on your Schema Enum
+  const [activeTab, setActiveTab] = useState("Fresh");
+  const tabs = ['Fresh', 'Pending', 'Under Investigation', 'Critical', 'Closed', 'Archived'];
   
   const [selectedCase, setSelectedCase] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -34,10 +38,7 @@ export default function FreshCasePoliceTable() {
       setLoading(true);
       const response = await PoliceAPI.getAllCases();
       if (response.success) {
-        // We filter for 'Fresh' and 'Pending' as this is the Fresh Case Table
-        const freshData = response.data.filter(c => c.status === 'Fresh' || c.status === 'Pending');
-        setCases(freshData);
-        setFilteredCases(freshData);
+        setCases(response.data);
       }
     } catch (error) {
       console.error("Error fetching cases:", error);
@@ -50,15 +51,19 @@ export default function FreshCasePoliceTable() {
     fetchCases();
   }, []);
 
-  // --- FILTER LOGIC ---
+  // --- FILTER LOGIC (Tab + Search) ---
   useEffect(() => {
-    const filtered = cases.filter(c => 
-        c.caseNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.victimName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.incidentType.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filtered = cases.filter(c => {
+        const matchesTab = c.status === activeTab;
+        const matchesSearch = 
+            c.caseNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            c.victimName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            c.incidentType.toLowerCase().includes(searchQuery.toLowerCase());
+        
+        return matchesTab && matchesSearch;
+    });
     setFilteredCases(filtered);
-  }, [searchQuery, cases]);
+  }, [searchQuery, cases, activeTab]);
 
   const handleOpenDetails = (caseItem) => {
     setSelectedCase(caseItem);
@@ -82,11 +87,31 @@ export default function FreshCasePoliceTable() {
   return (
     <div className="space-y-6">
       
-      {/* --- STATS SUMMARY (Dynamic) --- */}
+      {/* --- STATS SUMMARY (Global) --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <StatMini label="Today's Fresh Cases" value={cases.length.toString().padStart(2, '0')} color="text-blue-600" />
+        <StatMini label="Global Fresh Intake" value={cases.filter(c => c.status === 'Fresh').length.toString().padStart(2, '0')} color="text-blue-600" />
         <StatMini label="Critical Severity" value={cases.filter(c => c.severity === 'Critical').length.toString().padStart(2, '0')} color="text-red-600" />
-        <StatMini label="Pending Deployment" value={cases.filter(c => c.status === 'Pending').length.toString().padStart(2, '0')} color="text-orange-600" />
+        <StatMini label="Under Investigation" value={cases.filter(c => c.status === 'Under Investigation').length.toString().padStart(2, '0')} color="text-emerald-600" />
+      </div>
+
+      {/* --- NAVIGATION TABS --- */}
+      <div className="flex items-center gap-2 bg-white p-2 rounded-[1.5rem] border border-slate-100 shadow-sm overflow-x-auto no-scrollbar">
+        {tabs.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+              activeTab === tab 
+                ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' 
+                : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+            }`}
+          >
+            {tab}
+            <span className={`ml-2 px-2 py-0.5 rounded-md text-[8px] ${activeTab === tab ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                {cases.filter(c => c.status === tab).length}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* --- TABLE CONTAINER --- */}
@@ -96,7 +121,7 @@ export default function FreshCasePoliceTable() {
           <div>
             <h2 className="text-xl font-black text-slate-800 flex items-center gap-3">
               <span className="p-2 bg-green-50 rounded-lg text-[#08B36A]"><FaShieldAlt /></span>
-              Active Incident Registry
+              {activeTab} Incident Registry
             </h2>
             <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">HQ Command Monitoring</p>
           </div>
@@ -106,7 +131,7 @@ export default function FreshCasePoliceTable() {
               <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
               <input 
                 type="text" 
-                placeholder="Search Case No or Victim..." 
+                placeholder={`Search in ${activeTab}...`} 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#08B36A]/20 transition-all"
@@ -133,7 +158,7 @@ export default function FreshCasePoliceTable() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredCases.map((item) => (
+              {filteredCases.length > 0 ? filteredCases.map((item) => (
                 <tr 
                   key={item._id} 
                   onClick={() => handleOpenDetails(item)}
@@ -186,13 +211,22 @@ export default function FreshCasePoliceTable() {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                    <td colSpan="5" className="p-20 text-center">
+                        <div className="flex flex-col items-center opacity-20">
+                            <FaFolderOpen size={40} className="mb-4" />
+                            <p className="text-xs font-black uppercase tracking-[0.2em]">No {activeTab} Cases Found</p>
+                        </div>
+                    </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
         <div className="p-4 border-t border-slate-50 bg-slate-50/30 flex justify-between items-center">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Database Record Count: {filteredCases.length}</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Tab Records: {filteredCases.length}</span>
           <div className="flex gap-2">
             <button className="px-3 py-1 text-[10px] font-black text-slate-500 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 transition-colors">Prev</button>
             <button className="px-3 py-1 text-[10px] font-black text-slate-500 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 transition-colors">Next</button>
