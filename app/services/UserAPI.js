@@ -549,6 +549,11 @@ const UserAPI = {
     nurseDeliveryConfig: async (id) => {
         const response = await authApi.get(`user/nurse/delivery-config/${id}`);
         return response.data
+    },
+
+    nurseFinalBooking: async (data) => {
+        const response = await authApi.post(`/user/nurse/book`, data);
+        return response.data
     }
 
 
