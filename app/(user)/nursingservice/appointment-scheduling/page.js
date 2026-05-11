@@ -78,14 +78,14 @@ function AppointmentSchedulingContent() {
 
     const handleFinalBooking = async (summaryData) => {
         try {
-            const { isExpress, expressCharge, appliedCoupon, finalTotal } = summaryData;
+            const { isExpress, expressCharge, appliedCoupon, discountAmount, finalTotal } = summaryData;
 
             const finalPayload = {
-                userId: bookingData.userId, // Ensure this exists in your bookingData session
+                userId: bookingData.userId,
                 nurseId: bookingData.nurseId,
                 serviceId: bookingData.serviceId || null,
                 packageId: bookingData.packageId || null,
-                
+
                 serviceDetails: bookingData.serviceDetails,
                 patients: bookingData.patients,
                 assessmentLocation: bookingData.assessmentLocation,
@@ -104,7 +104,8 @@ function AppointmentSchedulingContent() {
                     slotSurcharge: slotInfo.extraFee,
                     consumableTotal: selectedConsumables.reduce((sum, item) => sum + (item.price || 0), 0),
                     fasterServiceCharge: expressCharge,
-                    taxAmount: 0, // Set this if you calculate tax specifically
+                    discountAmount: Math.round(discountAmount || 0),
+                    taxAmount: 0,
                     totalPrice: Math.round(finalTotal)
                 },
 
@@ -128,17 +129,16 @@ function AppointmentSchedulingContent() {
                 status: "Pending"
             };
 
-            const res = await UserAPI.createNurseBooking(finalPayload);
+            const res = await UserAPI.nurseFinalBooking(finalPayload);
             if (res?.success) {
-                const res = await UserAPI.nurseFinalBooking(finalPayload);
                 sessionStorage.removeItem("pendingNurseBooking");
                 alert("Booking Created Successfully!");
-                
-                // router.push('/profile/bookings'); // Or success page
+                // router.push('/profile/bookings');
             } else {
                 alert(res?.message || "Booking failed");
             }
         } catch (error) {
+            console.error("Booking Error:", error);
             alert("Something went wrong");
         }
     };
