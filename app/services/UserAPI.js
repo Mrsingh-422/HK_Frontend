@@ -527,14 +527,6 @@ const UserAPI = {
         const response = await authApi.post("/user/nurse/book", payload);
         return response.data;
     },
-    // getFamilyMembers: async () => {
-    //     const response = await authApi.get("/api/auth/user/profile"); // or your specific endpoint
-    //     return response.data;
-    // },
-    getUserAddresses: async () => {
-        const response = await authApi.get("/api/auth/user/addresses");
-        return response.data;
-    },
     getNurseCoupon: async (id) => {
         const response = await authApi.get(`/user/nurse/coupons/${id}`);
         return response.data;
