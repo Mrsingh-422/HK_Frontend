@@ -12,13 +12,9 @@ const BASE_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}`;
 
 function BookingDetailsContent() {
     const router = useRouter();
-
-    // Data from previous screen (stored in Session Storage)
     const [initialData, setInitialData] = useState(null);
     const [familyMembers, setFamilyMembers] = useState([]);
     const [loading, setLoading] = useState(true);
-
-    // Selection & Form States (Aligned with your Mongoose Schema)
     const [selectedFamilyId, setSelectedFamilyId] = useState(null);
     const [location, setLocation] = useState("At Home");
     
@@ -30,28 +26,24 @@ function BookingDetailsContent() {
     });
 
     const [healthDetails, setHealthDetails] = useState({
-        height: "", // Schema uses height
+        height: "",
         dob: "",
         language: "English",
         instructions: ""
     });
 
-    // 1. Load Data on Mount
     useEffect(() => {
         const fetchBookingData = async () => {
             try {
                 setLoading(true);
-                
-                // Get Nurse/Service info from storage
                 const savedData = sessionStorage.getItem("pendingNurseBooking");
                 if (savedData) {
                     setInitialData(JSON.parse(savedData));
                 } else {
-                    // Redirect back if no service is selected
                     router.push("/nursingservice");
+                    return;
                 }
 
-                // Get Family Members from API
                 const familyRes = await UserAPI.getFamilyMembers();
                 if (familyRes?.success) {
                     setFamilyMembers(familyRes.data);
@@ -66,7 +58,6 @@ function BookingDetailsContent() {
         fetchBookingData();
     }, [router]);
 
-    // 2. Handle Family Member Selection
     const handleSelectFamily = (member) => {
         setSelectedFamilyId(member._id);
         setPatientDetails({
@@ -76,19 +67,21 @@ function BookingDetailsContent() {
             relation: member.relation || "Other"
         });
         
-        // If your family member object has DOB, map it
         if(member.dob) {
-            setHealthDetails(prev => ({ ...prev, dob: member.dob.split('T')[0] }));
+            const dobDate = new Date(member.dob);
+            const formattedDob = dobDate.toISOString().split('T')[0];
+            setHealthDetails(prev => ({ ...prev, dob: formattedDob }));
         }
     };
 
-    // 3. Navigate to Scheduling
     const handleNextStep = () => {
-        if (!patientDetails.fullName || !patientDetails.age) {
-            return alert("Please fill in patient details");
+        if (!patientDetails.fullName) {
+            return alert("Please enter patient's full name");
+        }
+        if (!patientDetails.age) {
+            return alert("Please enter patient's age");
         }
 
-        // Merge initial data with this page's form data
         const updatedBooking = {
             ...initialData,
             assessmentLocation: location,
@@ -101,16 +94,13 @@ function BookingDetailsContent() {
             }],
             healthDetails: {
                 height: healthDetails.height,
-                dob: healthDetails.dob,
+                dob: healthDetails.dob || null,
                 language: healthDetails.language,
                 specialInstructions: healthDetails.instructions
             }
         };
 
-        // Save updated object back to session storage
         sessionStorage.setItem("pendingNurseBooking", JSON.stringify(updatedBooking));
-
-        // Navigate to Scheduling screen
         router.push(`/nursingservice/appointment-scheduling`);
     };
 
@@ -123,14 +113,13 @@ function BookingDetailsContent() {
     }
 
     const getImageUrl = (path) => {
-        if (!path) return "https://img.freepik.com/free-photo/medical-specialist-taking-care-patient_23-2148962551.jpg";
+        if (!path) return "https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=2070&auto=format&fit=crop";
         if (path.startsWith("http")) return path;
         return `${BASE_URL}/${path.replace(/^public\//, "")}`.replace(/([^:]\/)\/+/g, "$1");
     };
 
     return (
         <div className="min-h-screen bg-[#FDFEFF] font-sans pb-20">
-            {/* Header */}
             <div className="bg-white border-b border-slate-100 py-6 px-6 sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto flex items-center gap-4">
                     <button onClick={() => router.back()} className="text-slate-900 p-2 hover:bg-slate-100 rounded-full transition-all">
@@ -142,11 +131,7 @@ function BookingDetailsContent() {
 
             <div className="max-w-7xl mx-auto px-6 mt-8">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-
-                    {/* Left Column: Form Details */}
                     <div className="lg:col-span-8 space-y-8">
-                        
-                        {/* 1. Service Hero Card */}
                         <div className="bg-[#E6F7F1] rounded-[2.5rem] p-8 flex items-center justify-between overflow-hidden relative">
                             <div className="space-y-3 max-w-[60%] relative z-10">
                                 <h2 className="text-2xl font-black text-[#0D5F46] leading-tight">
@@ -170,7 +155,6 @@ function BookingDetailsContent() {
                             />
                         </div>
 
-                        {/* 2. Family Members */}
                         <section className="space-y-4">
                             <h3 className="font-black text-slate-800 ml-2">Who is this appointment for?</h3>
                             <div className="flex items-start gap-6 overflow-x-auto pb-4 custom-scrollbar">
@@ -197,7 +181,6 @@ function BookingDetailsContent() {
                             </div>
                         </section>
 
-                        {/* 3. Assessment Location */}
                         <section className="bg-[#F1F9F6] p-6 rounded-[2rem] space-y-4">
                             <h4 className="text-sm font-black text-slate-800">Assessment Location</h4>
                             <div className="relative">
@@ -213,7 +196,6 @@ function BookingDetailsContent() {
                             </div>
                         </section>
 
-                        {/* 4. Patient Details */}
                         <section className="bg-[#FFF9F1] p-6 rounded-[2rem] space-y-5">
                             <h4 className="text-sm font-black text-slate-800">Patient Details</h4>
                             <div className="space-y-4">
@@ -268,7 +250,6 @@ function BookingDetailsContent() {
                             </div>
                         </section>
 
-                        {/* 5. Health Details (Aligned to Schema) */}
                         <section className="bg-[#FFF1F1] p-6 rounded-[2rem] space-y-5">
                             <h4 className="text-sm font-black text-slate-800">Health Details</h4>
                             <div className="grid grid-cols-2 gap-4">
@@ -301,6 +282,7 @@ function BookingDetailsContent() {
                                 >
                                     <option>English</option>
                                     <option>Hindi</option>
+                                    <option>Punjabi</option>
                                     <option>Local Language</option>
                                 </select>
                             </div>
@@ -316,7 +298,6 @@ function BookingDetailsContent() {
                         </section>
                     </div>
 
-                    {/* Right Column: Summary Card */}
                     <div className="lg:col-span-4">
                         <div className="bg-slate-900 rounded-[3rem] p-8 text-white sticky top-28 shadow-2xl overflow-hidden">
                             <h3 className="text-xl font-black mb-8">Booking Summary</h3>
@@ -329,6 +310,13 @@ function BookingDetailsContent() {
                                     <p className="text-[10px] font-black uppercase text-teal-400 tracking-widest">Selected Item</p>
                                     <p className="text-sm font-black">{initialData.serviceDetails?.title}</p>
                                 </div>
+
+                                {patientDetails.fullName && (
+                                    <div className="bg-white/5 p-4 rounded-2xl space-y-1">
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Patient</p>
+                                        <p className="font-bold text-sm">{patientDetails.fullName}, {patientDetails.age} yrs</p>
+                                    </div>
+                                )}
 
                                 <div className="bg-white/5 p-4 rounded-2xl flex items-center gap-4">
                                     <div className="w-10 h-10 rounded-full bg-teal-500/20 flex items-center justify-center text-teal-400">
@@ -358,7 +346,6 @@ function BookingDetailsContent() {
                             </div>
                         </div>
                     </div>
-
                 </div>
             </div>
             

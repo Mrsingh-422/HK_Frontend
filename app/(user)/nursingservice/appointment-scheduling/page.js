@@ -6,17 +6,17 @@ import { FaArrowLeft, FaShieldAlt } from "react-icons/fa";
 import AddressSelector from "../othercomponents/AddressSelector";
 import BookingSummary from "../othercomponents/BookingSummary";
 import SlotPicker from "../othercomponents/SlotPicker";
+import ConsumablesPicker from "../othercomponents/ConsumablesPicker";
 import UserAPI from "@/app/services/UserAPI";
 
 function AppointmentSchedulingContent() {
     const router = useRouter();
-
-    // Data from previous screens
     const [bookingData, setBookingData] = useState(null);
     const [loading, setLoading] = useState(true);
-
-    // Local states for this screen
-    const [selectedAddress, setSelectedAddress] = useState(null); 
+    const [selectedAddress, setSelectedAddress] = useState(null);
+    const [selectedConsumables, setSelectedConsumables] = useState([]);
+    const [availableConsumables, setAvailableConsumables] = useState([]);
+    const [consumablesLoading, setConsumablesLoading] = useState(false);
     const [slotInfo, setSlotInfo] = useState({
         mode: "One day One Time",
         startDate: "",
@@ -30,33 +30,114 @@ function AppointmentSchedulingContent() {
     useEffect(() => {
         const savedData = sessionStorage.getItem("pendingNurseBooking");
         if (savedData) {
-            setBookingData(JSON.parse(savedData));
+            const parsedData = JSON.parse(savedData);
+            setBookingData(parsedData);
+            // Fetch consumables based on service/package
+            fetchConsumables(parsedData);
         } else {
             router.push("/nursingservice");
         }
         setLoading(false);
     }, [router]);
 
-    const handleFinalBooking = async () => {
-        if (!selectedAddress) return alert("Please select a visit address");
+    const fetchConsumables = async (data) => {
+        try {
+            setConsumablesLoading(true);
+            // Fetch nurse details to get consumables
+            const response = await UserAPI.nurseServiceDetail(data.nurseId);
+            
+            if (response?.success) {
+                let consumables = [];
+                
+                // If service is selected, get consumables from that service
+                if (data.serviceId && response.data.services) {
+                    const selectedService = response.data.services.find(
+                        service => service._id === data.serviceId
+                    );
+                    if (selectedService?.consumablesUsed) {
+                        consumables = selectedService.consumablesUsed;
+                    }
+                }
+                // If package is selected, aggregate consumables from all services in package
+                else if (data.packageId && response.data.packages) {
+                    const selectedPackage = response.data.packages.find(
+                        pkg => pkg._id === data.packageId
+                    );
+                    if (selectedPackage?.includedServices && response.data.services) {
+                        // Find all services in the package and get their consumables
+                        const packageServices = response.data.services.filter(
+                            service => selectedPackage.includedServices.includes(service.title)
+                        );
+                        packageServices.forEach(service => {
+                            if (service.consumablesUsed) {
+                                consumables.push(...service.consumablesUsed);
+                            }
+                        });
+                        // Remove duplicates if any
+                        consumables = consumables.filter((item, index, self) =>
+                            index === self.findIndex(i => i.masterItemId?._id === item.masterItemId?._id)
+                        );
+                    }
+                }
+                
+                setAvailableConsumables(consumables);
+            }
+        } catch (error) {
+            console.error("Error fetching consumables:", error);
+        } finally {
+            setConsumablesLoading(false);
+        }
+    };
+
+    const handleToggleConsumable = (consumable) => {
+        const consumableId = consumable.masterItemId?._id || consumable._id;
+        const existingIndex = selectedConsumables.findIndex(
+            item => (item.consumableId === consumableId)
+        );
         
-        // Validation based on mode
-        if (!slotInfo.startDate) return alert("Please select a date");
+        if (existingIndex >= 0) {
+            // Remove if already selected
+            setSelectedConsumables(prev => prev.filter((_, idx) => idx !== existingIndex));
+        } else {
+            // Add new consumable
+            setSelectedConsumables(prev => [
+                ...prev,
+                {
+                    consumableId: consumableId,
+                    itemName: consumable.masterItemId?.itemName || consumable.itemName,
+                    price: consumable.finalPrice || consumable.price || 0,
+                    unitType: consumable.masterItemId?.unitType || consumable.unitType || "Piece"
+                }
+            ]);
+        }
+    };
+
+    const handleFinalBooking = async () => {
+        if (!selectedAddress) {
+            alert("Please select a visit address");
+            return;
+        }
+        
+        if (!slotInfo.startDate) {
+            alert("Please select a date");
+            return;
+        }
+        
         if (slotInfo.mode !== "For Multiple Days" && !slotInfo.startTime) {
-            return alert("Please select a time slot");
+            alert("Please select a time slot");
+            return;
         }
 
         try {
-            // CALCULATE PRICE BREAKDOWN FOR SCHEMA
             const basePrice = bookingData.basePrice || 0;
             const slotSurcharge = slotInfo.extraFee || 0;
-            const taxAmount = (basePrice + slotSurcharge) * 0.05; // 5% tax example
-            const finalTotal = basePrice + slotSurcharge + taxAmount;
+            const consumableTotal = selectedConsumables.reduce((sum, item) => sum + (item.price || 0), 0);
+            const taxAmount = (basePrice + slotSurcharge + consumableTotal) * 0.05;
+            const finalTotal = basePrice + slotSurcharge + consumableTotal + taxAmount;
 
-            // CONSTRUCT PAYLOAD EXACTLY AS PER MONGOOSE SCHEMA
             const finalPayload = {
                 nurseId: bookingData.nurseId,
-                serviceId: bookingData.serviceId, 
+                serviceId: bookingData.serviceId,
                 packageId: bookingData.packageId,
                 
                 serviceDetails: bookingData.serviceDetails,
@@ -65,11 +146,11 @@ function AppointmentSchedulingContent() {
                 healthDetails: bookingData.healthDetails,
 
                 schedule: {
-                    startDate: slotInfo.startDate, 
+                    startDate: slotInfo.startDate,
                     endDate: slotInfo.endDate || slotInfo.startDate,
-                    startTime: slotInfo.startTime || "09:00", 
-                    endTime: slotInfo.endTime || "18:00",     
-                    duration: slotInfo.mode                   
+                    startTime: slotInfo.startTime || "09:00",
+                    endTime: slotInfo.endTime || "18:00",
+                    duration: slotInfo.mode
                 },
 
                 address: {
@@ -77,7 +158,7 @@ function AppointmentSchedulingContent() {
                     phone: selectedAddress.phone,
                     houseNo: selectedAddress.houseNo,
                     sector: selectedAddress.sector,
-                    landmark: selectedAddress.landmark,
+                    landmark: selectedAddress.landmark || "",
                     city: selectedAddress.city,
                     state: selectedAddress.state,
                     country: selectedAddress.country || "India",
@@ -87,41 +168,44 @@ function AppointmentSchedulingContent() {
 
                 priceBreakdown: {
                     baseServicePrice: basePrice,
-                    slotSurcharge: slotSurcharge, // Extra fees from premium dates/slots
-                    consumableTotal: 0,
+                    slotSurcharge: slotSurcharge,
+                    consumableTotal: consumableTotal,
                     fasterServiceCharge: 0,
-                    taxAmount: taxAmount,
-                    totalPrice: finalTotal
+                    taxAmount: Math.round(taxAmount),
+                    totalPrice: Math.round(finalTotal)
                 },
 
                 basePrice: basePrice,
-                totalPrice: finalTotal,
-                selectedConsumables: [],
-                needConsumable: false,
-                status: "Pending" 
+                totalPrice: Math.round(finalTotal),
+                selectedConsumables: selectedConsumables,
+                needConsumable: selectedConsumables.length > 0,
+                status: "Pending"
             };
 
-            console.log("Final Payload for Backend:", finalPayload);
+            console.log("Final Payload for Backend:", JSON.stringify(finalPayload, null, 2));
 
             const res = await UserAPI.createNurseBooking(finalPayload);
             
             if (res?.success) {
-                sessionStorage.removeItem("pendingNurseBooking"); 
-                router.push(`/nursingservice/booking-success?id=${res.data.bookingId}`);
+                sessionStorage.removeItem("pendingNurseBooking");
+                alert("Done");
+                // router.push(`/nursingservice/booking-success?id=${res.data.bookingId}`);
             } else {
                 alert(res?.message || "Booking failed. Please try again.");
             }
         } catch (error) {
             console.error("Final Booking Error:", error);
-            alert("Something went wrong while creating your booking.");
+            alert(error?.response?.data?.message || "Something went wrong while creating your booking.");
         }
     };
 
-    if (loading || !bookingData) return (
-        <div className="min-h-screen flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-teal-500"></div>
-        </div>
-    );
+    if (loading || !bookingData) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-teal-500"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#FDFEFF] font-sans pb-20">
@@ -138,8 +222,8 @@ function AppointmentSchedulingContent() {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
                     <div className="lg:col-span-8 space-y-10">
                         <AddressSelector
-                            selectedAddressId={selectedAddress?._id}
-                            onSelect={(addrObj) => setSelectedAddress(addrObj)} 
+                            selectedAddress={selectedAddress}
+                            onSelect={(addr) => setSelectedAddress(addr)}
                         />
 
                         <SlotPicker
@@ -148,6 +232,25 @@ function AppointmentSchedulingContent() {
                             isPackage={!!bookingData.packageId}
                             onSlotSelect={(info) => setSlotInfo(info)}
                         />
+
+                        {/* Consumables Section */}
+                        {!consumablesLoading && availableConsumables.length > 0 && (
+                            <ConsumablesPicker
+                                items={availableConsumables}
+                                selectedItems={selectedConsumables}
+                                onToggle={handleToggleConsumable}
+                            />
+                        )}
+
+                        {consumablesLoading && (
+                            <div className="bg-white rounded-[2rem] p-6 border border-slate-100">
+                                <div className="animate-pulse space-y-4">
+                                    <div className="h-6 bg-slate-200 rounded w-1/3"></div>
+                                    <div className="h-16 bg-slate-200 rounded"></div>
+                                    <div className="h-16 bg-slate-200 rounded"></div>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="bg-slate-50 border border-slate-100 p-6 rounded-[2rem] flex items-start gap-4">
                             <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-teal-500 flex-shrink-0">
@@ -166,7 +269,8 @@ function AppointmentSchedulingContent() {
                         <BookingSummary
                             bookingData={bookingData}
                             slotInfo={slotInfo}
-                            selectedAddressId={selectedAddress?._id}
+                            selectedAddress={selectedAddress}
+                            selectedConsumables={selectedConsumables}
                             onProceed={handleFinalBooking}
                         />
                     </div>

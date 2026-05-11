@@ -519,7 +519,7 @@ const UserAPI = {
         const response = await publicApi.get(`/user/nurse/availability/${nurseId}?${query}`);
         return response.data;
     },
-    getCheckoutBreakdown: async (payload) => {
+    createNurseBooking: async (payload) => {
         const response = await authApi.post("/user/nurse/checkout", payload);
         return response.data;
     },
@@ -534,8 +534,17 @@ const UserAPI = {
     getUserAddresses: async () => {
         const response = await authApi.get("/api/auth/user/addresses");
         return response.data;
-    }
+    },
+    getNurseCoupon: async (id) => {
+        const response = await authApi.get(`/user/nurse/coupons/${id}`);
+        return response.data;
+    },
 
+    validateNurseCoupon: async (data) => {
+        // data = { couponCode, nurseId, totalAmount }
+        const response = await authApi.post("user/nurse/validate-coupon", data); // Replace with your actual endpoint 
+        return response.data;
+    },
 
 
 
