@@ -14,12 +14,12 @@ export default function BookingSummary({ bookingData, slotInfo, selectedAddress,
     const [deliveryConfig, setDeliveryConfig] = useState(null);
     const [isExpress, setIsExpress] = useState(false);
 
-    const basePrice = bookingData.basePrice || 0;
-    const slotSurcharge = slotInfo.extraFee || 0;
+    // LOGIC UPDATE: Use slotInfo.totalPrice which already handles (Base * Days/Hours)
+    const serviceBaseTotal = slotInfo.totalPrice || 0;
     const consumableTotal = selectedConsumables.reduce((sum, item) => sum + (item.price || 0), 0);
     const expressCharge = isExpress ? (deliveryConfig?.fastDeliveryExtra || 0) : 0;
     
-    const subTotal = basePrice + slotSurcharge + consumableTotal + expressCharge;
+    const subTotal = serviceBaseTotal + consumableTotal + expressCharge;
 
     useEffect(() => {
         const fetchData = async () => {
@@ -109,6 +109,7 @@ export default function BookingSummary({ bookingData, slotInfo, selectedAddress,
             </div>
 
             <div className="space-y-6">
+                {/* Express Service Option */}
                 <div 
                     onClick={() => setIsExpress(!isExpress)}
                     className={`p-4 rounded-[2rem] border-2 cursor-pointer transition-all flex items-center justify-between ${
@@ -129,6 +130,7 @@ export default function BookingSummary({ bookingData, slotInfo, selectedAddress,
                     </p>
                 </div>
 
+                {/* Coupon Section */}
                 <div className="space-y-4 bg-white/5 p-5 rounded-[2.5rem] border border-white/5">
                     <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Coupons</p>
                     {!appliedCoupon ? (
@@ -163,19 +165,42 @@ export default function BookingSummary({ bookingData, slotInfo, selectedAddress,
                     )}
                 </div>
 
+                {/* Price Breakdown */}
                 <div className="bg-white/5 p-6 rounded-[2.5rem] border border-white/5 space-y-3">
                     <div className="flex justify-between text-[11px]">
-                        <span className="text-slate-400">Base Service Fee</span>
-                        <span className="font-black">₹{basePrice}</span>
+                        <span className="text-slate-400">
+                            {slotInfo.mode === "For Multiple Days" ? "Service Fee (Multi-Day)" : 
+                             slotInfo.mode === "Acc. To Per/Hours" ? "Service Fee (Hourly)" : "Base Service Fee"}
+                        </span>
+                        <span className="font-black">₹{serviceBaseTotal}</span>
                     </div>
-                    {slotSurcharge > 0 && <div className="flex justify-between text-[11px] text-amber-400"><span>Premium Slot</span><span>+ ₹{slotSurcharge}</span></div>}
-                    {consumableTotal > 0 && <div className="flex justify-between text-[11px] text-teal-400"><span>Consumables</span><span>+ ₹{consumableTotal}</span></div>}
-                    {isExpress && <div className="flex justify-between text-[11px] text-teal-400"><span>Express Fee</span><span>+ ₹{expressCharge}</span></div>}
-                    {appliedCoupon && <div className="flex justify-between text-[11px] text-teal-400"><span>Discount</span><span>- ₹{Math.round(discountAmount)}</span></div>}
+                    
+                    {/* Surcharge is now bundled in totalPrice from SlotPicker, 
+                        but if you want to show specifically the extra fees separately: */}
+                    {consumableTotal > 0 && (
+                        <div className="flex justify-between text-[11px] text-teal-400">
+                            <span>Consumables</span>
+                            <span>+ ₹{consumableTotal}</span>
+                        </div>
+                    )}
+                    
+                    {isExpress && (
+                        <div className="flex justify-between text-[11px] text-teal-400">
+                            <span>Express Fee</span>
+                            <span>+ ₹{expressCharge}</span>
+                        </div>
+                    )}
+                    
+                    {appliedCoupon && (
+                        <div className="flex justify-between text-[11px] text-teal-400">
+                            <span>Discount ({appliedCoupon.discountPercentage}%)</span>
+                            <span>- ₹{Math.round(discountAmount)}</span>
+                        </div>
+                    )}
                     
                     <div className="pt-4 border-t border-white/10 flex justify-between items-end">
                         <div>
-                            <p className="text-[9px] font-black text-slate-500 uppercase leading-none mb-1">Total</p>
+                            <p className="text-[9px] font-black text-slate-500 uppercase leading-none mb-1">Total Amount</p>
                             <span className="text-3xl font-black text-teal-400">₹{Math.round(finalTotal)}</span>
                         </div>
                     </div>
@@ -187,11 +212,12 @@ export default function BookingSummary({ bookingData, slotInfo, selectedAddress,
                         expressCharge,
                         appliedCoupon,
                         discountAmount,
-                        finalTotal
+                        finalTotal,
+                        subTotal
                     })}
                     disabled={!isSelectionValid()}
                     className={`w-full py-5 rounded-[2.5rem] font-black shadow-xl flex flex-col items-center justify-center transition-all ${
-                        !isSelectionValid() ? "bg-slate-800 text-slate-600" : "bg-teal-500 text-white"
+                        !isSelectionValid() ? "bg-slate-800 text-slate-600" : "bg-teal-500 text-white hover:bg-teal-400"
                     }`}
                 >
                     <span className="text-base">Confirm & Book</span>

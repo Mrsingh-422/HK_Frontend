@@ -53,7 +53,6 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
         if (mode === "One day One Time") {
             const baseOneDay = avail.prices?.oneDayFinal || 0;
             if (selectedSlot) {
-                // Calculation: Base One Day + Date Surcharge + Slot Premium
                 totalSurcharge = dateExtra + (selectedSlot.slotPremiumFee || 0); 
                 startTime = selectedSlot.time;
                 endTime = moment(selectedSlot.time, "HH:mm").add(1, 'hour').format("HH:mm");
@@ -68,7 +67,6 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                 const hours = moment(endTime, "HH:mm").diff(moment(startTime, "HH:mm"), 'hours');
                 const validHours = hours > 0 ? hours : 1;
                 
-                // Calculation: (Hourly Base * Hours) + Date Surcharge + Slot Premium
                 totalSurcharge = dateExtra + (hourlyStartSlot.slotPremiumFee || 0);
                 calculatedTotalPrice = (baseHourly * validHours) + totalSurcharge;
             }
@@ -78,19 +76,25 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
             let rangeSurcharge = 0;
             let daysCount = 0;
 
-            // Iterate through calendar to sum up extra fees for all days in selected range
-            avail.calendar?.forEach(c => {
-                const cDate = moment(c.date);
-                if (cDate.isBetween(moment(startDate), moment(endDate), 'day', '[]')) {
-                    rangeSurcharge += (c.pricing?.extraFee || 0);
-                    daysCount++;
+            let tempDate = moment(startDate).clone();
+            let end = moment(endDate);
+            
+            while (tempDate.isSameOrBefore(end, 'day')) {
+                daysCount++;
+                const dStr = tempDate.format('YYYY-MM-DD');
+                const dayData = avail.calendar?.find(c => c.date === dStr);
+                
+                if (dayData?.pricing?.extraFee) {
+                    rangeSurcharge += dayData.pricing.extraFee;
                 }
-            });
+                tempDate.add(1, 'day');
+            }
 
-            // Calculation: (Multi-day Base * Total Days) + Sum of all Extra Fees in range
             totalSurcharge = rangeSurcharge;
             startTime = "09:00"; 
             endTime = "18:00";
+            
+            // Fixed Logic: Multiply (Base Multi Price * Days) then add the sum of Premiums
             calculatedTotalPrice = (baseMulti * daysCount) + rangeSurcharge;
         }
 
@@ -104,7 +108,7 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
             totalPrice: calculatedTotalPrice,
             displayTime: mode === "One day One Time" ? selectedSlot?.displayTime : 
                          mode === "Acc. To Per/Hours" ? (hourlyStartSlot && hourlyEndSlot ? `${hourlyStartSlot.displayTime} - ${hourlyEndSlot.displayTime}` : "") :
-                         (startDate && endDate ? `${moment(startDate).format('DD MMM')} - ${moment(endDate).format('DD MMM')}` : "")
+                         (startDate && endDate ? `${moment(startDate).format('DD MMM')} - ${moment(endDate).format('DD MMM')} (${moment(endDate).diff(moment(startDate), 'days') + 1} Days)` : "")
         });
     }, [startDate, endDate, selectedSlot, hourlyStartSlot, hourlyEndSlot, mode, avail]);
 
@@ -142,7 +146,6 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
         <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
             <h3 className="text-lg font-black text-slate-800 mb-6">Select Schedule</h3>
 
-            {/* Mode Switcher with Base Prices */}
             <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8">
                 {[
                     {id: 'One day One Time', label: 'Single', price: avail?.prices?.oneDayFinal},
@@ -160,7 +163,6 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                 ))}
             </div>
 
-            {/* Month Navigation */}
             <div className="flex items-center justify-between mb-6 px-2">
                 <button onClick={() => setCurrentMonth(currentMonth.clone().subtract(1, 'month'))} className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center transition-all hover:bg-slate-100">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -171,7 +173,6 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                 </button>
             </div>
 
-            {/* Calendar Grid */}
             <div className="grid grid-cols-7 gap-2 mb-8">
                 {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, idx) => (
                     <div key={idx} className="text-[10px] font-black text-slate-300 text-center py-2">{d}</div>
@@ -210,7 +211,6 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                 })}
             </div>
 
-            {/* Arrival Time Dropdown for Single Mode */}
             {mode === "One day One Time" && startDate && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Arrival Time</h4>
@@ -229,7 +229,6 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                 </div>
             )}
 
-            {/* Hourly Slot Grid */}
             {mode === "Acc. To Per/Hours" && startDate && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
