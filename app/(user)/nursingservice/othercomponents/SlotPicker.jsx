@@ -9,16 +9,12 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [currentMonth, setCurrentMonth] = useState(moment()); // Track current month for navigation
+    const [currentMonth, setCurrentMonth] = useState(moment("2026-05-01")); // Set to May 2026 based on your data
 
-    // One day One Time selection
     const [selectedSlot, setSelectedSlot] = useState(null);
-
-    // Hourly selection
     const [hourlyStartSlot, setHourlyStartSlot] = useState(null);
     const [hourlyEndSlot, setHourlyEndSlot] = useState(null);
 
-    // 1. Fetch available slots
     useEffect(() => {
         const fetchAvail = async () => {
             try {
@@ -28,12 +24,11 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                     "For Multiple Days": "For Multiple Days",
                     "Acc. To Per/Hours": "Acc. To Per/Hours"
                 };
-                const apiType = typeMapping[mode];
-                const query = `serviceId=${!isPackage ? itemId : ''}&packageId=${isPackage ? itemId : ''}&isPackage=${isPackage}&type=${apiType}`;
+                const query = `serviceId=${!isPackage ? itemId : ''}&packageId=${isPackage ? itemId : ''}&isPackage=${isPackage}&type=${typeMapping[mode]}`;
                 
                 const res = await UserAPI.getNurseSlots(nurseId, query);
                 if (res.success) {
-                    setAvail(res); 
+                    setAvail(res.data);
                 }
             } catch (err) {
                 console.error("Failed to fetch slots:", err);
@@ -44,53 +39,48 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
         if (nurseId && itemId) fetchAvail();
     }, [mode, nurseId, itemId, isPackage]);
 
-    // 2. Calculation Logic
     useEffect(() => {
-        if (!startDate) return;
+        if (!startDate || !avail) return;
 
         let totalSurcharge = 0;
         let startTime = "";
         let endTime = "";
-        let calculatedTotalPrice = avail?.serviceBasePrice || 0;
+        let calculatedTotalPrice = 0;
 
-        // Current Date Premium
-        const datePrem = avail?.premiumDates?.find(p => p.date === startDate);
-        const dateExtra = datePrem ? datePrem.extraFee : 0;
+        const dateData = avail.calendar?.find(c => c.date === startDate);
+        const dateExtra = dateData?.pricing?.extraFee || 0;
 
         if (mode === "One day One Time") {
             if (selectedSlot) {
-                // FIXED: For Single mode, only add date extra fee, NOT the slot premium surcharge
-                totalSurcharge = dateExtra; // Removed selectedSlot.premiumSurcharge
+                totalSurcharge = dateExtra; 
                 startTime = selectedSlot.time;
                 endTime = moment(selectedSlot.time, "HH:mm").add(1, 'hour').format("HH:mm");
-                calculatedTotalPrice = selectedSlot.totalSlotPrice + dateExtra;
+                calculatedTotalPrice = selectedSlot.totalHourlyPrice + dateExtra;
             }
         } 
         else if (mode === "Acc. To Per/Hours") {
+            const baseHourly = avail.prices?.hourlyFinal || 0;
             if (hourlyStartSlot && hourlyEndSlot) {
                 startTime = hourlyStartSlot.time;
                 endTime = hourlyEndSlot.time;
-                const startM = moment(startTime, "HH:mm");
-                const endM = moment(endTime, "HH:mm");
-                const hours = endM.diff(startM, 'hours');
-
-                // Logic: Only FIRST slot premium is added, middle/end ignored (for Hourly mode)
-                totalSurcharge = dateExtra + (hourlyStartSlot.premiumSurcharge || 0);
-                calculatedTotalPrice = (avail.serviceBasePrice * (hours > 0 ? hours : 1)) + totalSurcharge;
+                const hours = moment(endTime, "HH:mm").diff(moment(startTime, "HH:mm"), 'hours');
+                totalSurcharge = dateExtra + (hourlyStartSlot.slotPremiumFee || 0);
+                calculatedTotalPrice = (baseHourly * (hours > 0 ? hours : 1)) + totalSurcharge;
             }
         }
         else if (mode === "For Multiple Days" && startDate && endDate) {
+            const baseMulti = avail.prices?.multipleDaysFinal || 0;
             let multiDaySurcharge = 0;
-            avail?.premiumDates?.forEach(p => {
-                if (moment(p.date).isBetween(startDate, endDate, 'day', '[]')) {
-                    multiDaySurcharge += p.extraFee;
+            avail.calendar?.forEach(c => {
+                if (moment(c.date).isBetween(startDate, endDate, 'day', '[]')) {
+                    multiDaySurcharge += c.pricing.extraFee;
                 }
             });
             const daysCount = moment(endDate).diff(moment(startDate), 'days') + 1;
             totalSurcharge = multiDaySurcharge;
             startTime = "09:00"; 
             endTime = "18:00";
-            calculatedTotalPrice = (avail.serviceBasePrice * daysCount) + multiDaySurcharge;
+            calculatedTotalPrice = (baseMulti * daysCount) + multiDaySurcharge;
         }
 
         onSlotSelect({
@@ -103,27 +93,21 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
             totalPrice: calculatedTotalPrice,
             displayTime: mode === "One day One Time" ? selectedSlot?.displayTime : 
                          mode === "Acc. To Per/Hours" ? (hourlyStartSlot && hourlyEndSlot ? `${hourlyStartSlot.displayTime} - ${hourlyEndSlot.displayTime}` : "") :
-                         "Full Day Service"
+                         (startDate && endDate ? "Full Day Service" : "")
         });
     }, [startDate, endDate, selectedSlot, hourlyStartSlot, hourlyEndSlot, mode, avail]);
 
-    // Handle Calendar Clicks - Keeping Multi-Day exactly as original
     const handleDateClick = (dStr) => {
-        if (mode === "One day One Time" || mode === "Acc. To Per/Hours") {
+        if (mode !== "For Multiple Days") {
             setStartDate(dStr);
             setEndDate(dStr);
-            setSelectedSlot(null); 
-            setHourlyStartSlot(null);
-            setHourlyEndSlot(null);
+            setSelectedSlot(null); setHourlyStartSlot(null); setHourlyEndSlot(null);
         } else {
-            // MULTI-DAY RANGE LOGIC
             if (!startDate || (startDate && endDate)) {
-                setStartDate(dStr);
-                setEndDate(null);
+                setStartDate(dStr); setEndDate(null);
             } else {
                 if (moment(dStr).isBefore(startDate)) {
-                    setStartDate(dStr);
-                    setEndDate(null);
+                    setStartDate(dStr); setEndDate(null);
                 } else {
                     setEndDate(dStr);
                 }
@@ -131,103 +115,52 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
         }
     };
 
-    const handleHourlySlotClick = (slot) => {
-        if (!hourlyStartSlot || (hourlyStartSlot && hourlyEndSlot)) {
-            setHourlyStartSlot(slot);
-            setHourlyEndSlot(null);
-        } else {
-            if (moment(slot.time, "HH:mm").isBefore(moment(hourlyStartSlot.time, "HH:mm"))) {
-                setHourlyStartSlot(slot);
-                setHourlyEndSlot(null);
-            } else {
-                setHourlyEndSlot(slot);
-            }
-        }
-    };
-
-    // Generate calendar days for current month
     const calendarDays = useMemo(() => {
-        const startOfMonth = currentMonth.clone().startOf('month');
-        const endOfMonth = currentMonth.clone().endOf('month');
-        const startDate = startOfMonth.clone().startOf('week');
-        const endDate = endOfMonth.clone().endOf('week');
-        
+        const start = currentMonth.clone().startOf('month').startOf('week');
+        const end = currentMonth.clone().endOf('month').endOf('week');
         const days = [];
-        let day = startDate;
-        
-        while (day.isBefore(endDate)) {
+        let day = start;
+        while (day.isBefore(end)) {
             days.push(day.clone());
             day.add(1, 'day');
         }
-        
         return days;
     }, [currentMonth]);
-
-    // Navigation handlers
-    const goToPreviousMonth = () => {
-        setCurrentMonth(currentMonth.clone().subtract(1, 'month'));
-    };
-
-    const goToNextMonth = () => {
-        setCurrentMonth(currentMonth.clone().add(1, 'month'));
-    };
-
-    const goToCurrentMonth = () => {
-        setCurrentMonth(moment());
-    };
 
     return (
         <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
             <h3 className="text-lg font-black text-slate-800 mb-6">Select Schedule</h3>
 
+            {/* Mode Switcher with Base Prices */}
             <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8">
-                {['One day One Time', 'For Multiple Days', 'Acc. To Per/Hours'].map((m) => (
+                {[
+                    {id: 'One day One Time', label: 'Single', price: avail?.prices?.oneDayFinal},
+                    {id: 'For Multiple Days', label: 'Multi-Day', price: avail?.prices?.multipleDaysFinal},
+                    {id: 'Acc. To Per/Hours', label: 'Hourly', price: avail?.prices?.hourlyFinal}
+                ].map((m) => (
                     <button
-                        key={m}
-                        onClick={() => { 
-                            setMode(m); setStartDate(null); setEndDate(null); 
-                            setSelectedSlot(null); setHourlyStartSlot(null); setHourlyEndSlot(null); 
-                        }}
-                        className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all ${mode === m ? "bg-white text-teal-600 shadow-sm" : "text-slate-400"}`}
+                        key={m.id}
+                        onClick={() => { setMode(m.id); setStartDate(null); setEndDate(null); setSelectedSlot(null); setHourlyStartSlot(null); setHourlyEndSlot(null); }}
+                        className={`flex-1 py-3 rounded-xl transition-all flex flex-col items-center ${mode === m.id ? "bg-white text-teal-600 shadow-sm" : "text-slate-400"}`}
                     >
-                        {m === 'One day One Time' ? 'Single' : m === 'For Multiple Days' ? 'Multi-Day' : 'Hourly'}
+                        <span className="text-[10px] font-black uppercase tracking-wider">{m.label}</span>
+                        <span className="text-[9px] font-bold">₹{m.price || '0'}</span>
                     </button>
                 ))}
             </div>
 
             {/* Month Navigation */}
             <div className="flex items-center justify-between mb-6 px-2">
-                <button
-                    onClick={goToPreviousMonth}
-                    className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-all"
-                >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
+                <button onClick={() => setCurrentMonth(currentMonth.clone().subtract(1, 'month'))} className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center transition-all hover:bg-slate-100">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                
-                <div className="flex items-center gap-3">
-                    <span className="text-sm font-black text-slate-800">
-                        {currentMonth.format('MMMM YYYY')}
-                    </span>
-                    <button
-                        onClick={goToCurrentMonth}
-                        className="text-[10px] font-black px-3 py-1.5 rounded-full bg-teal-50 text-teal-600 hover:bg-teal-100 transition-all"
-                    >
-                        Today
-                    </button>
-                </div>
-                
-                <button
-                    onClick={goToNextMonth}
-                    className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-all"
-                >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
+                <span className="text-sm font-black text-slate-800">{currentMonth.format('MMMM YYYY')}</span>
+                <button onClick={() => setCurrentMonth(currentMonth.clone().add(1, 'month'))} className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center transition-all hover:bg-slate-100">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                 </button>
             </div>
 
+            {/* Calendar Grid with Daily Prices */}
             <div className="grid grid-cols-7 gap-2 mb-8">
                 {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, idx) => (
                     <div key={idx} className="text-[10px] font-black text-slate-300 text-center py-2">{d}</div>
@@ -235,33 +168,38 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                 {calendarDays.map((date) => {
                     const dStr = date.format('YYYY-MM-DD');
                     const isCurrentMonth = date.month() === currentMonth.month();
-                    const datePremium = avail?.premiumDates?.find(p => p.date === dStr);
+                    const dateInfo = avail?.calendar?.find(c => c.date === dStr);
                     const isSel = dStr === startDate || dStr === endDate;
                     const inRange = mode === "For Multiple Days" && startDate && endDate && date.isBetween(startDate, endDate, 'day');
+                    const isPremium = dateInfo?.pricing?.isPremium;
+                    
+                    const displayPrice = mode === "One day One Time" ? dateInfo?.pricing?.oneDayPrice : dateInfo?.pricing?.multipleDayPrice;
 
                     return (
                         <button
                             key={dStr}
                             disabled={loading || !isCurrentMonth}
                             onClick={() => handleDateClick(dStr)}
-                            className={`h-14 rounded-2xl flex flex-col items-center justify-center border transition-all ${
-                                !isCurrentMonth ? "opacity-30 cursor-not-allowed" :
-                                isSel ? "bg-teal-500 text-white border-teal-500 shadow-lg shadow-teal-500/20" :
+                            className={`h-16 rounded-2xl flex flex-col items-center justify-center border transition-all ${
+                                !isCurrentMonth ? "opacity-20 cursor-not-allowed" :
+                                isSel ? "bg-teal-500 text-white border-teal-500 shadow-lg" :
                                 inRange ? "bg-teal-50 border-teal-100 text-teal-700" :
-                                "bg-white border-slate-50 hover:border-slate-200"
+                                isPremium ? "bg-rose-50 border-rose-100 hover:border-rose-300" : "bg-teal-50/30 border-teal-50 hover:border-teal-100"
                             }`}
                         >
-                            <span className="text-xs font-black">{date.date()}</span>
-                            {datePremium && (
-                                <span className={`text-[7px] font-black mt-0.5 ${isSel ? 'text-white/80' : 'text-rose-500'}`}>
-                                    +₹{datePremium.extraFee}
-                                </span>
+                            <span className={`text-[11px] font-black ${!isSel && isPremium ? "text-rose-600" : !isSel ? "text-teal-700" : ""}`}>{date.date()}</span>
+                            {displayPrice && mode !== "Acc. To Per/Hours" && (
+                                <span className={`text-[7px] font-bold ${isSel ? "text-white/80" : "text-slate-400"}`}>₹{displayPrice}</span>
+                            )}
+                            {dateInfo?.pricing?.extraFee > 0 && (
+                                <span className={`text-[6px] font-black ${isSel ? 'text-white' : 'text-rose-500 underline'}`}>+₹{dateInfo.pricing.extraFee}</span>
                             )}
                         </button>
                     );
                 })}
             </div>
 
+            {/* Arrival Time Dropdown for Single Mode */}
             {mode === "One day One Time" && startDate && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Arrival Time</h4>
@@ -273,13 +211,14 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                         <option value="">Select Arrival Time</option>
                         {avail?.timeSlots?.map((slot) => (
                             <option key={slot.time} value={slot.time}>
-                                {slot.displayTime} (₹{slot.totalSlotPrice})
+                                {slot.displayTime} — ₹{slot.totalHourlyPrice} {slot.slotPremiumFee > 0 ? `(Incl. ₹${slot.slotPremiumFee} Premium)` : ""}
                             </option>
                         ))}
                     </select>
                 </div>
             )}
 
+            {/* Hourly Slot Grid with Slot Premiums */}
             {mode === "Acc. To Per/Hours" && startDate && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
@@ -289,34 +228,33 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                         {avail?.timeSlots?.map((slot) => {
                             const isStart = hourlyStartSlot?.time === slot.time;
                             const isEnd = hourlyEndSlot?.time === slot.time;
-                            const inRange = hourlyStartSlot && hourlyEndSlot && 
-                                            moment(slot.time, "HH:mm").isBetween(moment(hourlyStartSlot.time, "HH:mm"), moment(hourlyEndSlot.time, "HH:mm"), null, '[]');
+                            const inRange = hourlyStartSlot && hourlyEndSlot && moment(slot.time, "HH:mm").isBetween(moment(hourlyStartSlot.time, "HH:mm"), moment(hourlyEndSlot.time, "HH:mm"), null, '[]');
+                            const hasPremium = slot.slotPremiumFee > 0;
+
                             return (
                                 <button
                                     key={slot.time}
-                                    onClick={() => handleHourlySlotClick(slot)}
+                                    onClick={() => {
+                                        if (!hourlyStartSlot || (hourlyStartSlot && hourlyEndSlot)) { setHourlyStartSlot(slot); setHourlyEndSlot(null); }
+                                        else {
+                                            if (moment(slot.time, "HH:mm").isBefore(moment(hourlyStartSlot.time, "HH:mm"))) { setHourlyStartSlot(slot); setHourlyEndSlot(null); }
+                                            else setHourlyEndSlot(slot);
+                                        }
+                                    }}
                                     className={`p-4 rounded-[1.5rem] border-2 transition-all flex flex-col items-center gap-1 ${
                                         isStart || isEnd ? "border-teal-500 bg-teal-500 text-white" :
                                         inRange ? "border-teal-200 bg-teal-50 text-teal-700" :
-                                        "border-slate-50 bg-slate-50/50 hover:border-slate-200"
+                                        hasPremium ? "border-rose-100 bg-rose-50/30 hover:border-rose-200" : "border-slate-50 bg-slate-50/50 hover:border-slate-200"
                                     }`}
                                 >
-                                    <span className="text-xs font-black">{slot.displayTime}</span>
-                                    {!inRange && slot.premiumSurcharge > 0 && !isEnd && (
-                                        <span className={`text-[8px] font-black ${isStart ? "text-white/80" : "text-rose-500"}`}>
-                                            +₹{slot.premiumSurcharge}
-                                        </span>
-                                    )}
+                                    <span className="text-[10px] font-black">{slot.displayTime}</span>
+                                    <span className={`text-[8px] font-bold ${isStart || isEnd ? "text-white/80" : hasPremium ? "text-rose-500" : "text-slate-400"}`}>
+                                        ₹{slot.totalHourlyPrice}
+                                    </span>
                                 </button>
                             );
                         })}
                     </div>
-                </div>
-            )}
-
-            {mode === "For Multiple Days" && startDate && !endDate && (
-                <div className="text-center p-4 bg-teal-50 rounded-2xl border border-teal-100 animate-pulse">
-                    <p className="text-xs font-bold text-teal-600 uppercase">Select End Date</p>
                 </div>
             )}
         </div>
