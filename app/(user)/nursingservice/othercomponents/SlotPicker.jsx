@@ -9,7 +9,7 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [currentMonth, setCurrentMonth] = useState(moment("2026-05-01")); // Set to May 2026 based on your data
+    const [currentMonth, setCurrentMonth] = useState(moment("2026-05-01")); 
 
     const [selectedSlot, setSelectedSlot] = useState(null);
     const [hourlyStartSlot, setHourlyStartSlot] = useState(null);
@@ -51,11 +51,13 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
         const dateExtra = dateData?.pricing?.extraFee || 0;
 
         if (mode === "One day One Time") {
+            const baseOneDay = avail.prices?.oneDayFinal || 0;
             if (selectedSlot) {
-                totalSurcharge = dateExtra; 
+                // Calculation: Base One Day + Date Surcharge + Slot Premium
+                totalSurcharge = dateExtra + (selectedSlot.slotPremiumFee || 0); 
                 startTime = selectedSlot.time;
                 endTime = moment(selectedSlot.time, "HH:mm").add(1, 'hour').format("HH:mm");
-                calculatedTotalPrice = selectedSlot.totalHourlyPrice + dateExtra;
+                calculatedTotalPrice = baseOneDay + totalSurcharge;
             }
         } 
         else if (mode === "Acc. To Per/Hours") {
@@ -64,23 +66,32 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                 startTime = hourlyStartSlot.time;
                 endTime = hourlyEndSlot.time;
                 const hours = moment(endTime, "HH:mm").diff(moment(startTime, "HH:mm"), 'hours');
+                const validHours = hours > 0 ? hours : 1;
+                
+                // Calculation: (Hourly Base * Hours) + Date Surcharge + Slot Premium
                 totalSurcharge = dateExtra + (hourlyStartSlot.slotPremiumFee || 0);
-                calculatedTotalPrice = (baseHourly * (hours > 0 ? hours : 1)) + totalSurcharge;
+                calculatedTotalPrice = (baseHourly * validHours) + totalSurcharge;
             }
         }
         else if (mode === "For Multiple Days" && startDate && endDate) {
             const baseMulti = avail.prices?.multipleDaysFinal || 0;
-            let multiDaySurcharge = 0;
+            let rangeSurcharge = 0;
+            let daysCount = 0;
+
+            // Iterate through calendar to sum up extra fees for all days in selected range
             avail.calendar?.forEach(c => {
-                if (moment(c.date).isBetween(startDate, endDate, 'day', '[]')) {
-                    multiDaySurcharge += c.pricing.extraFee;
+                const cDate = moment(c.date);
+                if (cDate.isBetween(moment(startDate), moment(endDate), 'day', '[]')) {
+                    rangeSurcharge += (c.pricing?.extraFee || 0);
+                    daysCount++;
                 }
             });
-            const daysCount = moment(endDate).diff(moment(startDate), 'days') + 1;
-            totalSurcharge = multiDaySurcharge;
+
+            // Calculation: (Multi-day Base * Total Days) + Sum of all Extra Fees in range
+            totalSurcharge = rangeSurcharge;
             startTime = "09:00"; 
             endTime = "18:00";
-            calculatedTotalPrice = (baseMulti * daysCount) + multiDaySurcharge;
+            calculatedTotalPrice = (baseMulti * daysCount) + rangeSurcharge;
         }
 
         onSlotSelect({
@@ -93,7 +104,7 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
             totalPrice: calculatedTotalPrice,
             displayTime: mode === "One day One Time" ? selectedSlot?.displayTime : 
                          mode === "Acc. To Per/Hours" ? (hourlyStartSlot && hourlyEndSlot ? `${hourlyStartSlot.displayTime} - ${hourlyEndSlot.displayTime}` : "") :
-                         (startDate && endDate ? "Full Day Service" : "")
+                         (startDate && endDate ? `${moment(startDate).format('DD MMM')} - ${moment(endDate).format('DD MMM')}` : "")
         });
     }, [startDate, endDate, selectedSlot, hourlyStartSlot, hourlyEndSlot, mode, avail]);
 
@@ -160,7 +171,7 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                 </button>
             </div>
 
-            {/* Calendar Grid with Daily Prices */}
+            {/* Calendar Grid */}
             <div className="grid grid-cols-7 gap-2 mb-8">
                 {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, idx) => (
                     <div key={idx} className="text-[10px] font-black text-slate-300 text-center py-2">{d}</div>
@@ -211,14 +222,14 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                         <option value="">Select Arrival Time</option>
                         {avail?.timeSlots?.map((slot) => (
                             <option key={slot.time} value={slot.time}>
-                                {slot.displayTime} — ₹{slot.totalHourlyPrice} {slot.slotPremiumFee > 0 ? `(Incl. ₹${slot.slotPremiumFee} Premium)` : ""}
+                                {slot.displayTime} — {slot.slotPremiumFee > 0 ? `+ ₹${slot.slotPremiumFee} Premium` : "No Extra Fee"}
                             </option>
                         ))}
                     </select>
                 </div>
             )}
 
-            {/* Hourly Slot Grid with Slot Premiums */}
+            {/* Hourly Slot Grid */}
             {mode === "Acc. To Per/Hours" && startDate && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
@@ -249,7 +260,7 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                                 >
                                     <span className="text-[10px] font-black">{slot.displayTime}</span>
                                     <span className={`text-[8px] font-bold ${isStart || isEnd ? "text-white/80" : hasPremium ? "text-rose-500" : "text-slate-400"}`}>
-                                        ₹{slot.totalHourlyPrice}
+                                        {hasPremium ? `+₹${slot.slotPremiumFee}` : "Standard"}
                                     </span>
                                 </button>
                             );
