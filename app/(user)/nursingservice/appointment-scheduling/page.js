@@ -160,12 +160,12 @@ function AppointmentSchedulingContent() {
                 needConsumable: selectedConsumables.length > 0, 
                 status: "Pending"
             };
-
-            const res = await UserAPI.nurseFinalBooking(finalPayload);
+            const res = await UserAPI.processBooking(finalPayload);
             if (res?.success) {
+                const res = await UserAPI.nurseFinalBooking(finalPayload);
                 sessionStorage.removeItem("pendingNurseBooking");
                 alert("Booking Created Successfully!");
-                router.push('/profile/bookings');
+                // router.push('/profile/bookings');
             } else {
                 alert(res?.message || "Booking failed");
             }

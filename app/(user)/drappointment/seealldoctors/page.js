@@ -1,172 +1,246 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
     FaArrowLeft, FaSearch, FaUserMd, FaStar,
-    FaChevronDown, FaFilter, FaMapMarkerAlt, FaStethoscope
+    FaChevronDown, FaFilter, FaMapMarkerAlt, FaStethoscope, FaCheckCircle
 } from "react-icons/fa";
 
-import { DOCTORS_DATA } from "@/app/constants/constants";
-import DoctorDetailsModal from "../components/otherComponents/DoctorDetailsModal";
+import UserAPI from "@/app/services/UserAPI"; 
 
-const CATEGORIES = ["All", "Heart", "Neuro", "Skin", "Bones", "Dental", "Child Care"];
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 export default function AllDoctorsPage() {
     const router = useRouter();
+    const [doctors, setDoctors] = useState([]);
+    const [specializations, setSpecializations] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [sortBy, setSortBy] = useState("rating-high");
     const [activeCategory, setActiveCategory] = useState("All");
 
-    // MODAL STATES
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [activeDoctor, setActiveDoctor] = useState(null);
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            try {
+                setLoading(true);
+                const [specRes, docRes] = await Promise.all([
+                    UserAPI.getDoctorSpecializations(),
+                    UserAPI.getDoctorsList()
+                ]);
+                if (specRes.success) setSpecializations(specRes.data);
+                if (docRes.success) setDoctors(docRes.data);
+            } catch (error) {
+                console.error("Initialization Error:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchInitialData();
+    }, []);
 
-    const handleOpenDoctor = (doctor) => {
-        setActiveDoctor(doctor);
-        setIsModalOpen(true);
+    const getImageUrl = (path) => {
+        if (!path) return "https://images.unsplash.com/photo-1559839734-2b71f1536783?q=80&w=2070";
+        if (path.startsWith('http')) return path;
+        const cleanPath = path.replace(/^public\//, '');
+        return `${BASE_URL}/${cleanPath}`.replace(/([^:]\/)\/+/g, "$1");
     };
 
     const filteredDoctors = useMemo(() => {
-        let result = DOCTORS_DATA.filter((doc) => {
+        let result = doctors.map(doc => {
+            let specialtyName = "Generalist";
+            if (doc.speciality && typeof doc.speciality === 'object') {
+                specialtyName = doc.speciality.name;
+            } else if (doc.speciality) {
+                const found = specializations.find(s => s._id === doc.speciality);
+                specialtyName = found ? found.name : doc.speciality; 
+            }
+            const feeValue = doc.fees?.clinic || doc.fees?.home || doc.fees?.online || 0;
+            return {
+                ...doc,
+                id: doc._id,
+                ui_image: getImageUrl(doc.profileImage),
+                ui_specialty: specialtyName,
+                ui_price: feeValue,
+                ui_rating: doc.averageRating || 0,
+                ui_location: doc.city && doc.state ? `${doc.city}, ${doc.state}` : (doc.city || doc.state || "India")
+            };
+        });
+
+        result = result.filter((doc) => {
             const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                doc.specialty.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesCategory = activeCategory === "All" || doc.category === activeCategory;
+                doc.ui_specialty.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesCategory = activeCategory === "All" || doc.ui_specialty === activeCategory;
             return matchesSearch && matchesCategory;
         });
 
-        if (sortBy === "online-low") result.sort((a, b) => a.consultFee - b.consultFee);
-        else if (sortBy === "rating-high") result.sort((a, b) => b.rating - a.rating);
-
+        if (sortBy === "online-low") result.sort((a, b) => a.ui_price - b.ui_price);
+        else if (sortBy === "rating-high") result.sort((a, b) => b.ui_rating - a.ui_rating);
         return result;
-    }, [searchTerm, sortBy, activeCategory]);
+    }, [searchTerm, sortBy, activeCategory, doctors, specializations]);
+
+    // HANDLER FOR NAVIGATION
+    const handleDoctorClick = (id) => {
+        router.push(`/drappointment/doctordetail/${id}`);
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-[#FDFEFF]">
+                <div className="w-10 h-10 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4"></div>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Curating Specialists</p>
+            </div>
+        );
+    }
 
     return (
-        <div className="min-h-screen font-sans selection:bg-[#08B36A]/10 bg-[#f8fafc]">
-
-            <DoctorDetailsModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                doctor={activeDoctor}
-            />
-
-            {/* NAV BAR */}
-            <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 py-7">
-                <div className="max-w-6xl mx-auto flex items-center justify-between">
-                    <button onClick={() => router.back()} className="flex items-center gap-1.5 text-slate-600 font-bold text-xs uppercase tracking-widest cursor-pointer">
-                        <FaArrowLeft /> Back
+        <div className="min-h-screen bg-[#FDFEFF] selection:bg-emerald-500/10">
+            {/* PRE-HEADER NAV */}
+            <nav className="sticky top-0 z-50 bg-white/70 backdrop-blur-xl border-b border-slate-100">
+                <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
+                    <button onClick={() => router.back()} className="group flex items-center gap-2 text-slate-900 font-black text-[10px] uppercase tracking-widest">
+                        <FaArrowLeft className="group-hover:-translate-x-1 transition-transform" /> Back
                     </button>
-                    <div className="flex items-center gap-1.5 text-slate-400">
-                        <FaUserMd className="text-[#08B36A] text-sm" />
-                        <span className="text-[9px] font-black uppercase tracking-tighter">Verified Specialists</span>
+                    <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Live Availability</span>
                     </div>
                 </div>
             </nav>
 
-            <div className="max-w-6xl mx-auto py-6 md:py-10 px-4">
-
-                {/* HEADER & SEARCH */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                    <div>
-                        <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight">
-                            Medical <span className="text-[#08B36A]">Specialists</span>
+            <div className="max-w-7xl mx-auto px-6 py-12">
+                {/* HERO SECTION */}
+                <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-12">
+                    <div className="max-w-2xl">
+                        <h1 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tighter leading-[0.9] mb-4">
+                            Premium <span className="text-emerald-500">Care.</span>
                         </h1>
-                        <p className="text-slate-500 text-[10px] md:text-sm font-medium">Expert healthcare consultants.</p>
+                        <p className="text-slate-500 font-medium text-sm md:text-base max-w-md">
+                            Connect with board-certified specialists using our advanced matching system.
+                        </p>
                     </div>
 
-                    <div className="flex gap-2 w-full md:w-auto">
-                        <div className="relative flex-1 md:w-64">
-                            <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+                    <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                        <div className="relative group">
+                            <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm group-focus-within:text-emerald-500 transition-colors" />
                             <input
                                 type="text"
-                                placeholder="Search doctors..."
+                                placeholder="Search by name..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#08B36A] outline-none text-xs"
+                                className="w-full lg:w-80 pl-11 pr-4 py-4 bg-slate-50 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
                             />
                         </div>
                         <div className="relative">
                             <select
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value)}
-                                className="appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 pr-8 text-[9px] font-black uppercase tracking-widest outline-none cursor-pointer"
+                                className="appearance-none bg-slate-900 text-white border-none rounded-2xl pl-6 pr-12 py-4 text-[10px] font-black uppercase tracking-widest outline-none cursor-pointer w-full"
                             >
                                 <option value="rating-high">Top Rated</option>
-                                <option value="online-low">Fee: Low</option>
+                                <option value="online-low">Lowest Fee</option>
                             </select>
-                            <FaChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] pointer-events-none" />
+                            <FaChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-white/50 text-[10px] pointer-events-none" />
                         </div>
                     </div>
                 </div>
 
-                {/* CATEGORY FILTER BAR */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-6 no-scrollbar">
-                    <div className="flex items-center gap-2 pr-4 border-r border-slate-100">
-                        <FaFilter className="text-slate-400 text-xs" />
-                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Filters</span>
-                    </div>
-                    {CATEGORIES.map((cat) => (
+                {/* FILTERS */}
+                <div className="flex items-center gap-3 overflow-x-auto pb-8 no-scrollbar">
+                    <button
+                        onClick={() => setActiveCategory("All")}
+                        className={`whitespace-nowrap px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${
+                            activeCategory === "All" ? "bg-emerald-500 text-white shadow-xl shadow-emerald-500/20" : "bg-white text-slate-400 border border-slate-100 hover:border-emerald-200"
+                        }`}
+                    >
+                        All Experts
+                    </button>
+                    {specializations.map((spec) => (
                         <button
-                            key={cat}
-                            onClick={() => setActiveCategory(cat)}
-                            className={`whitespace-nowrap px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat
-                                ? "bg-[#08B36A] text-white shadow-lg shadow-emerald-100"
-                                : "bg-slate-50 text-slate-500 hover:bg-slate-100"
-                                }`}
+                            key={spec._id}
+                            onClick={() => setActiveCategory(spec.name)}
+                            className={`whitespace-nowrap px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${
+                                activeCategory === spec.name ? "bg-emerald-500 text-white shadow-xl shadow-emerald-500/20" : "bg-white text-slate-400 border border-slate-100 hover:border-emerald-200"
+                            }`}
                         >
-                            {cat}
+                            {spec.name}
                         </button>
                     ))}
                 </div>
 
-                {/* GRID */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
+                {/* PREMIUM DOCTOR GRID */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
                     {filteredDoctors.map((doc) => (
                         <div
                             key={doc.id}
-                            onClick={() => handleOpenDoctor(doc)}
-                            className="bg-white rounded-2xl p-2.5 md:p-4 shadow-sm border border-slate-100 flex flex-col group hover:shadow-md transition-all cursor-pointer"
+                            onClick={() => handleDoctorClick(doc.id)}
+                            className="group relative bg-white rounded-[3rem] p-5 shadow-2xl shadow-slate-200/50 border border-slate-50 transition-all duration-500 hover:shadow-emerald-500/10 hover:-translate-y-3 cursor-pointer"
                         >
-                            {/* Doctor Image Container */}
-                            <div className="h-28 sm:h-36 md:h-48 w-full relative overflow-hidden rounded-xl bg-slate-50 mb-3">
+                            {/* Image Wrapper */}
+                            <div className="relative h-72 w-full rounded-[2.5rem] overflow-hidden mb-6">
                                 <img
-                                    src={doc.image}
-                                    className="h-full w-full object-cover transition-transform group-hover:scale-110 duration-500"
+                                    src={doc.ui_image}
+                                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                                     alt={doc.name}
                                 />
-                                <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
-                                    <FaStar className="text-yellow-400 text-[8px]" />
-                                    <span className="text-[8px] font-black">{doc.rating}</span>
+                                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                
+                                <div className="absolute top-4 left-4">
+                                    <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
+                                        <FaCheckCircle className="text-blue-500" size={10} />
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-900">Verified</span>
+                                    </div>
+                                </div>
+
+                                <div className="absolute bottom-4 left-4 flex items-center gap-2">
+                                    <div className="bg-emerald-500 text-white h-8 w-8 rounded-xl flex items-center justify-center shadow-lg">
+                                        <FaStar size={10} />
+                                    </div>
+                                    <div className="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-sm">
+                                        <span className="text-[11px] font-black text-slate-900">{doc.ui_rating} <span className="text-slate-400 font-bold ml-1">Rating</span></span>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Details */}
-                            <div className="flex-1 flex flex-col space-y-1">
-                                <div className="flex items-center gap-1 text-[7px] md:text-[10px] font-black text-[#08B36A] uppercase tracking-widest">
-                                    <FaStethoscope className="text-[8px]" /> {doc.specialty}
+                            {/* Info Container */}
+                            <div className="px-3 pb-2">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <FaStethoscope className="text-emerald-500 text-xs" />
+                                    <span className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em]">{doc.ui_specialty}</span>
                                 </div>
-                                <h3 className="text-[11px] md:text-base font-black text-slate-800 line-clamp-1">
+                                <h3 className="text-2xl font-black text-slate-900 tracking-tighter mb-4 group-hover:text-emerald-600 transition-colors">
                                     {doc.name}
                                 </h3>
-                                <div className="flex items-center gap-1 text-slate-400">
-                                    <FaMapMarkerAlt className="text-[8px] md:text-[9px]" />
-                                    <span className="text-[8px] md:text-[11px] font-bold truncate tracking-tight">
-                                        {doc.address}
-                                    </span>
-                                </div>
-                            </div>
 
-                            {/* Price & Action */}
-                            <div className="mt-4 flex items-center justify-between pt-2 border-t border-slate-50">
-                                <div>
-                                    <p className="text-[7px] font-bold text-slate-400 uppercase">Consult Fee</p>
-                                    <p className="text-sm md:text-xl font-black text-slate-900">₹{doc.consultFee}</p>
+                                <div className="bg-slate-50 rounded-[2rem] p-5 flex flex-col gap-4 border border-slate-100 group-hover:bg-emerald-50/50 transition-colors">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <FaMapMarkerAlt className="text-slate-400" size={12} />
+                                            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tight truncate max-w-[120px]">{doc.ui_location}</span>
+                                        </div>
+                                        <span className="text-[9px] font-black bg-white px-2 py-1 rounded-lg border border-slate-100 text-slate-400 uppercase tracking-widest">
+                                            {doc.experienceYears || '0'} YRS EXP
+                                        </span>
+                                    </div>
+
+                                    <div className="h-px bg-slate-200/50 w-full"></div>
+
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Consultation</p>
+                                            <p className="text-2xl font-black text-slate-900">₹{doc.ui_price}</p>
+                                        </div>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation(); // Prevents card click from firing
+                                                handleDoctorClick(doc.id);
+                                            }}
+                                            className="bg-slate-900 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all active:scale-95 shadow-lg"
+                                        >
+                                            Book Appt
+                                        </button>
+                                    </div>
                                 </div>
-                                <button
-                                    className="bg-[#08B36A] hover:bg-slate-900 text-white font-bold px-4 md:px-6 py-1.5 md:py-2 rounded-lg text-[9px] md:text-[11px] uppercase tracking-widest transition-all active:scale-90"
-                                >
-                                    View
-                                </button>
                             </div>
                         </div>
                     ))}
@@ -174,14 +248,12 @@ export default function AllDoctorsPage() {
 
                 {/* EMPTY STATE */}
                 {filteredDoctors.length === 0 && (
-                    <div className="text-center py-20 border-2 border-dashed border-slate-100 rounded-3xl mt-10">
-                        <p className="text-slate-400 font-black uppercase tracking-widest text-xs">No specialists found in this category</p>
-                        <button
-                            onClick={() => { setSearchTerm(""); setActiveCategory("All"); }}
-                            className="text-[#08B36A] text-[10px] font-bold uppercase mt-2 underline"
-                        >
-                            Reset Filters
-                        </button>
+                    <div className="text-center py-32">
+                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <FaSearch className="text-slate-200 text-2xl" />
+                        </div>
+                        <h2 className="text-xl font-black text-slate-900 uppercase tracking-widest">No Specialists Found</h2>
+                        <button onClick={() => { setSearchTerm(""); setActiveCategory("All"); }} className="mt-4 text-emerald-500 font-black text-[10px] uppercase tracking-widest hover:underline">Clear Search Filter</button>
                     </div>
                 )}
             </div>

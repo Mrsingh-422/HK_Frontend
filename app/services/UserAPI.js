@@ -548,13 +548,43 @@ const UserAPI = {
         return response.data
     },
 
-    getNursingBookings: async() => {
+    getNursingBookings: async () => {
         const response = await authApi.get("/user/nurse/my-appointments");
         return response.data
-    }
+    },
 
 
+    //Doctor apis
 
+    getDoctorSpecializations: async () => {
+        const response = await publicApi.get("/user/doctors/specializations");
+        return response.data;
+    },
+    getDoctorsList: async () => {
+        const response = await publicApi.get("/user/doctors/list");
+        return response.data;
+    },
+
+    getDoctorDetail: async (doctorId) => {
+        const response = await publicApi.get(`/user/doctors/details/${doctorId}`);
+        return response.data;
+    },
+    getDoctorAvailability: async (doctorId, date) => {
+        const response = await authApi.get(
+            `/user/doctors/slots/${doctorId}?date=${date}`
+        );
+        return response.data;
+    },
+
+    getDoctorCoupons: async (doctorId) => {
+        const response = await authApi.get(`/user/doctors/coupons/${doctorId}`);
+        return response.data;
+    },
+    validateDoctorCoupon: async (data) => {
+        // data = { couponCode, nurseId, totalAmount }
+        const response = await authApi.post("user/nurse/validate-coupon", data); // Replace with your actual endpoint 
+        return response.data;
+    },
 
 };
 
