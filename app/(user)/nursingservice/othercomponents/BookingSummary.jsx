@@ -14,8 +14,11 @@ export default function BookingSummary({ bookingData, slotInfo, selectedAddress,
     const [deliveryConfig, setDeliveryConfig] = useState(null);
     const [isExpress, setIsExpress] = useState(false);
 
-    // LOGIC UPDATE: Use slotInfo.totalPrice which already handles (Base * Days/Hours)
-    const serviceBaseTotal = slotInfo.totalPrice || 0;
+    // Get number of patients (default to 1 if not found)
+    const patientCount = bookingData?.patients?.length || 1;
+
+    // LOGIC UPDATE: Multiply total service price by number of patients
+    const serviceBaseTotal = (slotInfo.totalPrice || 0) * patientCount;
     const consumableTotal = selectedConsumables.reduce((sum, item) => sum + (item.price || 0), 0);
     const expressCharge = isExpress ? (deliveryConfig?.fastDeliveryExtra || 0) : 0;
     
@@ -171,12 +174,11 @@ export default function BookingSummary({ bookingData, slotInfo, selectedAddress,
                         <span className="text-slate-400">
                             {slotInfo.mode === "For Multiple Days" ? "Service Fee (Multi-Day)" : 
                              slotInfo.mode === "Acc. To Per/Hours" ? "Service Fee (Hourly)" : "Base Service Fee"}
+                            {patientCount > 1 && ` (x${patientCount} Patients)`}
                         </span>
                         <span className="font-black">₹{serviceBaseTotal}</span>
                     </div>
                     
-                    {/* Surcharge is now bundled in totalPrice from SlotPicker, 
-                        but if you want to show specifically the extra fees separately: */}
                     {consumableTotal > 0 && (
                         <div className="flex justify-between text-[11px] text-teal-400">
                             <span>Consumables</span>
