@@ -24,10 +24,29 @@ export default function AllDoctorsPage() {
         const fetchInitialData = async () => {
             try {
                 setLoading(true);
+
+                // Retrieve coordinates from localStorage
+                let coordsPayload = {};
+                const storedCoords = localStorage.getItem('userCoords');
+                
+                if (storedCoords) {
+                    try {
+                        const parsedCoords = JSON.parse(storedCoords);
+                        coordsPayload = {
+                            userLat: parsedCoords.lat?.toString(),
+                            userLng: parsedCoords.lng?.toString()
+                        };
+                    } catch (e) {
+                        console.error("Error parsing userCoords from localStorage", e);
+                    }
+                }
+
+                // Call APIs - Passing coords to getDoctorsList
                 const [specRes, docRes] = await Promise.all([
                     UserAPI.getDoctorSpecializations(),
-                    UserAPI.getDoctorsList()
+                    UserAPI.getDoctorsList(coordsPayload)
                 ]);
+
                 if (specRes.success) setSpecializations(specRes.data);
                 if (docRes.success) setDoctors(docRes.data);
             } catch (error) {
