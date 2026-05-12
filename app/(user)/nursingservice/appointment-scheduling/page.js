@@ -24,6 +24,7 @@ function AppointmentSchedulingContent() {
         startTime: "",
         endTime: "",
         extraFee: 0,
+        basePrice: 0, 
         displayTime: ""
     });
 
@@ -79,8 +80,10 @@ function AppointmentSchedulingContent() {
     const handleFinalBooking = async (summaryData) => {
         try {
             const { isExpress, expressCharge, appliedCoupon, discountAmount, finalTotal } = summaryData;
+            
+            // Use dynamic price from SlotPicker for the specific mode (Single/Multi/Hourly)
+            const dynamicBasePrice = slotInfo.basePrice || bookingData.basePrice;
 
-            // Matching the Mongoose Model exactly
             const finalPayload = {
                 userId: bookingData.userId,
                 nurseId: bookingData.nurseId,
@@ -91,7 +94,7 @@ function AppointmentSchedulingContent() {
                     title: bookingData.serviceDetails?.title || "",
                     type: bookingData.serviceDetails?.type || "",
                     duration: bookingData.serviceDetails?.duration || "",
-                    basePrice: bookingData.basePrice,
+                    basePrice: dynamicBasePrice, 
                     procedureIncluded: bookingData.serviceDetails?.procedureIncluded || "",
                     servicesOffered: bookingData.serviceDetails?.servicesOffered || ""
                 },
@@ -117,11 +120,11 @@ function AppointmentSchedulingContent() {
                     endDate: slotInfo.endDate || slotInfo.startDate,
                     startTime: slotInfo.startTime,
                     endTime: slotInfo.endTime || slotInfo.startTime,
-                    duration: slotInfo.mode // Matches Enum: 'One day One Time', 'For Multiple Days', 'Acc. To Per/Hours'
+                    duration: slotInfo.mode 
                 },
 
                 priceBreakdown: {
-                    baseServicePrice: bookingData.basePrice,
+                    baseServicePrice: dynamicBasePrice,
                     slotSurcharge: slotInfo.extraFee,
                     consumableTotal: selectedConsumables.reduce((sum, item) => sum + (item.price || 0), 0),
                     couponDiscount: Math.round(discountAmount || 0),
@@ -150,10 +153,11 @@ function AppointmentSchedulingContent() {
                     addressType: selectedAddress.addressType || "Home"
                 },
 
-                basePrice: bookingData.basePrice,
+                basePrice: dynamicBasePrice,
                 totalPrice: Math.round(finalTotal),
                 selectedConsumables: selectedConsumables,
-                needConsumable: selectedConsumables.length > 0,
+                // UPDATE: correctly setting needConsumable based on selection
+                needConsumable: selectedConsumables.length > 0, 
                 status: "Pending"
             };
 

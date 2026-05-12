@@ -46,21 +46,22 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
         let startTime = "";
         let endTime = "";
         let calculatedTotalPrice = 0;
+        let currentBasePrice = 0;
 
         const dateData = avail.calendar?.find(c => c.date === startDate);
         const dateExtra = dateData?.pricing?.extraFee || 0;
 
         if (mode === "One day One Time") {
-            const baseOneDay = avail.prices?.oneDayFinal || 0;
+            currentBasePrice = avail.prices?.oneDayFinal || 0;
             if (selectedSlot) {
                 totalSurcharge = dateExtra + (selectedSlot.slotPremiumFee || 0); 
                 startTime = selectedSlot.time;
                 endTime = moment(selectedSlot.time, "HH:mm").add(1, 'hour').format("HH:mm");
-                calculatedTotalPrice = baseOneDay + totalSurcharge;
+                calculatedTotalPrice = currentBasePrice + totalSurcharge;
             }
         } 
         else if (mode === "Acc. To Per/Hours") {
-            const baseHourly = avail.prices?.hourlyFinal || 0;
+            currentBasePrice = avail.prices?.hourlyFinal || 0;
             if (hourlyStartSlot && hourlyEndSlot) {
                 startTime = hourlyStartSlot.time;
                 endTime = hourlyEndSlot.time;
@@ -68,11 +69,11 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                 const validHours = hours > 0 ? hours : 1;
                 
                 totalSurcharge = dateExtra + (hourlyStartSlot.slotPremiumFee || 0);
-                calculatedTotalPrice = (baseHourly * validHours) + totalSurcharge;
+                calculatedTotalPrice = (currentBasePrice * validHours) + totalSurcharge;
             }
         }
         else if (mode === "For Multiple Days" && startDate && endDate) {
-            const baseMulti = avail.prices?.multipleDaysFinal || 0;
+            currentBasePrice = avail.prices?.multipleDaysFinal || 0;
             let rangeSurcharge = 0;
             let daysCount = 0;
 
@@ -83,19 +84,14 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                 daysCount++;
                 const dStr = tempDate.format('YYYY-MM-DD');
                 const dayData = avail.calendar?.find(c => c.date === dStr);
-                
-                if (dayData?.pricing?.extraFee) {
-                    rangeSurcharge += dayData.pricing.extraFee;
-                }
+                if (dayData?.pricing?.extraFee) rangeSurcharge += dayData.pricing.extraFee;
                 tempDate.add(1, 'day');
             }
 
             totalSurcharge = rangeSurcharge;
             startTime = "09:00"; 
             endTime = "18:00";
-            
-            // Fixed Logic: Multiply (Base Multi Price * Days) then add the sum of Premiums
-            calculatedTotalPrice = (baseMulti * daysCount) + rangeSurcharge;
+            calculatedTotalPrice = (currentBasePrice * daysCount) + rangeSurcharge;
         }
 
         onSlotSelect({
@@ -105,6 +101,7 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
             startTime,
             endTime,
             extraFee: totalSurcharge,
+            basePrice: currentBasePrice, // NEW: Sending the specific mode's base price
             totalPrice: calculatedTotalPrice,
             displayTime: mode === "One day One Time" ? selectedSlot?.displayTime : 
                          mode === "Acc. To Per/Hours" ? (hourlyStartSlot && hourlyEndSlot ? `${hourlyStartSlot.displayTime} - ${hourlyEndSlot.displayTime}` : "") :
