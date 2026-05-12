@@ -80,34 +80,62 @@ function AppointmentSchedulingContent() {
         try {
             const { isExpress, expressCharge, appliedCoupon, discountAmount, finalTotal } = summaryData;
 
+            // Matching the Mongoose Model exactly
             const finalPayload = {
                 userId: bookingData.userId,
                 nurseId: bookingData.nurseId,
                 serviceId: bookingData.serviceId || null,
                 packageId: bookingData.packageId || null,
 
-                serviceDetails: bookingData.serviceDetails,
-                patients: bookingData.patients,
+                serviceDetails: {
+                    title: bookingData.serviceDetails?.title || "",
+                    type: bookingData.serviceDetails?.type || "",
+                    duration: bookingData.serviceDetails?.duration || "",
+                    basePrice: bookingData.basePrice,
+                    procedureIncluded: bookingData.serviceDetails?.procedureIncluded || "",
+                    servicesOffered: bookingData.serviceDetails?.servicesOffered || ""
+                },
+
+                patients: bookingData.patients.map(p => ({
+                    patientId: p.patientId || p._id,
+                    name: p.name,
+                    age: p.age,
+                    gender: p.gender,
+                    relation: p.relation
+                })),
+
                 assessmentLocation: bookingData.assessmentLocation,
-                healthDetails: bookingData.healthDetails,
+                healthDetails: {
+                    height: bookingData.healthDetails?.height || "",
+                    dob: bookingData.healthDetails?.dob || null,
+                    language: bookingData.healthDetails?.language || "",
+                    specialInstructions: bookingData.healthDetails?.specialInstructions || ""
+                },
 
                 schedule: {
                     startDate: slotInfo.startDate,
                     endDate: slotInfo.endDate || slotInfo.startDate,
                     startTime: slotInfo.startTime,
                     endTime: slotInfo.endTime || slotInfo.startTime,
-                    duration: slotInfo.mode
+                    duration: slotInfo.mode // Matches Enum: 'One day One Time', 'For Multiple Days', 'Acc. To Per/Hours'
                 },
 
                 priceBreakdown: {
                     baseServicePrice: bookingData.basePrice,
                     slotSurcharge: slotInfo.extraFee,
                     consumableTotal: selectedConsumables.reduce((sum, item) => sum + (item.price || 0), 0),
+                    couponDiscount: Math.round(discountAmount || 0),
                     fasterServiceCharge: expressCharge,
-                    discountAmount: Math.round(discountAmount || 0),
                     taxAmount: 0,
                     totalPrice: Math.round(finalTotal)
                 },
+
+                couponCode: appliedCoupon?.couponName || "",
+                appliedCoupon: appliedCoupon ? {
+                    couponId: appliedCoupon._id,
+                    discountAmount: Math.round(discountAmount || 0),
+                    couponName: appliedCoupon.couponName
+                } : null,
 
                 address: {
                     name: selectedAddress.name,
@@ -122,10 +150,10 @@ function AppointmentSchedulingContent() {
                     addressType: selectedAddress.addressType || "Home"
                 },
 
+                basePrice: bookingData.basePrice,
                 totalPrice: Math.round(finalTotal),
                 selectedConsumables: selectedConsumables,
                 needConsumable: selectedConsumables.length > 0,
-                couponCode: appliedCoupon?.couponName || "",
                 status: "Pending"
             };
 
@@ -133,7 +161,7 @@ function AppointmentSchedulingContent() {
             if (res?.success) {
                 sessionStorage.removeItem("pendingNurseBooking");
                 alert("Booking Created Successfully!");
-                // router.push('/profile/bookings');
+                router.push('/profile/bookings');
             } else {
                 alert(res?.message || "Booking failed");
             }
