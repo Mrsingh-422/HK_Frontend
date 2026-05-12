@@ -18,19 +18,28 @@ function SomeDoctors() {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Helper to get the correct image URL
+  // HELPER: Formats the image URL by removing 'public/' and prepending the base URL
   const getImageUrl = (path) => {
     if (!path) return "https://via.placeholder.com/400x500?text=No+Image";
-    // Check if path is already a full URL
+    
+    // 1. If it's already a full URL, return it
     if (path.startsWith('http')) return path;
-    // Assuming your backend serves public folder at the root
-    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/${path}`;
+
+    // 2. Remove 'public/' from the start of the string
+    // This turns "public/uploads/doctors/..." into "uploads/doctors/..."
+    const cleanPath = path.replace(/^public\//, '');
+    
+    // 3. Your specific backend address
+    const BASE_URL = 'http://192.168.1.26:5002';
+    
+    return `${BASE_URL}/${cleanPath}`;
   };
 
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
         setLoading(true);
+
         let coordsPayload = {};
         const storedCoords = localStorage.getItem('userCoords');
         
@@ -42,17 +51,19 @@ function SomeDoctors() {
               userLng: parsedCoords.lng?.toString()
             };
           } catch (e) {
-            console.error("Error parsing userCoords from localStorage", e);
+            console.error("Error parsing userCoords", e);
           }
         }
 
         const docRes = await UserAPI.getDoctorsList(coordsPayload);
 
         if (docRes.success) {
-          // Note: If your API returns the structure provided in your prompt, 
-          // you might need to adjust this slice based on whether 'data' is an array or object.
-          // For a list view, we assume docRes.data is an array of profiles.
-          setDoctors(Array.isArray(docRes.data) ? docRes.data.slice(0, 3) : [docRes.data.profile]);
+          // Handle both single profile object and list of profiles
+          const doctorData = Array.isArray(docRes.data) 
+            ? docRes.data 
+            : (docRes.data.profile ? [docRes.data.profile] : []);
+            
+          setDoctors(doctorData.slice(0, 3));
         }
       } catch (error) {
         console.error("Initialization Error:", error);
@@ -113,14 +124,15 @@ function SomeDoctors() {
                     src={getImageUrl(doc.profileImage)}
                     alt={doc.name}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    onError={(e) => { e.target.src = "https://via.placeholder.com/400x500?text=Image+Not+Found"; }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
 
                   {/* Status Badges */}
                   <div className="absolute top-5 left-5">
                     <span className="bg-white/90 backdrop-blur-md text-slate-900 text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm flex items-center gap-2">
-                      <div className={`w-1.5 h-1.5 rounded-full ${doc.dutyStatus === 'Off Duty' ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`}></div> 
-                      {doc.dutyStatus || "Available Today"}
+                      <div className={`w-1.5 h-1.5 rounded-full ${doc.dutyStatus === 'Off Duty' ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`}></div> 
+                      {doc.dutyStatus || "Available"}
                     </span>
                   </div>
 
@@ -139,7 +151,7 @@ function SomeDoctors() {
                   <div className="flex items-center gap-2 mb-2">
                     <FaCheckCircle className="text-blue-500" size={12} />
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      {doc.profileStatus === 'Approved' ? 'Verified Specialist' : 'Pending Verification'}
+                      {doc.profileStatus || 'Verified'}
                     </span>
                   </div>
                   <h3 className="text-2xl font-black text-slate-900 truncate mb-1 group-hover:text-emerald-600 transition-colors">
@@ -155,13 +167,13 @@ function SomeDoctors() {
                       <div className="flex items-center gap-2">
                         <FaBriefcase className="text-slate-400" size={14} />
                         <span className="text-xs font-bold text-slate-600">
-                           {doc.experienceYears ? `${doc.experienceYears} Years Exp.` : doc.experience || "N/A"}
+                          {doc.experienceYears ? `${doc.experienceYears} Years Exp.` : "N/A"}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <FaMapMarkerAlt className="text-slate-400" size={14} />
                         <span className="text-xs font-bold text-slate-600 truncate max-w-[100px]">
-                            {doc.city}, {doc.state}
+                          {doc.city || "Mohali"}
                         </span>
                       </div>
                     </div>
@@ -170,8 +182,8 @@ function SomeDoctors() {
 
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Clinic Fee</p>
-                        <p className="text-xl font-black text-slate-900">₹{doc.fees?.clinic || doc.fee || 0}</p>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Consultation Fee</p>
+                        <p className="text-xl font-black text-slate-900">₹{doc.fees?.clinic || 0}</p>
                       </div>
                       <div className="h-12 w-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center transition-all group-hover:bg-emerald-500 group-hover:scale-110 shadow-lg">
                         <FaPlus size={14} />
@@ -183,7 +195,7 @@ function SomeDoctors() {
             ))
           ) : (
             <div className="col-span-full text-center py-10">
-              <p className="text-slate-400 font-bold uppercase tracking-widest">No doctors found in your location.</p>
+              <p className="text-slate-400 font-bold uppercase tracking-widest">No doctors found.</p>
             </div>
           )}
         </div>
