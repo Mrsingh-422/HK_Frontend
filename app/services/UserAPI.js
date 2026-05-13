@@ -564,7 +564,6 @@ const UserAPI = {
         const response = await publicApi.post("/user/doctors/list", data);
         return response.data;
     },
-
     getDoctorDetail: async (doctorId) => {
         const response = await publicApi.get(`/user/doctors/details/${doctorId}`);
         return response.data;
@@ -575,15 +574,14 @@ const UserAPI = {
         );
         return response.data;
     },
-
     getDoctorCoupons: async (doctorId) => {
         const response = await authApi.get(`/user/doctors/coupons/${doctorId}`);
         return response.data;
     },
-
     validateDoctorCoupon: async (data) => {
-        // data = { couponCode, nurseId, totalAmount }
-        const response = await authApi.post("user/nurse/validate-coupon", data); // Replace with your actual endpoint 
+        // data = { couponCode, doctorId, totalAmount }
+        const response = await authApi.post("/user/nurse/validate-coupon", data); // Replace with your actual endpoint 
+        console.log(response.data)
         return response.data;
     },
     getDoctorVisitCharges: async (doctorId) => {
@@ -592,15 +590,28 @@ const UserAPI = {
         );
         return response.data;
     },
-
     doctorCheckoutSummary: async (data) => {
         const response = await authApi.post("/user/doctors/checkout-summary", data);
         return response.data
     },
-
     bookDoctorAppointment: async (data) => {
         const response = await authApi.post("/user/doctors/book", data);
         return response.data
+    },
+
+    //Hospital apis
+
+    getHospitalsList: async (data) => {
+        const response = await publicApi.post("/user/hospital/list", data);
+        return response.data;
+    },
+    getHospitalDetail: async (hospitalId) => {
+        const response = await publicApi.get(`/user/hospital/details/${hospitalId}`);
+        return response.data;
+    },
+    getWardBeds: async (wardId) => {
+        const response = await authApi.get(`/user/hospital/bed-grid/${wardId}`);
+        return response.data;
     },
 
 };
