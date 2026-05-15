@@ -1,26 +1,67 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { FaAmbulance, FaMapMarkerAlt, FaPhoneAlt } from "react-icons/fa";
+import { useRouter } from "next/navigation";
+import {
+    ShieldAlert,
+    Stethoscope,
+    Truck,
+    MapPin,
+    PhoneCall,
+    ChevronRight,
+    Clock
+} from "lucide-react";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 
-const AMBULANCE_CATEGORIES = [
-    { label: "ALS", img: "https://cdn-icons-png.flaticon.com/512/1032/1032989.png", fullForm: "Advanced Life Support" },
-    { label: "BLS", img: "https://cdn-icons-png.flaticon.com/512/883/883356.png", fullForm: "Basic Life Support" },
-    { label: "PTV", img: "https://cdn-icons-png.flaticon.com/512/2864/2864275.png", fullForm: "Patient Transport" },
-    { label: "Mortuary", img: "https://cdn-icons-png.flaticon.com/512/4320/4320355.png", fullForm: "Mortuary Van" },
+const AMBULANCE_TYPES = [
+    {
+        id: "emergency",
+        slug: "accidentalambulance",
+        title: "Accidental",
+        subtitle: "Critical / ALS",
+        description: "Advanced Life Support with Ventilators",
+        icon: <ShieldAlert className="w-8 h-8 text-red-600" />,
+        accent: "bg-red-600",
+        lightBg: "bg-red-50",
+        hoverBorder: "hover:border-red-500",
+        ringColor: "ring-red-500/20"
+    },
+    {
+        id: "medical",
+        slug: "seeallambulances",
+        title: "Medical",
+        subtitle: "Non-Critical / BLS",
+        description: "Basic Life Support for hospital transfers",
+        icon: <Stethoscope className="w-8 h-8 text-blue-600" />,
+        accent: "bg-blue-600",
+        lightBg: "bg-blue-50",
+        hoverBorder: "hover:border-blue-500",
+        ringColor: "ring-blue-500/20"
+    },
+    {
+        id: "referral",
+        slug: "referralambulance",
+        title: "Referral",
+        subtitle: "Trauma / PTV",
+        description: "Immediate response for road accidents",
+        icon: <Truck className="w-8 h-8 text-orange-600" />,
+        accent: "bg-orange-600",
+        lightBg: "bg-orange-50",
+        hoverBorder: "hover:border-orange-500",
+        ringColor: "ring-orange-500/20"
+    }
 ];
 
 const AmbulanceHero = ({ searchTerm, setSearchTerm }) => {
+    const router = useRouter();
     const { getAmbulancePageData } = useGlobalContext();
+    const [selectedType, setSelectedType] = useState("emergency");
     const [pageData, setPageData] = useState({
-        headerTag: "Emergency Response Network",
-        mainTitle: "Every Second Counts. \nBook an Ambulance.",
-        description: "India's fastest emergency response network. Real-time tracking and immediate dispatch.",
-        searchPlaceholder: "Search Emergency Ambulance",
+        headerTag: "24/7 Emergency Dispatch",
+        mainTitle: "Every Second Counts. \nReliable Care, Faster.",
+        description: "India's most advanced medical transport network. We connect you to life-saving care in minutes.",
+        searchPlaceholder: "Enter pickup location...",
     });
 
-    // API calling moved here inside the Hero
     useEffect(() => {
         const fetchContent = async () => {
             try {
@@ -33,80 +74,156 @@ const AmbulanceHero = ({ searchTerm, setSearchTerm }) => {
         fetchContent();
     }, [getAmbulancePageData]);
 
+    const handleServiceClick = (id, slug) => {
+        setSelectedType(id);
+        router.push(`/ambulance/${slug}`);
+    };
+
     return (
-        <section className="relative pt-16 pb-24 px-6 overflow-hidden">
-            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-                <motion.div
-                    initial={{ opacity: 0, x: -30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="lg:col-span-7 space-y-8"
-                >
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-50 border border-red-100">
-                        <span className="relative flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-600"></span>
-                        </span>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-red-600">
-                            {pageData.headerTag}
-                        </span>
-                    </div>
+        <section className="relative min-h-screen bg-white overflow-hidden">
+            {/* Background Decorative Elements */}
+            <div className="absolute top-0 right-0 w-1/2 h-screen bg-slate-50/50 -z-10 hidden lg:block" />
 
-                    <h1 className="text-5xl md:text-7xl font-black text-slate-900 leading-[1.05] tracking-tight whitespace-pre-line">
-                        {pageData.mainTitle}
-                    </h1>
+            <div className="pt-8 pb-20 px-4 md:px-6 lg:px-12 max-w-[1440px] mx-auto">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
 
-                    <p className="text-lg md:text-xl text-slate-500 max-w-xl leading-relaxed">
-                        {pageData.description}
-                    </p>
+                    {/* Left Side: Content */}
+                    <div className="lg:col-span-7 flex flex-col space-y-8 md:space-y-12">
 
-                    <div className="max-w-2xl bg-white rounded-[2.5rem] p-2 shadow-[0_20px_50px_rgba(220,38,38,0.1)] border border-slate-100 flex flex-col md:flex-row items-center gap-2">
-                        <div className="relative flex-1 w-full group">
-                            <FaMapMarkerAlt className="absolute left-6 top-1/2 -translate-y-1/2 text-red-500" />
-                            <input
-                                type="text"
-                                placeholder={pageData.searchPlaceholder}
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-14 pr-6 py-5 bg-transparent outline-none font-bold text-slate-700"
-                            />
+                        <div className="space-y-6">
+                            <div className="inline-flex items-center gap-3 px-4 py-2 bg-red-50 border border-red-100 rounded-full">
+                                <span className="flex h-2 w-2 rounded-full bg-red-600 animate-pulse"></span>
+                                <span className="text-[10px] md:text-xs font-bold tracking-widest uppercase text-red-700">
+                                    {pageData.headerTag}
+                                </span>
+                            </div>
+
+                            <h1 className="text-4xl md:text-6xl lg:text-7xl font-black text-slate-900 leading-[1.1] tracking-tight">
+                                {pageData.mainTitle.split('\n').map((line, i) => (
+                                    <span key={i} className="block">{line}</span>
+                                ))}
+                            </h1>
+
+                            <p className="text-base md:text-xl text-slate-500 max-w-2xl font-medium leading-relaxed">
+                                {pageData.description}
+                            </p>
                         </div>
-                        <button className="w-full md:w-auto bg-red-600 text-white px-10 py-5 rounded-[2rem] font-black hover:bg-slate-900 transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2">
-                            <FaAmbulance /> Find Now
-                        </button>
-                    </div>
 
-                    <div className="grid grid-cols-4 gap-4 max-w-sm">
-                        {AMBULANCE_CATEGORIES.map((cat, index) => (
-                            <div key={index} className="flex flex-col items-center gap-2 group cursor-pointer" title={cat.fullForm}>
-                                <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center group-hover:border-red-500 group-hover:shadow-md transition-all">
-                                    <img src={cat.img} alt={cat.label} className="w-8 h-8 object-contain" />
+                        {/* Service Selection Cards - Navigates on Click */}
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest px-1">Select Service Type</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {AMBULANCE_TYPES.map((item) => (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => handleServiceClick(item.id, item.slug)}
+                                        className={`group relative flex flex-row md:flex-col items-center md:items-start p-4 md:p-6 rounded-[2rem] transition-all duration-300 border-2 text-left
+                                            ${selectedType === item.id
+                                                ? `${item.hoverBorder} ${item.lightBg} shadow-lg ring-4 ${item.ringColor}`
+                                                : "bg-white border-slate-100 hover:border-slate-200"
+                                            }`}
+                                    >
+                                        <div className={`${item.lightBg} p-3 md:p-4 rounded-2xl mb-0 md:mb-4 mr-4 md:mr-0 transition-transform group-hover:scale-110 duration-300`}>
+                                            {item.icon}
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex items-center justify-between md:mb-1">
+                                                <h4 className="font-bold text-slate-900 text-lg md:text-xl leading-tight">
+                                                    {item.title}
+                                                </h4>
+                                                <ChevronRight className={`w-4 h-4 transition-transform ${selectedType === item.id ? 'translate-x-1' : 'opacity-0 group-hover:opacity-100'}`} />
+                                            </div>
+                                            <p className={`text-xs md:text-sm font-semibold mb-1 ${selectedType === item.id ? 'text-slate-700' : 'text-slate-400'}`}>
+                                                {item.subtitle}
+                                            </p>
+                                            <p className="hidden md:block text-[11px] text-slate-500 leading-snug">
+                                                {item.description}
+                                            </p>
+                                        </div>
+                                        {selectedType === item.id && (
+                                            <div className={`absolute top-4 right-4 w-2 h-2 rounded-full ${item.accent}`}></div>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Search/Booking Bar */}
+                        <div className="relative group w-full max-w-3xl">
+                            <div className="absolute -inset-1 bg-gradient-to-r from-red-600 to-red-400 rounded-[2.5rem] blur opacity-20 group-hover:opacity-30 transition duration-500"></div>
+                            <div className="relative flex flex-col md:flex-row items-center bg-white border border-slate-100 rounded-[2rem] p-2 shadow-xl">
+                                <div className="flex items-center flex-1 w-full px-4 border-b md:border-b-0 md:border-r border-slate-100">
+                                    <MapPin className="text-red-500 w-6 h-6 mr-3 shrink-0" />
+                                    <input
+                                        type="text"
+                                        className="w-full py-4 bg-transparent outline-none text-slate-800 font-bold placeholder:text-slate-400"
+                                        placeholder={pageData.searchPlaceholder}
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
                                 </div>
-                                <span className="text-[10px] font-black text-slate-800">{cat.label}</span>
-                            </div>
-                        ))}
-                    </div>
-                </motion.div>
-
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="lg:col-span-5 relative"
-                >
-                    <div className="bg-white p-4 rounded-[3.5rem] shadow-2xl border border-slate-50">
-                        <img
-                            src="https://www.forcemotors.com/wp-content/uploads/2025/02/Traveller-Ambulance-D-mob-1.png"
-                            className="w-full h-[500px] object-cover rounded-[2.5rem]"
-                            alt="Emergency"
-                        />
-                        <div className="absolute -bottom-6 -left-6 bg-slate-900 text-white p-6 rounded-3xl shadow-2xl flex items-center gap-4">
-                            <FaPhoneAlt className="text-red-500 text-2xl animate-bounce" />
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">Emergency Helpline</p>
-                                <p className="text-xl font-black">102 / 108</p>
+                                <button className="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white px-10 py-4 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-2 group/btn">
+                                    Book Near Me
+                                    <ChevronRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+                                </button>
                             </div>
                         </div>
                     </div>
-                </motion.div>
+
+                    {/* Right Side: Visual & Quick Info */}
+                    <div className="lg:col-span-5 relative mt-10 lg:mt-0">
+                        <div className="relative rounded-[3rem] overflow-hidden shadow-2xl border-8 border-white">
+                            <img
+                                src="https://www.forcemotors.com/wp-content/uploads/2025/02/Traveller-Ambulance-D-mob-1.png"
+                                alt="Ambulance"
+                                className="w-full h-[400px] md:h-[600px] object-cover"
+                            />
+
+                            {/* Floating Stats */}
+                            <div className="absolute top-6 left-6 bg-white/90 backdrop-blur px-4 py-2 rounded-2xl shadow-sm flex items-center gap-2">
+                                <div className="bg-green-100 p-1.5 rounded-lg">
+                                    <Clock className="w-4 h-4 text-green-600" />
+                                </div>
+                                <span className="text-xs font-bold text-slate-800">Avg. Response: 12-15m</span>
+                            </div>
+                        </div>
+
+                        {/* Emergency Contact Float */}
+                        <div className="absolute -bottom-8 left-4 right-4 md:left-8 md:right-8">
+                            <div className="bg-slate-900 text-white p-6 md:p-8 rounded-[2.5rem] shadow-2xl flex items-center justify-between overflow-hidden relative">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+
+                                <div className="flex items-center gap-5 relative z-10">
+                                    <div className="bg-red-600 p-4 rounded-2xl shadow-lg shadow-red-600/30">
+                                        <PhoneCall className="w-7 h-7 animate-pulse text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-400 mb-1">Emergency Hotline</p>
+                                        <p className="text-2xl md:text-3xl font-black tracking-tighter">108 / 102</p>
+                                    </div>
+                                </div>
+                                <div className="hidden sm:block text-right relative z-10">
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-[10px] uppercase font-bold text-red-500 mb-1">Available Now</span>
+                                        <div className="flex gap-1">
+                                            {[1, 2, 3, 4, 5].map(i => (
+                                                <div key={i} className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            {/* Mobile-Only Sticky Call Button */}
+            <div className="fixed bottom-6 right-6 md:hidden z-50">
+                <a href="tel:108" className="bg-red-600 text-white p-4 rounded-full shadow-2xl flex items-center justify-center animate-bounce">
+                    <PhoneCall className="w-6 h-6" />
+                </a>
             </div>
         </section>
     );

@@ -609,8 +609,40 @@ const UserAPI = {
         const response = await publicApi.get(`/user/hospital/details/${hospitalId}`);
         return response.data;
     },
+
     getWardBeds: async (wardId) => {
         const response = await authApi.get(`/user/hospital/bed-grid/${wardId}`);
+        return response.data;
+    },
+    getHospitalDoctors: async (hospitalId) => {
+        const response = await authApi.get(`/user/hospital/doctors/${hospitalId}`);
+        return response.data;
+    },
+    getHospitalServices: async (hospitalId) => {
+        const response = await authApi.get(`/user/hospital/services/${hospitalId}`);
+        return response.data;
+    },
+    getHospitalCoupons: async (hospitalId) => {
+        const response = await authApi.get(`/user/hospital/coupons/${hospitalId}`);
+        return response.data;
+    },
+    validateHospitalCoupon: async (data) => {
+        // data = { couponCode, hospitalId, subtotal }
+        const response = await authApi.post("/user/hospital/validate-coupon", data); // Replace with your actual endpoint 
+        return response.data;
+    },
+
+
+    //Ambulance api
+    getAmbulanceCategories: async () => {
+        const response = await publicApi.get("/user/ambulance/get-enums");
+        return response.data;
+    },
+    getNearestAmbulances: async (data) => {
+        const response = await publicApi.post(
+            "/user/ambulance/nearest-ambulances",
+            data
+        );
         return response.data;
     },
 

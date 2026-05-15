@@ -106,7 +106,7 @@ export default function BookingConfirmation() {
   const pricing = useMemo(() => {
     const base = Number(bookingData?.fee || 0);
     const premium = Number(selectedSlot?.premiumFee || 0);
-    const platform = 25;
+    const platform = 0;
     
     let homeVisitFee = 0;
     let travelFee = 0;

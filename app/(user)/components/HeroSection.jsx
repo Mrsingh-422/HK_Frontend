@@ -95,7 +95,7 @@ function HeroSection() {
                                 <h4 className="text-slate-800 text-lg font-extrabold leading-tight">Emergency Ambulance</h4>
                                 <p className="text-slate-500 text-xs font-semibold">No Login Required • 24/7 Available</p>
                             </div>
-                            <Link href="/ambulance" className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-full font-bold text-sm transition-transform hover:scale-105 active:scale-95">
+                            <Link href="/ambulance/accidentalambulance" className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-full font-bold text-sm transition-transform hover:scale-105 active:scale-95">
                                 Book Now
                             </Link>
                         </div>

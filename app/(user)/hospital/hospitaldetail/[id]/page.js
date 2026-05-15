@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { 
-    FaArrowLeft, FaMapMarkerAlt, FaHospital, FaBed, 
+import {
+    FaArrowLeft, FaMapMarkerAlt, FaHospital, FaBed,
     FaUserMd, FaStar, FaBriefcaseMedical, FaPhoneAlt,
     FaRegEnvelope, FaCheckCircle, FaStethoscope, FaChevronRight
 } from "react-icons/fa";
@@ -47,7 +47,7 @@ export default function HospitalDetailPage() {
 
         // Store the payload as a string in sessionStorage
         sessionStorage.setItem("activeWardRequest", JSON.stringify(wardPayload));
-        
+
         // Navigate to the beds display page
         router.push("/hospital/showbeds");
     };
@@ -78,15 +78,15 @@ export default function HospitalDetailPage() {
 
     return (
         <div className="min-h-screen bg-slate-50/50 text-slate-900 pb-32">
-            
+
             {/* STICKY HEADER */}
             <nav className="sticky top-0 z-[100] bg-white/80 backdrop-blur-md border-b border-slate-200">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <button 
-                        onClick={() => router.back()} 
+                    <button
+                        onClick={() => router.back()}
                         className="group flex items-center gap-2 text-slate-600 hover:text-emerald-600 transition-all font-semibold"
                     >
-                        <FaArrowLeft className="group-hover:-translate-x-1 transition-transform" /> 
+                        <FaArrowLeft className="group-hover:-translate-x-1 transition-transform" />
                         <span>Back to Search</span>
                     </button>
                     <div className="flex items-center gap-3">
@@ -98,7 +98,7 @@ export default function HospitalDetailPage() {
             </nav>
 
             <main className="max-w-7xl mx-auto px-6 mt-8">
-                
+
                 {/* HERO SECTION */}
                 <div className="bg-white rounded-[3rem] p-8 md:p-12 shadow-sm border border-slate-100 mb-8 overflow-hidden relative">
                     <div className="grid lg:grid-cols-2 gap-12 items-center relative z-10">
@@ -127,10 +127,10 @@ export default function HospitalDetailPage() {
                         <div className="relative group">
                             <div className="absolute -inset-4 bg-gradient-to-tr from-emerald-100 to-teal-50 rounded-[3rem] blur-2xl opacity-30"></div>
                             <div className="relative aspect-[4/3] rounded-[2.5rem] overflow-hidden border-8 border-white shadow-2xl">
-                                <img 
-                                    src={getImageUrl(hospital.hospitalImage?.[0])} 
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" 
-                                    alt="Hospital Exterior" 
+                                <img
+                                    src={getImageUrl(hospital.hospitalImage?.[0])}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000"
+                                    alt="Hospital Exterior"
                                 />
                             </div>
                         </div>
@@ -165,11 +165,11 @@ export default function HospitalDetailPage() {
                             <p className="text-slate-500 font-medium">Select a department below to view specific bed locations.</p>
                         </div>
                     </div>
-                    
+
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
                         {wards.map((ward) => (
-                            <div 
-                                key={ward._id} 
+                            <div
+                                key={ward._id}
                                 onClick={() => handleWardClick(ward)}
                                 className="group relative bg-white p-8 rounded-[2.5rem] border border-slate-200 hover:border-emerald-500 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all cursor-pointer overflow-hidden"
                             >
@@ -187,7 +187,7 @@ export default function HospitalDetailPage() {
                                     {ward.name}
                                     <FaChevronRight className="text-slate-200 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
                                 </h4>
-                                
+
                                 <div className="flex items-end gap-2 mb-6">
                                     <span className="text-5xl font-black tracking-tighter text-slate-900">{ward.availableBeds}</span>
                                     <span className="text-sm font-bold text-slate-400 mb-2 uppercase tracking-wide">Available</span>
@@ -195,8 +195,8 @@ export default function HospitalDetailPage() {
 
                                 <div className="space-y-2">
                                     <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                                        <div 
-                                            className={`h-full transition-all duration-700 ${ward.availableBeds > (ward.totalBeds/2) ? 'bg-emerald-500' : 'bg-orange-500'}`} 
+                                        <div
+                                            className={`h-full transition-all duration-700 ${ward.availableBeds > (ward.totalBeds / 2) ? 'bg-emerald-500' : 'bg-orange-500'}`}
                                             style={{ width: `${(ward.availableBeds / ward.totalBeds) * 100}%` }}
                                         ></div>
                                     </div>
@@ -215,49 +215,91 @@ export default function HospitalDetailPage() {
                     </div>
                 </section>
 
-                {/* DOCTORS GRID */}
                 <section className="mb-20">
                     <h3 className="text-2xl font-bold text-slate-900 mb-8">Medical Specialists</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
                         {doctors.map((doc) => (
-                            <div key={doc._id} className="group cursor-default">
-                                <div className="relative aspect-[3/4] rounded-3xl overflow-hidden mb-4 shadow-sm group-hover:shadow-xl transition-all border-2 border-transparent group-hover:border-emerald-200">
-                                    <img 
-                                        src={getImageUrl(doc.profileImage)} 
-                                        className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:grayscale-0 grayscale-[0.3]" 
-                                        alt={doc.name} 
+                            <div key={doc._id} className="group bg-white rounded-3xl p-3 border border-slate-100 shadow-sm hover:shadow-xl hover:border-emerald-100 transition-all duration-300">
+                                <div className="relative aspect-[3/4] rounded-2xl overflow-hidden mb-4">
+                                    <img
+                                        src={getImageUrl(doc.profileImage)}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                        alt={doc.name}
                                     />
-                                    <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm px-2 py-1 rounded-xl flex items-center gap-1 shadow-sm border border-slate-100">
+                                    <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-xl flex items-center gap-1 shadow-sm">
                                         <FaStar className="text-yellow-400 text-[10px]" />
-                                        <span className="text-[10px] font-bold">{doc.averageRating || '4.8'}</span>
+                                        <span className="text-[10px] font-bold text-slate-700">{doc.averageRating || '1'}</span>
+                                    </div>
+
+                                    {/* Hover Detail Button */}
+                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                                        <button className="bg-white text-emerald-600 text-[10px] font-bold px-4 py-2 rounded-full shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+                                            VIEW DETAILS
+                                        </button>
                                     </div>
                                 </div>
-                                <h4 className="font-bold text-slate-800 text-sm group-hover:text-emerald-600 transition-colors leading-tight">Dr. {doc.name}</h4>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{doc.speciality}</p>
+
+                                <div className="px-1 pb-2">
+                                    <h4 className="font-bold text-slate-800 text-sm truncate">Dr. {doc.name}</h4>
+                                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight mt-1">{doc.speciality}</p>
+
+                                    {/* Mobile/Default Visible Button */}
+                                    <button className="w-full mt-3 py-2 bg-emerald-600 text-white text-[10px] font-bold rounded-xl transition-colors duration-300">
+                                        View Profile
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
                 </section>
 
-                {/* SERVICES SECTION */}
-                <section>
-                    <h3 className="text-2xl font-bold text-slate-900 mb-8">Offered Services</h3>
-                    <div className="grid md:grid-cols-2 gap-6">
+                <section className="py-12">
+                    <div className="flex items-center justify-between mb-10">
+                        <h3 className="text-3xl font-black text-slate-900 tracking-tight">Offered Services</h3>
+                        <span className="h-1 flex-1 mx-6 bg-slate-100 rounded-full hidden md:block"></span>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-8">
                         {services.map((service) => (
-                            <div key={service._id} className="bg-white p-5 rounded-[2.5rem] border border-slate-100 flex items-center gap-6 hover:shadow-xl transition-all group">
-                                <div className="w-28 h-28 rounded-3xl overflow-hidden shrink-0 border-2 border-slate-50 group-hover:border-emerald-100 transition-colors">
-                                    <img src={getImageUrl(service.image)} className="w-full h-full object-cover" alt={service.serviceName} />
+                            <div
+                                key={service._id}
+                                className="group relative bg-white p-4 rounded-[2rem] border border-slate-100 flex items-center gap-6 hover:shadow-[0_20px_50px_rgba(16,185,129,0.1)] transition-all duration-500 hover:-translate-y-1"
+                            >
+                                {/* Image Section */}
+                                <div className="relative w-32 h-32 rounded-[1.5rem] overflow-hidden shrink-0 shadow-inner bg-slate-50">
+                                    <img
+                                        src={getImageUrl(service.image)}
+                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                        alt={service.serviceName}
+                                    />
+                                    <div className="absolute inset-0 bg-emerald-900/10 group-hover:bg-transparent transition-colors" />
                                 </div>
-                                <div className="flex-1 pr-4">
-                                    <div className="flex justify-between items-start mb-1">
-                                        <h4 className="font-bold text-slate-800 group-hover:text-emerald-600 transition-colors uppercase text-xs tracking-tight">{service.serviceName}</h4>
-                                        <span className="text-emerald-600 font-black text-sm">₹{service.price}</span>
+
+                                {/* Content Section */}
+                                <div className="flex-1 py-2">
+                                    <div className="flex justify-between items-start gap-2 mb-2">
+                                        <h4 className="font-black text-slate-800 group-hover:text-emerald-600 transition-colors text-sm leading-tight uppercase tracking-wide">
+                                            {service.serviceName}
+                                        </h4>
+                                        <div className="bg-emerald-50 px-3 py-1 rounded-full">
+                                            <span className="text-emerald-700 font-black text-sm">₹{service.price}</span>
+                                        </div>
                                     </div>
-                                    <p className="text-[12px] text-slate-500 line-clamp-2 leading-relaxed mb-3">{service.description}</p>
-                                    <div className="inline-flex items-center gap-1.5 text-emerald-500 text-[9px] font-black uppercase tracking-widest bg-emerald-50 px-2 py-1 rounded-md">
-                                        <FaCheckCircle className="text-[10px]" /> Instant Booking
+
+                                    <p className="text-[13px] text-slate-500 line-clamp-2 leading-relaxed mb-4 font-medium">
+                                        {service.description}
+                                    </p>
+
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5 text-emerald-500 text-[10px] font-bold uppercase tracking-tighter">
+                                            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                                            Instant Booking
+                                        </div>
                                     </div>
                                 </div>
+
+                                {/* Decorative background element */}
+                                <div className="absolute top-0 right-0 -z-10 w-24 h-24 bg-emerald-50/50 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
                         ))}
                     </div>

@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { 
-    FaArrowLeft, FaWind, FaCheck, FaRupeeSign, 
+import {
+    FaArrowLeft, FaWind, FaCheck, FaRupeeSign,
     FaTools, FaUserAlt, FaProcedures, FaHospital,
     FaArrowRight, FaRegCircle, FaCheckCircle
 } from "react-icons/fa";
@@ -15,7 +15,7 @@ export default function EnhancedBedDashboard() {
     const [beds, setBeds] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState("all");
-    
+
     // Selection State
     const [selectedBed, setSelectedBed] = useState(null);
 
@@ -26,7 +26,7 @@ export default function EnhancedBedDashboard() {
                 if (!rawData) { router.push("/hospital"); return; }
                 const payload = JSON.parse(rawData);
                 setWardInfo(payload);
-                
+
                 const response = await UserAPI.getWardBeds(payload.wardId);
                 if (response.success) setBeds(response.data);
             } catch (err) {
@@ -56,13 +56,25 @@ export default function EnhancedBedDashboard() {
             setSelectedBed(selectedBed?._id === bed._id ? null : bed);
         }
     };
-
+    
+    // UPDATED: Merging previous payload with new bed selection
     const confirmBooking = () => {
-        if (!selectedBed) return;
-        // Logic to proceed to checkout or confirmation
-        console.log("Proceeding with bed:", selectedBed.bedNumber);
-        // sessionStorage.setItem("selectedBed", JSON.stringify(selectedBed));
-        // router.push("/checkout");
+        if (!selectedBed || !wardInfo) return;
+
+        const finalBookingPayload = {
+            ...wardInfo, // Spreads HospitalID, HospitalName, WardID, WardName, etc.
+            bedId: selectedBed._id,
+            bedNumber: selectedBed.bedNumber,
+            pricePerDay: selectedBed.pricePerDay,
+            isVentilator: selectedBed.isVentilatorAvailable,
+            bookingDate: new Date().toISOString()
+        };
+
+        // Save complete data for Checkout
+        sessionStorage.setItem("activeBooking", JSON.stringify(finalBookingPayload));
+
+        // Navigate to checkout
+        router.push("/hospital/checkout");
     };
 
     if (loading) return (
@@ -75,12 +87,12 @@ export default function EnhancedBedDashboard() {
     return (
         <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-32">
             <div className="max-w-7xl mx-auto p-4 md:p-8">
-                
+
                 {/* HEADER */}
                 <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                     <div className="flex items-center gap-4">
-                        <button 
-                            onClick={() => router.back()} 
+                        <button
+                            onClick={() => router.back()}
                             className="p-3 bg-white shadow-sm border border-slate-200 rounded-xl hover:bg-slate-50"
                         >
                             <FaArrowLeft size={16} className="text-slate-600" />
@@ -108,17 +120,16 @@ export default function EnhancedBedDashboard() {
                         <LegendItem color="bg-red-500" label="Occupied" />
                         <LegendItem color="bg-amber-500" label="Service" />
                     </div>
-                    
+
                     <div className="flex bg-slate-100 p-1 rounded-xl">
                         {['all', 'available', 'ventilator'].map((f) => (
                             <button
                                 key={f}
                                 onClick={() => setFilter(f)}
-                                className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                                    filter === f 
-                                    ? 'bg-white text-blue-600 shadow-sm' 
-                                    : 'text-slate-500 hover:text-slate-700'
-                                }`}
+                                className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filter === f
+                                        ? 'bg-white text-blue-600 shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                    }`}
                             >
                                 {f}
                             </button>
@@ -129,9 +140,9 @@ export default function EnhancedBedDashboard() {
                 {/* GRID */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                     {filteredBeds.map((bed) => (
-                        <BedCard 
-                            key={bed._id} 
-                            bed={bed} 
+                        <BedCard
+                            key={bed._id}
+                            bed={bed}
                             isSelected={selectedBed?._id === bed._id}
                             onSelect={() => handleBedSelect(bed)}
                         />
@@ -151,13 +162,13 @@ export default function EnhancedBedDashboard() {
                             <h4 className="text-lg font-black">#{selectedBed.bedNumber}</h4>
                         </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-6">
                         <div className="text-right hidden sm:block">
                             <p className="text-[10px] font-bold text-slate-400 uppercase">Daily Rate</p>
                             <p className="font-black text-emerald-400">₹{selectedBed.pricePerDay}</p>
                         </div>
-                        <button 
+                        <button
                             onClick={confirmBooking}
                             className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-colors"
                         >
@@ -190,7 +201,7 @@ function LegendItem({ color, label }) {
 
 function BedCard({ bed, isSelected, onSelect }) {
     const status = bed.status;
-    
+
     const theme = {
         Available: {
             bg: isSelected ? "bg-emerald-50 border-emerald-500 shadow-lg ring-2 ring-emerald-500/20" : "bg-white border-slate-200 hover:border-emerald-400",
@@ -213,7 +224,7 @@ function BedCard({ bed, isSelected, onSelect }) {
     }[status];
 
     return (
-        <div 
+        <div
             onClick={onSelect}
             className={`relative p-5 rounded-2xl border-2 transition-all duration-200 cursor-pointer ${theme.bg}`}
         >
