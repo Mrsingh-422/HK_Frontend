@@ -17,12 +17,16 @@ export default function AmbulanceBookingPage() {
   const [loading, setLoading] = useState(true);
   const [previewImage, setPreviewImage] = useState(null);
 
+  // Dynamic Data States
+  const [hospitals, setHospitals] = useState([]);
+  const [familyMembers, setFamilyMembers] = useState([]);
+
   // Form States
   const [formData, setFormData] = useState({
     pickupLocation: "Locating you...",
-    relation: "Brother",
+    relation: "",
     emergencyType: "",
-    supportStaff: { nurse: true, doctor: false },
+    supportStaff: { nurse: false, doctor: false },
     hospital: "",
     priority: "Emergency"
   });
@@ -31,24 +35,41 @@ export default function AmbulanceBookingPage() {
   useEffect(() => {
     const init = async () => {
       try {
-        // 1. Fetch exact address from coordinates
-        const storedCoords = localStorage.getItem('userCoords');
-        if (storedCoords) {
-          const { lat, lng } = JSON.parse(storedCoords);
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-          const data = await res.json();
-          setFormData(prev => ({ ...prev, pickupLocation: data.display_name || "Unknown Location" }));
+        const storedCoordsString = localStorage.getItem('userCoords');
+        const coords = storedCoordsString ? JSON.parse(storedCoordsString) : { lat: 30.6, lng: 76.7 };
+
+        // 1. Fetch exact address from coordinates for display
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}`);
+        const addrData = await res.json();
+
+        // 2. Fetch Hospitals List
+        const hospitalRes = await UserAPI.getHospitalsList(coords);
+        if (hospitalRes.success) {
+          setHospitals(hospitalRes.data);
         }
 
-        // 2. Fetch specific ambulance details
-        const ambRes = await UserAPI.getNearestAmbulances(
-          storedCoords ? JSON.parse(storedCoords) : { lat: 30.7, lng: 76.6 }
-        );
+        // 3. Fetch Family Members
+        const familyRes = await UserAPI.getFamilyMembers();
+        if (familyRes.success) {
+          setFamilyMembers(familyRes.data);
+          // Set default relation if members exist
+          if (familyRes.data.length > 0) {
+            setFormData(prev => ({ ...prev, relation: familyRes.data[0]._id }));
+          }
+        }
 
+        // 4. Fetch specific ambulance details
+        const ambRes = await UserAPI.getNearestAmbulances(coords);
         if (ambRes.success) {
           const selected = ambRes.data.find(a => a._id === id);
           setAmbulance(selected);
         }
+
+        setFormData(prev => ({
+          ...prev,
+          pickupLocation: addrData.display_name || "Unknown Location"
+        }));
+
       } catch (err) {
         console.error("Error fetching data:", err);
       } finally {
@@ -106,16 +127,22 @@ export default function AmbulanceBookingPage() {
                   </div>
                 </div>
 
-                {/* Patient Relation Dropdown */}
+                {/* Patient Relation Dropdown (DYNAMIC) */}
                 <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Patient Relation</label>
+                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Patient (Family)</label>
                   <div className="relative">
                     <select
                       className="w-full bg-slate-50 border-2 border-transparent focus:border-[#08B36A] rounded-2xl py-4 px-6 text-sm font-semibold appearance-none outline-none cursor-pointer"
                       value={formData.relation}
                       onChange={(e) => setFormData({ ...formData, relation: e.target.value })}
                     >
-                      <option>Brother</option><option>Self</option><option>Friend</option><option>Stranger</option><option>Mother/Father</option>
+                      <option value="self">Self</option>
+                      {familyMembers.map((member) => (
+                        <option key={member._id} value={member._id}>
+                          {member.memberName} ({member.relation})
+                        </option>
+                      ))}
+                      <option value="stranger">Stranger</option>
                     </select>
                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
                   </div>
@@ -201,7 +228,7 @@ export default function AmbulanceBookingPage() {
                 </div>
               </div>
 
-              {/* Contact & Technical Details from JSON */}
+              {/* Contact & Technical Details */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
@@ -243,7 +270,7 @@ export default function AmbulanceBookingPage() {
               </div>
             </div>
 
-            {/* Choose Your Hospital Dropdown */}
+            {/* Choose Your Hospital Dropdown (DYNAMIC) */}
             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
               <h3 className="text-lg font-black mb-6">Choose Your Hospital</h3>
               <div className="relative">
@@ -254,10 +281,11 @@ export default function AmbulanceBookingPage() {
                   onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
                 >
                   <option value="">Select Nearest Hospital/Clinic</option>
-                  <option>City General Hospital</option>
-                  <option>Emergency Trauma Centre</option>
-                  <option>Apollo Medical Hub</option>
-                  <option>St. Mary’s Emergency Wing</option>
+                  {hospitals.map((hospital) => (
+                    <option key={hospital._id} value={hospital._id}>
+                      {hospital.name} ({hospital.type})
+                    </option>
+                  ))}
                 </select>
                 <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               </div>

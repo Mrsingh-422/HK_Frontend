@@ -14,7 +14,7 @@ import { useGlobalContext } from "@/app/context/GlobalContext";
 
 const AMBULANCE_TYPES = [
     {
-        id: "emergency",
+        id: "accidental",
         slug: "accidentalambulance",
         title: "Accidental",
         subtitle: "Critical / ALS",
@@ -23,7 +23,8 @@ const AMBULANCE_TYPES = [
         accent: "bg-red-600",
         lightBg: "bg-red-50",
         hoverBorder: "hover:border-red-500",
-        ringColor: "ring-red-500/20"
+        ringColor: "ring-red-500/20",
+        serviceType: "Accident emergency"
     },
     {
         id: "medical",
@@ -34,6 +35,7 @@ const AMBULANCE_TYPES = [
         icon: <Stethoscope className="w-8 h-8 text-blue-600" />,
         accent: "bg-blue-600",
         lightBg: "bg-blue-50",
+        serviceType: "Medical Ambulance",
         hoverBorder: "hover:border-blue-500",
         ringColor: "ring-blue-500/20"
     },
@@ -47,7 +49,8 @@ const AMBULANCE_TYPES = [
         accent: "bg-orange-600",
         lightBg: "bg-orange-50",
         hoverBorder: "hover:border-orange-500",
-        ringColor: "ring-orange-500/20"
+        ringColor: "ring-orange-500/20",
+        serviceType: "Referral Ambulance"
     }
 ];
 
@@ -74,9 +77,10 @@ const AmbulanceHero = ({ searchTerm, setSearchTerm }) => {
         fetchContent();
     }, [getAmbulancePageData]);
 
-    const handleServiceClick = (id, slug) => {
+    const handleServiceClick = (id, slug, serviceType) => {
         setSelectedType(id);
-        router.push(`/ambulance/${slug}`);
+        // We pass the serviceType as a URL query parameter
+        router.push(`/ambulance/${slug}?serviceType=${encodeURIComponent(serviceType)}`);
     };
 
     return (
@@ -116,7 +120,7 @@ const AmbulanceHero = ({ searchTerm, setSearchTerm }) => {
                                 {AMBULANCE_TYPES.map((item) => (
                                     <button
                                         key={item.id}
-                                        onClick={() => handleServiceClick(item.id, item.slug)}
+                                        onClick={() => handleServiceClick(item.id, item.slug, item.serviceType)}
                                         className={`group relative flex flex-row md:flex-col items-center md:items-start p-4 md:p-6 rounded-[2rem] transition-all duration-300 border-2 text-left
                                             ${selectedType === item.id
                                                 ? `${item.hoverBorder} ${item.lightBg} shadow-lg ring-4 ${item.ringColor}`

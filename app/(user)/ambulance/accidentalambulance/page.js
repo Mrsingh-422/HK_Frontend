@@ -2,91 +2,155 @@
 import React, { useState, useEffect } from 'react';
 import { 
   MapPin, ChevronDown, Camera, ShieldAlert, MessageSquare, 
-  Info, ChevronLeft, Navigation, Clock, User 
+  Info, ChevronLeft, Navigation, Clock, User, Loader2
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-
-const AMBULANCES = [
-    {
-        id: 1,
-        name: "HK Ambulance",
-        type: "Ventilator - Paramedic",
-        driver: "Ramesh Kumar",
-        distance: "1.8 km",
-        eta: "4 mins",
-        price: 450,
-        image: "https://images.unsplash.com/photo-1587745416684-47953f16f02f?auto=format&fit=crop&q=80&w=600",
-    },
-    {
-        id: 2,
-        name: "LifeLine Plus",
-        type: "Trauma Care - ALS",
-        driver: "Suresh Pal",
-        distance: "2.4 km",
-        eta: "7 mins",
-        price: 600,
-        image: "https://images.unsplash.com/photo-1516562309708-05f3b2b2c238?auto=format&fit=crop&q=80&w=600",
-    },
-    {
-        id: 3,
-        name: "City Cardiac Care",
-        type: "Cardiac - ICU",
-        driver: "Anil Mehra",
-        distance: "3.1 km",
-        eta: "9 mins",
-        price: 850,
-        image: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=600",
-    }
-];
+import { useRouter, useSearchParams } from 'next/navigation';
+import UserAPI from '@/app/services/UserAPI';
 
 export default function AccidentalAmbulanceWeb() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     
-    const [selectedAmbulance, setSelectedAmbulance] = useState(1);
+    const serviceTypeFromUrl = searchParams.get('serviceType') || "Accident emergency";
+
+    const [ambulances, setAmbulances] = useState([]);
+    const [familyMembers, setFamilyMembers] = useState([]); 
+    const [loading, setLoading] = useState(true);
+    const [selectedAmbulance, setSelectedAmbulance] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
+    const [imageFile, setImageFile] = useState(null); 
     const [formData, setFormData] = useState({
         location: "Fetching exact address...",
-        relation: "Brother",
-        description: ""
+        relation: "Self",
+        description: "",
+        serviceType: serviceTypeFromUrl
     });
 
-    // Fetch coordinates and convert to Exact Address
+    // 1. Fetch Coordinates, Nearest Ambulances, and Family Members
     useEffect(() => {
-        const storedCoords = localStorage.getItem('userCoords');
-        if (storedCoords) {
+        const fetchData = async () => {
+            setLoading(true);
+            const storedCoords = localStorage.getItem('userCoords');
+            
             try {
-                const { lat, lng } = JSON.parse(storedCoords);
-                
-                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        setFormData(prev => ({ 
-                            ...prev, 
-                            location: data.display_name || "Location Found" 
-                        }));
-                    })
-                    .catch(() => {
-                        setFormData(prev => ({ ...prev, location: "Address lookup failed" }));
-                    });
+                const familyRes = await UserAPI.getFamilyMembers();
+                if (familyRes.success && familyRes.data) {
+                    setFamilyMembers(familyRes.data);
+                }
+
+                if (storedCoords) {
+                    const { lat, lng } = JSON.parse(storedCoords);
+                    
+                    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            setFormData(prev => ({ 
+                                ...prev, 
+                                location: data.display_name || "Location Found" 
+                            }));
+                        })
+                        .catch(err => console.error("Address lookup failed", err));
+
+                    const payload = {
+                        lat: lat,
+                        lng: lng,
+                        vehicleType: "",
+                        serviceType: serviceTypeFromUrl
+                    };
+
+                    const response = await UserAPI.getNearestAmbulances(payload);
+                    if (response.success && response.data) {
+                        setAmbulances(response.data);
+                        if (response.data.length > 0) {
+                            setSelectedAmbulance(response.data[0]._id);
+                        }
+                    }
+                } else {
+                    setFormData(prev => ({ ...prev, location: "Location not found" }));
+                }
             } catch (e) { 
-                console.error("Coords error:", e);
-                setFormData(prev => ({ ...prev, location: "No saved location" }));
+                console.error("Data fetching error:", e);
+            } finally {
+                setLoading(false);
             }
-        } else {
-            setFormData(prev => ({ ...prev, location: "Location not found" }));
-        }
-    }, []);
+        };
+
+        fetchData();
+    }, [serviceTypeFromUrl]);
 
     const handleImage = (e) => {
         const file = e.target.files[0];
-        if (file) setPreviewImage(URL.createObjectURL(file));
+        if (file) {
+            setPreviewImage(URL.createObjectURL(file));
+            setImageFile(file); // This is the raw file for Multer
+        }
     };
 
-    const activeAmbulance = AMBULANCES.find(a => a.id === selectedAmbulance);
+    const activeAmbulance = ambulances.find(a => a._id === selectedAmbulance);
+
+    const handleConfirmBooking = async () => {
+        if (!activeAmbulance) return;
+
+        const selectedMemberData = familyMembers.find(
+            member => `${member.memberName} (${member.relation})` === formData.relation
+        );
+        
+        // 1. Prepare FormData exactly like your Postman Model
+        const data = new FormData();
+        data.append('ambulanceId', activeAmbulance._id);
+        data.append('hospitalId', "699d881dfabe095ff8304f52"); 
+        data.append('serviceType', "Accident emergency");
+        data.append('triageLevel', "Emergency");
+        data.append('incidentDescription', formData.description);
+
+        const patientDetailsObj = {
+            name: selectedMemberData ? selectedMemberData.memberName : (formData.relation === "Self" ? "Self" : "Unknown Victim"),
+            relation: formData.relation
+        };
+        data.append('patientDetails', JSON.stringify(patientDetailsObj));
+
+        // incidentPhoto key for Multer
+        if (imageFile) {
+            data.append('incidentPhoto', imageFile);
+        }
+
+        // --- Important: Log to verify keys ---
+        console.log("--- Payload Keys ---");
+        for (let key of data.keys()) { console.log(key); }
+
+        try {
+            /**
+             * CRITICAL FIX: 
+             * Because your authApi has a default 'application/json' header, 
+             * we must tell Axios to remove it so it can properly set the 
+             * Multipart boundary for the image.
+             */
+            const config = {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            };
+
+            const checkOutRes = await UserAPI.checkOutAmbulance(data, config);
+            
+            if (checkOutRes.success) {
+                const bookingRes = await UserAPI.bookAmbulance(data, config);
+                
+                if (bookingRes.success) {
+                    alert(`Success! Your ambulance from ${activeAmbulance.name} has been booked.`);
+                    router.push('/userscreens/ambulanceappointment');
+                } else {
+                    alert(bookingRes.message || "Failed to book ambulance");
+                }
+            } else {
+                alert(checkOutRes.message || "Failed to calculate fare");
+            }
+        } catch (error) {
+            console.error("Booking Error:", error);
+            alert("Error: Image upload failed. Check your API service headers.");
+        }
+    };
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-            {/* Header */}
             <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
                     <div className="flex items-center gap-6">
@@ -94,7 +158,7 @@ export default function AccidentalAmbulanceWeb() {
                             <ChevronLeft className="w-6 h-6" />
                         </button>
                         <div>
-                            <h1 className="text-2xl font-black tracking-tight">Accidental Emergency</h1>
+                            <h1 className="text-2xl font-black tracking-tight">{serviceTypeFromUrl}</h1>
                             <p className="text-xs font-bold text-red-500 uppercase tracking-widest">Priority Dispatch Enabled</p>
                         </div>
                     </div>
@@ -113,7 +177,6 @@ export default function AccidentalAmbulanceWeb() {
             <main className="max-w-7xl mx-auto px-6 py-10">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
                     
-                    {/* Form Section */}
                     <div className="lg:col-span-4 space-y-6">
                         <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
                             <h2 className="text-lg font-black mb-6 flex items-center gap-2">
@@ -133,10 +196,6 @@ export default function AccidentalAmbulanceWeb() {
                                             placeholder="Detecting location..."
                                         />
                                     </div>
-                                    <div className="flex items-center gap-2 ml-1 mt-2">
-                                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                        <p className="text-xs font-bold text-slate-500">Live Address Tracking</p>
-                                    </div>
                                 </div>
 
                                 <div className="space-y-2">
@@ -148,7 +207,13 @@ export default function AccidentalAmbulanceWeb() {
                                             value={formData.relation}
                                             onChange={(e) => setFormData({...formData, relation: e.target.value})}
                                         >
-                                            <option>Brother</option><option>Self</option><option>Friend</option><option>Stranger</option>
+                                            <option value="Self">Self</option>
+                                            {familyMembers.map((member) => (
+                                                <option key={member._id} value={`${member.memberName} (${member.relation})`}>
+                                                    {member.memberName} ({member.relation})
+                                                </option>
+                                            ))}
+                                            <option value="Other">Other</option>
                                         </select>
                                         <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
                                     </div>
@@ -182,87 +247,104 @@ export default function AccidentalAmbulanceWeb() {
                         </div>
                     </div>
 
-                    {/* Selection Section - List Format */}
                     <div className="lg:col-span-8 space-y-8">
                         <div>
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Available Ambulances Near You</h2>
                                 <div className="flex items-center gap-2 text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full">
-                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> 12 Online
+                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> {ambulances.length} Online
                                 </div>
                             </div>
 
                             <div className="space-y-4">
-                                {AMBULANCES.map((ambulance) => (
-                                    <div 
-                                        key={ambulance.id}
-                                        onClick={() => setSelectedAmbulance(ambulance.id)}
-                                        className={`group flex items-center gap-6 bg-white rounded-[2rem] p-4 border-2 transition-all cursor-pointer ${selectedAmbulance === ambulance.id ? 'border-green-500 ring-4 ring-green-50' : 'border-slate-100 hover:border-slate-200 hover:shadow-lg'}`}
-                                    >
-                                        {/* Left Side: Image */}
-                                        <div className="relative w-32 h-24 md:w-44 md:h-32 flex-shrink-0 rounded-[1.2rem] overflow-hidden">
-                                            <img src={ambulance.image} alt={ambulance.name} className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500" />
-                                            <div className="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-1 rounded-lg flex items-center gap-1 shadow-sm">
-                                                <Clock className="w-3 h-3 text-orange-500" />
-                                                <span className="text-[10px] font-black">{ambulance.eta}</span>
-                                            </div>
-                                        </div>
-                                        
-                                        {/* Center: Info */}
-                                        <div className="flex-grow">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <h3 className="text-xl font-black">{ambulance.name}</h3>
-                                                <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full font-bold text-slate-500 uppercase tracking-tighter">
-                                                    {ambulance.type}
-                                                </span>
+                                {loading ? (
+                                    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2rem] border-2 border-dashed border-slate-200">
+                                        <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+                                        <p className="font-bold text-slate-500 text-sm">Finding nearest response units...</p>
+                                    </div>
+                                ) : (
+                                    ambulances.map((ambulance) => (
+                                        <div 
+                                            key={ambulance._id}
+                                            onClick={() => setSelectedAmbulance(ambulance._id)}
+                                            className={`group flex flex-col md:flex-row items-center gap-6 bg-white rounded-[2rem] p-4 border-2 transition-all cursor-pointer ${selectedAmbulance === ambulance._id ? 'border-green-500 ring-4 ring-green-50' : 'border-slate-100 hover:border-slate-200 hover:shadow-lg'}`}
+                                        >
+                                            <div className="relative w-full md:w-44 h-32 flex-shrink-0 rounded-[1.2rem] overflow-hidden bg-slate-100">
+                                                <img 
+                                                    src="https://images.unsplash.com/photo-1587745416684-47953f16f02f?auto=format&fit=crop&q=80&w=600" 
+                                                    alt={ambulance.name} 
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500" 
+                                                />
+                                                <div className="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-1 rounded-lg flex items-center gap-1 shadow-sm">
+                                                    <Clock className="w-3 h-3 text-orange-500" />
+                                                    <span className="text-[10px] font-black">{ambulance.eta}</span>
+                                                </div>
                                             </div>
                                             
-                                            <div className="flex items-center gap-4 text-xs font-bold text-slate-500">
-                                                <div className="flex items-center gap-1.5">
-                                                    <User className="w-3.5 h-3.5 text-blue-500" />
-                                                    {ambulance.driver}
+                                            <div className="flex-grow w-full">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h3 className="text-xl font-black truncate max-w-[250px]">{ambulance.name}</h3>
+                                                    <span className="text-[10px] bg-blue-50 px-2 py-0.5 rounded-full font-bold text-blue-600 uppercase tracking-tighter">
+                                                        {ambulance.vehicleType}
+                                                    </span>
                                                 </div>
-                                                <div className="flex items-center gap-1.5">
-                                                    <MapPin className="w-3.5 h-3.5 text-green-500" />
-                                                    {ambulance.distance}
+                                                
+                                                <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-500">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <User className="w-3.5 h-3.5 text-blue-500" />
+                                                        {ambulance.driverInfo?.fullName || "On-Duty Driver"}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <MapPin className="w-3.5 h-3.5 text-green-500" />
+                                                        {ambulance.distance}
+                                                    </div>
                                                 </div>
+                                                <p className="text-[10px] text-slate-400 mt-2 line-clamp-1">{ambulance.address}</p>
                                             </div>
-                                        </div>
 
-                                        {/* Right Side: Price & Selection */}
-                                        <div className="text-right pr-4">
-                                            <p className="text-2xl font-black text-slate-900">${ambulance.price}.00</p>
-                                            <div className={`mt-2 inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${selectedAmbulance === ambulance.id ? 'bg-green-500 text-white shadow-lg shadow-green-200' : 'bg-slate-50 text-slate-300'}`}>
-                                                <Navigation className="w-4 h-4 fill-current" />
+                                            <div className="text-right pr-4 w-full md:w-auto border-t md:border-t-0 pt-4 md:pt-0">
+                                                <p className="text-2xl font-black text-slate-900">
+                                                    {ambulance.isFreeCase ? "FREE" : `$${ambulance.displayPrice}`}
+                                                </p>
+                                                <div className={`mt-2 inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${selectedAmbulance === ambulance._id ? 'bg-green-500 text-white shadow-lg shadow-green-200' : 'bg-slate-50 text-slate-300'}`}>
+                                                    <Navigation className="w-4 h-4 fill-current" />
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))
+                                )}
                             </div>
                         </div>
 
                         {/* Fare Bar */}
-                        <div className="bg-slate-900 rounded-[3rem] p-10 text-white flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden shadow-2xl">
-                            <div className="absolute top-0 right-0 w-64 h-64 bg-green-500/10 rounded-full -mr-32 -mt-32 blur-3xl" />
-                            <div className="flex items-center gap-8 relative z-10">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Selected Vehicle</p>
-                                        <Info className="w-3 h-3 text-slate-500" />
+                        {activeAmbulance && (
+                            <div className="bg-slate-900 rounded-[3rem] p-10 text-white flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden shadow-2xl">
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-green-500/10 rounded-full -mr-32 -mt-32 blur-3xl" />
+                                <div className="flex items-center gap-8 relative z-10">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Selected Vehicle</p>
+                                            <Info className="w-3 h-3 text-slate-500" />
+                                        </div>
+                                        <h4 className="text-2xl font-black">{activeAmbulance.name}</h4>
+                                        <p className="text-green-400 font-bold text-sm">
+                                            {activeAmbulance.isFreeCase ? "Free Emergency Dispatch" : `Est. Fare: $${activeAmbulance.displayPrice}.00`}
+                                        </p>
                                     </div>
-                                    <h4 className="text-2xl font-black">{activeAmbulance.name}</h4>
-                                    <p className="text-green-400 font-bold text-sm">Est. Fare: ${activeAmbulance.price}.00</p>
+                                    <div className="hidden md:block w-[1px] h-16 bg-slate-800" />
+                                    <div className="hidden md:block">
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">ETA</p>
+                                        <p className="text-2xl font-black">{activeAmbulance.eta}</p>
+                                    </div>
                                 </div>
-                                <div className="hidden md:block w-[1px] h-16 bg-slate-800" />
-                                <div className="hidden md:block">
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Dispatch Time</p>
-                                    <p className="text-2xl font-black">Under 120s</p>
-                                </div>
+                                <button 
+                                    onClick={handleConfirmBooking}
+                                    className="w-full md:w-auto bg-green-500 hover:bg-green-400 text-white px-16 py-6 rounded-[2rem] font-black text-xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-green-500/20 relative z-10"
+                                >
+                                    Confirm & Dispatch
+                                </button>
                             </div>
-                            <button className="w-full md:w-auto bg-green-500 hover:bg-green-400 text-white px-16 py-6 rounded-[2rem] font-black text-xl transition-all hover:scale-105 active:scale-95 shadow-xl shadow-green-500/20 relative z-10">
-                                Confirm & Dispatch
-                            </button>
-                        </div>
+                        )}
                     </div>
                 </div>
             </main>

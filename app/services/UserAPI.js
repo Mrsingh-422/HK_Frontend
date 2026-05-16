@@ -528,7 +528,7 @@ const UserAPI = {
         return response.data;
     },
     getNurseCoupon: async (id) => {
-        const response = await authApi.get(`/user/nurse/coupons/${id}`);
+        const response = await authApi.get(`user/nurse/coupons/${id}`);
         return response.data;
     },
 
@@ -642,6 +642,22 @@ const UserAPI = {
         const response = await publicApi.post(
             "/user/ambulance/nearest-ambulances",
             data
+        );
+        return response.data;
+    },
+
+    checkOutAmbulance: async (data) => {
+        const response = await authApi.post("/user/ambulance/calculate-fare", data);
+        return response.data;
+    },
+
+    bookAmbulance: async (data) => {
+        const response = await authApi.post("/user/ambulance/confirm-booking", data);
+        return response.data;
+    },
+    getAmbulanceDetail: async (ambulanceId) => {
+        const response = await publicApi.get(
+            `/user/ambulance/details/${ambulanceId}`
         );
         return response.data;
     },
