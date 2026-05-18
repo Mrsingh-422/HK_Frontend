@@ -58,6 +58,21 @@ anyOneApi.interceptors.request.use((config) => {
 const NurseAPI = {
  
     // ==========================================
+    // PROFILE SECTION
+    // ==========================================
+    getNurseProfile: async () => {
+        const response = await nurseVendorApi.get('/api/auth/provider/profile');
+        return response.data;
+    },
+ 
+    updateNurseProfile: async (formData) => {
+        const response = await nurseVendorApi.put('/provider/nurse/dash/profile/update', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+ 
+    // ==========================================
     // VISIT / CONVEYANCE CHARGES SECTION
     // ==========================================
     saveDeliveryCharges: async (data) => {
@@ -139,6 +154,131 @@ const NurseAPI = {
         const response = await nurseVendorApi.delete(`/provider/coupons/delete/${id}`);
         return response.data;
     },
+ 
+    // ==========================================
+    // SERVICE & CSV MANAGEMENT
+    // ==========================================
+    getNurseCsvCategories: async () => {
+        const response = await publicApi.get('/admin/nurse-csv/categories');
+        return response.data;
+    },
+ 
+    getNurseCsvSubCategories: async (category) => {
+        const response = await publicApi.get(`/admin/nurse-csv/sub-categories?category=${category}`);
+        return response.data;
+    },
+ 
+    getNurseCsvServiceDetails: async (category, subCategory) => {
+        const response = await publicApi.get(`/admin/nurse-csv/details?category=${category}&subCategory=${subCategory}`);
+        return response.data;
+    },
+ 
+    manageNurseService: async (payload) => {
+        const response = await nurseVendorApi.post('/provider/nurse/dash/service/manage', payload);
+        return response.data;
+    },
+ 
+    updateNurseService: async (id, formData) => {
+        const response = await nurseVendorApi.put(`/provider/nurse/dash/service/manage/${id}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+ 
+    getMyServicesList: async (status = 'Approved') => {
+        const response = await nurseVendorApi.get(`/provider/nurse/dash/service/list?status=${status}`);
+        return response.data;
+    },
+ 
+    // ==========================================
+    // AVAILABILITY & SLOTS MANAGEMENT
+    // ==========================================
+    getMySlots: async () => {
+        const response = await nurseVendorApi.get('/provider/availability/my-slots');
+        return response.data;
+    },
+ 
+    setNurseSlots: async (data) => {
+        const response = await nurseVendorApi.post('/provider/availability/set-nurse-slots', data);
+        return response.data;
+    },
+ 
+    toggleNurseSlot: async (data) => {
+        const response = await nurseVendorApi.post('/provider/availability/toggle-nurse-slot', data);
+        return response.data;
+    },
+ 
+    // ==========================================
+    // NURSE PACKAGE MANAGEMENT
+    // ==========================================
+    createPackage: async (formData) => {
+        const response = await nurseVendorApi.post('/provider/nurse/package/manage', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+ 
+    getMyPackages: async () => {
+        const response = await nurseVendorApi.get('/provider/nurse/package/my-packages');
+        return response.data;
+    },
+ 
+    getNurseServicesForPackage: async () => {
+        const response = await nurseVendorApi.get('/provider/nurse/package/nurse-services');
+        return response.data;
+    },
+ 
+    // ==========================================
+    // DASHBOARD SECTION
+    // ==========================================
+    getDashboardStats: async () => {
+        const response = await nurseVendorApi.get('/provider/nurse/dash/dashboard-stats');
+        return response.data;
+    },
+ 
+    // ==========================================
+    // BOOKING & STAFF MANAGEMENT
+    // ==========================================
+    getStaffByStatus: async (status) => {
+        const response = await nurseVendorApi.get(`/provider/nurse/dash/staff/status?status=${status}`);
+        return response.data;
+    },
+ 
+    getBookings: async (status = 'Pending') => {
+        const response = await nurseVendorApi.get(`/provider/nurse/dash/bookings?status=${status}`);
+        return response.data;
+    },
+ 
+    handleBookingAction: async (payload) => {
+        const response = await nurseVendorApi.post('/provider/nurse/dash/booking/action', payload);
+        return response.data;
+    },
+ 
+    getAvailableStaff: async () => {
+        const response = await nurseVendorApi.get('/provider/nurse/dash/staff/available');
+        return response.data;
+    },
+ 
+    assignStaffToBooking: async (payload) => {
+        const response = await nurseVendorApi.post('/provider/nurse/dash/staff/assign', payload);
+        return response.data;
+    },
+ 
+    // ADDED NEW API HERE
+    getOrderHistory: async () => {
+        const response = await nurseVendorApi.get('/provider/nurse/dash/orders/history');
+        return response.data;
+    },
+ 
+    // ==========================================
+    // CONSUMABLES SECTION
+    // ==========================================
+    searchConsumables: async (searchTerm) => {
+        const response = await nurseVendorApi.get(`/provider/nurse/dash/consumables/search?search=${searchTerm}`);
+        return response.data;
+    },
+ 
 };
  
 export default NurseAPI;
+ 

@@ -1,13 +1,40 @@
 'use client'
-import React, { useState } from 'react'
-import { HiMenuAlt2 } from 'react-icons/hi'
+import React, { useState, useEffect } from 'react'
 import { RiMenuFoldLine, RiMenuUnfoldLine } from 'react-icons/ri'
 import { FaUserCircle, FaUserAlt } from 'react-icons/fa'
 import { IoChevronDown, IoLogOutOutline } from 'react-icons/io5'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import NurseAPI from '@/app/services/NurseAPI'
+
 
 export default function NurseTopBar({ onToggleSidebar, isCollapsed }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [profile, setProfile] = useState(null);
+  const router = useRouter();
+
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5002';
+
+  // Fetch real profile data on mount
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      try {
+        const res = await NurseAPI.getNurseProfile();
+        if (res.success) {
+          setProfile(res.data);
+        }
+      } catch (error) {
+        console.error("Error fetching topbar profile:", error);
+      }
+    };
+    fetchProfileData();
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('nursingToken'); // Clears the nurse token
+    setIsDropdownOpen(false);
+    router.push('/login'); // Redirect to your login page
+  };
 
   return (
     <header className="bg-white/80 backdrop-blur-md border-b border-gray-100 h-16 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-40">
@@ -35,7 +62,7 @@ export default function NurseTopBar({ onToggleSidebar, isCollapsed }) {
         </div>
       </div>
 
-      {/* Right Side: Enhanced Profile Section */}
+      {/* Right Side: Profile Section */}
       <div className="flex items-center relative">
         <button 
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -43,16 +70,24 @@ export default function NurseTopBar({ onToggleSidebar, isCollapsed }) {
         >
           <div className="text-right hidden md:block">
             <p className="text-sm font-bold text-gray-800 leading-tight group-hover:text-[#08B36A] transition-colors">
-              Nurse Maria
+              {profile?.name || "Loading..."}
             </p>
             <p className="text-[11px] font-medium text-gray-400">
-              ID: #29405 • Ward A
+              {profile?.role || "Nurse"} • {profile?.city || "Provider"}
             </p>
           </div>
           
           <div className="relative">
-            <FaUserCircle size={36} className="text-gray-300 group-hover:text-[#08B36A] transition-colors" />
-            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+            {profile?.profileImage ? (
+              <img 
+                src={`${BACKEND_URL}/${profile.profileImage}`} 
+                alt="Profile" 
+                className="w-9 h-9 rounded-full object-cover border border-gray-200 group-hover:border-[#08B36A] transition-colors"
+              />
+            ) : (
+              <FaUserCircle size={36} className="text-gray-300 group-hover:text-[#08B36A] transition-colors" />
+            )}
+            <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></div>
           </div>
 
           <IoChevronDown 
@@ -64,7 +99,6 @@ export default function NurseTopBar({ onToggleSidebar, isCollapsed }) {
         {/* Dropdown Menu */}
         {isDropdownOpen && (
           <>
-            {/* Invisible backdrop to close dropdown when clicking outside */}
             <div 
               className="fixed inset-0 z-[-1]" 
               onClick={() => setIsDropdownOpen(false)}
@@ -72,7 +106,7 @@ export default function NurseTopBar({ onToggleSidebar, isCollapsed }) {
             
             <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-gray-100 rounded-2xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
               <Link 
-                href="/vendors/nursevendor/profile" 
+                href="/vendors/nursevendor/nursedashboard/profile" 
                 className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-green-50 hover:text-[#08B36A] transition-colors"
                 onClick={() => setIsDropdownOpen(false)}
               >
@@ -84,10 +118,7 @@ export default function NurseTopBar({ onToggleSidebar, isCollapsed }) {
               
               <button 
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
-                onClick={() => {
-                  setIsDropdownOpen(false);
-                  console.log("Logout clicked");
-                }}
+                onClick={handleLogout}
               >
                 <IoLogOutOutline size={18} />
                 Logout

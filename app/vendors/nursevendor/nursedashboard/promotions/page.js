@@ -19,9 +19,9 @@ import {
   FaPrescriptionBottleAlt
 } from 'react-icons/fa'
 import { toast } from 'react-hot-toast'
-import PharmacyVendorAPI from '@/app/services/NurseAPI';
+import NurseAPI from '@/app/services/NurseAPI';
  
-export default function PharmacyPromotionsPage() {
+export default function NursePromotionsPage() {
  
   const [loading, setLoading] = useState(false);
   const [coupons, setCoupons] = useState([]);
@@ -46,13 +46,13 @@ export default function PharmacyPromotionsPage() {
   const fetchCoupons = async () => {
     try {
       setLoading(true);
-      const res = await PharmacyVendorAPI.listCoupons();
+      const res = await NurseAPI.listCoupons();
       if (res.success) {
         setCoupons(res.data || []);
       }
     } catch (error) {
       console.error("Error fetching coupons:", error);
-      toast.error("Failed to load pharmacy coupons");
+      toast.error("Failed to load nurse coupons");
     } finally {
       setLoading(false);
     }
@@ -111,11 +111,11 @@ export default function PharmacyPromotionsPage() {
       };
  
       if (editingId) {
-        await PharmacyVendorAPI.updateCoupon(editingId, payload);
-        toast.success('Pharmacy Coupon Updated!');
+        await NurseAPI.updateCoupon(editingId, payload);
+        toast.success('Nurse Coupon Updated!');
       } else {
-        await PharmacyVendorAPI.addCoupon(payload);
-        toast.success('New Pharmacy Coupon Created!');
+        await NurseAPI.addCoupon(payload);
+        toast.success('New Nurse Coupon Created!');
       }
       closeModal();
       fetchCoupons();
@@ -141,10 +141,10 @@ export default function PharmacyPromotionsPage() {
   };
  
   const handleDelete = async (id) => {
-    if (window.confirm("Delete this pharmacy coupon?")) {
+    if (window.confirm("Delete this nurse coupon?")) {
       try {
-        await PharmacyVendorAPI.deleteCoupon(id);
-        toast.success("Coupon removed from pharmacy inventory");
+        await NurseAPI.deleteCoupon(id);
+        toast.success("Coupon removed from nurse inventory");
         fetchCoupons();
       } catch (error) {
         toast.error("Delete operation failed");
@@ -154,7 +154,7 @@ export default function PharmacyPromotionsPage() {
  
   const handleToggleStatus = async (id) => {
     try {
-      const res = await PharmacyVendorAPI.toggleCoupon(id);
+      const res = await NurseAPI.toggleCoupon(id);
       toast.success(res.message);
       fetchCoupons();
     } catch (error) {
@@ -174,7 +174,7 @@ export default function PharmacyPromotionsPage() {
             </div>
             Nurse Central
           </h1>
-          <p className="text-gray-500 font-medium text-sm mt-2">Manage medicine discounts and healthcare promotional codes.</p>
+          <p className="text-gray-500 font-medium text-sm mt-2">Manage nurse service discounts and healthcare promotional codes.</p>
         </div>
         <div className="flex gap-3">
             <button onClick={fetchCoupons} className="p-4 bg-white text-gray-400 rounded-2xl border border-gray-200 hover:text-[#08B36A] hover:border-[#08B36A] transition-all active:scale-95 shadow-sm">
@@ -184,7 +184,7 @@ export default function PharmacyPromotionsPage() {
                 onClick={openAddModal}
                 className="bg-[#08B36A] hover:bg-green-600 text-white font-black py-4 px-8 rounded-2xl flex items-center gap-2 shadow-xl shadow-green-100 transition-all active:scale-95 uppercase tracking-tighter text-sm"
             >
-                <FaPlus /> Create Pharma Coupon
+                <FaPlus /> Create Nurse Coupon
             </button>
         </div>
       </div>
@@ -214,7 +214,7 @@ export default function PharmacyPromotionsPage() {
                   <div className="flex justify-between items-start mb-1">
                     <h3 className="text-xl font-black text-gray-900 tracking-tighter uppercase leading-none">{coupon.couponName}</h3>
                     {coupon.isAdminCreated && (
-                      <span className="bg-indigo-100 text-indigo-700 text-[8px] font-black px-2 py-0.5 rounded-md border border-indigo-200">GLOBAL PHARMA</span>
+                      <span className="bg-indigo-100 text-indigo-700 text-[8px] font-black px-2 py-0.5 rounded-md border border-indigo-200">GLOBAL NURSE</span>
                     )}
                   </div>
                  
@@ -264,11 +264,11 @@ export default function PharmacyPromotionsPage() {
         /* Empty State */
         <div className="bg-white rounded-[3rem] border-2 border-dashed border-gray-200 p-24 flex flex-col items-center justify-center text-center shadow-sm max-w-4xl mx-auto">
           <div className="w-28 h-28 bg-gray-50 rounded-[2.5rem] flex items-center justify-center mb-8 border border-gray-100">
-            <FaPills className="text-5xl text-gray-200" />
+            <FaMedkit className="text-5xl text-gray-200" />
           </div>
-          <h3 className="text-2xl font-black text-gray-800 mb-2 tracking-tight">No Active Pharmacy Promos</h3>
+          <h3 className="text-2xl font-black text-gray-800 mb-2 tracking-tight">No Active Nurse Promos</h3>
           <p className="text-sm text-gray-400 max-w-xs mx-auto leading-relaxed font-medium">
-            Boost your medicine sales by launching your first promotional campaign!
+            Boost your Nurse sales by launching your first promotional campaign!
           </p>
         </div>
       )}
@@ -284,7 +284,7 @@ export default function PharmacyPromotionsPage() {
                 <h2 className="text-2xl font-black uppercase tracking-tight leading-none">
                    {editingId ? 'Edit Coupon' : 'Create Coupon'}
                 </h2>
-                <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-70">Pharmacy Configuration</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-70">Nurse Configuration</p>
               </div>
               <button onClick={closeModal} className="p-2 bg-black/10 rounded-full hover:bg-black/20 transition-all">
                 <FaTimes size={18}/>
@@ -299,7 +299,7 @@ export default function PharmacyPromotionsPage() {
                       <FaTag className="absolute right-5 top-5 text-gray-400 text-sm ml-4"/>
                    <input
                     name="couponName" type="text" value={formData.couponName} onChange={handleChange}
-                    placeholder="E.G. PHARMA10" required
+                    placeholder="E.G. NURSE10" required
                     className="input-style pl-11 uppercase font-black tracking-widest"
                    />
                 </div>
@@ -391,5 +391,3 @@ export default function PharmacyPromotionsPage() {
     </div>
   )
 }
- 
- 

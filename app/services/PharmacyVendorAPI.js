@@ -1,13 +1,13 @@
 import axios from 'axios';
-
+ 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 const getPharmacyToken = () => typeof window !== 'undefined' ? localStorage.getItem('pharmacyToken') : null;
-
+ 
 const pharmacyVendorApi = axios.create({
     baseURL: BASE_URL,
     headers: { 'Content-Type': 'application/json' },
 });
-
+ 
 // Request Interceptor: Attach Token
 pharmacyVendorApi.interceptors.request.use((config) => {
     const token = getPharmacyToken();
@@ -16,7 +16,7 @@ pharmacyVendorApi.interceptors.request.use((config) => {
     }
     return config;
 });
-
+ 
 // Response Interceptor to handle 401 Unauthorized globally
 pharmacyVendorApi.interceptors.response.use(
     (response) => response,
@@ -31,7 +31,7 @@ pharmacyVendorApi.interceptors.response.use(
         return Promise.reject(error);
     }
 );
-
+ 
 const PharmacyVendorAPI = {
     // --- MASTER DATABASE ---
     searchMasterMedicines: async (query, page = 1) => {
@@ -40,76 +40,76 @@ const PharmacyVendorAPI = {
         });
         return response.data;
     },
-
+ 
     getMasterDetails: async (id) => {
         const response = await pharmacyVendorApi.get(`/provider/pharmacy/inventory/getMaster/details/${id}`);
         return response.data;
     },
-
+ 
     // --- MY INVENTORY MANAGEMENT ---
     getMyInventory: async () => {
         const response = await pharmacyVendorApi.get('/provider/pharmacy/inventory/my-list');
         return response.data;
     },
-
+ 
     addToInventory: async (data) => {
         const response = await pharmacyVendorApi.post('/provider/pharmacy/inventory/add', data);
         return response.data;
     },
-
+ 
     updateInventory: async (id, data) => {
         const response = await pharmacyVendorApi.put(`/provider/pharmacy/inventory/update/${id}`, data);
         return response.data;
     },
-
+ 
     deleteInventory: async (id) => {
         const response = await pharmacyVendorApi.delete(`/provider/pharmacy/inventory/delete/${id}`);
         return response.data;
     },
-
+ 
     submitNewMasterRequest: async (payload) => {
         const response = await pharmacyVendorApi.post('/provider/pharmacy/inventory/add-request', payload);
         return response.data;
     },
-
+ 
     // --- PHARMACY ORDERS MANAGEMENT ---
     listPharmacyOrders: async () => {
         const response = await pharmacyVendorApi.get('/provider/pharmacy/orders/list');
         return response.data;
     },
-
+ 
     updatePharmacyOrderStatus: async (orderId, status, reason = '', driverId = null) => {
-        const response = await pharmacyVendorApi.patch(`/provider/pharmacy/orders/status/${orderId}`, { 
-            status, 
+        const response = await pharmacyVendorApi.patch(`/provider/pharmacy/orders/status/${orderId}`, {
+            status,
             reason,
-            driverId 
+            driverId
         });
         return response.data;
     },
-
+ 
     // 3. Assign Driver Manually
     assignManualDriver: async (orderId, driverId) => {
-        const response = await pharmacyVendorApi.post('/provider/pharmacy/orders/assign-manual', { 
-            orderId, 
-            driverId 
+        const response = await pharmacyVendorApi.post('/provider/pharmacy/orders/assign-manual', {
+            orderId,
+            driverId
         });
         return response.data;
     },
-
+ 
     // 4. Reassign Driver
     reassignDriver: async (orderId, newDriverId) => {
-        const response = await pharmacyVendorApi.post('/provider/pharmacy/orders/reassign', { 
-            orderId, 
-            newDriverId 
+        const response = await pharmacyVendorApi.post('/provider/pharmacy/orders/reassign', {
+            orderId,
+            newDriverId
         });
         return response.data;
     },
-
+ 
     listAvailableDrivers: async () => {
         const response = await pharmacyVendorApi.get('/provider/pharmacy/orders/available-drivers');
         return response.data;
     },
-
+ 
     // --- COUPONS ---
     listCoupons: async () => {
         const response = await pharmacyVendorApi.get('/provider/coupons/list');
@@ -131,7 +131,7 @@ const PharmacyVendorAPI = {
         const response = await pharmacyVendorApi.delete(`/provider/coupons/delete/${id}`);
         return response.data;
     },
-
+ 
     // --- DELIVERY ---
     saveDeliveryCharges: async (data) => {
         const response = await pharmacyVendorApi.post('/provider/delivery-charges/save', data);
@@ -141,7 +141,7 @@ const PharmacyVendorAPI = {
         const response = await pharmacyVendorApi.get('/provider/delivery-charges/my-charges');
         return response.data;
     },
-
+ 
     // --- DRIVERS ---
     addDriver: async (formData) => {
         const response = await pharmacyVendorApi.post('/provider/driver/add', formData, {
@@ -175,7 +175,7 @@ const PharmacyVendorAPI = {
         const response = await pharmacyVendorApi.delete(`/provider/driver/delete/${id}`);
         return response.data;
     },
-
+ 
     // --- PROFILE ---
     getPharmacyProfile: async () => {
         const response = await pharmacyVendorApi.get('/provider/pharmacy/profile');
@@ -187,7 +187,7 @@ const PharmacyVendorAPI = {
         });
         return response.data;
     },
-
+ 
     // --- SCHEDULE / AVAILABILITY ---
     getAvailability: async () => {
         const response = await pharmacyVendorApi.get('/provider/availability/my-slots');
@@ -206,5 +206,6 @@ const PharmacyVendorAPI = {
         return response.data;
     }
 };
-
+ 
 export default PharmacyVendorAPI;
+ 

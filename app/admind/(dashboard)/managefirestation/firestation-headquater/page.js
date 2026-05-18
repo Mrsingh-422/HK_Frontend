@@ -1,111 +1,255 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { 
-    FaPlus, FaTimes, FaArrowLeft, FaEdit, FaTrash, 
-    FaSearch, FaExclamationTriangle, FaEnvelope, 
-    FaPhoneAlt, FaMapMarkerAlt, FaInfoCircle, FaEye, 
-    FaFireExtinguisher, FaLock
+import {
+    FaPlus, FaTimes, FaArrowLeft, FaEdit, FaTrash,
+    FaSearch, FaExclamationTriangle, FaEnvelope,
+    FaPhoneAlt, FaMapMarkerAlt, FaInfoCircle,
+    FaFireExtinguisher, FaLock, FaUser, FaBuilding,
+    FaGlobe, FaChartLine, FaUsers, FaLayerGroup, FaShieldAlt, FaHistory, FaSync
 } from 'react-icons/fa'
 
+import AdminAPI2 from '@/app/services/AdminAPI2';
+// Import the context as per your reference
+import { useUserContext } from "@/app/context/UserContext";
+
+// Simple mock for toast since react-toastify is not installed
+const toast = {
+    success: (msg) => alert("Success: " + msg),
+    error: (msg) => alert("Error: " + msg),
+};
+
 export default function ManageFirestationHeadquarter() {
-    const router = useRouter(); 
-    
+    const router = useRouter();
+    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+
+    // Reference from your provided code
+    const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
+
     // ==========================================
     // 🌟 STATES
     // ==========================================
+    const [headquarters, setHeadquarters] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const[isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [isInfoModalOpen, setIsInfoModalOpen] = useState(false); 
-    const[zoomedImage, setZoomedImage] = useState(null); 
-    const [selectedItem, setSelectedItem] = useState(null); 
-    
-    // Form State for Add/Edit (Strictly matching your Screenshot 3)
-    const[formData, setFormData] = useState({
+    const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+    const [zoomedImage, setZoomedImage] = useState(null);
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
+    const [imageFile, setImageFile] = useState(null);
+
+    // Location Data States (From Reference)
+    const [countries, setCountries] = useState([]);
+    const [states, setStates] = useState([]);
+    const [cities, setCities] = useState([]);
+
+    const [formData, setFormData] = useState({
+        stationName: '',
+        captainName: '',
         email: '',
         password: '',
-        address: '',
         phone: '',
+        address: '',
+        country: '', // Store ID for selection
+        city: '',    // Store ID for selection
+        state: '',   // Store ID for selection
     });
 
-    // Mock Data based on your screenshots 1 & 2
-    const[headquarters, setHeadquarters] = useState([
-        { 
-            id: 1, 
-            email: 'aryan.omninos@gmail.com', 
-            password: 'hashed_password_123',
-            address: 'mohali', 
-            phone: '9876543210', 
-            image: 'https://images.unsplash.com/photo-1542282088-fe8426682b8f?auto=format&fit=crop&w=800&q=80', // Fire related image mock
-            caseStatus: '' 
-        },
-        { 
-            id: 2, 
-            email: 'dikshant.omninos@gmail.com', 
-            password: 'hashed_password_456',
-            address: 'chandigarh', 
-            phone: '7894561230', 
-            image: 'https://images.unsplash.com/photo-1599708153386-62bf21c4b7b0?auto=format&fit=crop&w=800&q=80',
-            caseStatus: '' 
-        },
-    ]);
+    // ==========================================
+    // 🌟 LOCATION LOGIC (From Reference)
+    // ==========================================
+    useEffect(() => {
+        const fetchCountries = async () => {
+            try {
+                const data = await getAllCountries();
+                setCountries(data || []);
+            } catch {
+                console.error("Failed to load countries");
+            }
+        };
+        fetchCountries();
+    }, [getAllCountries]);
+
+    const fetchStates = async (countryId) => {
+        try {
+            const data = await getStatesByCountry(countryId);
+            setStates(data || []);
+            setCities([]);
+            return data;
+        } catch {
+            console.error("Failed to load states");
+        }
+    };
+
+    const fetchCities = async (stateId) => {
+        try {
+            const data = await getCitiesByState(stateId);
+            setCities(data || []);
+            return data;
+        } catch {
+            console.error("Failed to load cities");
+        }
+    };
+
+    // ==========================================
+    // 🌟 API FETCHING
+    // ==========================================
+    const fetchHQs = async () => {
+        try {
+            setLoading(true);
+            const response = await AdminAPI2.listFireHQ();
+            if (response.data.success) {
+                setHeadquarters(response.data.data);
+            }
+        } catch (error) {
+            console.error("Fetch Error:", error);
+            toast.error("Failed to load headquarters");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchHQs();
+    }, []);
 
     // ==========================================
     // 🌟 HANDLERS
     // ==========================================
-    
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        setFormData((prev) => ({ ...prev, [name]: value }));
+
+        // Location Logic from reference
+        if (name === "country") {
+            fetchStates(value);
+            setFormData((prev) => ({ ...prev, state: "", city: "" }));
+        }
+        if (name === "state") {
+            fetchCities(value);
+            setFormData((prev) => ({ ...prev, city: "" }));
+        }
     };
 
-    const handleCaseChange = (id, value) => {
-        const updatedList = headquarters.map(item => 
-            item.id === id ? { ...item, caseStatus: value } : item
-        );
-        setHeadquarters(updatedList);
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setImageFile(file);
+            setImagePreview(URL.createObjectURL(file));
+        }
     };
 
     const openAddModal = () => {
-        setFormData({ email: '', password: '', address: '', phone: '' });
+        setFormData({
+            stationName: '', captainName: '', email: '',
+            password: '', phone: '', address: '',
+            country: '', city: '', state: ''
+        });
+        setImagePreview(null);
+        setImageFile(null);
+        setStates([]);
+        setCities([]);
         setIsAddModalOpen(true);
     };
 
-    const handleAddSubmit = (e) => {
+    const handleAddSubmit = async (e) => {
         e.preventDefault();
-        const newItem = {
-            id: Date.now(),
-            ...formData,
-            image: `https://api.dicebear.com/7.x/initials/svg?seed=${formData.email}&backgroundColor=08B36A`, 
-            caseStatus: ''
-        };
-        setHeadquarters([...headquarters, newItem]);
-        setIsAddModalOpen(false);
+        try {
+            // Find names from IDs for API (Logic from reference)
+            const selectedCountry = countries.find((c) => c.id == formData.country);
+            const selectedState = states.find((s) => s.id == formData.state);
+            const selectedCity = cities.find((c) => c.id == formData.city);
+
+            const data = new FormData();
+            // Append all data, overriding ID values with Name strings for backend
+            Object.keys(formData).forEach(key => {
+                if (key === 'country') data.append(key, selectedCountry?.name || "");
+                else if (key === 'state') data.append(key, selectedState?.name || "");
+                else if (key === 'city') data.append(key, selectedCity?.name || "");
+                else data.append(key, formData[key]);
+            });
+
+            if (imageFile) data.append('profileImage', imageFile);
+
+            const res = await AdminAPI2.createFireHQ(data);
+            if (res.data.success) {
+                toast.success("Headquarter Created!");
+                setIsAddModalOpen(false);
+                fetchHQs();
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Error creating HQ");
+        }
     };
 
-    const openEditModal = (e, item) => {
-        e.stopPropagation(); 
+    const openEditModal = async (e, item) => {
+        e.stopPropagation();
         setSelectedItem(item);
+        setLoading(true); // Temporary loading for fetching location IDs
+
+        // 1. Find Country ID from Name
+        const countryObj = countries.find(c => c.name === item.country);
+        let countryId = countryObj ? countryObj.id : '';
+        let stateId = '';
+        let cityId = '';
+
+        if (countryId) {
+            const fetchedStates = await fetchStates(countryId);
+            const stateObj = fetchedStates?.find(s => s.name === item.state);
+            if (stateObj) {
+                stateId = stateObj.id;
+                const fetchedCities = await fetchCities(stateId);
+                const cityObj = fetchedCities?.find(c => c.name === item.city);
+                if (cityObj) cityId = cityObj.id;
+            }
+        }
+
         setFormData({
-            email: item.email,
-            password: item.password, // Ideally password is not fetched directly, but for UI mockup we do it
-            address: item.address,
-            phone: item.phone,
+            stationName: item.stationName || '',
+            captainName: item.captainName || '',
+            email: item.email || '',
+            phone: item.phone || '',
+            address: item.address || '',
+            country: countryId,
+            state: stateId,
+            city: cityId,
+            password: '',
         });
+
+        setImagePreview(item.profileImage ? `${BACKEND_URL}/${item.profileImage.replace('public/', '')}` : null);
+        setLoading(false);
         setIsEditModalOpen(true);
     };
 
-    const handleEditSubmit = (e) => {
+    const handleEditSubmit = async (e) => {
         e.preventDefault();
-        const updatedList = headquarters.map(item => {
-            if (item.id === selectedItem.id) {
-                return { ...item, ...formData };
+        try {
+            const selectedCountry = countries.find((c) => c.id == formData.country);
+            const selectedState = states.find((s) => s.id == formData.state);
+            const selectedCity = cities.find((c) => c.id == formData.city);
+
+            const data = new FormData();
+            Object.keys(formData).forEach(key => {
+                // If the key is a location, send the name, otherwise send the value
+                if (key === 'country') data.append(key, selectedCountry?.name || formData[key]);
+                else if (key === 'state') data.append(key, selectedState?.name || formData[key]);
+                else if (key === 'city') data.append(key, selectedCity?.name || formData[key]);
+                else if (formData[key]) data.append(key, formData[key]);
+            });
+
+            if (imageFile) data.append('profileImage', imageFile);
+
+            const res = await AdminAPI2.updateFireHQ(selectedItem._id, data);
+            if (res.data.success) {
+                toast.success("Headquarter Updated!");
+                setIsEditModalOpen(false);
+                fetchHQs();
             }
-            return item;
-        });
-        setHeadquarters(updatedList);
-        setIsEditModalOpen(false);
-        setSelectedItem(null);
+        } catch (error) {
+            toast.error("Update failed");
+        }
     };
 
     const openDeleteModal = (e, item) => {
@@ -114,140 +258,142 @@ export default function ManageFirestationHeadquarter() {
         setIsDeleteModalOpen(true);
     };
 
-    const handleDeleteConfirm = () => {
-        const filteredList = headquarters.filter(item => item.id !== selectedItem.id);
-        setHeadquarters(filteredList);
-        setIsDeleteModalOpen(false);
-        setSelectedItem(null);
+    const handleDeleteConfirm = async () => {
+        try {
+            const res = await AdminAPI2.toggleFireHQStatus(selectedItem._id);
+            if (res.data.success) {
+                toast.success("Status toggled successfully");
+                setIsDeleteModalOpen(false);
+                fetchHQs();
+            }
+        } catch (error) {
+            toast.error("Toggle failed");
+        }
     };
-
     const openInfoModal = (item) => {
         setSelectedItem(item);
         setIsInfoModalOpen(true);
     };
 
-    const handleImageZoom = (e, imageSrc) => {
-        e.stopPropagation(); 
-        setZoomedImage(imageSrc);
+    // ==========================================
+    // 🌟 UI HELPERS
+    // ==========================================
+    const getImgUrl = (path) => {
+        if (!path) return "https://via.placeholder.com/150?text=No+Image";
+        const cleanPath = path.replace('public/', '');
+        return path.startsWith('http') ? path : `${BACKEND_URL}/${cleanPath}`;
     };
 
-    // ==========================================
-    // 🌟 REUSABLE MODAL FORM (ADD/EDIT)
-    // ==========================================
     const renderModalForm = (onSubmitHandler, title) => (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }}></div>
-            <div className="relative bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-in fade-in zoom-in duration-300">
-                
-                {/* Header */}
-                <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-20 shadow-sm">
+            <div className="relative bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-300">
+
+                <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-20">
                     <h2 className="text-[18px] font-bold text-[#08B36A] flex items-center gap-2">
                         {title === 'Add' ? <FaPlus size={14} /> : <FaEdit size={14} />} {title} Firestation Headquarter
                     </h2>
-                    <button 
-                        onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }} 
-                        className="w-8 h-8 flex items-center justify-center bg-gray-50 border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-500 hover:border-red-100 rounded-md transition-all"
-                    >
-                        <FaTimes size={14} />
+                    <button onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }} className="p-2 hover:bg-red-50 hover:text-red-500 rounded-lg transition-all">
+                        <FaTimes size={18} />
                     </button>
                 </div>
 
-                {/* Form Body */}
-                <div className="p-6 md:p-8 overflow-y-auto bg-[#fafafa]">
-                    <form onSubmit={onSubmitHandler} className="space-y-6 bg-white p-6 md:p-8 rounded-2xl border border-gray-100 shadow-sm">
-                        
-                        <div className="grid grid-cols-1 gap-6">
-                            
-                            {/* Email */}
-                            <div>
-                                <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Email *</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                        <FaEnvelope className="text-gray-400 text-[13px]" />
-                                    </div>
-                                    <input 
-                                        type="email" name="email" value={formData.email} onChange={handleChange} required
-                                        placeholder="e.g. aryan.omninos@gmail.com" 
-                                        className="w-full pl-10 pr-4 py-3 bg-[#fafafa] rounded-xl border border-gray-200 focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] outline-none transition-all text-[14px] font-semibold text-gray-800" 
-                                    />
-                                </div>
-                            </div>
+                <div className="p-6 overflow-y-auto bg-[#fafafa]">
+                    <form onSubmit={onSubmitHandler} className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-2xl border border-gray-100">
 
-                            {/* Password */}
-                            <div>
-                                <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Password *</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                        <FaLock className="text-gray-400 text-[13px]" />
-                                    </div>
-                                    <input 
-                                        type="text" name="password" value={formData.password} onChange={handleChange} required
-                                        placeholder="Enter secure password" 
-                                        className="w-full pl-10 pr-4 py-3 bg-[#fafafa] rounded-xl border border-gray-200 focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] outline-none transition-all text-[14px] font-semibold text-gray-800" 
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Address */}
-                            <div>
-                                <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Address *</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                        <FaMapMarkerAlt className="text-gray-400 text-[13px]" />
-                                    </div>
-                                    <input 
-                                        type="text" name="address" value={formData.address} onChange={handleChange} required
-                                        placeholder="e.g. Mohali" 
-                                        className="w-full pl-10 pr-4 py-3 bg-[#fafafa] rounded-xl border border-gray-200 focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] outline-none transition-all text-[14px] font-semibold text-gray-800" 
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Phone */}
-                            <div>
-                                <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Phone *</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                        <FaPhoneAlt className="text-gray-400 text-[13px]" />
-                                    </div>
-                                    <input 
-                                        type="tel" name="phone" value={formData.phone} onChange={handleChange} required
-                                        placeholder="e.g. 9876543210" 
-                                        className="w-full pl-10 pr-4 py-3 bg-[#fafafa] rounded-xl border border-gray-200 focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] outline-none transition-all text-[14px] font-semibold text-gray-800" 
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Image Upload Mock */}
-                            <div className="mt-2">
-                                <label className="block text-[13px] font-bold text-gray-700 mb-3">Image</label>
-                                <div className="flex flex-col sm:flex-row items-start gap-5">
-                                    <div className="w-32 h-32 bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center text-gray-400 relative overflow-hidden group hover:border-[#08B36A] transition-colors cursor-pointer">
-                                        {selectedItem && title === 'Edit' ? (
-                                            <img src={selectedItem.image} alt="Preview" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="flex flex-col items-center">
-                                                <FaPlus className="text-gray-300 text-xl mb-1 group-hover:text-[#08B36A]" />
-                                                <span className="text-[10px] font-bold px-4 text-center group-hover:text-[#08B36A]">UPLOAD</span>
-                                            </div>
-                                        )}
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <FaEdit className="text-white text-xl" />
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col justify-center h-32">
-                                        <button type="button" className="px-5 py-2.5 bg-[#08B36A]/10 text-[#08B36A] font-bold text-[13px] rounded-xl hover:bg-[#08B36A] hover:text-white transition-colors border border-[#08B36A]/20">
-                                            Select Image
-                                        </button>
-                                        <p className="text-[11px] text-gray-400 mt-2 font-medium">Recommended size: 800x600px.<br/>Max file size: 2MB.</p>
-                                    </div>
-                                </div>
+                        <div>
+                            <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Station Name *</label>
+                            <div className="relative">
+                                <FaBuilding className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input name="stationName" value={formData.stationName} onChange={handleChange} required className="w-full pl-10 pr-4 py-2.5 bg-[#f8fcf9] rounded-xl border border-gray-200 outline-none focus:border-[#08B36A]" placeholder="e.g. Jaipur Main HQ" />
                             </div>
                         </div>
 
-                        <div className="pt-6 mt-6 border-t border-gray-100 flex justify-center">
-                            <button type="submit" className="px-10 py-3.5 bg-[#08B36A] hover:bg-[#069356] text-white text-[14px] font-bold rounded-xl shadow-[0_4px_15px_rgba(8,179,106,0.3)] transition-all hover:-translate-y-0.5 uppercase tracking-wide">
-                                Submit Details
+                        <div>
+                            <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Captain Name *</label>
+                            <div className="relative">
+                                <FaUser className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input name="captainName" value={formData.captainName} onChange={handleChange} required className="w-full pl-10 pr-4 py-2.5 bg-[#f8fcf9] rounded-xl border border-gray-200 outline-none focus:border-[#08B36A]" placeholder="e.g. Rajesh Kumar" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Email *</label>
+                            <div className="relative">
+                                <FaEnvelope className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input type="email" name="email" value={formData.email} onChange={handleChange} required className="w-full pl-10 pr-4 py-2.5 bg-[#f8fcf9] rounded-xl border border-gray-200 outline-none focus:border-[#08B36A]" placeholder="hq@example.com" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Phone *</label>
+                            <div className="relative">
+                                <FaPhoneAlt className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input name="phone" value={formData.phone} onChange={handleChange} required className="w-full pl-10 pr-4 py-2.5 bg-[#f8fcf9] rounded-xl border border-gray-200 outline-none focus:border-[#08B36A]" placeholder="9110022334" />
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Full Address</label>
+                            <div className="relative">
+                                <FaMapMarkerAlt className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input name="address" value={formData.address} onChange={handleChange} className="w-full pl-10 pr-4 py-2.5 bg-[#f8fcf9] rounded-xl border border-gray-200 outline-none focus:border-[#08B36A]" placeholder="Street name, landmark..." />
+                            </div>
+                        </div>
+
+                        {/* Location Selectors */}
+                        <div>
+                            <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Country *</label>
+                            <div className="relative">
+                                <FaGlobe className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <select name="country" value={formData.country} onChange={handleChange} required className="w-full pl-10 pr-4 py-2.5 bg-[#f8fcf9] rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] appearance-none">
+                                    <option value="">Select Country</option>
+                                    {countries.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-[13px] font-bold text-gray-700 mb-1.5">State *</label>
+                            <select name="state" value={formData.state} onChange={handleChange} disabled={!formData.country} required className="w-full px-4 py-2.5 bg-[#f8fcf9] rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] disabled:opacity-50">
+                                <option value="">Select State</option>
+                                {states.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-[13px] font-bold text-gray-700 mb-1.5">City *</label>
+                            <select name="city" value={formData.city} onChange={handleChange} disabled={!formData.state} required className="w-full px-4 py-2.5 bg-[#f8fcf9] rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] disabled:opacity-50">
+                                <option value="">Select City</option>
+                                {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Password {title === 'Edit' && '(Optional)'}</label>
+                            <div className="relative">
+                                <FaLock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input type="password" name="password" value={formData.password} onChange={handleChange} required={title === 'Add'} className="w-full pl-10 pr-4 py-2.5 bg-[#f8fcf9] rounded-xl border border-gray-200 outline-none focus:border-[#08B36A]" placeholder="••••••••" />
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <label className="block text-[13px] font-bold text-gray-700 mb-3">Profile Image</label>
+                            <div className="flex items-center gap-5">
+                                <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50">
+                                    {imagePreview ? (
+                                        <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" />
+                                    ) : (
+                                        <FaPlus className="text-gray-300" />
+                                    )}
+                                </div>
+                                <input type="file" onChange={handleImageChange} accept="image/*" className="text-xs" />
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2 flex justify-center pt-4">
+                            <button type="submit" className="px-12 py-3.5 bg-[#08B36A] text-white rounded-xl font-bold uppercase tracking-wider shadow-lg hover:bg-[#069356] transition-all">
+                                {title === 'Add' ? 'Register Headquarter' : 'Update Details'}
                             </button>
                         </div>
                     </form>
@@ -255,278 +401,173 @@ export default function ManageFirestationHeadquarter() {
             </div>
         </div>
     );
-
     return (
-        <div className="w-full min-h-screen bg-[#F4F7F6] p-4 md:p-8 font-sans">
-            
-            {/* Header Section */}
-            <div className="max-w-[1400px] mx-auto bg-white rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 p-5 md:p-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="w-full min-h-screen bg-[#F4F7F6] p-4 md:p-8">
+            <div className="max-w-[1400px] mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="flex items-center gap-4">
-                    <div className="bg-[#e6f7eb] p-3 md:p-4 rounded-xl border border-[#08B36A]/20">
-                        <FaFireExtinguisher className="text-[#08B36A] text-xl md:text-2xl" />
+                    <div className="bg-[#e6f7eb] p-4 rounded-xl">
+                        <FaFireExtinguisher className="text-[#08B36A] text-2xl" />
                     </div>
                     <div>
-                        <h1 className="text-xl md:text-2xl font-bold text-gray-800 tracking-wide">Firestation Headquarter</h1>
-                        <p className="text-[13px] text-gray-500 font-medium mt-0.5">Manage and organize firestation headquarters</p>
+                        <h1 className="text-2xl font-bold text-gray-800 tracking-tight">Firestation Headquarters</h1>
+                        <p className="text-[13px] text-gray-500 font-medium">System Administration & Control</p>
                     </div>
                 </div>
-                
-                <div className="flex w-full md:w-auto items-center gap-3">
-                    <button 
-                        onClick={() => router.back()} 
-                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-white border border-[#08B36A] text-[#08B36A] hover:bg-[#e6f7eb] text-[13px] font-bold rounded-xl transition-all"
-                    >
-                        <FaArrowLeft size={12} /> Go Back
+
+                <div className="flex items-center gap-3">
+                    <button onClick={() => router.back()} className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 text-[13px] font-bold rounded-xl transition-all">
+                        <FaArrowLeft size={12} /> Back
                     </button>
-                    <button onClick={openAddModal} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-[#08B36A] hover:bg-[#069356] text-white text-[13px] font-bold rounded-xl shadow-[0_4px_12px_rgba(8,179,106,0.25)] transition-all hover:-translate-y-0.5 uppercase tracking-wider">
-                        Add Firestation Headquarter
+                    <button onClick={openAddModal} className="flex items-center gap-2 px-6 py-2.5 bg-[#08B36A] hover:bg-[#069356] text-white text-[13px] font-bold rounded-xl shadow-md transition-all uppercase">
+                        <FaPlus size={12} /> Add New HQ
                     </button>
                 </div>
             </div>
 
-            {/* Table Section */}
-            <div className="max-w-[1400px] mx-auto bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.02)] border border-gray-100 overflow-hidden">
-                
-                {/* Search & Entries */}
-                <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50/50">
-                    <div className="flex items-center gap-2 text-[13px] text-gray-600 font-medium">
-                        Show 
-                        <select className="border border-gray-200 rounded-md px-2 py-1.5 outline-none focus:border-[#08B36A] bg-white cursor-pointer">
-                            <option>10</option>
-                            <option>25</option>
-                            <option>50</option>
-                        </select> 
-                        entries
-                    </div>
-                    <div className="relative w-full sm:w-auto">
-                        <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-[13px]" />
-                        <input 
-                            type="text" 
-                            placeholder="Search records..." 
-                            className="w-full sm:w-72 pl-9 pr-4 py-2.5 text-[13px] border border-gray-200 rounded-xl outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all bg-white shadow-sm"
-                        />
+            <div className="max-w-[1400px] mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <h3 className="font-bold text-gray-700">Registered HQs ({headquarters.length})</h3>
+                    <div className="relative">
+                        <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input placeholder="Search stations..." className="pl-10 pr-4 py-2 border border-gray-200 rounded-xl outline-none focus:border-[#08B36A] text-sm w-full sm:w-64" />
                     </div>
                 </div>
 
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse min-w-[900px]">
-                        <thead>
-                            <tr className="bg-white border-b border-gray-100 text-[13px] text-gray-500 font-bold tracking-wide">
-                                <th className="p-5">S No.</th>
-                                <th className="p-5">Email</th>
-                                <th className="p-5">Address</th>
-                                <th className="p-5">Phone</th>
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50/50 border-b border-gray-100 text-[12px] uppercase text-gray-400 font-bold">
+                            <tr>
+                                <th className="p-5">Details</th>
+                                <th className="p-5">Contact</th>
+                                <th className="p-5">Location</th>
                                 <th className="p-5 text-center">Image</th>
-                                <th className="p-5 min-w-[140px]">Case</th>
-                                <th className="p-5 text-center min-w-[120px]">Action</th>
+                                <th className="p-5">Status</th>
+                                <th className="p-5 text-center">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="text-[14px] text-gray-700">
-                            {headquarters.length > 0 ? (
-                                headquarters.map((item, index) => (
-                                    <tr key={item.id} className="border-b border-gray-50 hover:bg-[#f8fcf9] transition-colors group">
-                                        
-                                        {/* Clickable TDs (Opens Info Modal) */}
-                                        <td onClick={() => openInfoModal(item)} className="p-5 font-medium text-gray-500 cursor-pointer">{index + 1}</td>
-                                        <td onClick={() => openInfoModal(item)} className="p-5 font-bold text-gray-800 cursor-pointer group-hover:text-[#08B36A] transition-colors">{item.email}</td>
-                                        <td onClick={() => openInfoModal(item)} className="p-5 font-medium text-gray-600 cursor-pointer capitalize">{item.address}</td>
-                                        <td onClick={() => openInfoModal(item)} className="p-5 font-semibold text-gray-700 cursor-pointer">{item.phone}</td>
-                                        
-                                        {/* IMAGE TD */}
-                                        <td className="p-5 text-center">
-                                            <div className="flex justify-center">
-                                                <img 
-                                                    src={item.image} 
-                                                    alt="HQ" 
-                                                    onClick={(e) => handleImageZoom(e, item.image)}
-                                                    className="w-12 h-10 object-cover rounded-md shadow-sm border border-gray-200 hover:scale-110 transition-transform cursor-zoom-in"
-                                                    title="Zoom Image"
-                                                />
-                                            </div>
+                        <tbody className="text-[14px]">
+                            {loading && !isEditModalOpen ? (
+                                <tr><td colSpan="6" className="p-10 text-center text-gray-400">Loading Data...</td></tr>
+                            ) : headquarters.length > 0 ? (
+                                headquarters.map((item) => (
+                                    <tr key={item._id} className="border-b border-gray-50 hover:bg-[#f8fcf9] transition-colors">
+                                        <td className="p-5 cursor-pointer" onClick={() => openInfoModal(item)}>
+                                            <p className="font-bold text-gray-800">{item.stationName}</p>
+                                            <p className="text-[12px] text-gray-500 flex items-center gap-1"><FaUser size={10} /> {item.captainName}</p>
                                         </td>
-
-                                        {/* Case Status Dropdown */}
                                         <td className="p-5">
-                                            <select 
-                                                value={item.caseStatus}
-                                                onChange={(e) => handleCaseChange(item.id, e.target.value)}
-                                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-[13px] font-medium text-gray-700 outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] cursor-pointer shadow-sm transition-all"
-                                            >
-                                                <option value="" disabled>--Case Details--</option>
-                                                <option value="Fresh Case">Fresh Case</option>
-                                                <option value="Pending Case">Pending Case</option>
-                                                <option value="History">History</option>
-                                            </select>
+                                            <p className="text-gray-700 font-medium">{item.email}</p>
+                                            <p className="text-gray-400 text-xs">{item.phone}</p>
                                         </td>
-
-                                        {/* Action Buttons */}
+                                        <td className="p-5 capitalize">
+                                            <p className="text-gray-600 line-clamp-1">{item.address || 'N/A'}</p>
+                                            <p className="text-[11px] font-bold text-gray-400">{item.city}, {item.state}, {item.country}</p>
+                                        </td>
                                         <td className="p-5 text-center">
-                                            <div className="flex justify-center items-center gap-2.5">
-                                                {/* Edit Button */}
-                                                <button onClick={(e) => openEditModal(e, item)} className="text-[#f59e0b] hover:text-white bg-[#fffbeb] hover:bg-[#f59e0b] p-2 rounded-lg transition-all shadow-sm" title="Edit">
-                                                    <FaEdit size={14} />
-                                                </button>
-                                                {/* Delete Button */}
-                                                <button onClick={(e) => openDeleteModal(e, item)} className="text-red-500 hover:text-white hover:bg-red-500 bg-red-50 p-2 rounded-lg transition-all shadow-sm" title="Delete">
-                                                    <FaTimes size={14} />
-                                                </button>
+                                            <img src={getImgUrl(item.profileImage)} onClick={(e) => { e.stopPropagation(); setZoomedImage(getImgUrl(item.profileImage)) }} className="w-10 h-10 rounded-lg object-cover mx-auto border shadow-sm cursor-zoom-in" alt="HQ" />
+                                        </td>
+                                        <td className="p-5">
+                                            <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${item.isActive ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>{item.isActive ? 'Active' : 'Inactive'}</span>
+                                        </td>
+                                        <td className="p-5">
+                                            <div className="flex justify-center gap-2">
+                                                <button onClick={(e) => openEditModal(e, item)} className="p-2 text-amber-500 bg-amber-50 rounded-lg hover:bg-amber-500 hover:text-white transition-all"><FaEdit size={14} /></button>
+                                                <button onClick={(e) => openDeleteModal(e, item)} className={`p-2 rounded-lg transition-all ${item.isActive ? 'text-red-500 bg-red-50 hover:bg-red-500' : 'text-green-500 bg-green-50 hover:bg-green-500'} hover:text-white`}>{item.isActive ? <FaTrash size={14} title="Deactivate" /> : <FaPlus size={14} title="Reactivate" />}</button>
                                             </div>
                                         </td>
                                     </tr>
                                 ))
                             ) : (
-                                <tr>
-                                    <td colSpan="7" className="p-8 text-center text-gray-400 font-medium text-[14px]">
-                                        Data Not Found
-                                    </td>
-                                </tr>
+                                <tr><td colSpan="6" className="p-10 text-center text-gray-400">No records found.</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
-
-                {/* Pagination */}
-                <div className="p-5 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white">
-                    <p className="text-[13px] text-gray-500 font-medium">
-                        Showing 1 to {headquarters.length} of {headquarters.length} entries
-                    </p>
-                    <div className="flex items-center gap-1">
-                        <button className="px-3 py-1.5 text-[12px] font-bold text-gray-400 hover:text-gray-700 transition-colors">FIRST</button>
-                        <button className="px-3 py-1.5 text-[12px] font-bold text-gray-400 hover:text-gray-700 transition-colors">PREVIOUS</button>
-                        <button className="w-8 h-8 flex items-center justify-center rounded-full bg-[#08B36A] text-white text-[12px] font-bold shadow-md">1</button>
-                        <button className="px-3 py-1.5 text-[12px] font-bold text-gray-400 hover:text-gray-700 transition-colors">NEXT</button>
-                        <button className="px-3 py-1.5 text-[12px] font-bold text-gray-400 hover:text-gray-700 transition-colors">LAST</button>
-                    </div>
-                </div>
-
             </div>
 
-            {/* ========================================= */}
-            {/* 🌟 DYNAMIC RENDERING: ADD & EDIT MODALS   */}
-            {/* ========================================= */}
+            {/* Modals */}
             {isAddModalOpen && renderModalForm(handleAddSubmit, 'Add')}
             {isEditModalOpen && renderModalForm(handleEditSubmit, 'Edit')}
 
-            {/* ========================================= */}
-            {/* 🌟 IMAGE ZOOM MODAL                       */}
-            {/* ========================================= */}
             {zoomedImage && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setZoomedImage(null)}></div>
-                    <div className="relative z-10 w-full max-w-4xl max-h-[90vh] flex flex-col items-center justify-center animate-in zoom-in duration-200">
-                        <button 
-                            onClick={() => setZoomedImage(null)} 
-                            className="absolute -top-4 -right-4 w-10 h-10 bg-white text-gray-800 rounded-full flex items-center justify-center shadow-lg hover:bg-red-50 hover:text-red-500 transition-colors z-20"
-                        >
-                            <FaTimes size={16} />
-                        </button>
-                        <img 
-                            src={zoomedImage} alt="Zoomed" 
-                            className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border-4 border-white/10"
-                        />
-                    </div>
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm" onClick={() => setZoomedImage(null)}>
+                    <img src={zoomedImage} className="max-w-full max-h-[90vh] object-contain rounded-xl" />
                 </div>
             )}
 
-            {/* ========================================= */}
-            {/* 🌟 INFO / VIEW MODAL                      */}
-            {/* ========================================= */}
             {isInfoModalOpen && selectedItem && (
                 <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setIsInfoModalOpen(false)}></div>
-                    <div className="relative bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in duration-200 max-h-[90vh]">
-                        
-                        {/* Header */}
-                        <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                            <h2 className="text-[18px] font-bold text-[#08B36A] flex items-center gap-2">
-                                <FaInfoCircle size={16} /> Headquarter Details
-                            </h2>
-                            <div className="flex items-center gap-3">
-                                <button 
-                                    onClick={(e) => { setIsInfoModalOpen(false); openEditModal(e, selectedItem); }}
-                                    className="px-4 py-1.5 bg-[#fffbeb] text-[#f59e0b] hover:bg-[#f59e0b] hover:text-white border border-[#f59e0b]/30 text-[12px] font-bold rounded-lg transition-colors"
-                                >
-                                    Edit Info
-                                </button>
-                                <button 
-                                    onClick={() => setIsInfoModalOpen(false)} 
-                                    className="w-8 h-8 flex items-center justify-center bg-white border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-500 hover:border-red-100 rounded-md transition-all"
-                                >
-                                    <FaTimes size={14} />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Body Details */}
-                        <div className="p-6 md:p-8 overflow-y-auto">
-                            
-                            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-8 border-b border-gray-100 pb-8">
-                                <img 
-                                    src={selectedItem.image} 
-                                    alt="HQ Profile" 
-                                    onClick={(e) => handleImageZoom(e, selectedItem.image)} 
-                                    className="w-32 h-32 rounded-2xl object-cover border-4 border-gray-50 shadow-md cursor-zoom-in hover:opacity-90 transition-opacity"
-                                />
-                                <div className="text-center sm:text-left mt-2">
-                                    <h3 className="text-2xl font-black text-gray-800 break-all">{selectedItem.email}</h3>
-                                    <div className="mt-4">
-                                        <span className={`inline-block px-4 py-1.5 rounded-full text-[12px] font-bold shadow-sm ${
-                                            selectedItem.caseStatus ? 'bg-[#e6f7eb] text-[#08B36A] border border-[#08B36A]/20' : 'bg-gray-100 text-gray-500 border border-gray-200'
-                                        }`}>
-                                            Case Status: {selectedItem.caseStatus || 'Not Assigned'}
-                                        </span>
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsInfoModalOpen(false)}></div>
+                    <div className="relative bg-white w-full max-w-4xl rounded-[40px] overflow-hidden shadow-2xl animate-in zoom-in duration-300 flex flex-col max-h-[95vh]">
+                        <div className="bg-gradient-to-r from-[#08B36A] to-[#047a47] p-8 text-white relative">
+                            <button onClick={() => setIsInfoModalOpen(false)} className="absolute top-6 right-8 text-white/70 hover:text-white hover:rotate-90 transition-all"><FaTimes size={24} /></button>
+                            <div className="flex flex-col md:flex-row gap-8 items-center">
+                                <img src={getImgUrl(selectedItem.profileImage)} className="w-32 h-32 rounded-[2rem] border-4 border-white/20 object-cover shadow-2xl" />
+                                <div className="text-center md:text-left">
+                                    <div className="flex items-center gap-3 justify-center md:justify-start">
+                                        <h2 className="text-3xl font-black tracking-tight">{selectedItem.stationName}</h2>
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black border uppercase ${selectedItem.isActive ? 'bg-white/20 border-white/40' : 'bg-red-500/20 border-red-500/40'}`}>{selectedItem.isActive ? 'Active HQ' : 'Inactive'}</span>
+                                    </div>
+                                    <p className="opacity-90 flex items-center gap-2 mt-2 text-lg font-medium justify-center md:justify-start"><FaUser className="text-white/60" /> Captain: {selectedItem.captainName}</p>
+                                    <div className="flex flex-wrap gap-4 mt-4 justify-center md:justify-start">
+                                        <span className="flex items-center gap-2 bg-black/10 px-3 py-1.5 rounded-xl text-sm"><FaEnvelope className="text-white/60" /> {selectedItem.email}</span>
+                                        <span className="flex items-center gap-2 bg-black/10 px-3 py-1.5 rounded-xl text-sm"><FaPhoneAlt className="text-white/60" /> {selectedItem.phone}</span>
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-                                
-                                <div className="flex flex-col border-b border-gray-50 pb-3">
-                                    <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">Email</p>
-                                    <p className="text-[15px] font-bold text-gray-800 flex items-center gap-2"><FaEnvelope className="text-gray-300"/> {selectedItem.email}</p>
+                        <div className="p-8 overflow-y-auto bg-gray-50/50">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
+                                    <h3 className="text-[#08B36A] font-bold flex items-center gap-2 mb-6 uppercase text-xs tracking-widest"><FaMapMarkerAlt /> Geographic Location</h3>
+                                    <div className="space-y-4">
+                                        <div><p className="text-[10px] text-gray-400 font-black uppercase mb-1">Full Address</p><p className="font-bold text-gray-800 text-sm leading-relaxed">{selectedItem.address || 'N/A'}</p></div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div><p className="text-[10px] text-gray-400 font-black uppercase mb-1">City</p><p className="font-bold text-gray-800">{selectedItem.city}</p></div>
+                                            <div><p className="text-[10px] text-gray-400 font-black uppercase mb-1">State</p><p className="font-bold text-gray-800">{selectedItem.state}</p></div>
+                                            <div className="col-span-2"><p className="text-[10px] text-gray-400 font-black uppercase mb-1">Country</p><p className="font-bold text-gray-800">{selectedItem.country}</p></div>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div className="flex flex-col border-b border-gray-50 pb-3">
-                                    <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">Address</p>
-                                    <p className="text-[15px] font-bold text-gray-800 flex items-center gap-2 capitalize"><FaMapMarkerAlt className="text-gray-300"/> {selectedItem.address}</p>
-                                </div>
-
-                                <div className="flex flex-col border-b border-gray-50 pb-3">
-                                    <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">Phone Number</p>
-                                    <p className="text-[15px] font-bold text-gray-800 flex items-center gap-2"><FaPhoneAlt className="text-gray-300"/> {selectedItem.phone}</p>
+                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
+                                    <h3 className="text-[#08B36A] font-bold flex items-center gap-2 mb-6 uppercase text-xs tracking-widest"><FaChartLine /> Jurisdiction Stats</h3>
+                                    <div className="grid grid-cols-2 gap-y-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-[#08B36A]"><FaLayerGroup /></div>
+                                            <div><p className="text-[10px] text-gray-400 font-black uppercase">Area</p><p className="font-bold text-sm text-gray-800">{selectedItem.jurisdictionStats?.totalArea || 'N/A'}</p></div>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500"><FaUsers /></div>
+                                            <div><p className="text-[10px] text-gray-400 font-black uppercase">Population</p><p className="font-bold text-sm text-gray-800">{selectedItem.jurisdictionStats?.population || 'N/A'}</p></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+
+                        <div className="p-6 bg-white border-t border-gray-100 flex justify-center gap-4">
+                            <button onClick={(e) => { setIsInfoModalOpen(false); openEditModal(e, selectedItem); }} className="px-8 py-3 bg-amber-500 text-white rounded-2xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-200">Edit Details</button>
+                            <button onClick={() => setIsInfoModalOpen(false)} className="px-8 py-3 bg-gray-100 text-gray-500 rounded-2xl font-bold hover:bg-gray-200 transition-all">Close</button>
+                        </div>
                     </div>
                 </div>
             )}
 
-            {/* ========================================= */}
-            {/* 🌟 DELETE CONFIRMATION POPUP              */}
-            {/* ========================================= */}
-            {isDeleteModalOpen && (
+            {isDeleteModalOpen && selectedItem && (
                 <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setIsDeleteModalOpen(false)}></div>
-                    <div className="relative bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6 md:p-8 text-center animate-in zoom-in duration-200">
-                        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-100">
-                            <FaExclamationTriangle className="text-red-500 text-2xl" />
-                        </div>
-                        <h3 className="text-[20px] font-bold text-gray-800 mb-2">Are you sure?</h3>
-                        <p className="text-[14px] text-gray-500 font-medium mb-8">
-                            Do you really want to delete this headquarter record?
-                        </p>
-                        <div className="flex items-center justify-center gap-3">
-                            <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 px-4 py-3 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl text-[14px] font-bold transition-all">
-                                Cancel
-                            </button>
-                            <button onClick={handleDeleteConfirm} className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[14px] font-bold shadow-md shadow-red-200 transition-all hover:-translate-y-0.5">
-                                Yes, Delete
-                            </button>
+                    <div className="relative bg-white w-full max-w-sm rounded-3xl p-8 text-center animate-in zoom-in duration-200">
+                        <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border ${selectedItem.isActive ? 'bg-red-50 border-red-100 text-red-500' : 'bg-green-50 border-green-100 text-green-500'}`}><FaExclamationTriangle size={24} /></div>
+                        <h3 className="text-xl font-bold text-gray-800 mb-2">{selectedItem.isActive ? 'Deactivate' : 'Reactivate'} Station?</h3>
+                        <div className="flex gap-3 pt-4">
+                            <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-3 border rounded-xl font-bold text-gray-600">Cancel</button>
+                            <button onClick={handleDeleteConfirm} className={`flex-1 py-3 text-white rounded-xl font-bold ${selectedItem.isActive ? 'bg-red-500' : 'bg-green-500'}`}>Confirm</button>
                         </div>
                     </div>
                 </div>
             )}
-
         </div>
     )
 }

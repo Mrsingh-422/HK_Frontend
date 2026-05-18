@@ -4,24 +4,26 @@ import Link from 'next/link'
 import Image from 'next/image' 
 import { usePathname } from 'next/navigation'
 import {
-    FaHome,
-    FaShoppingCart,
-    FaUserNurse,
-    FaUserPlus,
-    FaMapMarkerAlt,
-    FaPlusSquare,
-    FaBullhorn,
-    FaHistory,
-    FaFileAlt,
-    FaUserCircle,
-    FaTruck,
-    FaWallet,
+   
+    FaHome,          // Home
+    FaClipboardList, // Orders
+    FaUserNurse,     // Manage Nurse
+    FaUserPlus,      // Assign Nurse
+    FaMapMarkerAlt,  // Track Nurse
+    FaPlusSquare,    // Add Services
+    FaBox,           // Add Package
+    FaCalendarCheck, // Availabilities
+    FaBullhorn,      // Promotions
+    FaHistory,       // Order History
+    FaFileMedical,   // Manage Documents
+    FaUserCircle,    // Profile
+    FaTruck,         // Delivery Charges
+    FaWallet,        // Wallet & Earning
     FaQuestionCircle,
     FaChevronLeft,
     FaChevronRight
 } from "react-icons/fa";
 
-// Component ka naam Capital letter (NurseTopBar) se import karein
 import NurseTopBar from './components/nurseTopBar';
  
 export default function LabVendorLayout({ children }) {
@@ -30,16 +32,18 @@ export default function LabVendorLayout({ children }) {
     const pathname = usePathname()
  
     const menuItems = [
-        { name: 'Dashbord', href: '/vendors/nursevendor/nursedashboard/dashboard', icon: FaHome },
+       
         { name: 'Home', href: '/vendors/nursevendor/nursedashboard/homenurse', icon: FaHome },
-        { name: 'Orders', href: '/vendors/nursevendor/nursedashboard/ordersnurse', icon: FaShoppingCart },
+        { name: 'Orders', href: '/vendors/nursevendor/nursedashboard/ordersnurse', icon: FaClipboardList },
         { name: 'Manage Nurse', href: '/vendors/nursevendor/nursedashboard/managenurse', icon: FaUserNurse },
         { name: 'Assign Nurse', href: '/vendors/nursevendor/nursedashboard/assignnurse', icon: FaUserPlus },
         { name: 'Track Nurse', href: '/vendors/nursevendor/nursedashboard/tracknurse', icon: FaMapMarkerAlt },
         { name: 'Add Services', href: '/vendors/nursevendor/nursedashboard/addservices', icon: FaPlusSquare },
+        { name: 'Add Package', href: '/vendors/nursevendor/nursedashboard/addpackage', icon: FaBox },
+        { name: 'Availabilities', href: '/vendors/nursevendor/nursedashboard/availabilities', icon: FaCalendarCheck },
         { name: 'Promotions', href: '/vendors/nursevendor/nursedashboard/promotions', icon: FaBullhorn },
         { name: 'Order History', href: '/vendors/nursevendor/nursedashboard/orderhistory', icon: FaHistory },
-        { name: 'Manage Documents', href: '/vendors/nursevendor/nursedashboard/documents', icon: FaFileAlt },
+        { name: 'Manage Documents', href: '/vendors/nursevendor/nursedashboard/documents', icon: FaFileMedical },
         { name: 'Profile', href: '/vendors/nursevendor/nursedashboard/profile', icon: FaUserCircle },
         { name: 'Manage Delivery Charges', href: '/vendors/nursevendor/nursedashboard/deliverycharges', icon: FaTruck },
         { name: 'Wallet & Earning', href: '/vendors/nursevendor/nursedashboard/wallet&earning', icon: FaWallet },
@@ -53,7 +57,7 @@ export default function LabVendorLayout({ children }) {
                 fixed inset-y-0 left-0 z-50 bg-white border-r border-gray-200 flex flex-col
                 transition-all duration-300 ease-in-out
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-                lg:translate-x-0 lg:static lg:inset-0
+                lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen
                 ${isCollapsed ? 'w-20' : 'w-64'}
             `}>
                 {/* 🌟 LOGO AREA 🌟 */}
@@ -110,7 +114,6 @@ export default function LabVendorLayout({ children }) {
                     })}
                 </nav>
  
-                {/* Optional: Sidebar Bottom Toggle (You can keep or remove this since TopBar now handles it) */}
                 <div className="p-4 border-t border-gray-100 flex justify-center lg:flex hidden">
                     <button
                         onClick={() => setIsCollapsed(!isCollapsed)}
@@ -123,7 +126,6 @@ export default function LabVendorLayout({ children }) {
  
             {/* --- MAIN SECTION --- */}
             <div className="flex-1 flex flex-col min-w-0">
-                {/* Pass state and handlers to TopBar */}
                 <NurseTopBar 
                     isCollapsed={isCollapsed} 
                     onToggleSidebar={() => setIsCollapsed(!isCollapsed)} 

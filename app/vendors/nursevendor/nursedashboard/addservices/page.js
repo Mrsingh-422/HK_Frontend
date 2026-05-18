@@ -1,581 +1,470 @@
 'use client'
-import React, { useState } from 'react'
-import { 
-    FaUserNurse, FaPlus, FaCheckCircle, FaTimesCircle, 
-    FaEdit, FaTrashAlt, FaInfoCircle, FaEye, FaMoneyBillWave, FaStethoscope, FaListUl,
-    FaCloudUploadAlt, FaPlusCircle, FaBoxOpen
+import React, { useState, useEffect } from 'react'
+import {
+  FaTrashAlt, 
+  FaPlus, 
+  FaStethoscope, 
+  FaLink, 
+  FaBoxOpen,
+  FaSearch,
+  FaSyncAlt,
+  FaListUl,
+  FaCheckCircle,
+  FaClock,
+  FaCalendarDay,
+  FaLayerGroup,
+  FaArrowLeft
 } from 'react-icons/fa'
+import { toast } from 'react-hot-toast'
+import NurseAPI from '@/app/services/NurseAPI'
 
-export default function MyServicesPage() {
-    const [activeMainTab, setActiveMainTab] = useState('Daily Nursing');
-    const [activeStatusTab, setActiveStatusTab] = useState('Approved');
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+export default function NurseServiceListingPage() {
+  const [loading, setLoading] = useState(false);
+  const [fetchingList, setFetchingList] = useState(true);
+  const [showForm, setShowForm] = useState(false); // Toggle state for the form
+  
+  // Data Lists from API
+  const [categories, setCategories] = useState([]);
+  const [subCategories, setSubCategories] = useState([]);
+  const [masterConsumables, setMasterConsumables] = useState([]);
+  const [myServices, setMyServices] = useState([]); 
+
+  // Form State
+  const [category, setCategory] = useState('');
+  const [serviceTitle, setServiceTitle] = useState('');
+  const [careSubCategoryId, setCareSubCategoryId] = useState('');
+  const [description, setDescription] = useState('');
+  
+  // Pricing State
+  const [pricing, setPricing] = useState({
+    oneDay: { base: 0, discount: 0, final: 0 },
+    multiDay: { base: 0, discount: 0, final: 0 },
+    hourly: { base: 0, discount: 0, final: 0 }
+  });
+
+  // Consumables Linking State
+  const [selectedMasterItem, setSelectedMasterItem] = useState('');
+  const [tempConsDisc, setTempConsDisc] = useState('');
+  const [linkedConsumables, setLinkedConsumables] = useState([]);
+
+  // 1. Load Data on Mount - Using the Approved status API
+  useEffect(() => {
+    const initFetch = async () => {
+      try {
+        setFetchingList(true);
+        // This calls /provider/nurse/dash/service/list?status=Approved
+        const [catRes, listRes] = await Promise.all([
+          NurseAPI.getNurseCsvCategories(),
+          NurseAPI.getMyServicesList('Approved') 
+        ]);
+        
+        if (catRes.success) setCategories(catRes.data);
+        if (listRes.success) setMyServices(listRes.data);
+      } catch (err) {
+        toast.error("Error loading initial data");
+      } finally {
+        setFetchingList(false);
+      }
+    };
+    initFetch();
+  }, []);
+
+  // 2. Handle Category Change -> Fetch SubCategories
+  const handleCategoryChange = async (e) => {
+    const val = e.target.value;
+    setCategory(val);
+    setServiceTitle('');
+    setSubCategories([]);
+    if (!val) return;
+
+    try {
+      const res = await NurseAPI.getNurseCsvSubCategories(val);
+      if (res.success) setSubCategories(res.data);
+    } catch (err) {
+      toast.error("Error loading services");
+    }
+  };
+
+  // 3. Handle Service Change -> Fetch Details (Prices & Consumables)
+  const handleServiceChange = async (e) => {
+    const val = e.target.value;
+    setServiceTitle(val);
+    if (!val) return;
+
+    setLoading(true);
+    try {
+      const res = await NurseAPI.getNurseCsvServiceDetails(category, val);
+      if (res.success && res.data) {
+        const d = res.data;
+        setCareSubCategoryId(d._id);
+        setDescription(d.description || '');
+        
+        setPricing({
+          oneDay: { base: d.oneDayOneTimePrice || 0, discount: 0, final: d.oneDayOneTimePrice || 0 },
+          multiDay: { base: d.forMultipleDaysPrice || 0, discount: 0, final: d.forMultipleDaysPrice || 0 },
+          hourly: { base: d.pricePerHour || 0, discount: 0, final: d.pricePerHour || 0 }
+        });
+
+        setMasterConsumables(d.resolvedConsumables || []);
+      }
+    } catch (err) {
+      toast.error("Error loading service details");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 4. Pricing Calculation Logic
+  const updatePrice = (type, field, value) => {
+    setPricing(prev => {
+      const updated = { ...prev[type], [field]: value };
+      if (field === 'discount' || field === 'base') {
+        const b = parseFloat(updated.base) || 0;
+        const d = parseFloat(updated.discount) || 0;
+        updated.final = Math.round(b - (b * (d / 100)));
+      }
+      return { ...prev, [type]: updated };
+    });
+  };
+
+  // 5. Link Consumable Row
+  const linkConsumable = () => {
+    if (!selectedMasterItem) return toast.error("Select an item first");
+    const item = masterConsumables.find(m => m._id === selectedMasterItem);
+    if (!item) return;
+
+    const disc = parseFloat(tempConsDisc) || 0;
+    const final = Math.round(item.mrp - (item.mrp * (disc / 100)));
+
+    const newRow = {
+      masterItemId: item._id,
+      name: item.itemName,
+      mrp: item.mrp,
+      discountPercentage: disc,
+      final: final
+    };
+
+    setLinkedConsumables([...linkedConsumables, newRow]);
+    setSelectedMasterItem('');
+    setTempConsDisc('');
+  };
+
+  const removeConsumable = (id) => {
+    setLinkedConsumables(linkedConsumables.filter(c => c.masterItemId !== id));
+  };
+
+  // 6. Submit Logic
+  const handleSubmit = async () => {
+    if (!careSubCategoryId) return toast.error("Please select a service first");
     
-    // --- VIEW MODAL STATE ---
-    const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-    const [selectedService, setSelectedService] = useState(null);
-
-    // --- MOCK DATA ---
-    const dailyNursingData = [
-        {
-            id: 1,
-            category: 'Home Nursing Care',
-            count: 'Name: 2',
-            description: 'Specialized nursing care for cancer patients including chemotherapy support and pain management.',
-            totalPrice: '10358.91',
-            oneTime: '100',
-            multipleTime: '100',
-            perHour: '100',
-            status: 'Approved',
-            consumables: 'Syringes, Injections, Spirit, Cotton',
-            procedure: 'Vital monitoring, IV fluid administration, dressing',
-            serviceOffered: 'NURSING CARE'
+    setLoading(true);
+    const payload = {
+        careSubCategoryId: careSubCategoryId,
+        careCategoryId: category,
+        title: serviceTitle,
+        description: description,
+        pricing: {
+            oneDay: { base: pricing.oneDay.base, discount: pricing.oneDay.discount },
+            multipleDays: { base: pricing.multiDay.base, discount: pricing.multiDay.discount },
+            hourly: { base: pricing.hourly.base, discount: pricing.hourly.discount }
         },
-        {
-            id: 2,
-            category: 'Home Personal Care',
-            count: 'Name: 2',
-            description: 'Assistance with daily living activities and personal hygiene for elderly patients.',
-            totalPrice: '10358.91',
-            oneTime: '100',
-            multipleTime: '100',
-            perHour: '100',
-            status: 'Approved',
-            consumables: 'Gloves, Bed sheets, Sanitizer',
-            procedure: 'Bathing, Feeding, Mobility assistance',
-            serviceOffered: 'PERSONAL CARE'
-        },
-        {
-            id: 3,
-            category: 'Home Nursing Care',
-            count: 'Name: cancer care',
-            description: 'Personalized attention. Feeding Tubes, Hoyer Lift, Catheter, Tracheotomy. Private rooms.',
-            totalPrice: '0',
-            oneTime: '0',
-            multipleTime: '0',
-            perHour: '0',
-            status: 'Pending',
-            consumables: 'N/A',
-            procedure: 'N/A',
-            serviceOffered: 'NURSING CARE'
-        },
-        {
-            id: 4,
-            category: 'Home Personal Care',
-            count: 'Name: patient care nurse',
-            description: 'Personalized attention. Feeding Tubes, Hoyer Lift, Catheter, Tracheotomy.',
-            totalPrice: '0',
-            oneTime: '0',
-            multipleTime: '0',
-            perHour: '0',
-            status: 'Pending',
-            consumables: 'N/A',
-            procedure: 'N/A',
-            serviceOffered: 'PERSONAL CARE'
-        },
-        {
-            id: 5,
-            category: 'Home Personal Care',
-            count: 'Name: skin care nurse',
-            description: 'Affordable Senior Home Care. Call For a Free, No Obligation Consult.',
-            totalPrice: '1200',
-            oneTime: '400',
-            multipleTime: '800',
-            perHour: '150',
-            status: 'Pending',
-            consumables: 'N/A',
-            procedure: 'N/A',
-            serviceOffered: 'PERSONAL CARE'
-        },
-        {
-            id: 6,
-            category: 'Home Personal Care',
-            count: 'Name: 2',
-            description: 'cancer care',
-            totalPrice: '10358.91',
-            oneTime: '500',
-            multipleTime: '1000',
-            perHour: '200',
-            status: 'Rejected',
-            consumables: 'N/A',
-            procedure: 'N/A',
-            serviceOffered: 'PERSONAL CARE'
-        },
-        {
-            id: 7,
-            category: 'Home Personal Care',
-            count: 'Name: skin care nurse',
-            description: 'Affordable Senior Home Care. Call For a Free, No Obligation Consult. Giving people the help they need to live in the place.',
-            totalPrice: '540.531',
-            oneTime: '200',
-            multipleTime: '400',
-            perHour: '100',
-            status: 'Rejected',
-            consumables: 'N/A',
-            procedure: 'N/A',
-            serviceOffered: 'PERSONAL CARE'
-        }
-    ];
-
-    // --- PACKAGE MOCK DATA ---
-    const myPackagesData = [
-        { id: 101, category: 'Elderly Care', name: 'Nitish', description: 'Comprehensive monthly checkup package.', totalPrice: '12', status: 'Approved', type: 'Package' },
-        { id: 102, category: 'Dermatology', name: 'Skin', description: '100 daily skin monitoring and care.', totalPrice: '100', status: 'Approved', type: 'Package' },
-        { id: 103, category: 'Nursing', name: 'New nurse pac', description: 'Post-surgery recovery package.', totalPrice: '1200', status: 'Approved', type: 'Package' },
-        { id: 104, category: 'Personal Care', name: 'Nitish', description: 'Daily assistance with basic tasks.', totalPrice: '1200', status: 'Approved', type: 'Package' },
-        { id: 105, category: 'Special Needs', name: 'kuchhbhi', description: "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s...", totalPrice: '600', status: 'Approved', type: 'Package' }
-    ];
-
-    // Filter logic
-    const filteredData = dailyNursingData.filter(item => item.status === activeStatusTab);
-    const filteredPackages = myPackagesData.filter(item => item.status === activeStatusTab);
-
-    // --- HANDLERS ---
-    const handleViewDetails = (item) => {
-        setSelectedService(item);
-        setIsViewModalOpen(true);
+        consumablesUsed: linkedConsumables.map(c => ({
+            masterItemId: c.masterItemId,
+            discountPercentage: c.discountPercentage
+        })),
+        status: 'Approved'
     };
 
-    const closeViewModal = () => {
-        setIsViewModalOpen(false);
-        setSelectedService(null);
-    };
+    try {
+      const res = await NurseAPI.manageNurseService(payload);
+      if (res.success) {
+        toast.success("Service listed successfully!");
+        window.location.reload();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Submission failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return (
-        <div className=" bg-[#F9FAFB] min-h-screen font-sans">
-            
-            {/* --- TOP HEADER --- */}
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-xl font-bold text-[#1e5a91]">My Services</h1>
+  return (
+    <div className="w-full pb-20 bg-[#F8FAFC] min-h-screen font-sans">
+      
+      {/* --- PAGE HEADER --- */}
+      <div className="max-w-5xl mx-auto mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <h1 className="text-4xl font-[900] text-[#1e3a8a] tracking-tighter flex items-center gap-4">
+          <div className="p-4 bg-[#08B36A] text-white rounded-[1.5rem] shadow-xl">
+            <FaStethoscope size={28}/>
+          </div>
+          Service Management
+        </h1>
+
+        {!showForm && (
+            <button 
+                onClick={() => setShowForm(true)}
+                className="bg-[#08B36A] hover:bg-[#069e5d] text-white px-8 py-4 rounded-[1.2rem] font-black text-sm shadow-lg shadow-green-100 transition-all flex items-center justify-center gap-2 active:scale-95"
+            >
+                <FaPlus /> Add New Service
+            </button>
+        )}
+      </div>
+
+      <div className="max-w-5xl mx-auto space-y-12">
+        
+        {/* --- ADD NEW SERVICE FORM (Hidden by default) --- */}
+        {showForm ? (
+            <div className="animate-in fade-in slide-in-from-top-4 duration-500">
                 <button 
-                    onClick={() => setIsAddModalOpen(true)}
-                    className="flex items-center gap-2 bg-[#08B36A] hover:bg-[#069a5a] text-white px-4 py-2 rounded-full text-sm font-bold shadow-sm transition-all"
+                    onClick={() => setShowForm(false)}
+                    className="mb-6 flex items-center gap-2 text-gray-500 font-bold text-sm hover:text-[#08B36A] transition-colors"
                 >
-                    <FaPlus size={12} /> {activeMainTab === 'Daily Nursing' ? 'Add Service' : 'Add Package'}
+                    <FaArrowLeft /> Back to My Services
                 </button>
-            </div>
 
-            {/* --- MAIN TABS --- */}
-            <div className="flex gap-3 mb-6">
-                {['Daily Nursing', 'My Packages'].map((tab) => (
-                    <button
-                        key={tab}
-                        onClick={() => { setActiveMainTab(tab); setActiveStatusTab('Approved'); }}
-                        className={`px-6 py-2 rounded-full text-xs font-bold transition-all ${
-                            activeMainTab === tab ? 'bg-[#32B97D] text-white shadow-md' : 'bg-white text-gray-500 border border-gray-100 hover:bg-gray-50'
-                        }`}
-                    >
-                        {tab}
-                    </button>
-                ))}
-            </div>
+                <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-8 md:p-10 space-y-8 relative overflow-hidden">
+                    <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">
+                        <FaPlus className="text-[#08B36A]"/> Add New Service
+                    </h2>
+                    
+                    {loading && (
+                        <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-50 flex items-center justify-center">
+                            <FaSyncAlt className="animate-spin text-[#08B36A]" size={30} />
+                        </div>
+                    )}
+                    
+                    {/* 1. SELECTION ROW */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <label className="label-style">Category</label>
+                            <select className="input-style" value={category} onChange={handleCategoryChange}>
+                                <option value="">-- Select Category --</option>
+                                {categories.map((cat, i) => (
+                                    <option key={i} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="label-style">Service Title</label>
+                            <select 
+                                className="input-style" 
+                                value={serviceTitle} 
+                                onChange={handleServiceChange}
+                                disabled={!subCategories.length}
+                            >
+                                <option value="">-- Select Service --</option>
+                                {subCategories.map((sub, i) => (
+                                    <option key={i} value={sub}>{sub}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
 
-            {/* --- CONTENT SECTION --- */}
-            <div className="space-y-4">
-                {/* Status Tabs */}
-                <div className="flex gap-2 mb-4">
-                    {['Approved', 'Pending', 'Rejected'].map((status) => (
-                        <button
-                            key={status}
-                            onClick={() => setActiveStatusTab(status)}
-                            className={`px-5 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
-                                activeStatusTab === status ? 'bg-[#32B97D] text-white border-[#32B97D]' : 'bg-white text-gray-500 border-gray-200 hover:border-[#32B97D]'
-                            }`}
-                        >
-                            {status}
-                        </button>
-                    ))}
-                </div>
+                    {/* 2. DESCRIPTION */}
+                    <div>
+                        <label className="label-style">Description (Editable)</label>
+                        <textarea 
+                            rows={3}
+                            placeholder="Description..."
+                            className="input-style min-h-[100px] py-4"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                        />
+                    </div>
 
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-gray-50/80 border-b border-gray-100">
-                                    <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase">
-                                        {activeMainTab === 'Daily Nursing' ? 'Service Name' : 'Package Name'}
-                                    </th>
-                                    <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase">Pricing</th>
-                                    <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase text-center">Status</th>
-                                    <th className="px-4 py-4 text-[10px] font-bold text-gray-400 uppercase text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                                {(activeMainTab === 'Daily Nursing' ? filteredData : filteredPackages).length > 0 ? (
-                                    (activeMainTab === 'Daily Nursing' ? filteredData : filteredPackages).map((item) => (
-                                        <tr 
-                                            key={item.id} 
-                                            onClick={() => handleViewDetails(item)}
-                                            className="hover:bg-gray-50 transition-colors cursor-pointer group"
-                                        >
-                                            <td className="px-4 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${activeMainTab === 'Daily Nursing' ? 'bg-green-50 text-[#32B97D]' : 'bg-blue-50 text-blue-500'}`}>
-                                                        {activeMainTab === 'Daily Nursing' ? <FaUserNurse size={16} /> : <FaBoxOpen size={16} />}
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold text-gray-800 text-sm group-hover:text-[#08B36A] transition-colors">
-                                                            {activeMainTab === 'Daily Nursing' ? item.category : `Name: ${item.name}`}
-                                                        </div>
-                                                        <div className="text-[10px] text-gray-400">
-                                                            {activeMainTab === 'Daily Nursing' ? item.serviceOffered : item.category}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-4">
-                                                <div className="font-bold text-gray-800 text-sm font-mono tracking-tighter">₹{item.totalPrice}</div>
-                                            </td>
-                                            <td className="px-4 py-4 text-center">
-                                                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold border uppercase ${
-                                                    item.status === 'Approved' ? 'bg-green-50 text-[#32B97D] border-green-100' :
-                                                    item.status === 'Pending' ? 'bg-orange-50 text-orange-500 border-orange-100' :
-                                                    'bg-red-50 text-red-500 border-red-100'
-                                                }`}>
-                                                    {item.status === 'Approved' ? <FaCheckCircle size={8}/> : <FaInfoCircle size={8}/>} {item.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex justify-end gap-2">
-                                                    <button onClick={() => handleViewDetails(item)} className="p-2 text-blue-500 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all" title="View Detail">
-                                                        <FaEye size={14} />
-                                                    </button>
-                                                    <button className="p-2 text-gray-400 hover:text-[#08B36A] hover:bg-green-50 rounded-lg transition-all">
-                                                        <FaEdit size={14} />
-                                                    </button>
-                                                    <button className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
-                                                        <FaTrashAlt size={14} />
-                                                    </button>
-                                                </div>
+                    {/* 3. PRICING CONFIGURATION */}
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                            <span className="text-lg">💰</span>
+                            <h3 className="text-sm font-bold text-gray-600 uppercase tracking-tight">Pricing Configuration</h3>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* One Day Price */}
+                            <div className="border border-gray-100 rounded-xl p-5 bg-white shadow-sm">
+                                <h4 className="text-[10px] font-black text-[#08B36A] uppercase mb-4 tracking-widest">One Day Price</h4>
+                                <div className="space-y-2">
+                                    <input type="number" readOnly value={pricing.oneDay.base} className="w-full py-2 px-4 rounded-lg bg-gray-50 border border-gray-100 text-center font-bold text-xs outline-none" />
+                                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1 block mt-1 tracking-wider">Discount</label>
+                                    <input type="number" placeholder="Disc %" value={pricing.oneDay.discount} onChange={(e) => updatePrice('oneDay', 'discount', e.target.value)} className="w-full py-3 px-4 rounded-lg border border-gray-200 text-center font-bold focus:border-[#08B36A] outline-none" />
+                                </div>
+                                <div className="mt-3 text-[11px] font-black text-gray-400">Final: <span className="text-[#08B36A]">₹{pricing.oneDay.final}</span></div>
+                            </div>
+
+                            {/* Multi Day Price */}
+                            <div className="border border-gray-100 rounded-xl p-5 bg-white shadow-sm">
+                                <h4 className="text-[10px] font-black text-[#08B36A] uppercase mb-4 tracking-widest">Multi Day Price</h4>
+                                <div className="space-y-2">
+                                    <input type="number" readOnly value={pricing.multiDay.base} className="w-full py-2 px-4 rounded-lg bg-gray-50 border border-gray-100 text-center font-bold text-xs outline-none" />
+                                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1 block mt-1 tracking-wider">Discount</label>
+                                    <input type="number" placeholder="Disc %" value={pricing.multiDay.discount} onChange={(e) => updatePrice('multiDay', 'discount', e.target.value)} className="w-full py-3 px-4 rounded-lg border border-gray-200 text-center font-bold focus:border-[#08B36A] outline-none" />
+                                </div>
+                                <div className="mt-3 text-[11px] font-black text-gray-400">Final: <span className="text-[#08B36A]">₹{pricing.multiDay.final}</span></div>
+                            </div>
+
+                            {/* Hourly Price */}
+                            <div className="border border-gray-100 rounded-xl p-5 bg-white shadow-sm">
+                                <h4 className="text-[10px] font-black text-[#08B36A] uppercase mb-4 tracking-widest">Hourly Price</h4>
+                                <div className="space-y-2">
+                                    <input type="number" readOnly value={pricing.hourly.base} className="w-full py-2 px-4 rounded-lg bg-gray-50 border border-gray-100 text-center font-bold text-xs outline-none" />
+                                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1 block mt-1 tracking-wider">Discount</label>
+                                    <input type="number" placeholder="Disc %" value={pricing.hourly.discount} onChange={(e) => updatePrice('hourly', 'discount', e.target.value)} className="w-full py-3 px-4 rounded-lg border border-gray-200 text-center font-bold focus:border-[#08B36A] outline-none" />
+                                </div>
+                                <div className="mt-3 text-[11px] font-black text-gray-400">Final: <span className="text-[#08B36A]">₹{pricing.hourly.final}</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 4. CONSUMABLES */}
+                    <div className="space-y-4 pt-4">
+                        <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                            <span className="text-lg">📦</span>
+                            <h3 className="text-sm font-bold text-gray-600 uppercase tracking-tight">Consumables Used</h3>
+                        </div>
+
+                        <div className="flex flex-col md:flex-row gap-3">
+                            <div className="flex-[4] relative">
+                                <select 
+                                    className="w-full input-style h-[54px] pl-10 appearance-none"
+                                    value={selectedMasterItem}
+                                    onChange={(e) => setSelectedMasterItem(e.target.value)}
+                                >
+                                    <option value="">-- Select Consumable --</option>
+                                    {masterConsumables.map((item) => (
+                                        <option key={item._id} value={item._id}>
+                                            {item.itemName} ({item.size}) - ₹{item.mrp}
+                                        </option>
+                                    ))}
+                                </select>
+                                <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={14}/>
+                            </div>
+                            <div className="flex-1 min-w-[100px]">
+                                <input 
+                                    type="number" placeholder="Disc %" 
+                                    className="w-full input-style h-[54px] text-center"
+                                    value={tempConsDisc}
+                                    onChange={(e) => setTempConsDisc(e.target.value)}
+                                />
+                            </div>
+                            <button onClick={linkConsumable} className="w-full md:w-32 bg-[#08B36A] text-white rounded-xl font-black text-sm h-[54px]">Link</button>
+                        </div>
+
+                        {/* TABLE */}
+                        <div className="bg-[#f1f5f9]/50 rounded-xl overflow-hidden mt-6">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-white">
+                                        <th className="px-6 py-4">ITEM</th>
+                                        <th className="px-6 py-4 text-center">MRP</th>
+                                        <th className="px-6 py-4 text-center">DISCOUNT</th>
+                                        <th className="px-6 py-4 text-right">VENDOR FINAL</th>
+                                        <th className="px-6 py-4 w-10"></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white">
+                                    {linkedConsumables.map((item, idx) => (
+                                        <tr key={idx} className="text-[12px] font-bold text-gray-700">
+                                            <td className="px-6 py-4">{item.name}</td>
+                                            <td className="px-6 py-4 text-center">₹{item.mrp}</td>
+                                            <td className="px-6 py-4 text-center text-orange-500">{item.discountPercentage}%</td>
+                                            <td className="px-6 py-4 text-right font-black text-[#08B36A]">₹{item.final}</td>
+                                            <td className="px-6 py-4 text-right">
+                                                <button onClick={() => removeConsumable(item.masterItemId)} className="text-gray-300 hover:text-red-500">
+                                                    <FaTrashAlt size={12} />
+                                                </button>
                                             </td>
                                         </tr>
-                                    ))
-                                ) : (
-                                    <tr><td colSpan="4" className="py-12 text-center text-gray-400 text-sm">No {activeStatusTab} Data Found</td></tr>
-                                )}
-                            </tbody>
-                        </table>
+                                    ))}
+                                    {!linkedConsumables.length && (
+                                        <tr><td colSpan="5" className="px-6 py-8 text-center text-[10px] text-gray-300 font-black uppercase tracking-widest">No consumables linked</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div className="pt-6">
+                        <button 
+                            onClick={handleSubmit}
+                            disabled={loading}
+                            className="w-full py-5 bg-[#08B36A] text-white rounded-xl font-black text-sm shadow-xl uppercase tracking-wider transition-all"
+                        >
+                            {loading ? "Processing..." : "List Service Now (Approved)"}
+                        </button>
                     </div>
                 </div>
+            </div>
+        ) : (
+            /* --- DEFAULT VIEW: MY LISTED SERVICES (Fetched via ?status=Approved) --- */
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <h2 className="text-2xl font-black text-gray-800 flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-100">
+                        <FaListUl className="text-[#08B36A]" size={18}/>
+                    </div>
+                    My Listed Services
+                </h2>
 
-                {/* Bottom Add Button for Packages (per image) */}
-                {activeMainTab === 'My Packages' && (
-                    <div className="flex justify-center mt-6">
-                        <button 
-                            onClick={() => setIsAddModalOpen(true)}
-                            className="bg-[#1D8348] hover:bg-[#196F3D] text-white px-20 py-2 rounded-lg text-sm font-bold shadow-md transition-all"
-                        >
-                            Add
-                        </button>
+                {fetchingList ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2rem] border border-gray-100">
+                        <FaSyncAlt className="animate-spin text-[#08B36A] mb-4" size={24}/>
+                        <p className="text-gray-400 font-bold text-xs uppercase tracking-widest">Fetching your services...</p>
+                    </div>
+                ) : myServices.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {myServices.map((svc) => (
+                            <div key={svc._id} className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-md transition-all group">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <h3 className="font-black text-gray-800 text-lg group-hover:text-[#08B36A] transition-colors">{svc.title}</h3>
+                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1 mt-1">
+                                            <FaLayerGroup /> {svc.careCategoryId}
+                                        </p>
+                                    </div>
+                                    <span className="bg-green-50 text-[#08B36A] text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter flex items-center gap-1">
+                                        <FaCheckCircle /> Listed
+                                    </span>
+                                </div>
+                                
+                                <p className="text-gray-500 text-xs line-clamp-2 mb-6 font-medium leading-relaxed">
+                                    {svc.description}
+                                </p>
+
+                                <div className="grid grid-cols-3 gap-3 pt-4 border-t border-gray-50">
+                                    <div className="text-center">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase mb-1">Hourly</p>
+                                        <p className="text-xs font-black text-gray-800">₹{svc.pricing?.hourly?.final || svc.pricing?.hourly?.base || 0}</p>
+                                    </div>
+                                    <div className="text-center border-x border-gray-50">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase mb-1">One Day</p>
+                                        <p className="text-xs font-black text-gray-800">₹{svc.pricing?.oneDay?.final || svc.pricing?.oneDay?.base || 0}</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase mb-1">Multi Day</p>
+                                        <p className="text-xs font-black text-gray-800">₹{svc.pricing?.multipleDays?.final || svc.pricing?.multipleDays?.base || 0}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-20 bg-white rounded-[2rem] border-2 border-dashed border-gray-100">
+                        <FaBoxOpen className="mx-auto text-gray-200 mb-4" size={50}/>
+                        <p className="text-gray-400 font-black text-sm uppercase tracking-widest">No services listed yet</p>
                     </div>
                 )}
             </div>
+        )}
+      </div>
 
-          {/* --- ADD MODAL (Switches between Service and Package based on Tab) --- */}
-            {isAddModalOpen && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    {/* Width switches: max-w-4xl for detailed Service form, max-w-lg for Package form */}
-                    <div className={`bg-white w-full ${activeMainTab === 'Daily Nursing' ? 'max-w-4xl' : 'max-w-lg'} rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in duration-300`}>
-                        
-                        {/* Header */}
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white">
-                            <h2 className="text-xl font-bold text-gray-800">
-                                {activeMainTab === 'Daily Nursing' ? 'Add New Service' : 'Add New Packages'}
-                            </h2>
-                            <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-red-500 transition-colors">
-                                <FaTimesCircle size={24} />
-                            </button>
-                        </div>
-
-                        {/* Form Body */}
-                        <div className="p-8 max-h-[80vh] overflow-y-auto bg-[#FAFBFC]">
-                            {activeMainTab === 'Daily Nursing' ? (
-                                /* --- ADD NEW SERVICE FORM --- */
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[13px] font-bold text-gray-600">Category</label>
-                                        <select className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] text-sm bg-white">
-                                            <option>Select Category</option>
-                                            <option>Home Nursing Care</option>
-                                            <option>Home Personal Care</option>
-                                        </select>
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                        <label className="text-[13px] font-bold text-gray-600">Name</label>
-                                        <select className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] text-sm bg-white">
-                                            <option>Select subCategory</option>
-                                        </select>
-                                    </div>
-
-                                    <div className="md:col-span-2 space-y-1.5">
-                                        <label className="text-[13px] font-bold text-gray-600">Nursing Service Photo</label>
-                                        <div className="flex items-center gap-3">
-                                            <label className="cursor-pointer bg-gray-100 px-4 py-2 rounded-lg border border-gray-300 text-xs font-bold text-gray-600 hover:bg-gray-200 transition-colors">
-                                                Choose File
-                                                <input type="file" className="hidden" />
-                                            </label>
-                                            <span className="text-xs text-gray-400">No file chosen</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="md:col-span-2 flex items-center gap-6 py-2">
-                                        <label className="text-[13px] font-bold text-gray-600">Prescription Required ?</label>
-                                        <div className="flex items-center gap-4">
-                                            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                                                <input type="radio" name="prescription" className="accent-[#08B36A]" /> yes
-                                            </label>
-                                            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                                                <input type="radio" name="prescription" className="accent-[#08B36A]" /> Not Required
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    <div className="md:col-span-2 space-y-1.5">
-                                        <label className="text-[13px] font-bold text-gray-600">Nursing Service Description</label>
-                                        <textarea placeholder="Lorem Ipsum is simply dummy text of the..." className="w-full p-4 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] text-sm h-24 resize-none shadow-sm"></textarea>
-                                    </div>
-
-                                    {[
-                                        { label: "Nursing Service Price", placeholder: "Enter price" },
-                                        { label: "Consumables Used", placeholder: "e.g. Injections, Spirit" },
-                                        { label: "Procedure Included", placeholder: "e.g. done professionally" },
-                                        { label: "Service Offered", placeholder: "NURSING CARE" },
-                                        { label: "For one day one time price", placeholder: "0.00" },
-                                        { label: "For Multiple days price", placeholder: "0.00" },
-                                        { label: "For per Hours price", placeholder: "0.00" },
-                                    ].map((field, idx) => (
-                                        <div key={idx} className="space-y-1.5">
-                                            <label className="text-[13px] font-bold text-gray-600">{field.label}</label>
-                                            <input type="text" placeholder={field.placeholder} className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] text-sm shadow-sm" />
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                /* --- ADD NEW PACKAGE FORM (MATCHING SCREENSHOT) --- */
-                                <div className="space-y-4">
-                                    <div className="space-y-1">
-                                        <label className="text-sm font-semibold text-gray-700">Services</label>
-                                        <select className="w-full p-2 border border-gray-300 rounded focus:ring-1 focus:ring-green-500 outline-none text-sm">
-                                            <option>Select Category</option>
-                                        </select>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <label className="text-sm font-semibold text-gray-700">Package name</label>
-                                        <input type="text" className="w-full p-2 border border-gray-300 rounded text-sm outline-none" />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700 block">Nursing Service Photo</label>
-                                        <div className="flex items-center gap-2">
-                                            <label className="px-3 py-1 border border-gray-400 bg-gray-100 rounded text-xs cursor-pointer hover:bg-gray-200">
-                                                Choose File
-                                                <input type="file" className="hidden" />
-                                            </label>
-                                            <span className="text-xs text-gray-500">No file chosen</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-2">
-                                        <label className="text-sm font-semibold text-gray-700">Prescription Required ?</label>
-                                        <div className="flex gap-3">
-                                            <label className="flex items-center gap-1 text-sm"><input type="radio" name="pkg_presc" /> yes</label>
-                                            <label className="flex items-center gap-1 text-sm"><input type="radio" name="pkg_presc" /> Not Required</label>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <label className="text-sm font-semibold text-gray-700">Nursing Service Description</label>
-                                        <input type="text" placeholder="Type.........." className="w-full p-2 border border-gray-300 rounded text-sm outline-none" />
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <label className="text-sm font-semibold text-gray-700">Nursing service price</label>
-                                        <input type="text" className="w-full p-2 border border-gray-300 rounded text-sm outline-none" />
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="mt-10 flex justify-start">
-                                <button className="bg-[#32B97D] hover:bg-[#28a36d] text-white font-bold px-12 py-3 rounded-lg text-sm transition-all shadow-md active:scale-95 uppercase tracking-wider">
-                                    Submit
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-             {/* --- VIEW DETAILS MODAL --- */}
-            {isViewModalOpen && selectedService && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="bg-white w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in duration-300">
-                        
-                        <div className="bg-[#08B36A] p-6 text-white flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-white/20 rounded-lg">
-                                    <FaUserNurse size={24} />
-                                </div>
-                                <div>
-                                    <h2 className="text-xl font-bold leading-none">
-                                        {activeMainTab === 'Daily Nursing' ? selectedService.category : selectedService.name}
-                                    </h2>
-                                    <p className="text-xs text-green-50 mt-1 uppercase tracking-widest">
-                                        {activeMainTab === 'Daily Nursing' ? selectedService.serviceOffered : 'PACKAGE DETAILS'}
-                                    </p>
-                                </div>
-                            </div>
-                            <button onClick={closeViewModal} className="text-white hover:rotate-90 transition-transform duration-200">
-                                <FaTimesCircle size={28} />
-                            </button>
-                        </div>
-
-                        <div className="p-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 border-b border-gray-100 pb-2 text-[#08B36A] font-bold text-sm">
-                                        <FaMoneyBillWave /> PRICING BREAKDOWN
-                                    </div>
-                                    <div className="space-y-3">
-                                        <div className="flex justify-between bg-green-50/50 p-3 rounded-xl border border-green-50">
-                                            <span className="text-xs text-gray-500 font-bold">Total Price</span>
-                                            <span className="text-sm font-black text-[#08B36A]">₹{selectedService.totalPrice || selectedService.price}</span>
-                                        </div>
-                                        {activeMainTab === 'Daily Nursing' && (
-                                            <div className="space-y-2 px-1">
-                                                <div className="flex justify-between text-xs"><span className="text-gray-400">One Time</span> <span className="font-bold text-gray-700">₹{selectedService.oneTime}</span></div>
-                                                <div className="flex justify-between text-xs"><span className="text-gray-400">Multiple Time</span> <span className="font-bold text-gray-700">₹{selectedService.multipleTime}</span></div>
-                                                <div className="flex justify-between text-xs"><span className="text-gray-400">Per Hour</span> <span className="font-bold text-gray-700">₹{selectedService.perHour}</span></div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 border-b border-gray-100 pb-2 text-[#08B36A] font-bold text-sm">
-                                        <FaStethoscope /> DETAILS
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                                {activeMainTab === 'Daily Nursing' ? 'Consumables Used' : 'Category'}
-                                            </label>
-                                            <p className="text-xs text-gray-600 mt-1 italic leading-relaxed">
-                                                {activeMainTab === 'Daily Nursing' ? selectedService.consumables : selectedService.category}
-                                            </p>
-                                        </div>
-                                        {activeMainTab === 'Daily Nursing' && (
-                                            <div>
-                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Procedure Included</label>
-                                                <p className="text-xs text-gray-600 mt-1 italic leading-relaxed">{selectedService.procedure}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="md:col-span-2 space-y-3 bg-gray-50 p-5 rounded-2xl border border-gray-100">
-                                    <div className="flex items-center gap-2 text-gray-800 font-bold text-xs uppercase tracking-wider">
-                                        <FaListUl className="text-[#08B36A]" /> Description
-                                    </div>
-                                    <p className="text-sm text-gray-600 leading-relaxed font-medium">
-                                        {selectedService.description}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-6 border-t border-gray-50 bg-gray-50/50 flex justify-end">
-                            <button 
-                                onClick={closeViewModal} 
-                                className="px-10 py-2.5 rounded-xl bg-gray-200 text-gray-600 font-bold text-xs hover:bg-gray-300 transition-all uppercase tracking-widest"
-                            >
-                                Close Details
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-             {/* --- VIEW DETAILS MODAL --- */}
-            {isViewModalOpen && selectedService && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="bg-white w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in duration-300">
-                        
-                        <div className="bg-[#08B36A] p-6 text-white flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-white/20 rounded-lg">
-                                    <FaUserNurse size={24} />
-                                </div>
-                                <div>
-                                    <h2 className="text-xl font-bold leading-none">{selectedService.category}</h2>
-                                    <p className="text-xs text-green-50 mt-1 uppercase tracking-widest">{selectedService.serviceOffered}</p>
-                                </div>
-                            </div>
-                            <button onClick={closeViewModal} className="text-white hover:rotate-90 transition-transform duration-200">
-                                <FaTimesCircle size={28} />
-                            </button>
-                        </div>
-
-                        <div className="p-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 border-b border-gray-100 pb-2 text-[#08B36A] font-bold text-sm">
-                                        <FaMoneyBillWave /> PRICING BREAKDOWN
-                                    </div>
-                                    <div className="space-y-3">
-                                        <div className="flex justify-between bg-green-50/50 p-3 rounded-xl border border-green-50">
-                                            <span className="text-xs text-gray-500 font-bold">Total List Price</span>
-                                            <span className="text-sm font-black text-[#08B36A]">₹{selectedService.totalPrice}</span>
-                                        </div>
-                                        <div className="space-y-2 px-1">
-                                            <div className="flex justify-between text-xs"><span className="text-gray-400">One Time</span> <span className="font-bold text-gray-700">₹{selectedService.oneTime}</span></div>
-                                            <div className="flex justify-between text-xs"><span className="text-gray-400">Multiple Time</span> <span className="font-bold text-gray-700">₹{selectedService.multipleTime}</span></div>
-                                            <div className="flex justify-between text-xs"><span className="text-gray-400">Per Hour</span> <span className="font-bold text-gray-700">₹{selectedService.perHour}</span></div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 border-b border-gray-100 pb-2 text-[#08B36A] font-bold text-sm">
-                                        <FaStethoscope /> CLINICAL DETAILS
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Consumables Used</label>
-                                            <p className="text-xs text-gray-600 mt-1 italic leading-relaxed">{selectedService.consumables}</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Procedure Included</label>
-                                            <p className="text-xs text-gray-600 mt-1 italic leading-relaxed">{selectedService.procedure}</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="md:col-span-2 space-y-3 bg-gray-50 p-5 rounded-2xl border border-gray-100">
-                                    <div className="flex items-center gap-2 text-gray-800 font-bold text-xs uppercase tracking-wider">
-                                        <FaListUl className="text-[#08B36A]" /> Service Description
-                                    </div>
-                                    <p className="text-sm text-gray-600 leading-relaxed font-medium">
-                                        {selectedService.description}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-6 border-t border-gray-50 bg-gray-50/50 flex justify-end">
-                            <button 
-                                onClick={closeViewModal} 
-                                className="px-10 py-2.5 rounded-xl bg-gray-200 text-gray-600 font-bold text-xs hover:bg-gray-300 transition-all uppercase tracking-widest"
-                            >
-                                Close Details
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    )
+      <style jsx>{`
+        .label-style { display: block; font-weight: 800; font-size: 0.8rem; color: #475569; margin-bottom: 0.5rem; }
+        .input-style {
+          width: 100%; padding: 0 16px; border-radius: 0.75rem; border: 1px solid #e2e8f0; font-weight: 600;
+          color: #1e293b; font-size: 0.9rem; outline: none; background-color: white; height: 50px; transition: border-color 0.2s;
+        }
+        .input-style:focus { border-color: #08B36A; }
+        .input-style:disabled { background-color: #f8fafc; cursor: not-allowed; }
+      `}</style>
+    </div>
+  )
 }

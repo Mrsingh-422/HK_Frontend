@@ -1,161 +1,378 @@
 "use client";
-import React, { useState } from "react";
 
-export default function NurseProfileEdit() {
-  // Nurse-specific state
-  const [formData, setFormData] = useState({
-    fullName: "Nurse Maria",
-    nursingAgency: "Health Kangaroo Medics",
-    email: "nurse.maria@example.com",
-    gender: "Female",
-    phone: "9876543210",
-    address: "Sector 17",
-    city: "Chandigarh",
-    state: "Punjab",
-    country: "India",
-    experience: "5",
-    qualification: "B.Sc Nursing",
-    councilNumber: "RN-8829405",
-    homeVisitFees: "500",
-    dutyShiftFees: "1500",
-    language: "English, Hindi, Punjabi",
-    availability: { onDuty: true, emergency: false },
-  });
+import React, { useState, useEffect } from 'react';
+import NurseAPI from '@/app/services/NurseAPI';
+import { 
+    Camera, Mail, Phone, MapPin, Briefcase, Save, Loader2, 
+    FileText, CheckCircle, Info, Globe, Navigation, UploadCloud 
+} from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { useUserContext } from '@/app/context/UserContext'; 
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+const ProfilePage = () => {
+    const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
+    
+    const [loading, setLoading] = useState(false);
+    const [fetching, setFetching] = useState(true);
+    
+    // Dropdown Data
+    const [countries, setCountries] = useState([]);
+    const [states, setStates] = useState([]);
+    const [cities, setCities] = useState([]);
 
-  return (
-    <div className="min-h-screen bg-gray-50 ">
-      <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        
-        {/* --- Header Section --- */}
-        <div className="bg-emerald-600 px-8 py-6 text-white flex items-center gap-6">
-          <div className="relative">
-            {/* Profile Image Placeholder */}
-            <div className="w-24 h-24 rounded-full border-4 border-white bg-gray-200 overflow-hidden flex items-center justify-center text-gray-400">
-               <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-               </svg>
-            </div>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold">{formData.fullName}</h1>
-            <p className="flex items-center text-emerald-100 mt-1">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              {formData.city}, {formData.country}
-            </p>
-          </div>
+    const [profile, setProfile] = useState({
+        name: '',
+        email: '',
+        about: '',
+        experienceYears: '',
+        country: '', // Stored as ID/Name for dropdown
+        state: '',   // Stored as ID/Name for dropdown
+        city: '',    // Stored as ID/Name for dropdown
+        address: '',
+        lat: '',
+        lng: '',
+        phone: '',
+        profileStatus: ''
+    });
+
+    const [previews, setPreviews] = useState({
+        profile: null,
+        nursingCertificates: [],
+        licensePhotos: [],
+        gstCertificates: [],
+        experienceCertificates: [],
+        otherCertificates: []
+    });
+
+    const [files, setFiles] = useState({
+        profileImage: null,
+        nursingCertificates: [],
+        licensePhotos: [],
+        gstCertificates: [],
+        experienceCertificates: [],
+        otherCertificates: []
+    });
+
+    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5002';
+
+    const formatImagePath = (path) => {
+        if (!path) return null;
+        if (typeof path === 'string' && (path.startsWith('blob') || path.startsWith('http'))) return path;
+        const cleanPath = String(path).replace(/^public[\\/]/, '').replace(/\\/g, '/'); 
+        return `${BACKEND_URL}/${cleanPath}`;
+    };
+
+    // Helper to find ID by Name (since your API returns "India" instead of an ID)
+    const findIdByName = (list, name) => {
+        const item = list.find(i => i.name === name || i.id === name || i._id === name);
+        return item ? (item.id || item._id) : name;
+    };
+
+    const fetchProfile = async () => {
+        try {
+            const res = await NurseAPI.getNurseProfile();
+            if (res.success) {
+                const d = res.data;
+                
+                // Set initial profile state
+                setProfile({
+                    name: d.name || '',
+                    email: d.email || '',
+                    about: d.about || '',
+                    experienceYears: d.experienceYears || '',
+                    country: d.country || '',
+                    state: d.state || '',
+                    city: d.city || '',
+                    address: d.address || '',
+                    lat: d.location?.lat || '',
+                    lng: d.location?.lng || '',
+                    phone: d.phone || '',
+                    profileStatus: d.profileStatus || ''
+                });
+
+                // Load initial previews from documents object
+                setPreviews({
+                    profile: d.profileImage || null,
+                    nursingCertificates: d.documents?.nursingCertificates || [],
+                    licensePhotos: d.documents?.licensePhotos || [],
+                    gstCertificates: d.documents?.gstCertificates || [],
+                    experienceCertificates: d.documents?.experienceCertificates || [],
+                    otherCertificates: d.documents?.otherCertificates || []
+                });
+
+                // Handle Cascading Dropdowns for existing data
+                if (d.country) {
+                    const countryList = await getAllCountries();
+                    setCountries(countryList);
+                    const cId = findIdByName(countryList, d.country);
+                    
+                    if (cId) {
+                        const stateList = await getStatesByCountry(cId);
+                        setStates(stateList);
+                        const sId = findIdByName(stateList, d.state);
+                        
+                        if (sId) {
+                            const cityList = await getCitiesByState(sId);
+                            setCities(cityList);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to fetch profile data");
+        } finally {
+            setFetching(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchProfile();
+    }, []);
+
+    const handleInputChange = async (e) => {
+        const { name, value } = e.target;
+        setProfile(prev => ({ ...prev, [name]: value }));
+
+        if (name === "country") {
+            setStates([]); setCities([]);
+            const data = await getStatesByCountry(value);
+            setStates(data || []);
+        }
+        if (name === "state") {
+            setCities([]);
+            const data = await getCitiesByState(value);
+            setCities(data || []);
+        }
+    };
+
+    const handleFileChange = (e, key, isMultiple = false) => {
+        const selectedFiles = Array.from(e.target.files);
+        if (selectedFiles.length === 0) return;
+
+        if (isMultiple) {
+            setFiles(prev => ({ ...prev, [key]: selectedFiles }));
+            const localPreviews = selectedFiles.map(file => URL.createObjectURL(file));
+            setPreviews(prev => ({ ...prev, [key]: localPreviews }));
+        } else {
+            setFiles(prev => ({ ...prev, [key]: selectedFiles[0] }));
+            setPreviews(prev => ({ 
+                ...prev, 
+                [key === 'profileImage' ? 'profile' : key]: URL.createObjectURL(selectedFiles[0]) 
+            }));
+        }
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const formData = new FormData();
+            
+            // Text fields
+            formData.append('name', profile.name);
+            formData.append('email', profile.email);
+            formData.append('about', profile.about);
+            formData.append('experienceYears', profile.experienceYears);
+            formData.append('city', profile.city);
+            formData.append('state', profile.state);
+            formData.append('country', profile.country);
+            formData.append('address', profile.address);
+            formData.append('lat', profile.lat);
+            formData.append('lng', profile.lng);
+
+            // Single Image
+            if (files.profileImage) {
+                formData.append('profileImage', files.profileImage);
+            }
+
+            // Multi Documents
+            const docKeys = ['nursingCertificates', 'licensePhotos', 'gstCertificates', 'experienceCertificates', 'otherCertificates'];
+            docKeys.forEach(key => {
+                if (files[key] && files[key].length > 0) {
+                    files[key].forEach(file => formData.append(key, file));
+                }
+            });
+
+            const res = await NurseAPI.updateNurseProfile(formData);
+            if (res.success) {
+                toast.success("Profile successfully updated!");
+                fetchProfile();
+            }
+        } catch (error) {
+            toast.error("Error updating profile");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (fetching) return (
+        <div className="flex h-screen items-center justify-center bg-gray-50">
+            <Loader2 className="animate-spin text-[#08B36A] w-12 h-12" />
         </div>
+    );
 
-        {/* --- Form Section --- */}
-        <div className="p-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-gray-800 border-b-2 border-emerald-500 pb-1 inline-block">
-              Edit Nurse Profile
-            </h2>
-          </div>
+    return (
+        <div className="min-h-screen bg-gray-50/50 p-4 md:p-8 font-sans">
+            <div className="max-w-6xl mx-auto">
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    
+                    {/* Header Section */}
+                    <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row items-center gap-6">
+                        <div className="relative">
+                            <div className="w-32 h-32 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-gray-50">
+                                <img 
+                                    src={formatImagePath(previews.profile) || "https://via.placeholder.com/150"} 
+                                    alt="Profile" 
+                                    className="w-full h-full object-cover" 
+                                />
+                            </div>
+                            <label className="absolute -bottom-2 -right-2 bg-[#08B36A] p-2.5 rounded-2xl text-white cursor-pointer hover:scale-110 transition-all shadow-lg border-2 border-white">
+                                <Camera size={18} />
+                                <input type="file" hidden onChange={(e) => handleFileChange(e, 'profileImage')} accept="image/*" />
+                            </label>
+                        </div>
+                        <div className="flex-1 text-center md:text-left">
+                            <div className="flex flex-col md:flex-row md:items-center gap-3">
+                                <h1 className="text-2xl font-black text-gray-800 uppercase tracking-tight">{profile.name}</h1>
+                                <span className="bg-green-50 text-[#08B36A] px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-green-100 w-fit self-center">
+                                    {profile.profileStatus}
+                                </span>
+                            </div>
+                            <p className="text-gray-400 font-bold text-sm mt-1">ID: {profile.email} • {profile.experienceYears} Years Experience</p>
+                        </div>
+                        <button type="submit" disabled={loading} className="w-full md:w-auto flex items-center justify-center gap-3 px-10 py-4 bg-[#08B36A] text-white font-black rounded-[1.25rem] hover:bg-[#069c5c] transition-all shadow-xl shadow-green-100 uppercase tracking-widest text-xs">
+                            {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                            {loading ? "Saving..." : "Save Profile"}
+                        </button>
+                    </div>
 
-          <form>
-            {/* File Upload Row */}
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Update Profile Picture</label>
-              <input
-                type="file"
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-gray-200 rounded-lg"
-              />
+                    {/* Stats Dashboard */}
+                    <div className="bg-[#1e3a8a] rounded-[2rem] p-6 text-white shadow-xl border-l-[12px] border-[#08B36A] flex flex-wrap gap-4 justify-between">
+                        <StatBox label="Role" value="Professional Nurse" icon={<Briefcase size={14}/>} />
+                        <StatBox label="Region" value={`${profile.city}, ${profile.state}`} icon={<Globe size={14}/>} />
+                        <StatBox label="Rating" value="5.0 New" icon={<CheckCircle size={14}/>} />
+                        <StatBox label="Status" value="Active" icon={<Info size={14}/>} />
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div className="lg:col-span-2 space-y-6">
+                            
+                            {/* Personal Info */}
+                            <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-8">
+                                <h3 className="text-lg font-black text-[#1e3a8a] mb-8 flex items-center gap-3 uppercase tracking-wider">
+                                    <Info className="text-[#08B36A]" size={20} /> Personal Details
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <FormInput label="Full Service Name" name="name" value={profile.name} onChange={handleInputChange} />
+                                    <FormInput label="Phone Number" name="phone" value={profile.phone} readOnly className="bg-gray-100 cursor-not-allowed" />
+                                    <div className="md:col-span-2">
+                                        <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2">About / Bio</label>
+                                        <textarea name="about" value={profile.about} onChange={handleInputChange} rows={4} className="w-full px-6 py-4 rounded-2xl border border-gray-100 outline-none focus:border-[#08B36A] bg-gray-50 font-medium text-gray-700 placeholder:text-gray-300" placeholder="Describe your nursing experience..." />
+                                    </div>
+                                    <FormInput label="Experience Years" name="experienceYears" type="number" value={profile.experienceYears} onChange={handleInputChange} />
+                                </div>
+                            </div>
+
+                            {/* Service Area */}
+                            <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-8">
+                                <h3 className="text-lg font-black text-[#1e3a8a] mb-8 flex items-center gap-3 uppercase tracking-wider">
+                                    <Navigation className="text-[#08B36A]" size={20} /> Service Area
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                    <FormSelect label="Country" name="country" value={profile.country} options={countries} onChange={handleInputChange} />
+                                    <FormSelect label="State" name="state" value={profile.state} options={states} onChange={handleInputChange} disabled={!profile.country} />
+                                    <FormSelect label="City" name="city" value={profile.city} options={cities} onChange={handleInputChange} disabled={!profile.state} />
+                                    
+                                    <div className="md:col-span-3">
+                                        <FormInput label="Detailed Address" name="address" value={profile.address} onChange={handleInputChange} />
+                                    </div>
+                                    <FormInput label="Latitude" name="lat" value={profile.lat} onChange={handleInputChange} />
+                                    <FormInput label="Longitude" name="lng" value={profile.lng} onChange={handleInputChange} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Document Sidebar */}
+                        <div className="space-y-6">
+                            <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-8">
+                                <h3 className="text-lg font-black text-[#1e3a8a] mb-6 flex items-center gap-3 uppercase tracking-wider">
+                                    <FileText className="text-[#08B36A]" size={20} /> Documents
+                                </h3>
+                                <div className="space-y-6">
+                                    <FileBox label="Nursing Certificates" previews={previews.nursingCertificates} onChange={(e) => handleFileChange(e, 'nursingCertificates', true)} formatImagePath={formatImagePath} />
+                                    <FileBox label="License Photos" previews={previews.licensePhotos} onChange={(e) => handleFileChange(e, 'licensePhotos', true)} formatImagePath={formatImagePath} />
+                                    <FileBox label="GST Certificates" previews={previews.gstCertificates} onChange={(e) => handleFileChange(e, 'gstCertificates', true)} formatImagePath={formatImagePath} />
+                                    <FileBox label="Experience Certificates" previews={previews.experienceCertificates} onChange={(e) => handleFileChange(e, 'experienceCertificates', true)} formatImagePath={formatImagePath} />
+                                    <FileBox label="Other Certificates" previews={previews.otherCertificates} onChange={(e) => handleFileChange(e, 'otherCertificates', true)} formatImagePath={formatImagePath} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
             </div>
-
-            {/* 2-Column Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-              <InputField label="Full Name" name="fullName" value={formData.fullName} onChange={handleChange} />
-              <InputField label="Nursing Agency / Clinic" name="nursingAgency" value={formData.nursingAgency} onChange={handleChange} />
-             
-              <InputField label="Email Address" name="email" type="email" value={formData.email} onChange={handleChange} />
-              <InputField label="Phone Number" name="phone" value={formData.phone} onChange={handleChange} />
-             
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Gender</label>
-                <select name="gender" value={formData.gender} onChange={handleChange} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all">
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <InputField label="Languages Spoken" name="language" value={formData.language} onChange={handleChange} />
-
-              <InputField label="Street Address" name="address" value={formData.address} onChange={handleChange} />
-              <InputField label="City" name="city" value={formData.city} onChange={handleChange} />
-              <InputField label="State" name="state" value={formData.state} onChange={handleChange} />
-              <InputField label="Country" name="country" value={formData.country} onChange={handleChange} />
-
-              {/* Nurse Qualifications */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Nursing Qualification</label>
-                <select name="qualification" value={formData.qualification} onChange={handleChange} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all">
-                  <option value="B.Sc Nursing">B.Sc Nursing</option>
-                  <option value="GNM">GNM (General Nursing)</option>
-                  <option value="ANM">ANM</option>
-                  <option value="M.Sc Nursing">M.Sc Nursing</option>
-                </select>
-              </div>
-              <InputField label="Years of Experience" name="experience" type="number" value={formData.experience} onChange={handleChange} />
-             
-              <InputField label="Nursing Council Reg. No." name="councilNumber" value={formData.councilNumber} onChange={handleChange} />
-             
-              {/* Nurse-specific Fees */}
-              <InputField label="Home Visit Charge (₹)" name="homeVisitFees" type="number" value={formData.homeVisitFees} onChange={handleChange} />
-              <InputField label="Full Day/Shift Charge (₹)" name="dutyShiftFees" type="number" value={formData.dutyShiftFees} onChange={handleChange} />
-
-              {/* Checkboxes for Availability */}
-              <div className="flex flex-col justify-center">
-                <label className="block text-sm font-semibold text-gray-700 mb-3">Service Availability</label>
-                <div className="flex items-center space-x-6">
-                  <label className="flex items-center cursor-pointer">
-                    <input type="checkbox" defaultChecked className="w-5 h-5 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500" />
-                    <span className="ml-2 text-gray-700 font-medium">Available for Duty</span>
-                  </label>
-                  <label className="flex items-center cursor-pointer">
-                    <input type="checkbox" className="w-5 h-5 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500" />
-                    <span className="ml-2 text-gray-700 font-medium">Emergency Calls</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* --- Buttons Section --- */}
-            <div className="mt-10 pt-6 border-t border-gray-100 flex flex-col sm:flex-row justify-end items-center gap-4">
-              <button type="button" className="w-full sm:w-auto px-6 py-2.5 text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg font-medium transition-colors">
-                Edit Bio / About
-              </button>
-              <button type="button" className="w-full sm:w-auto px-6 py-2.5 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg font-medium transition-colors">
-                Security & Password
-              </button>
-              <button type="submit" className="w-full sm:w-auto px-8 py-2.5 text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg font-medium shadow-md shadow-emerald-200 transition-all">
-                Save Nurse Profile
-              </button>
-            </div>
-          </form>
         </div>
-      </div>
-    </div>
-  );
+    );
+};
+
+// Reusable Components
+function FormInput({ label, className = "", ...props }) {
+    return (
+        <div className="w-full">
+            <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2">{label}</label>
+            <input {...props} className={`w-full px-6 py-4 rounded-2xl border border-gray-100 outline-none focus:border-[#08B36A] bg-gray-50 font-bold text-gray-700 transition-all ${className}`} />
+        </div>
+    );
 }
 
-const InputField = ({ label, name, type = "text", value, onChange }) => (
-  <div>
-    <label className="block text-sm font-semibold text-gray-700 mb-2">{label}</label>
-    <input
-      type={type}
-      name={name}
-      value={value}
-      onChange={onChange}
-      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-    />
-  </div>
-);
+function FormSelect({ label, options, ...props }) {
+    return (
+        <div className="w-full">
+            <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2">{label}</label>
+            <select {...props} className="w-full px-5 py-4 rounded-2xl border border-gray-100 outline-none focus:border-[#08B36A] bg-gray-50 font-bold text-gray-700 disabled:opacity-50 appearance-none">
+                <option value="">Select {label}</option>
+                {options.map((opt, i) => (
+                    <option key={opt.id || opt._id || i} value={opt.id || opt._id || opt.name}>
+                        {opt.name}
+                    </option>
+                ))}
+            </select>
+        </div>
+    );
+}
+
+function StatBox({ label, value, icon }) {
+    return (
+        <div className="bg-white/10 p-4 rounded-2xl border border-white/5 backdrop-blur-sm min-w-[140px]">
+            <p className="text-[10px] uppercase font-black text-blue-200 mb-1 tracking-widest flex items-center gap-1">
+                {icon} {label}
+            </p>
+            <p className="font-bold text-sm truncate">{value || 'Not Set'}</p>
+        </div>
+    );
+}
+
+function FileBox({ label, onChange, previews = [], formatImagePath }) {
+    return (
+        <div className="space-y-3">
+            <label className="block text-[10px] font-black uppercase text-gray-400 tracking-widest">{label}</label>
+            <label className="w-full flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-100 rounded-2xl hover:border-[#08B36A] hover:bg-green-50/50 cursor-pointer transition-all group">
+                <UploadCloud className="text-gray-300 mb-1 group-hover:text-[#08B36A] transition-colors" />
+                <span className="text-[10px] text-gray-500 font-black uppercase">Upload</span>
+                <input type="file" hidden multiple onChange={onChange} />
+            </label>
+
+            {previews && previews.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                    {previews.map((src, i) => (
+                        <div key={i} className="relative w-14 h-14 rounded-xl overflow-hidden border-2 border-white shadow-sm ring-1 ring-gray-100">
+                            <img src={formatImagePath(src)} alt="doc" className="w-full h-full object-cover" />
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+export default ProfilePage;

@@ -31,7 +31,7 @@ const DoctorTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) => {
     },[]);
 
     const menuItems =[
-        { name: 'My Profile', href: '/vendors/doctor/profile', icon: FaUserCircle },
+        { name: 'My Profile', href: '/vendors/doctor/dashboard/profile', icon: FaUserCircle },
     ];
 
     return (
