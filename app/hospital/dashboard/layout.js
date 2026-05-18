@@ -12,23 +12,28 @@ import {
     FaCog,
     FaBars,
     FaTimes,
-    FaHospital
+    FaHospital,
+    FaCode,
+    FaAccessibleIcon,
+    FaServer,
+    FaChevronDown, // Added
+    FaChevronUp    // Added
 } from "react-icons/fa";
 import { useAuth } from '@/app/context/AuthContext';
 import HospitalTopBar from './components/HospitalTopBar';
 
 export default function HospitalLayout({ children }) {
-    const [isSidebarOpen, setSidebarOpen] = useState(false)
-    const { logout, hospital, loading, hospitalToken } = useAuth() // Ensure hospitalToken is destructured from useAuth
-    const pathname = usePathname()
-    const router = useRouter()
+    const [isSidebarOpen, setSidebarOpen] = useState(false);
+    const [openDropdown, setOpenDropdown] = useState(''); // State for dropdowns
+    
+    const { logout, hospital, loading, hospitalToken } = useAuth();
+    const pathname = usePathname();
+    const router = useRouter();
 
     // --- PROTECTION & REDIRECT LOGIC ---
     useEffect(() => {
-        // 1. Wait until the AuthContext has finished checking localStorage
         if (loading) return;
 
-        // 2. Check localStorage for immediate safety, but rely on Context for state
         const storedToken = localStorage.getItem("hospitalToken");
 
         if (!storedToken) {
@@ -36,7 +41,6 @@ export default function HospitalLayout({ children }) {
             return;
         }
 
-        // 3. If we have a token but hospital data is loaded, check approval
         if (hospital) {
             if (hospital.profileStatus !== 'Approved' && pathname !== '/hospital/documents') {
                 router.push('/hospital/documents');
@@ -47,22 +51,44 @@ export default function HospitalLayout({ children }) {
     const menuItems = [
         { name: 'Dashboard', href: '/hospital/dashboard', icon: FaThLarge },
         { name: 'Emergency Case', href: '/hospital/dashboard/emergencycase', icon: FaBriefcaseMedical },
-        { name: 'Hospital Admission', href: '/hospital/dashboard/hospitaladmission', icon: FaProcedures },
+        { name: 'Hospital Admission', href: '/hospital/dashboard/Admissions', icon: FaProcedures },
         { name: 'History', href: '/hospital/dashboard/history', icon: FaHistory },
+        { name: 'Manage Coupons', href: '/hospital/dashboard/coupons', icon: FaCode },
+        { name: 'Manage Service', href: '/hospital/dashboard/manage-service', icon: FaServer },
         { name: 'Emergency Discharge', href: '/hospital/dashboard/emergencydischarge', icon: FaSignOutAlt },
         { name: 'Referral Ambulance', href: '/hospital/dashboard/referralambulance', icon: FaAmbulance },
-        { name: 'Settings', href: '/hospital/dashboard/settings', icon: FaCog },
+        { 
+            name: 'Settings', 
+            icon: FaCog,
+            // Added subItems for the dropdown
+            subItems: [
+                
+                { name: 'Manage Doctors', href: '/hospital/dashboard/manage-doctor'},
+                { name: 'Manage Ambulance', href: '/hospital/dashboard/manage-ambulance'},
+                { name: 'Manage Wards', href: '/hospital/dashboard/manage-wards' },
+            
+            ]
+        },
     ];
 
+    // Auto-open dropdown if a child route is currently active
+    useEffect(() => {
+        const activeParent = menuItems.find(item => item.subItems?.some(sub => sub.href === pathname));
+        if (activeParent) {
+            setOpenDropdown(activeParent.name);
+        }
+    }, [pathname]);
+
+    const toggleDropdown = (name) => {
+        setOpenDropdown(openDropdown === name ? '' : name);
+    };
+
     // --- FULL SCREEN LOADER ---
-    // This prevents the sidebar/content from flashing before auth is confirmed
     if (loading) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-white">
                 <div className="relative flex items-center justify-center">
-                    {/* Outer Spinning Ring */}
                     <div className="w-16 h-16 border-4 border-green-100 border-t-[#08B36A] rounded-full animate-spin"></div>
-                    {/* Inner Hospital Icon */}
                     <FaHospital className="absolute text-[#08B36A] text-xl" />
                 </div>
                 <p className="mt-4 text-gray-500 font-medium animate-pulse">Verifying Access...</p>
@@ -70,7 +96,6 @@ export default function HospitalLayout({ children }) {
         );
     }
 
-    // Safety check: if no token exists after loading, don't render anything (useEffect will redirect)
     if (!hospitalToken && typeof window !== "undefined" && !localStorage.getItem("hospitalToken")) {
         return null;
     }
@@ -98,16 +123,67 @@ export default function HospitalLayout({ children }) {
 
                     <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
                         {menuItems.map((item) => {
-                            const isActive = pathname === item.href
+                            const hasSubItems = !!item.subItems;
+                            // Check if the current route is the parent or any of its children
+                            const isActive = pathname === item.href || (hasSubItems && item.subItems.some(sub => sub.href === pathname));
+                            const isOpen = openDropdown === item.name;
+
+                            // If it's a dropdown menu item
+                            if (hasSubItems) {
+                                return (
+                                    <div key={item.name} className="flex flex-col space-y-1">
+                                        <button
+                                            onClick={() => toggleDropdown(item.name)}
+                                            className={`flex items-center justify-between w-full px-4 py-3.5 rounded-xl transition-all duration-200 group ${
+                                                isActive || isOpen
+                                                    ? 'bg-green-50 text-[#08B36A] font-medium'
+                                                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <item.icon className={`text-lg ${isActive || isOpen ? 'text-[#08B36A]' : 'text-gray-400 group-hover:text-[#08B36A]'}`} />
+                                                <span>{item.name}</span>
+                                            </div>
+                                            {isOpen ? <FaChevronUp className="text-sm" /> : <FaChevronDown className="text-sm" />}
+                                        </button>
+
+                                        {/* Dropdown Options */}
+                                        {isOpen && (
+                                            <div className="pl-11 pr-2 py-1 space-y-1">
+                                                {item.subItems.map((subItem) => {
+                                                    const isSubActive = pathname === subItem.href;
+                                                    return (
+                                                        <Link
+                                                            key={subItem.name}
+                                                            href={subItem.href}
+                                                            onClick={() => setSidebarOpen(false)}
+                                                            className={`block px-4 py-2.5 rounded-lg text-sm transition-all duration-200 ${
+                                                                isSubActive
+                                                                    ? 'bg-[#08B36A] text-white shadow-md shadow-green-100 font-medium'
+                                                                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 hover:translate-x-1'
+                                                            }`}
+                                                        >
+                                                            {subItem.name}
+                                                        </Link>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            }
+
+                            // If it's a standard standalone menu item
                             return (
                                 <Link
                                     key={item.name}
                                     href={item.href}
                                     onClick={() => setSidebarOpen(false)}
-                                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${isActive
-                                        ? 'bg-[#08B36A] text-white shadow-lg shadow-green-100 font-medium'
-                                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                                        }`}
+                                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
+                                        isActive
+                                            ? 'bg-[#08B36A] text-white shadow-lg shadow-green-100 font-medium'
+                                            : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                                    }`}
                                 >
                                     <item.icon className={`text-lg ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-[#08B36A]'}`} />
                                     <span>{item.name}</span>
@@ -121,7 +197,7 @@ export default function HospitalLayout({ children }) {
             {/* --- MAIN SECTION --- */}
             <div className="flex-1 flex flex-col min-w-0">
                 <main className="flex-1 p-0">
-                    <HospitalTopBar />
+                    <HospitalTopBar onMenuClick={() => setSidebarOpen(true)} />
                     <div className="p-4 md:p-8">
                         {children}
                     </div>

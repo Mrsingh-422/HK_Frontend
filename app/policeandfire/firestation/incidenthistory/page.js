@@ -1,277 +1,307 @@
 'use client'
-import React, { useState, cloneElement } from 'react'
-import { 
-  FaSearch, 
-  FaEye, 
-  FaClock, 
-  FaMapMarkerAlt, 
-  FaUserTie, 
-  FaCheckCircle, 
-  FaFilter, 
-  FaFileExport, 
-  FaTimes,
-  FaHistory,
-  FaFire,
-  FaFilePdf,
-  FaArchive,
-  FaChartBar,
-  FaCalendarAlt
-} from 'react-icons/fa'
+import React, { useState, useEffect } from 'react'
+import { FaSearch, FaTimes, FaDownload, FaShareAlt, FaSpinner } from 'react-icons/fa'
+import  FireStationAPI  from '@/app/services/FireStationAPI' // Update import path
 
 export default function IncidentHistoryPage() {
-  const [selectedIncident, setSelectedIncident] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('All')
+  const [searchQuery, setSearchQuery] = useState('')
+  
+  // Table Data States
+  const[historyCasesData, setHistoryCasesData] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Demo History Data
-  const [historyData] = useState([
-    { 
-      id: "FR-HIST-2025-102", 
-      type: "Structural Fire", 
-      loc: "Sector 22 Market", 
-      date: "12 Mar 2026",
-      marshall: "Capt. Sharma",
-      outcome: "Suppressed",
-      waterUsed: "25,000 Liters",
-      casualties: "Zero",
-      propertySaved: "Est. ₹45 Lakhs",
-      summary: "Electrical short circuit in a warehouse. Three engines deployed. Fire contained within 45 minutes. No structural collapse reported."
-    },
-    { 
-      id: "FR-HIST-2025-098", 
-      type: "Car Extraction", 
-      loc: "Highway Exit 4", 
-      date: "10 Mar 2026",
-      marshall: "Lt. Verma",
-      outcome: "Rescue Success",
-      waterUsed: "N/A",
-      casualties: "2 Rescued",
-      propertySaved: "N/A",
-      summary: "Two-vehicle collision. Hydraulic cutters used to free driver. Patients stabilized and handed over to ambulance crew."
-    },
-    { 
-      id: "FR-HIST-2025-085", 
-      type: "False Alarm", 
-      loc: "Tdi City North", 
-      date: "05 Mar 2026",
-      marshall: "Sgt. Khan",
-      outcome: "Cleared",
-      waterUsed: "0 Liters",
-      casualties: "Zero",
-      propertySaved: "N/A",
-      summary: "Automated smoke detector triggered by heavy dust during renovation. System reset and building cleared after inspection."
+  // Modal Report States
+  const[selectedCase, setSelectedCase] = useState(null) // Holds basic table row info
+  const[reportData, setReportData] = useState(null) // Holds detailed API report data
+  const [reportLoading, setReportLoading] = useState(false)
+
+  // Fetch History Data from API (For Table)
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        setLoading(true)
+        const response = await FireStationAPI.GetCaseHistory()
+        
+        if (response.success) {
+          const now = new Date()
+          const mappedData = response.data.map(item => {
+            const resolvedDate = new Date(item.resolvedAt)
+            
+            let period = "Older"
+            if (resolvedDate.getMonth() === now.getMonth() && resolvedDate.getFullYear() === now.getFullYear()) {
+              period = "This Month"
+            } else if (
+              resolvedDate.getMonth() === now.getMonth() - 1 ||
+              (now.getMonth() === 0 && resolvedDate.getMonth() === 11 && resolvedDate.getFullYear() === now.getFullYear() - 1)
+            ) {
+              period = "Last Month"
+            }
+
+            return {
+              _id: item._id, // ID Needed for Report API Call
+              id: item.caseNo || "N/A",
+              status: "Resolved",
+              location: item.address,
+              type: item.fireType,
+              closeDate: resolvedDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+              period: period
+            }
+          })
+          setHistoryCasesData(mappedData)
+        } else {
+          setError("Failed to fetch history cases.")
+        }
+      } catch (err) {
+        console.error("Error fetching cases:", err)
+        setError("An error occurred while fetching case history.")
+      } finally {
+        setLoading(false)
+      }
     }
-  ]);
 
-  const handleOpenDetails = (item) => {
-    setSelectedIncident(item);
-    setIsModalOpen(true);
-  };
+    fetchHistory()
+  },[])
+
+  // Action: Open Modal & Fetch Report Data
+  const handleViewReport = async (incident) => {
+    setSelectedCase(incident) // Open Modal
+    setReportLoading(true)
+    setReportData(null) // Reset old data
+    
+    try {
+      const response = await FireStationAPI.GetIncidentReport(incident._id)
+      if (response.success) {
+        setReportData(response.data)
+      }
+    } catch (err) {
+      console.error("Error fetching report details:", err)
+    } finally {
+      setReportLoading(false)
+    }
+  }
+
+  // Filter Logic
+  const filteredCases = historyCasesData.filter(c => {
+    const matchesTab = activeTab === 'All' || c.period === activeTab
+    const matchesSearch = c.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          c.location.toLowerCase().includes(searchQuery.toLowerCase())
+    return matchesTab && matchesSearch
+  })
+
+  // Date Formatter Helper
+  const formatDateTime = (dateString) => {
+    if (!dateString) return "N/A"
+    const date = new Date(dateString)
+    return date.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' })
+  }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
-      
-      {/* --- HEADER --- */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Incident History</h1>
-          <p className="text-slate-500 font-medium text-sm">Registry of resolved emergencies and operational logs</p>
+    <div className="space-y-6">
+      {/* Header & Filters */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+        <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-800">Incident History</h1>
+            {!loading && (
+              <span className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                {historyCasesData.length} Closed
+              </span>
+            )}
         </div>
-        <div className="flex gap-3">
-            <button className="bg-white border border-slate-200 text-slate-600 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 shadow-sm hover:bg-slate-50 transition-all">
-                <FaFilePdf /> Batch PDF
-            </button>
-            <button className="bg-[#08B36A] text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-green-100">
-                <FaFileExport /> Export Archive
-            </button>
-        </div>
-      </div>
-
-      {/* --- TOP COMPACT STATS --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <CompactStatCard title="Total Resolved" count="128" label="Historical Logs" color="emerald" icon={<FaCheckCircle/>} />
-        <CompactStatCard title="Water Saved" count="1.2M" label="Liters Total" color="blue" icon={<FaArchive/>} />
-        <CompactStatCard title="Success Rate" count="98%" label="Safe Missions" color="orange" icon={<FaChartBar/>} />
-      </div>
-
-      {/* --- TABLE SECTION --- */}
-      <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-        
-        <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-4 bg-white">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-slate-50 rounded-xl text-slate-400 shadow-inner"><FaHistory /></div>
-            <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Closed Logs</h2>
-          </div>
-          
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="relative flex-1 md:w-72">
-              <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
-              <input 
-                type="text" 
-                placeholder="Search by Case ID or Date..." 
-                className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#08B36A]/20 transition-all"
-              />
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <div className="relative w-full sm:w-72">
+             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <FaSearch className="text-gray-400" />
             </div>
-            <button className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 transition-colors"><FaFilter size={14}/></button>
+            <input
+              type="text"
+              placeholder="Search Incident ID, location..."
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20 focus:border-[#08B36A]"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="flex bg-gray-100 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
+            {['All', 'This Month', 'Last Month'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`whitespace-nowrap flex-1 sm:flex-none px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                  activeTab === tab ? 'bg-[#08B36A] text-white shadow-sm' : 'text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
           </div>
         </div>
+      </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-[0.15em] border-y border-slate-50">
-                <th className="px-8 py-4">Incident Log ID</th>
-                <th className="px-6 py-4">Type / Location</th>
-                <th className="px-6 py-4">Marshall in Charge</th>
-                <th className="px-6 py-4">Closure Date</th>
-                <th className="px-6 py-4 text-center">Outcome</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {historyData.map((item) => (
-                <tr 
-                  key={item.id} 
-                  onClick={() => handleOpenDetails(item)}
-                  className="hover:bg-slate-50/50 transition-all group cursor-pointer"
-                >
-                  <td className="px-8 py-5">
-                    <span className="text-sm font-black text-slate-400 group-hover:text-[#08B36A] transition-colors">{item.id}</span>
-                  </td>
-                  
-                  <td className="px-6 py-5">
-                    <div className="flex flex-col">
-                        <span className="text-sm font-bold text-slate-700">{item.type}</span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase mt-0.5 flex items-center gap-1"><FaMapMarkerAlt size={8}/> {item.loc}</span>
-                    </div>
-                  </td>
-
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-slate-100 rounded-md text-slate-400"><FaUserTie size={12}/></div>
-                        <span className="text-sm font-bold text-slate-600">{item.marshall}</span>
-                    </div>
-                  </td>
-
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <FaCalendarAlt size={10} className="text-[#08B36A]" />
-                      <span className="text-xs font-bold">{item.date}</span>
-                    </div>
-                  </td>
-
-                  <td className="px-6 py-5 text-center">
-                    <div className="flex items-center justify-center gap-3">
-                        <span className="px-3 py-1 bg-emerald-50 text-[#08B36A] text-[9px] font-black rounded-lg uppercase tracking-widest border border-green-100">
-                            {item.outcome}
-                        </span>
-                        <button className="p-2 text-slate-300 hover:text-[#08B36A] transition-colors"><FaEye /></button>
-                    </div>
-                  </td>
+      {/* Table Area */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto min-h-[300px]">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-64">
+              <FaSpinner className="animate-spin text-[#08B36A] text-3xl mb-4" />
+              <p className="text-gray-500 font-medium">Loading History...</p>
+            </div>
+          ) : error ? (
+            <div className="flex items-center justify-center h-64 text-red-500 font-medium">
+              {error}
+            </div>
+          ) : filteredCases.length === 0 ? (
+            <div className="flex items-center justify-center h-64 text-gray-500 font-medium">
+              No incidents found.
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase font-semibold tracking-wider">
+                <tr>
+                  <th className="px-6 py-4">Incident ID</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Close Date</th>
+                  <th className="px-6 py-4">Location</th>
+                  <th className="px-6 py-4">Type</th>
+                  <th className="px-6 py-4 text-center">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-sm">
+                {filteredCases.map((incident) => (
+                  <tr 
+                    key={incident._id}
+                    onClick={() => handleViewReport(incident)}
+                    className="cursor-pointer transition-colors hover:bg-gray-50 group"
+                  >
+                    <td className="px-6 py-4 font-semibold text-gray-800">{incident.id}</td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-green-200 text-green-700 bg-green-50 text-xs font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#08B36A]"></span>
+                        {incident.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-gray-600">{incident.closeDate}</td>
+                    <td className="px-6 py-4 text-gray-700 truncate max-w-[200px]">{incident.location}</td>
+                    <td className="px-6 py-4 font-medium text-gray-700">{incident.type}</td>
+                    <td className="px-6 py-4 text-center">
+                      <button className="text-[#08B36A] font-semibold text-sm hover:underline">View Report</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
-      {/* --- INCIDENT HISTORY MODAL --- */}
-      {isModalOpen && selectedIncident && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
-            <div className="relative bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                
-                <div className="p-8 border-b border-slate-50 flex justify-between items-start">
-                    <div className="flex items-center gap-4">
-                        <div className="p-4 bg-emerald-50 text-[#08B36A] rounded-2xl shadow-inner">
-                            <FaArchive size={24} />
-                        </div>
-                        <div>
-                            <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none">Archived Report: {selectedIncident.id}</h3>
-                            <p className="text-[#08B36A] font-bold text-[10px] uppercase tracking-[0.15em] mt-2 flex items-center gap-2">
-                                <FaCheckCircle /> Mission Finalized on {selectedIncident.date}
-                            </p>
-                        </div>
-                    </div>
-                    <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><FaTimes size={20} /></button>
-                </div>
-
-                <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 overflow-y-auto max-h-[60vh]">
-                    <div className="space-y-4">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><FaFire /> Incident Data</h4>
-                        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                            <p className="text-lg font-black text-slate-800">{selectedIncident.type}</p>
-                            <p className="text-xs font-bold text-slate-500 mt-1">{selectedIncident.loc}</p>
-                        </div>
-                        <InfoItem label="Lead Marshall" value={selectedIncident.marshall} />
-                        <InfoItem label="Water Consumed" value={selectedIncident.waterUsed} color="text-blue-600" />
-                    </div>
-
-                    <div className="space-y-4">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><FaChartBar /> Impact Analysis</h4>
-                        <InfoItem label="Human Impact" value={selectedIncident.casualties} />
-                        <InfoItem label="Property Value Saved" value={selectedIncident.propertySaved} color="text-emerald-600" />
-                        
-                        <div className="pt-2">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-2">Commanders Final Note</p>
-                            <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                                <p className="text-xs font-bold text-slate-600 leading-relaxed italic">"{selectedIncident.summary}"</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="p-8 bg-slate-50 flex justify-between gap-3">
-                    <button className="bg-white border-2 border-slate-200 text-slate-600 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-slate-100 transition-all">
-                        <FaFilePdf /> Download Official Report
-                    </button>
-                    <div className="flex gap-3">
-                        <button onClick={() => setIsModalOpen(false)} className="bg-slate-800 text-white px-8 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest active:scale-95 transition-all">
-                            Close Record
-                        </button>
-                    </div>
-                </div>
+      {/* --- INCIDENT REPORT MODAL --- */}
+      {selectedCase && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm bg-black/50" onClick={() => setSelectedCase(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            
+            {/* Modal Header */}
+            <div className="bg-[#08B36A] text-white flex items-center justify-between px-6 py-4">
+              <h2 className="text-lg font-bold">Incident Report</h2>
+              <div className="flex items-center gap-4">
+                <button className="p-1 hover:bg-white/20 rounded-md transition-colors"><FaDownload size={18}/></button>
+                <button onClick={() => setSelectedCase(null)} className="p-1 hover:bg-white/20 rounded-md transition-colors"><FaTimes size={18}/></button>
+              </div>
             </div>
+            
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto custom-scrollbar space-y-6 relative min-h-[400px]">
+               
+               {reportLoading || !reportData ? (
+                  // LOADER STATE
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-white z-10">
+                    <FaSpinner className="animate-spin text-[#08B36A] text-4xl mb-4" />
+                    <p className="text-gray-500 font-medium">Loading details...</p>
+                  </div>
+               ) : (
+                  // DATA LOADED STATE
+                  <>
+                    {/* Status Sub-header */}
+                    <div className="flex justify-between items-center pb-4 border-b border-gray-100">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-green-200 text-green-700 bg-green-50 text-xs font-bold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#08B36A]"></span> Resolved
+                        </span>
+                        <span className="text-sm text-gray-500 font-medium">Closed: {selectedCase.closeDate}</span>
+                    </div>
+
+                    {/* General Details */}
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-800 mb-3">General Details</h3>
+                      <div className="space-y-3 text-sm">
+                        <div className="flex justify-between border-b border-gray-50 pb-2"><span className="text-gray-500">Incident ID</span><span className="font-semibold text-gray-800">{reportData.generalDetails.incidentId}</span></div>
+                        <div className="flex justify-between border-b border-gray-50 pb-2"><span className="text-gray-500">Incident Type</span><span className="font-medium text-gray-800">{reportData.generalDetails.type}</span></div>
+                        <div className="flex justify-between border-b border-gray-50 pb-2"><span className="text-gray-500">Location</span><span className="font-medium text-gray-800 text-right max-w-[60%]">{reportData.generalDetails.location}</span></div>
+                        <div className="flex justify-between border-b border-gray-50 pb-2"><span className="text-gray-500">Reported Time</span><span className="font-medium text-gray-800">{formatDateTime(reportData.generalDetails.reportedTime)}</span></div>
+                        <div className="flex justify-between pb-1"><span className="text-gray-500">Response Time</span><span className="font-medium text-gray-800">{reportData.generalDetails.responseTime}</span></div>
+                      </div>
+                    </div>
+
+                    {/* Resources Used */}
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-800 mb-3">Resources Used</h3>
+                      <div className="space-y-3 text-sm">
+                        <div className="flex justify-between border-b border-gray-50 pb-2"><span className="text-gray-500">Trucks Assigned</span><span className="font-bold text-gray-800">{reportData.resourcesUsed.trucksAssigned}</span></div>
+                        <div className="flex justify-between border-b border-gray-50 pb-2"><span className="text-gray-500">Personnel</span><span className="font-medium text-gray-800">{reportData.resourcesUsed.personnel}</span></div>
+                        <div className="flex justify-between pb-1"><span className="text-gray-500">Equipment</span><span className="font-medium text-gray-800 text-right max-w-[60%]">
+                          {reportData.resourcesUsed.equipment?.length > 0 ? reportData.resourcesUsed.equipment.join(', ') : "None"}
+                        </span></div>
+                      </div>
+                    </div>
+
+                    {/* Damage & Impact */}
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-800 mb-3">Damage & Impact</h3>
+                      <div className="space-y-3 text-sm">
+                        <div className="flex justify-between border-b border-gray-50 pb-2"><span className="text-gray-500">Damage Level</span><span className="font-medium text-gray-800">{reportData.damageImpact.damageLevel}</span></div>
+                        <div className="flex justify-between border-b border-gray-50 pb-2"><span className="text-gray-500">Injuries</span><span className="font-medium text-gray-800">{reportData.damageImpact.injuries}</span></div>
+                        <div className="flex justify-between pb-1"><span className="text-gray-500">Casualties</span><span className="font-medium text-gray-800">{reportData.damageImpact.casualties}</span></div>
+                      </div>
+                    </div>
+
+                    {/* Scene Photos */}
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-800 mb-3">Scene Photos</h3>
+                      <div className="flex gap-4 overflow-x-auto pb-2">
+                         {reportData.scenePhotos?.length > 0 ? (
+                           reportData.scenePhotos.map((photo, index) => {
+                             // Clean the path to avoid duplicate slashes or missing public handling
+                             const imagePath = photo.replace('public/', '');
+                             return (
+                               <div key={index} className="flex-shrink-0 w-32 h-24 bg-gray-200 rounded-xl overflow-hidden relative border border-gray-100">
+                                 <img 
+                                    src={`${process.env.NEXT_PUBLIC_BACKEND_URL}/${imagePath}`} 
+                                    alt={`Scene ${index + 1}`} 
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => { e.target.style.display='none'; e.target.parentElement.innerHTML = '<div class="absolute inset-0 bg-gray-100 flex items-center justify-center text-xs text-gray-500 text-center p-2">Image Not Found</div>' }}
+                                 />
+                               </div>
+                             )
+                           })
+                         ) : (
+                            <div className="w-full py-4 text-center text-gray-500 text-sm italic bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                               No photos available
+                            </div>
+                         )}
+                      </div>
+                    </div>
+                  </>
+               )}
+            </div>
+
+            {/* Footer Action */}
+            <div className="p-4 border-t border-gray-100 bg-white">
+               <button className="w-full py-3 rounded-xl bg-[#08B36A] text-white font-bold text-sm hover:bg-[#069356] disabled:bg-gray-400 transition-colors flex justify-center items-center gap-2" disabled={reportLoading}>
+                 <FaShareAlt/> Share Report
+               </button>
+            </div>
+
+          </div>
         </div>
       )}
-
     </div>
   )
-}
-
-// --- REUSABLE STAT CARD ---
-function CompactStatCard({ title, count, label, color, icon }) {
-    const themeMap = {
-        emerald: { text: "text-[#08B36A]", bg: "bg-green-50" },
-        orange: { text: "text-orange-600", bg: "bg-orange-50" },
-        blue: { text: "text-blue-600", bg: "bg-blue-50" },
-        slate: { text: "text-slate-600", bg: "bg-slate-50" }
-    };
-    const theme = themeMap[color];
-
-    return (
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
-            <div className="relative z-10 flex items-center gap-5">
-                <div className={`w-12 h-12 shrink-0 rounded-xl flex items-center justify-center ${theme.bg} ${theme.text} border shadow-inner`}>
-                    {cloneElement(icon, { size: 18 })}
-                </div>
-                <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{title}</p>
-                    <div className="flex items-baseline gap-2">
-                        <h2 className={`text-4xl font-black tracking-tight ${theme.text}`}>{count}</h2>
-                        <span className="text-[10px] font-bold text-slate-300 uppercase">{label}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function InfoItem({ label, value, color = "text-slate-700" }) {
-    return (
-        <div>
-            <p className="text-[9px] font-black text-slate-400 uppercase ml-1 mb-1">{label}</p>
-            <div className="bg-white border border-slate-100 px-4 py-2.5 rounded-xl">
-                <p className={`text-sm font-bold ${color}`}>{value}</p>
-            </div>
-        </div>
-    )
 }

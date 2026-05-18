@@ -1,15 +1,17 @@
 'use client'
 import { useAuth } from '@/app/context/AuthContext';
 import React, { useState, useRef, useEffect } from 'react'
-import { FaBars, FaHospital, FaBell, FaUser, FaCog, FaSignOutAlt, FaChevronDown } from "react-icons/fa"
+import { FaBars, FaBell, FaUser, FaCog, FaSignOutAlt, FaChevronDown } from "react-icons/fa"
 import Link from 'next/link';
+import HospitalAPI from '@/app/services/HospitalAPI';
 
 function HospitalTopBar() {
-    const { hospital, logout } = useAuth();
+    const { logout } = useAuth(); 
     const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [hospitalData, setHospitalData] = useState(null); 
     const dropdownRef = useRef(null);
 
-    // Close dropdown when clicking outside
+    // Dropdown close logic
     useEffect(() => {
         function handleClickOutside(event) {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -20,8 +22,32 @@ function HospitalTopBar() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // Hospital Profile API Fetch logic
+    useEffect(() => {
+        const fetchProfile = async () => {
+            try {
+                const response = await HospitalAPI.getHospitalProfile();
+                if (response.success) {
+                    setHospitalData(response.data.hospital);
+                }
+            } catch (error) {
+                console.error("Error fetching hospital profile", error);
+            }
+        };
+        fetchProfile();
+    }, []);
+
+    // Variables
+    const hospitalName = hospitalData?.name || "Hospital Dashboard";
+    const hospitalEmail = hospitalData?.email || "Admin User";
+    
+    // Image URL construction (Right side profile dropdown ke liye)
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") || ""; 
+    const imagePath = hospitalData?.hospitalImage?.[0];
+    const imageUrl = imagePath ? `${backendUrl}${imagePath}` : null;
+
     return (
-        <header className="bg-white/90 backdrop-blur-md border-b border-gray-200 h-20 flex items-center justify-between px-4 md:px-6 sticky top-0 z-40 shadow-sm">
+        <header className="bg-white/90 backdrop-blur-md border-b border-gray-200 h-20 flex items-center justify-between px-4 md:px-6 sticky top-0 z-40 shadow-sm relative">
 
             {/* LEFT SIDE */}
             <div className="flex items-center gap-4">
@@ -31,18 +57,13 @@ function HospitalTopBar() {
                 >
                     <FaBars size={18} />
                 </button>
+            </div>
 
-                <div className="flex items-center gap-3">
-                    <div className="bg-green-50 border border-green-100 p-2.5 rounded-xl">
-                        <FaHospital className="text-[#08B36A]" size={18} />
-                    </div>
-                    <div className="flex flex-col leading-tight">
-                        <h1 className="font-semibold text-gray-800 text-sm md:text-base lg:text-lg truncate max-w-[180px] md:max-w-[320px]">
-                            {hospital?.hospitalName || "Hospital Dashboard"}
-                        </h1>
-                        <span className="text-xs text-gray-400 hidden md:block">Management Portal</span>
-                    </div>
-                </div>
+            {/* CENTER SIDE (Hospital Name Only) */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center w-max">
+                <h1 className="font-semibold text-gray-800 text-base md:text-lg lg:text-xl truncate max-w-[200px] md:max-w-[400px] capitalize">
+                    {hospitalName}
+                </h1>
             </div>
 
             {/* RIGHT SIDE */}
@@ -66,13 +87,21 @@ function HospitalTopBar() {
                         onClick={() => setIsProfileOpen(!isProfileOpen)}
                         className="flex items-center gap-3 p-1.5 rounded-xl hover:bg-gray-50 transition border border-transparent hover:border-gray-200"
                     >
-                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#08B36A] to-emerald-700 flex items-center justify-center text-white font-bold shadow-sm">
-                            {hospital?.hospitalName?.charAt(0) || "H"}
-                        </div>
+                        {imageUrl ? (
+                             <img 
+                                src={imageUrl} 
+                                alt="Profile" 
+                                className="w-9 h-9 rounded-lg object-cover border border-gray-200"
+                            />
+                        ) : (
+                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#08B36A] to-emerald-700 flex items-center justify-center text-white font-bold shadow-sm">
+                                {hospitalName.charAt(0).toUpperCase()}
+                            </div>
+                        )}
 
                         <div className="hidden lg:block text-left leading-tight pr-2">
-                            <p className="text-sm font-semibold text-gray-700">
-                                {hospital?.hospitalName || "Hospital"}
+                            <p className="text-sm font-semibold text-gray-700 capitalize truncate max-w-[120px]">
+                                {hospitalName}
                             </p>
                             <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">
                                 Admin Panel
@@ -87,7 +116,7 @@ function HospitalTopBar() {
 
                             <div className="px-4 py-3 border-b border-gray-50 mb-1">
                                 <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">Signed in as</p>
-                                <p className="text-sm font-bold text-gray-800 truncate">{hospital?.email || "Admin User"}</p>
+                                <p className="text-sm font-bold text-gray-800 truncate">{hospitalEmail}</p>
                             </div>
 
                             <Link href="/hospital/dashboard/hospitalprofile" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-green-50 hover:text-[#08B36A] transition">

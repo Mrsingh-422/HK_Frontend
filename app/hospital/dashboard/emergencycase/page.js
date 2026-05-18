@@ -1,252 +1,306 @@
-'use client'
-import React, { useState, useRef, useEffect } from 'react'
-import { useAuth } from '@/app/context/AuthContext'
-import {
-  FaUserInjured, FaPhoneAlt, FaEye, FaExclamationTriangle,
-  FaClock, FaSearch, FaFilter, FaTimes, FaHospitalUser,
-  FaBriefcaseMedical, FaTint, FaUserMd, FaChevronDown, FaCheck
-} from "react-icons/fa"
+"use client";
 
-export default function EmergencyCasesPage() {
-  const { hospital } = useAuth();
+import React, { useState, useEffect } from 'react';
+import HospitalAPI from '@/app/services/HospitalAPI';
+
+const ManageEmergencyCases = () => {
+  const [emergencies, setEmergencies] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedCase, setSelectedCase] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
 
-  // --- DROPDOWN STATE ---
-  const [isDocDropdownOpen, setIsDocDropdownOpen] = useState(false);
-  const [assignedDoctor, setAssignedDoctor] = useState(null);
-  const dropdownRef = useRef(null);
-
-  // Mock Doctors List
-  const doctorsList = [
-    { id: "DOC001", name: "Dr. Sarah Smith", spec: "Cardiology", status: "On Duty" },
-    { id: "DOC002", name: "Dr. Mike Ross", spec: "Trauma Surgeon", status: "On Duty" },
-    { id: "DOC003", name: "Dr. Alex Karev", spec: "Pediatrics", status: "In Surgery" },
-    { id: "DOC004", name: "Dr. Meredith Grey", spec: "General Surgeon", status: "Break" },
-    { id: "DOC005", name: "Dr. House", spec: "Diagnostics", status: "On Duty" },
-  ];
-
-  // Mock Emergency Cases
-  const [emergencyCases] = useState([
-    {
-      id: "EMG-8821",
-      name: "John Doe",
-      age: 45,
-      gender: "Male",
-      bloodGroup: "O+",
-      condition: "Cardiac Arrest",
-      priority: "Critical",
-      contact: "+1 234 567 890",
-      status: "Active",
-      arrivalTime: "10:30 AM",
-      address: "123 Main St, New York, NY",
-      attendingDoctor: "Dr. Sarah Smith"
-    },
-    {
-      id: "EMG-8845",
-      name: "Jane Wilson",
-      age: 28,
-      gender: "Female",
-      bloodGroup: "B-",
-      condition: "Major Trauma (Accident)",
-      priority: "Serious",
-      contact: "+1 987 654 321",
-      status: "Pending",
-      arrivalTime: "11:15 AM",
-      address: "456 Oak Ave, Brooklyn, NY",
-      attendingDoctor: "Unassigned"
-    }
-  ]);
-
-  // Close dropdown on click outside
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDocDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    fetchEmergencies();
   }, []);
 
-  const filteredCases = emergencyCases.filter(c =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.condition.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const fetchEmergencies = async () => {
+    setLoading(true);
+    try {
+      const response = await HospitalAPI.getEmergencyCases();
+      if (response?.success) {
+        setEmergencies(response.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching emergency cases:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const handleAssignDoctor = (doctor) => {
-    setAssignedDoctor(doctor);
-    setIsDocDropdownOpen(false);
-    // Here you would typically call an API to update the database
-    alert(`Assigned ${doctor.name} to patient ${selectedCase.name}`);
+  // Helper Functions
+  const displayDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getFullUrl = (path) => {
+    if (!path) return 'https://via.placeholder.com/150?text=No+User';
+    if (path.startsWith('http')) return path;
+    const cleanPath = path.replace(/^(public\/|\/)/, ''); 
+    return `${process.env.NEXT_PUBLIC_BACKEND_URL}/${cleanPath}`;
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Confirmed': return 'bg-green-50 text-green-700 border-green-200';
+      case 'Hospital-Pending': return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+      case 'Discharged': return 'bg-gray-100 text-gray-700 border-gray-200';
+      default: return 'bg-blue-50 text-blue-700 border-blue-200';
+    }
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-
-      {/* --- HEADER --- */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-6 max-w-[90rem] mx-auto font-sans min-h-screen relative bg-red-50/30">
+      
+      {/* ---------------- HEADER ---------------- */}
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-6 rounded-2xl shadow-sm border-l-8 border-red-500">
         <div>
-          <h1 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-3">
-            <FaBriefcaseMedical className="text-red-500" /> Emergency Registry
-          </h1>
-          <p className="text-gray-500 font-medium">Monitoring Active Arrivals</p>
+          <h2 className="text-3xl font-extrabold text-gray-800 tracking-tight flex items-center gap-3">
+            🚨 Emergency Cases
+          </h2>
+          <p className="text-sm text-gray-500 mt-1 font-medium">Live tracking of all critical admissions and emergency patients.</p>
         </div>
-
-        <div className="relative">
-          <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search patient..."
-            className="pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-2xl outline-none focus:ring-4 focus:ring-green-50 w-full md:w-80"
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="mt-4 md:mt-0 bg-red-50 px-6 py-3 rounded-xl border border-red-100 flex items-center gap-3 shadow-sm">
+           <span className="text-3xl animate-pulse">❤️‍🩹</span>
+           <div>
+              <p className="text-xs font-black text-red-800 uppercase tracking-widest">Active Emergencies</p>
+              <p className="text-xl font-black text-red-900">{emergencies.length}</p>
+           </div>
         </div>
       </div>
 
-      {/* --- TABLE --- */}
-      <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead className="bg-gray-50/50">
-            <tr>
-              <th className="px-8 py-5 text-[10px] font-black uppercase text-gray-400">Patient Details</th>
-              <th className="px-6 py-5 text-[10px] font-black uppercase text-gray-400">Condition</th>
-              <th className="px-6 py-5 text-[10px] font-black uppercase text-gray-400">Status</th>
-              <th className="px-6 py-5 text-[10px] font-black uppercase text-gray-400">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {filteredCases.map((item) => (
-              <tr key={item.id} className="hover:bg-gray-50/50 transition">
-                <td className="px-8 py-5">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-[#08B36A]/10 text-[#08B36A] flex items-center justify-center font-bold">
-                      {item.name.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="font-bold text-gray-800">{item.name}</p>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{item.id}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-5 font-bold text-gray-600">{item.condition}</td>
-                <td className="px-6 py-5">
-                  <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${item.priority === 'Critical' ? 'bg-red-50 text-red-500' : 'bg-orange-50 text-orange-500'
-                    }`}>
-                    {item.priority}
-                  </span>
-                </td>
-                <td className="px-6 py-5">
-                  <button
-                    onClick={() => { setSelectedCase(item); setAssignedDoctor(null); }}
-                    className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2"
-                  >
-                    <FaEye /> View Details
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* ---------------- EMERGENCY TABLE LISTING ---------------- */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <SpinnerIcon className="w-10 h-10 text-red-500 animate-spin" />
+          <p className="text-lg text-gray-500 font-bold">Fetching Emergencies...</p>
+        </div>
+      ) : emergencies.length === 0 ? (
+        <div className="text-center bg-white p-20 rounded-3xl shadow-sm border-2 border-dashed border-gray-300">
+          <div className="w-24 h-24 bg-green-50 text-green-500 rounded-full flex items-center justify-center text-5xl mb-6 mx-auto shadow-inner">✅</div>
+          <p className="text-gray-700 text-2xl font-black">No Active Emergencies</p>
+          <p className="text-gray-500 mt-2 font-medium">All clear. There are currently no emergency cases.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-3xl shadow-sm border-2 border-red-100 overflow-hidden">
+          <div className="overflow-x-auto scrollbar-hide">
+            <table className="w-full text-left border-collapse whitespace-nowrap">
+              <thead>
+                <tr className="bg-red-50/80 border-b border-red-100 text-red-900 text-[10px] uppercase tracking-widest font-black">
+                  <th className="p-5">Booking ID</th>
+                  <th className="p-5">Patient Details</th>
+                  <th className="p-5">Assigned Bed</th>
+                  <th className="p-5">Date & Time</th>
+                  <th className="p-5">Total Bill</th>
+                  <th className="p-5">Status</th>
+                  <th className="p-5 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {emergencies.map((adm) => {
+                  const patient = adm.patients?.[0] || {};
+                  const bedInfo = adm.bedId || {};
 
-      {/* --- PATIENT DETAILS MODAL --- */}
+                  return (
+                    <tr 
+                      key={adm._id} 
+                      className="hover:bg-red-50/40 transition-colors duration-200 group cursor-pointer"
+                      onClick={() => setSelectedCase(adm)} // Clicking ANY td will open the modal
+                    >
+                      {/* Booking ID */}
+                      <td className="p-5">
+                        <span className="bg-gray-100 text-gray-800 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-gray-200">
+                          {adm.bookingId}
+                        </span>
+                      </td>
+
+                      {/* Patient Info */}
+                      <td className="p-5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-black text-lg border border-red-200 shadow-sm">
+                            {patient.patientName?.charAt(0) || '?'}
+                          </div>
+                          <div>
+                            <p className="text-sm font-black text-gray-900">{patient.patientName || 'Unknown'}</p>
+                            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mt-0.5">
+                              {patient.gender || 'N/A'} • {patient.patientAge ? `${patient.patientAge} Yrs` : 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Assigned Bed & Ward */}
+                      <td className="p-5">
+                        {bedInfo.bedNumber ? (
+                          <div className="flex items-center gap-2">
+                            <span className="bg-gray-900 text-white text-xs font-black px-2.5 py-1 rounded shadow-sm">
+                              {bedInfo.bedNumber}
+                            </span>
+                            <span className="text-xs font-bold text-gray-600">
+                              {bedInfo.wardId?.name || 'Pending'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="bg-gray-100 text-gray-400 text-[10px] font-black uppercase px-2 py-1 rounded">Not Assigned</span>
+                        )}
+                      </td>
+
+                      {/* Date & Time */}
+                      <td className="p-5">
+                        <p className="text-sm font-black text-gray-800">{displayDate(adm.createdAt)}</p>
+                      </td>
+
+                      {/* Total Bill & Payment */}
+                      <td className="p-5">
+                        <p className="text-sm font-black text-green-700">₹{adm.totalAmount}</p>
+                        <p className={`text-[9px] font-black uppercase tracking-widest mt-1 ${adm.paymentStatus === 'Paid' ? 'text-green-600' : 'text-red-500'}`}>
+                          {adm.paymentStatus}
+                        </p>
+                      </td>
+
+                      {/* Status */}
+                      <td className="p-5">
+                        <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full border shadow-sm ${getStatusColor(adm.status)}`}>
+                          {adm.status}
+                        </span>
+                      </td>
+
+                      {/* Action Button */}
+                      <td className="p-5 text-center">
+                        <button 
+                          className="bg-white border border-gray-200 text-gray-700 group-hover:bg-red-50 group-hover:text-red-600 group-hover:border-red-200 text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-sm"
+                        >
+                          View Details
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------------
+         FULL DETAILS MODAL (WITH md:pl-64 FOR SIDEBAR)
+      --------------------------------------------------------- */}
       {selectedCase && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in" onClick={() => setSelectedCase(null)}></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:pl-64 bg-gray-900/60 backdrop-blur-md transition-opacity animate-fadeIn">
+          <div className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2rem] shadow-2xl relative scrollbar-hide">
+            
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-gray-100 px-8 py-5 flex justify-between items-center z-10">
+               <div>
+                  <h2 className="text-2xl font-black text-red-600 tracking-tight flex items-center gap-2">
+                     🚨 Emergency Case Details
+                  </h2>
+                  <p className="text-gray-500 font-bold text-xs uppercase tracking-wide mt-1">Booking ID: <span className="text-red-500">{selectedCase.bookingId}</span></p>
+               </div>
+               <button onClick={() => setSelectedCase(null)} className="text-gray-400 hover:text-red-500 bg-gray-50 border border-gray-200 hover:border-red-200 w-10 h-10 flex items-center justify-center rounded-full transition-all">
+                 <CloseIcon className="w-5 h-5"/>
+               </button>
+            </div>
 
-          <div className="relative bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-8 md:p-12">
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                  <FaHospitalUser className="text-[#08B36A]" /> Case File
-                </h2>
-                <button onClick={() => setSelectedCase(null)} className="p-2 bg-slate-50 text-slate-400 rounded-xl"><FaTimes /></button>
-              </div>
+            {/* Modal Content */}
+            <div className="p-8 space-y-8">
+               
+               {/* Primary Status Banner */}
+               <div className="flex gap-4">
+                 <div className="flex-1 bg-gray-900 text-white p-4 rounded-2xl border flex flex-col justify-center items-center shadow-lg">
+                    <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">Assigned Bed & Ward</span>
+                    <span className="text-2xl font-black text-red-400">{selectedCase.bedId?.bedNumber || 'N/A'}</span>
+                    <span className="text-xs font-bold mt-1">{selectedCase.bedId?.wardId?.name || 'Pending'}</span>
+                 </div>
+                 <div className={`flex-1 p-4 rounded-2xl border flex flex-col justify-center items-center ${getStatusColor(selectedCase.status)}`}>
+                    <span className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-70">Current Status</span>
+                    <span className="text-xl font-black">{selectedCase.status}</span>
+                 </div>
+               </div>
 
-              {/* Patient Basic Info Card */}
-              <div className="bg-slate-50 rounded-[2rem] p-6 mb-8 flex items-center gap-6">
-                <div className="w-16 h-16 rounded-2xl bg-white shadow-sm flex items-center justify-center text-2xl font-black text-[#08B36A]">
-                  {selectedCase.name.charAt(0)}
-                </div>
-                <div className="flex-1">
-                  <p className="text-xl font-black text-slate-800">{selectedCase.name}</p>
-                  <p className="text-sm font-bold text-slate-400">{selectedCase.age} Years • {selectedCase.gender} • {selectedCase.bloodGroup}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Priority</p>
-                  <p className={`text-sm font-black ${selectedCase.priority === 'Critical' ? 'text-red-500' : 'text-orange-500'}`}>
-                    {selectedCase.priority}
-                  </p>
-                </div>
-              </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Patient Details */}
+                  <InfoSection title="🧑‍🤝‍🧑 Patient Information">
+                    <InfoItem label="Patient Name" value={selectedCase.patients[0]?.patientName} />
+                    <InfoItem label="Age & Gender" value={`${selectedCase.patients[0]?.patientAge} Yrs, ${selectedCase.patients[0]?.gender}`} />
+                    <InfoItem label="Relation to User" value={selectedCase.patients[0]?.relation} />
+                    <InfoItem label="Consultation Type" value={selectedCase.consultationType} />
+                  </InfoSection>
 
-              {/* ASSIGN DOCTOR DROPDOWN SECTION */}
-              <div className="mb-8 space-y-3">
-                <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Assign Medical Staff</label>
+                  {/* Booking / Admin Details */}
+                  <InfoSection title="📆 Appointment Details">
+                    <InfoItem label="Date Received" value={displayDate(selectedCase.createdAt)} />
+                    <InfoItem label="Assigned Doctor" value={selectedCase.doctorId?.name || 'Pending/Not Assigned'} />
+                    <InfoItem label="Payment Status" value={selectedCase.paymentStatus} />
+                    <InfoItem label="Triage Level" value={selectedCase.triageLevel} />
+                  </InfoSection>
+               </div>
 
-                <div className="relative" ref={dropdownRef}>
-                  <button
-                    onClick={() => setIsDocDropdownOpen(!isDocDropdownOpen)}
-                    className="w-full bg-white border-2 border-slate-100 p-4 rounded-2xl flex items-center justify-between hover:border-[#08B36A] transition group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-green-50 text-[#08B36A] flex items-center justify-center">
-                        <FaUserMd />
-                      </div>
-                      <div className="text-left">
-                        <p className="text-sm font-black text-slate-700">
-                          {assignedDoctor ? assignedDoctor.name : "Select Doctor to Assign"}
-                        </p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase">
-                          {assignedDoctor ? assignedDoctor.spec : "Browse on-duty staff"}
-                        </p>
-                      </div>
-                    </div>
-                    <FaChevronDown className={`text-slate-300 group-hover:text-[#08B36A] transition-transform ${isDocDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
+               {/* Booked By (User Details) WITH PROFILE PIC */}
+               <InfoSection title="📱 Booked By (App User Info)">
+                  <div className="flex items-center gap-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm col-span-1 sm:col-span-2">
+                     <img 
+                        src={getFullUrl(selectedCase.userId?.profilePic)} 
+                        alt="User Avatar" 
+                        className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" 
+                     />
+                     <div className="flex-grow grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">User Name</p>
+                          <p className="text-sm font-black text-gray-900">{selectedCase.userId?.name || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Contact Phone</p>
+                          <p className="text-sm font-black text-gray-900">{selectedCase.userId?.phone || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Address Mode</p>
+                          <p className="text-sm font-black text-gray-900">{selectedCase.address?.addressType || 'N/A'}</p>
+                        </div>
+                     </div>
+                  </div>
+               </InfoSection>
 
-                  {/* DROPDOWN MENU */}
-                  {isDocDropdownOpen && (
-                    <div className="absolute top-full left-0 w-full mt-2 bg-white border border-slate-100 rounded-3xl shadow-2xl z-10 max-h-60 overflow-y-auto animate-in slide-in-from-top-2">
-                      <div className="p-2 space-y-1">
-                        {doctorsList.map((doc) => (
-                          <button
-                            key={doc.id}
-                            onClick={() => handleAssignDoctor(doc)}
-                            className="w-full p-3 flex items-center justify-between rounded-2xl hover:bg-green-50 transition group"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:text-[#08B36A]">
-                                <FaUserMd />
-                              </div>
-                              <div className="text-left">
-                                <p className="text-sm font-bold text-slate-700">{doc.name}</p>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{doc.spec}</p>
-                              </div>
-                            </div>
-                            {assignedDoctor?.id === doc.id && <FaCheck className="text-[#08B36A]" />}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+               {/* Pricing Breakdown (Detailed) */}
+               <InfoSection title="💳 Billing Breakdown">
+                  <div className="col-span-1 sm:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                     <div className="p-4 space-y-3 font-semibold text-gray-700">
+                        <div className="flex justify-between"><span className="text-gray-500">Base Fee</span> <span>₹{selectedCase.pricingBreakdown?.baseFee || 0}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Visit Charges</span> <span>₹{selectedCase.pricingBreakdown?.visitCharges || 0}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Extra Charges</span> <span>₹{selectedCase.pricingBreakdown?.extraCharges || 0}</span></div>
+                        <div className="flex justify-between text-red-500"><span className="text-red-400">Discount Applied</span> <span>- ₹{selectedCase.pricingBreakdown?.discountAmount || 0}</span></div>
+                     </div>
+                     <div className="bg-gray-50 p-4 border-t border-gray-200 flex justify-between items-center">
+                        <span className="text-sm font-black text-gray-800 uppercase tracking-wider">Total Amount</span>
+                        <span className="text-2xl font-black text-green-600">₹{selectedCase.totalAmount}</span>
+                     </div>
+                  </div>
+               </InfoSection>
 
-              {/* Additional Actions */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button className="bg-slate-900 text-white py-4 rounded-2xl font-black text-sm shadow-xl hover:shadow-green-100 transition">
-                  Update Condition
-                </button>
-                <button className="bg-slate-50 text-slate-400 py-4 rounded-2xl font-black text-sm hover:bg-slate-100 transition">
-                  Request Transfer
-                </button>
-              </div>
             </div>
           </div>
         </div>
       )}
+
     </div>
-  )
-}
+  );
+};
+
+export default ManageEmergencyCases;
+
+// ---------------------------------------------------------
+// REUSABLE COMPONENTS & ICONS
+// ---------------------------------------------------------
+
+const InfoSection = ({ title, children }) => (
+  <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 shadow-sm w-full block">
+    <h4 className="text-lg font-black text-gray-800 mb-5 border-b border-gray-200 pb-3 flex items-center gap-2">{title}</h4>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6">{children}</div>
+  </div>
+);
+
+const InfoItem = ({ label, value }) => (
+  <div className="bg-white p-3.5 rounded-xl border border-gray-100 shadow-sm"><p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">{label}</p><p className="text-sm font-black text-gray-900 truncate">{value || 'N/A'}</p></div>
+);
+
+const CloseIcon = ({className}) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>);
+const SpinnerIcon = ({className}) => (<svg className={className || "w-5 h-5 animate-spin"} fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>);
