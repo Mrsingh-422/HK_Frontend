@@ -662,6 +662,16 @@ const UserAPI = {
         return response.data;
     },
 
+    getAmbulanceCoupons: async (ambulanceId) => { 
+        const response = await authApi.get(`/user/ambulance/coupons/${ambulanceId}`);
+        return response.data;
+    },
+
+    validateAmbulanceCoupon: async (data) => {
+        const response = await authApi.post("/user/ambulance/validate-coupon", data);
+        return response.data;
+    },
+
 };
 
 export default UserAPI;

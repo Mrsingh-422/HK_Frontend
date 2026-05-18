@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import {
   MapPin, ChevronDown, Camera, ShieldAlert, MessageSquare,
   Info, ChevronLeft, Navigation, Clock, User, CheckCircle2,
-  Stethoscope, Activity, AlertCircle, Map, Phone, Mail, Truck
+  Stethoscope, Activity, AlertCircle, Map, Phone, Mail, Truck, Ticket
 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import UserAPI from "@/app/services/UserAPI";
@@ -20,6 +20,13 @@ export default function AmbulanceBookingPage() {
   // Dynamic Data States
   const [hospitals, setHospitals] = useState([]);
   const [familyMembers, setFamilyMembers] = useState([]);
+
+  // Coupon States
+  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState("");
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
 
   // Form States
   const [formData, setFormData] = useState({
@@ -65,6 +72,14 @@ export default function AmbulanceBookingPage() {
           setAmbulance(selected);
         }
 
+        // 5. Fetch Available Ambulance Coupons
+        if (UserAPI.getAmbulanceCoupons) {
+          const couponsRes = await UserAPI.getAmbulanceCoupons(id);
+          if (couponsRes.success) {
+            setAvailableCoupons(couponsRes.data);
+          }
+        }
+
         setFormData(prev => ({
           ...prev,
           pickupLocation: addrData.display_name || "Unknown Location"
@@ -84,7 +99,68 @@ export default function AmbulanceBookingPage() {
     if (file) setPreviewImage(URL.createObjectURL(file));
   };
 
+  // --- Coupon Logic Handlers ---
+  const handleValidateCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setValidatingCoupon(true);
+    setCouponError("");
+
+    try {
+      if (UserAPI.validateAmbulanceCoupon) {
+        const res = await UserAPI.validateAmbulanceCoupon({
+          couponCode: couponCode.trim(),
+          subtotal: currentSubtotal
+        });
+
+        if (res.success) {
+          setAppliedCoupon(res.data || { couponName: couponCode.trim() });
+          setCouponError("");
+        } else {
+          setCouponError(res.message || "Invalid coupon code");
+          setAppliedCoupon(null);
+        }
+      }
+    } catch (err) {
+      console.error("Error validating coupon:", err);
+      setCouponError("Could not validate coupon. Please try again.");
+      setAppliedCoupon(null);
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode("");
+    setCouponError("");
+  };
+
   if (loading || !ambulance) return <div className="p-20 text-center font-bold">Loading Dispatch Details...</div>;
+
+  // --- Dynamic Pricing System Calculations ---
+  const currentSubtotal = (ambulance.pricing?.fixedPrice || 0) + (formData.supportStaff.doctor ? 500 : 0) + (formData.supportStaff.nurse ? 200 : 0);
+
+  let discountAmount = 0;
+  if (appliedCoupon) {
+    // Find matching coupon from array logic to parse rules if return payload variation exists
+    const couponInfo = availableCoupons.find(c => c.couponName.toUpperCase() === (appliedCoupon.couponName || couponCode).toUpperCase());
+
+    if (couponInfo) {
+      if (currentSubtotal >= couponInfo.minOrderAmount) {
+        const calculatedDiscount = (currentSubtotal * couponInfo.discountPercentage) / 100;
+        discountAmount = Math.min(calculatedDiscount, couponInfo.maxDiscount);
+      }
+    } else if (appliedCoupon.discountPercentage) {
+      // Fallback on direct response payload matching
+      const calculatedDiscount = (currentSubtotal * appliedCoupon.discountPercentage) / 100;
+      discountAmount = appliedCoupon.maxDiscount ? Math.min(calculatedDiscount, appliedCoupon.maxDiscount) : calculatedDiscount;
+    } else {
+      // Uniform generic safety handling fallback
+      discountAmount = 0;
+    }
+  }
+
+  const finalTotalAmount = Math.max(0, currentSubtotal - discountAmount);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans pb-20">
@@ -310,13 +386,93 @@ export default function AmbulanceBookingPage() {
               </div>
             </div>
 
+            {/* Coupon Application Container */}
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 space-y-4">
+              <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Apply Offers & Coupons</h3>
+
+              <div className="flex gap-3">
+                <div className="relative flex-1">
+                  <Ticket className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Enter Coupon Code"
+                    value={couponCode}
+                    disabled={!!appliedCoupon}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    className="w-full bg-slate-50 border-2 border-transparent focus:border-[#08B36A] rounded-2xl py-4 pl-12 pr-4 text-sm font-bold uppercase outline-none transition-all disabled:opacity-60"
+                  />
+                </div>
+                {appliedCoupon ? (
+                  <button
+                    onClick={removeCoupon}
+                    className="bg-red-50 hover:bg-red-100 text-red-600 px-6 rounded-2xl font-black text-sm border border-red-100 transition-all"
+                  >
+                    Remove
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleValidateCoupon}
+                    disabled={validatingCoupon || !couponCode.trim()}
+                    className="bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 text-white disabled:text-slate-400 px-6 rounded-2xl font-black text-sm transition-all"
+                  >
+                    {validatingCoupon ? "Checking..." : "Apply"}
+                  </button>
+                )}
+              </div>
+
+              {couponError && (
+                <p className="text-xs font-bold text-red-500 flex items-center gap-1 mt-1">
+                  <AlertCircle className="w-3.5 h-3.5" /> {couponError}
+                </p>
+              )}
+
+              {appliedCoupon && (
+                <p className="text-xs font-bold text-[#08B36A] flex items-center gap-1 mt-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Code "{appliedCoupon.couponName || couponCode}" applied successfully!
+                </p>
+              )}
+
+              {/* Quick Coupon Selector Suggestions */}
+              {!appliedCoupon && availableCoupons.length > 0 && (
+                <div className="pt-2">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Available Coupons for you:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {availableCoupons.map((coupon) => (
+                      <button
+                        key={coupon._id}
+                        onClick={() => {
+                          setCouponCode(coupon.couponName);
+                          setCouponError("");
+                        }}
+                        className="text-xs font-bold px-3 py-1.5 bg-emerald-50 text-[#08B36A] border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-all"
+                      >
+                        {coupon.couponName} ({coupon.discountPercentage}% OFF)
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Final Fare & Confirm */}
             <div className="bg-white rounded-[3rem] p-8 shadow-xl border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6">
-              <div>
+              <div className="space-y-1">
                 <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Est. Fare (Transparent Pricing)</p>
-                <p className="text-3xl font-black text-slate-900">
-                  ₹{(ambulance.pricing?.fixedPrice || 0) + (formData.supportStaff.doctor ? 500 : 0) + (formData.supportStaff.nurse ? 200 : 0)}
-                </p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-3xl font-black text-slate-900">
+                    ₹{finalTotalAmount}
+                  </p>
+                  {discountAmount > 0 && (
+                    <span className="text-sm font-bold text-slate-400 line-through">
+                      ₹{currentSubtotal}
+                    </span>
+                  )}
+                </div>
+                {discountAmount > 0 && (
+                  <p className="text-xs font-bold text-[#08B36A]">
+                    Saved ₹{discountAmount} on this trip
+                  </p>
+                )}
               </div>
               <button className="w-full md:w-auto bg-[#08B36A] hover:bg-emerald-600 text-white px-12 py-5 rounded-2xl font-black text-lg shadow-lg shadow-emerald-200 transition-all active:scale-95">
                 Confirm Dispatch
