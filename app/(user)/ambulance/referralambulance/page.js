@@ -1,5 +1,4 @@
 import React from 'react'
-
 function page() {
   return (
     <div>
@@ -7,5 +6,4 @@ function page() {
     </div>
   )
 }
-
 export default page
