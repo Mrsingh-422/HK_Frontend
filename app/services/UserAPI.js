@@ -672,6 +672,12 @@ const UserAPI = {
         return response.data;
     },
 
+    myAmbulanceBooking: async () => {
+        const response = await authApi.get("/user/ambulance/my-bookings");
+        return response.data;
+    },
+
+
 };
 
 export default UserAPI;
