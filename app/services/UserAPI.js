@@ -632,12 +632,20 @@ const UserAPI = {
         const response = await authApi.post("/user/hospital/validate-coupon", data); // Replace with your actual endpoint 
         return response.data;
     },
-    
+
     bookHospitalBed: async (data) => {
         const response = await authApi.post("/user/hospital/book", data);
         return response.data;
     },
 
+    getMyHospitalBookings: async () => {
+        const response = await authApi.get("/user/hospital/my-bookings");
+        return response.data;
+    },
+    recheduleHospitalBooking: async (newDate) => {
+        const response = await authApi.post(`/user/hospital/reschedule`, newDate );
+        return response.data;
+    },
 
     //Ambulance api
     getAmbulanceCategories: async () => {

@@ -259,7 +259,7 @@ export default function CheckoutPage() {
             const response = await UserAPI.bookHospitalBed(payload);
             if (response.success) {
                 alert("Booking Confirmed Successfully!");
-                // router.push("/bookings");
+                router.push("/userscreens/hospitalappointment");
             } else {
                 alert(response.message || "Failed to book bed.");
             }
