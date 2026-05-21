@@ -139,7 +139,9 @@ export default function CheckoutPage() {
     // Calculation Logic
     const selectedServices = services.filter(s => selectedServiceIds.includes(s._id));
     const servicesTotal = selectedServices.reduce((sum, s) => sum + s.price, 0);
-    const bedPrice = booking?.pricePerDay || 0;
+    
+    // Updated to use the passed totalPrice from the previous page
+    const bedPrice = booking?.totalPrice || 0; 
     const subtotal = bedPrice + servicesTotal;
 
     const handleApplyCoupon = async (codeToApply = couponCode) => {

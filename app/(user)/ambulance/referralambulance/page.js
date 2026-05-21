@@ -86,7 +86,6 @@ export default function ReferralBookingPage() {
           const couponsRes = await UserAPI.getAmbulanceCoupons(selectedAmbulance._id);
           if (couponsRes.success) {
             setAvailableCoupons(couponsRes.data);
-            // Reset applied coupon if ambulance changes
             setAppliedCoupon(null);
             setCouponCode("");
           }
@@ -98,33 +97,21 @@ export default function ReferralBookingPage() {
     fetchCoupons();
   }, [selectedAmbulance?._id]);
 
-  // --- Dynamic Pricing Calculation ---
-  const calculateSubtotal = () => {
-    if (!selectedAmbulance) return 0;
-
-    let base = 0;
-    if (selectedAmbulance.freeServices?.referral) {
-      base = 0;
-    } else {
-      base = selectedAmbulance.pricing?.fixedPrice || 0;
-    }
-
-    if (formData.supportStaff.nurse) {
-      base += (selectedAmbulance.supportStaff?.nurse?.price || 0);
-    }
-    if (formData.supportStaff.doctor) {
-      base += (selectedAmbulance.supportStaff?.doctor?.price || 0);
-    }
-    return base;
+  // --- UI Pricing Preview (Visual Only) ---
+  const calculatePricingBreakdown = () => {
+    if (!selectedAmbulance) return { ambCharge: 0, staffCharge: 0, subtotal: 0 };
+    const ambCharge = selectedAmbulance.freeServices?.referral ? 0 : (selectedAmbulance.pricing?.fixedPrice || 0);
+    let staffCharge = 0;
+    if (formData.supportStaff.nurse) staffCharge += (selectedAmbulance.supportStaff?.nurse?.price || 0);
+    if (formData.supportStaff.doctor) staffCharge += (selectedAmbulance.supportStaff?.doctor?.price || 0);
+    return { ambCharge, staffCharge, subtotal: ambCharge + staffCharge };
   };
 
-  const currentSubtotal = calculateSubtotal();
+  const { ambCharge, staffCharge, subtotal: currentSubtotal } = calculatePricingBreakdown();
 
-  // --- Coupon Discount Calculation ---
   let discountAmount = 0;
   if (appliedCoupon) {
     const couponInfo = availableCoupons.find(c => c.couponName.toUpperCase() === (appliedCoupon.couponName || couponCode).toUpperCase());
-
     if (couponInfo) {
       if (currentSubtotal >= couponInfo.minOrderAmount) {
         const calculatedDiscount = (currentSubtotal * couponInfo.discountPercentage) / 100;
@@ -143,14 +130,12 @@ export default function ReferralBookingPage() {
     if (!couponCode.trim()) return;
     setValidatingCoupon(true);
     setCouponError("");
-
     try {
       if (UserAPI.validateAmbulanceCoupon) {
         const res = await UserAPI.validateAmbulanceCoupon({
           couponCode: couponCode.trim(),
           subtotal: currentSubtotal
         });
-
         if (res.success) {
           setAppliedCoupon(res.data || { couponName: couponCode.trim() });
           setCouponError("");
@@ -177,10 +162,7 @@ export default function ReferralBookingPage() {
   const toggleStaff = (type) => {
     setFormData(prev => ({
       ...prev,
-      supportStaff: {
-        ...prev.supportStaff,
-        [type]: !prev.supportStaff[type]
-      }
+      supportStaff: { ...prev.supportStaff, [type]: !prev.supportStaff[type] }
     }));
   };
 
@@ -207,6 +189,7 @@ export default function ReferralBookingPage() {
     }
   };
 
+  // --- Final Submit Process ---
   const handleSubmit = async () => {
     if (!selectedAmbulance || !formData.hospitalId || !formData.pickupHospitalId) {
       alert("Please complete hospital and ambulance selections.");
@@ -215,49 +198,96 @@ export default function ReferralBookingPage() {
 
     setIsSubmitting(true);
     try {
+      // 1. Prepare Staff Type
+      const staffArr = [];
+      if (formData.supportStaff.nurse) staffArr.push("Nurse");
+      if (formData.supportStaff.doctor) staffArr.push("Doctor");
+      const staffTypeVal = staffArr.length > 0 ? staffArr.join(", ") : "None";
+
+      // 2. CHECKOUT CALL (JSON) - Calculate Fare first
+      const checkoutPayload = {
+        ambulanceId: selectedAmbulance._id,
+        serviceType: "Referral Ambulance",
+        staffType: staffTypeVal,
+        couponCode: couponCode.trim()
+      };
+
+      console.log("1. CALLING CHECKOUT API (JSON):", checkoutPayload);
+      const checkoutRes = await UserAPI.checkOutAmbulance(checkoutPayload);
+      
+      if (!checkoutRes.success) {
+        console.error("CHECKOUT FAILED:", checkoutRes);
+        alert(checkoutRes.message || "Pricing calculation failed");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const pricingData = checkoutRes.data;
+      console.log("2. CHECKOUT RESPONSE RECEIVED:", pricingData);
+
+      // 3. PREPARE FINAL BOOKING (FORM DATA)
       const data = new FormData();
+      
+      // Top level fields requested for the API
       data.append("ambulanceId", selectedAmbulance._id);
       data.append("pickupHospitalId", formData.pickupHospitalId);
       data.append("hospitalId", formData.hospitalId);
-      data.append("serviceType", formData.serviceType);
-      data.append("triageLevel", formData.triageLevel);
+      data.append("serviceType", "Referral Ambulance");
       data.append("scheduledDate", formData.scheduledDate);
       data.append("appointmentTime", formData.appointmentTime);
-      data.append("referralReason", formData.referralReason);
+      data.append("reason", formData.referralReason);
+      data.append("triageLevel", formData.triageLevel);
+      data.append("staffType", staffTypeVal);
 
-      // Pass coupon if applied
-      if (appliedCoupon) {
-        data.append("couponCode", couponCode);
-      }
-
-      let staffString = "None";
-      if (formData.supportStaff.nurse && formData.supportStaff.doctor) staffString = "Doctor & Nurse";
-      else if (formData.supportStaff.doctor) staffString = "Doctor";
-      else if (formData.supportStaff.nurse) staffString = "Nurse";
-      data.append("staffType", staffString);
-
+      // patientDetails object - matching the schema structure
       data.append("patientDetails", JSON.stringify({
         name: formData.patientName,
-        relation: formData.patientRelation
+        relation: formData.patientRelation,
+        condition: 'Stable',
+        referralReason: formData.referralReason
       }));
 
+      // referralCard File (Screen 8)
       if (referralCardFile) {
         data.append("referralCard", referralCardFile);
       }
 
-      const res = await UserAPI.checkOutAmbulance(data);
+      // pricing object - exactly matching schema structure
+      data.append("pricing", JSON.stringify({
+        ambulanceCharge: pricingData.ambulanceCharge,
+        supportingStaffCharge: pricingData.supportingStaffCharge,
+        subtotal: pricingData.subtotal,
+        discount: pricingData.discount,
+        total: pricingData.total
+      }));
+
+      // couponDetails object - FIX: Ensure couponId is correctly mapped from checkout response
+      data.append("couponDetails", JSON.stringify({
+        couponId: pricingData.couponId || null, 
+        couponCode: pricingData.finalCouponCode || couponCode,
+        discountValue: pricingData.discount || 0
+      }));
+
+      // scheduledAt field for Schema
+      data.append("scheduledAt", formData.scheduledDate);
+
+      // Verification log
+      console.log("3. FINAL BOOKING DATA (FORMDATA):");
+      for (let [key, val] of data.entries()) {
+        console.log(`${key}:`, val);
+      }
+
+      // 4. FINAL BOOKING CALL
+      const res = await UserAPI.bookAmbulance(data);
       if (res.success) {
-        // router.push('/booking-success');
-        const res = await UserAPI.bookAmbulance(data);
-        if (res.success) {
-          alert("Booking Confirmed! Redirecting to details page...");
-          // router.push(`/ambulance/booking/${res.data._id}`);
-        }
+        alert("Booking Confirmed!");
+        router.push(`/userscreens/ambulanceappointment`);
       } else {
         alert(res.message || "Booking Failed");
       }
     } catch (err) {
-      console.error("Booking Error:", err);
+      console.error("SUBMIT ERROR:", err);
+      alert("An error occurred during booking.");
     } finally {
       setIsSubmitting(false);
     }

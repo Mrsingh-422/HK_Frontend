@@ -610,10 +610,11 @@ const UserAPI = {
         return response.data;
     },
 
-    getWardBeds: async (wardId) => {
-        const response = await authApi.get(`/user/hospital/bed-grid/${wardId}`);
+    checkBedAvalability: async (data) => {
+        const response = await authApi.post("/user/hospital/check-availability", data);
         return response.data;
     },
+
     getHospitalDoctors: async (hospitalId) => {
         const response = await authApi.get(`/user/hospital/doctors/${hospitalId}`);
         return response.data;

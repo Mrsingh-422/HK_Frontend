@@ -2,264 +2,129 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import {
-    FaArrowLeft, FaWind, FaCheck, FaRupeeSign,
-    FaTools, FaUserAlt, FaProcedures, FaHospital,
-    FaArrowRight, FaRegCircle, FaCheckCircle
+import { 
+    FaWind, FaRupeeSign, FaArrowRight, FaCalendarAlt 
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
 export default function EnhancedBedDashboard() {
     const router = useRouter();
-    const [wardInfo, setWardInfo] = useState(null);
+    const[wardInfo, setWardInfo] = useState(null);
     const [beds, setBeds] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState("all");
-
-    // Selection State
+    const [loading, setLoading] = useState(false);
     const [selectedBed, setSelectedBed] = useState(null);
 
-    useEffect(() => {
-        const fetchBeds = async () => {
-            try {
-                const rawData = sessionStorage.getItem("activeWardRequest");
-                if (!rawData) { router.push("/hospital"); return; }
-                const payload = JSON.parse(rawData);
-                setWardInfo(payload);
+    const [startDate, setStartDate] = useState("2026-05-15");
+    const [endDate, setEndDate] = useState("2026-05-18");
 
-                const response = await UserAPI.getWardBeds(payload.wardId);
-                if (response.success) setBeds(response.data);
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchBeds();
+    const totalDays = useMemo(() => {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const diffTime = Math.abs(end - start);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays > 0 ? diffDays : 1;
+    },[startDate, endDate]);
+
+    useEffect(() => {
+        const rawData = sessionStorage.getItem("activeWardRequest");
+        if (!rawData) { router.push("/hospital"); return; }
+        setWardInfo(JSON.parse(rawData));
     }, [router]);
 
-    const filteredBeds = useMemo(() => {
-        let result = beds;
-        if (filter === "available") result = beds.filter(b => b.status === "Available");
-        if (filter === "ventilator") result = beds.filter(b => b.isVentilatorAvailable && b.status === "Available");
-        return result;
-    }, [beds, filter]);
-
-    const stats = useMemo(() => ({
-        total: beds.length,
-        available: beds.filter(b => b.status === "Available").length,
-        ventilators: beds.filter(b => b.isVentilatorAvailable && b.status === "Available").length
-    }), [beds]);
-
-    const handleBedSelect = (bed) => {
-        if (bed.status === "Available") {
-            setSelectedBed(selectedBed?._id === bed._id ? null : bed);
-        }
+    const fetchBeds = async () => {
+        if (!wardInfo) return;
+        setLoading(true);
+        try {
+            const response = await UserAPI.checkBedAvalability({
+                hospitalId: wardInfo.hospitalId,
+                wardId: wardInfo.wardId,
+                startDate,
+                endDate
+            });
+            if (response.success) setBeds(response.data);
+        } catch (err) { console.error(err); } 
+        finally { setLoading(false); }
     };
-    
-    // UPDATED: Merging previous payload with new bed selection
-    const confirmBooking = () => {
-        if (!selectedBed || !wardInfo) return;
 
-        const finalBookingPayload = {
-            ...wardInfo, // Spreads HospitalID, HospitalName, WardID, WardName, etc.
-            bedId: selectedBed._id,
+    const confirmBooking = () => {
+        if (!selectedBed) return;
+        sessionStorage.setItem("activeBooking", JSON.stringify({
+            ...wardInfo, 
+            startDate, 
+            endDate, 
+            totalDays, // Added totalDays
+            bedId: selectedBed._id, 
             bedNumber: selectedBed.bedNumber,
             pricePerDay: selectedBed.pricePerDay,
-            isVentilator: selectedBed.isVentilatorAvailable,
-            bookingDate: new Date().toISOString()
-        };
-
-        // Save complete data for Checkout
-        sessionStorage.setItem("activeBooking", JSON.stringify(finalBookingPayload));
-
-        // Navigate to checkout
+            totalPrice: selectedBed.pricePerDay * totalDays // Sending calculated total
+        }));
         router.push("/hospital/checkout");
     };
 
-    if (loading) return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC]">
-            <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Loading Ward Map...</p>
-        </div>
-    );
-
     return (
-        <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-32">
-            <div className="max-w-7xl mx-auto p-4 md:p-8">
-
-                {/* HEADER */}
-                <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => router.back()}
-                            className="p-3 bg-white shadow-sm border border-slate-200 rounded-xl hover:bg-slate-50"
-                        >
-                            <FaArrowLeft size={16} className="text-slate-600" />
-                        </button>
+        <div className="min-h-screen bg-[#F0F4F8] p-4 md:p-8 font-sans">
+            <div className="max-w-6xl mx-auto">
+                
+                <div className="bg-white rounded-3xl p-6 shadow-xl shadow-blue-100/50 mb-8 border border-blue-50">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-6">
                         <div>
-                            <div className="flex items-center gap-2 text-blue-600 mb-1">
-                                <FaHospital size={12} />
-                                <span className="text-[10px] font-black uppercase tracking-widest">{wardInfo?.hospitalName || "Medical Center"}</span>
-                            </div>
-                            <h1 className="text-2xl font-black tracking-tight text-slate-800">{wardInfo?.wardName || "Ward Details"}</h1>
+                            <h1 className="text-2xl font-extrabold text-slate-800">Select Date Range</h1>
+                            <p className="text-slate-500 text-sm">Stay Duration: <span className="font-black text-blue-600">{totalDays} Nights</span></p>
                         </div>
-                    </div>
 
-                    <div className="flex gap-2">
-                        <StatCard label="Total" count={stats.total} color="text-slate-600" />
-                        <StatCard label="Available" count={stats.available} color="text-emerald-600" />
-                        <StatCard label="ICU/Vent" count={stats.ventilators} color="text-blue-600" />
-                    </div>
-                </header>
-
-                {/* CONTROLS */}
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                    <div className="flex flex-wrap gap-6">
-                        <LegendItem color="bg-emerald-500" label="Vacant" />
-                        <LegendItem color="bg-red-500" label="Occupied" />
-                        <LegendItem color="bg-amber-500" label="Service" />
-                    </div>
-
-                    <div className="flex bg-slate-100 p-1 rounded-xl">
-                        {['all', 'available', 'ventilator'].map((f) => (
-                            <button
-                                key={f}
-                                onClick={() => setFilter(f)}
-                                className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${filter === f
-                                        ? 'bg-white text-blue-600 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
-                                    }`}
-                            >
-                                {f}
+                        <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+                            <div className="flex items-center gap-2 px-4">
+                                <FaCalendarAlt className="text-blue-500" />
+                                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-transparent font-bold text-sm outline-none" />
+                            </div>
+                            <div className="h-8 w-[1px] bg-slate-300" />
+                            <div className="flex items-center gap-2 px-4">
+                                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-transparent font-bold text-sm outline-none" />
+                            </div>
+                            <button onClick={fetchBeds} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all">
+                                Search
                             </button>
-                        ))}
+                        </div>
                     </div>
                 </div>
 
-                {/* GRID */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                    {filteredBeds.map((bed) => (
-                        <BedCard
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    {beds.map((bed) => (
+                        <div 
                             key={bed._id}
-                            bed={bed}
-                            isSelected={selectedBed?._id === bed._id}
-                            onSelect={() => handleBedSelect(bed)}
-                        />
+                            onClick={() => bed.status === "Available" && setSelectedBed(bed)}
+                            className={`group p-5 rounded-3xl border-2 transition-all duration-300 cursor-pointer 
+                                ${bed.status === "Available" ? "bg-white border-white hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-100" : "bg-slate-100 border-transparent opacity-60 cursor-not-allowed"}
+                                ${selectedBed?._id === bed._id ? "!border-blue-600 ring-2 ring-blue-600/20" : ""}
+                            `}
+                        >
+                            <div className="flex justify-between items-start mb-4">
+                                <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-full ${
+                                    bed.status === 'Available' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+                                }`}>{bed.status}</span>
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-800 mb-1">{bed.bedNumber}</h3>
+                            <div className="flex items-center text-slate-500 font-bold">
+                                <FaRupeeSign size={10} /> {bed.pricePerDay} <span className="text-[10px] ml-1 opacity-70">/ night</span>
+                            </div>
+                        </div>
                     ))}
                 </div>
             </div>
 
-            {/* FLOATING SELECTION BAR */}
             {selectedBed && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl bg-slate-900 text-white rounded-2xl shadow-2xl p-4 flex items-center justify-between animate-in slide-in-from-bottom-10">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center">
-                            <FaProcedures className="text-emerald-400" size={20} />
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase">Selected Bed</p>
-                            <h4 className="text-lg font-black">#{selectedBed.bedNumber}</h4>
-                        </div>
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-full shadow-2xl flex items-center gap-8 animate-in slide-in-from-bottom-12">
+                    <div>
+                        <p className="text-[9px] text-slate-400 uppercase tracking-widest">Total for {totalDays} Nights</p>
+                        <p className="font-black text-lg flex items-center gap-1">
+                            <FaRupeeSign size={14} /> {selectedBed.pricePerDay * totalDays}
+                        </p>
                     </div>
-
-                    <div className="flex items-center gap-6">
-                        <div className="text-right hidden sm:block">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase">Daily Rate</p>
-                            <p className="font-black text-emerald-400">₹{selectedBed.pricePerDay}</p>
-                        </div>
-                        <button
-                            onClick={confirmBooking}
-                            className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-colors"
-                        >
-                            Confirm <FaArrowRight />
-                        </button>
-                    </div>
+                    <button onClick={confirmBooking} className="bg-emerald-500 hover:bg-emerald-400 px-8 py-3 rounded-full font-black text-sm uppercase tracking-wider flex items-center gap-2 transition-all">
+                        Pay Now <FaArrowRight />
+                    </button>
                 </div>
             )}
-        </div>
-    );
-}
-
-function StatCard({ label, count, color }) {
-    return (
-        <div className="bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm min-w-[90px]">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{label}</p>
-            <p className={`text-lg font-black ${color}`}>{count}</p>
-        </div>
-    );
-}
-
-function LegendItem({ color, label }) {
-    return (
-        <div className="flex items-center gap-2">
-            <div className={`w-2.5 h-2.5 rounded-full ${color}`}></div>
-            <span className="text-[11px] font-bold text-slate-500 uppercase">{label}</span>
-        </div>
-    );
-}
-
-function BedCard({ bed, isSelected, onSelect }) {
-    const status = bed.status;
-
-    const theme = {
-        Available: {
-            bg: isSelected ? "bg-emerald-50 border-emerald-500 shadow-lg ring-2 ring-emerald-500/20" : "bg-white border-slate-200 hover:border-emerald-400",
-            icon: <FaProcedures className={isSelected ? "text-emerald-600" : "text-slate-300"} />,
-            badge: "bg-emerald-100 text-emerald-700",
-            actionIcon: isSelected ? <FaCheckCircle size={20} className="text-emerald-600" /> : <FaRegCircle size={20} className="text-slate-300" />
-        },
-        Occupied: {
-            bg: "bg-slate-50 border-transparent opacity-70 cursor-not-allowed",
-            icon: <FaUserAlt className="text-red-300" />,
-            badge: "bg-red-100 text-red-700",
-            actionIcon: null
-        },
-        Maintenance: {
-            bg: "bg-amber-50/30 border-amber-100 cursor-not-allowed",
-            icon: <FaTools className="text-amber-300" />,
-            badge: "bg-amber-100 text-amber-700",
-            actionIcon: null
-        }
-    }[status];
-
-    return (
-        <div
-            onClick={onSelect}
-            className={`relative p-5 rounded-2xl border-2 transition-all duration-200 cursor-pointer ${theme.bg}`}
-        >
-            <div className="flex justify-between items-start mb-6">
-                <div className={`text-[8px] font-black px-2 py-1 rounded-md uppercase tracking-wider ${theme.badge}`}>
-                    {status}
-                </div>
-                {bed.isVentilatorAvailable && (
-                    <div className="flex items-center gap-1 text-blue-500" title="Ventilator">
-                        <FaWind size={12} />
-                    </div>
-                )}
-            </div>
-
-            <div className="mb-6 flex items-end justify-between">
-                <div>
-                    <div className="mb-2 transition-transform duration-300 group-hover:scale-110">
-                        {theme.icon}
-                    </div>
-                    <h3 className="text-2xl font-black tracking-tighter text-slate-800">
-                        {bed.bedNumber}
-                    </h3>
-                </div>
-                <div>
-                    {theme.actionIcon}
-                </div>
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                <div className="flex items-center text-slate-800 font-bold text-sm">
-                    <FaRupeeSign size={10} className="text-slate-400" />
-                    <span>{bed.pricePerDay}</span>
-                </div>
-                <span className="text-[8px] font-bold text-slate-400 uppercase">Per Day</span>
-            </div>
         </div>
     );
 }
