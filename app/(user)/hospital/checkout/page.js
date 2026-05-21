@@ -100,6 +100,15 @@ export default function CheckoutPage() {
         return `${BASE_URL}/${cleanPath}`;
     };
 
+    // Age Calculation Helper
+    const calculateAge = (dob) => {
+        if (!dob) return 0;
+        const birthDate = new Date(dob);
+        const difference = Date.now() - birthDate.getTime();
+        const ageDate = new Date(difference);
+        return Math.abs(ageDate.getUTCFullYear() - 1970);
+    };
+
     // Handle Family Member Selection
     const handleMemberSelect = (member) => {
         if (member === "self" || member === "add") {
@@ -139,9 +148,7 @@ export default function CheckoutPage() {
     // Calculation Logic
     const selectedServices = services.filter(s => selectedServiceIds.includes(s._id));
     const servicesTotal = selectedServices.reduce((sum, s) => sum + s.price, 0);
-    
-    // Updated to use the passed totalPrice from the previous page
-    const bedPrice = booking?.totalPrice || 0; 
+    const bedPrice = booking?.totalPrice || 0;
     const subtotal = bedPrice + servicesTotal;
 
     const handleApplyCoupon = async (codeToApply = couponCode) => {
@@ -155,8 +162,12 @@ export default function CheckoutPage() {
             });
             
             if (response.success) {
+                // Find the coupon in our list to ensure we have the ID
+                const matchedCoupon = coupons.find(c => c.couponName === codeToApply);
+                
                 setAppliedCoupon({
                     ...response.data,
+                    ...(matchedCoupon || {}), // Spread the local object to ensure _id is present
                     couponName: codeToApply
                 });
                 setDiscountAmount(response.data.discountAmount || 0);
@@ -184,7 +195,7 @@ export default function CheckoutPage() {
         setSelectedServiceIds((prev) => 
             prev.includes(serviceId) ? prev.filter(id => id !== serviceId) : [...prev, serviceId]
         );
-        if(appliedCoupon) removeCoupon(); // Reset coupon as subtotal changed
+        if(appliedCoupon) removeCoupon();
     };
 
     const toggleDoctor = (doctorId) => {
@@ -202,20 +213,60 @@ export default function CheckoutPage() {
             return;
         }
 
-        const finalPayload = {
+        // Mapping selected services to the format [{ serviceName, price }]
+        const formattedServices = services
+            .filter(s => selectedServiceIds.includes(s._id))
+            .map(s => ({
+                serviceName: s.serviceName,
+                price: s.price
+            }));
+
+        const payload = {
             hospitalId: booking.hospitalId,
-            wardId: booking.wardId,
+            doctorId: selectedDoctorId || null,
             bedId: booking.bedId,
-            doctorId: selectedDoctorId,
-            serviceIds: selectedServiceIds,
-            patientDetails: patientDetails,
-            familyMemberId: selectedMemberId !== "self" && selectedMemberId !== "add" ? selectedMemberId : null,
-            couponCode: appliedCoupon ? appliedCoupon.couponName : null,
-            totalAmount: finalTotal,
-            bookingDate: booking.bookingDate,
+            bookingType: "Admission",
+            triageLevel: "Emergency",
+            startDate: booking.startDate,
+            endDate: booking.endDate,
+            appointmentDate: booking.startDate,
+            appointmentTime: "Admission",
+            patients: [{
+                patientName: patientDetails.fullName,
+                patientAge: calculateAge(patientDetails.dob),
+                gender: patientDetails.gender,
+                relation: selectedMemberId === "self" ? "Self" : "Family Member",
+                isMainUser: true
+            }],
+            specialServices: formattedServices,
+            pricing: {
+                baseFee: booking.totalPrice,
+                visitCharges: 0,
+                extraCharges: 0,
+                discountAmount: discountAmount,
+                subtotal: subtotal,
+                totalPayable: finalTotal
+            },
+            // Using ID from appliedCoupon state
+            couponId: appliedCoupon ? (appliedCoupon._id || appliedCoupon.id || null) : null,
+            couponCode: appliedCoupon ? appliedCoupon.couponName : null
         };
-        console.log("Final Booking Payload:", finalPayload);
-        alert(`Proceeding to pay ₹${finalTotal}`);
+
+        // Log the payload to debug
+        console.log("Payload being sent:", JSON.stringify(payload, null, 2));
+
+        try {
+            const response = await UserAPI.bookHospitalBed(payload);
+            if (response.success) {
+                alert("Booking Confirmed Successfully!");
+                // router.push("/bookings");
+            } else {
+                alert(response.message || "Failed to book bed.");
+            }
+        } catch (error) {
+            console.error("Booking Error:", error);
+            alert("An error occurred during booking.");
+        }
     };
 
     if (!booking) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div></div>;
