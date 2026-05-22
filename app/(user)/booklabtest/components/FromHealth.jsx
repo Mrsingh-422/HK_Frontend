@@ -5,88 +5,75 @@ import { FaArrowRight, FaMicroscope } from "react-icons/fa";
 
 function FromHealth() {
     return (
-        <section className="bg-[#f8fafc] py-20 px-6 overflow-hidden">
-            <div className="max-w-7xl mx-auto">
+        <section className="bg-slate-50 py-9 px-6 relative overflow-hidden">
+            {/* Subtle light geometric background accents */}
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-bl from-teal-50/50 to-transparent rounded-full blur-3xl pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-gradient-to-tr from-slate-100 to-transparent rounded-full blur-2xl pointer-events-none"></div>
+
+            <div className="max-w-6xl mx-auto relative z-10">
                 
-                {/* Main Card Container */}
-                <div className="relative group">
+                {/* Premium White Card with glass-like crisp borders */}
+                <div className="bg-white rounded-[2rem] border border-slate-200/60 shadow-[0_30px_70px_-20px_rgba(15,23,42,0.04)] relative overflow-hidden p-8 md:p-14 lg:p-16">
                     
-                    {/* Background Glow Blobs */}
-                    <div className="absolute -top-10 -left-10 w-64 h-64 bg-emerald-200 rounded-full blur-[100px] opacity-40 group-hover:opacity-60 transition-opacity duration-700"></div>
-                    <div className="absolute -bottom-10 -right-10 w-64 h-64 bg-emerald-100 rounded-full blur-[100px] opacity-40 group-hover:opacity-60 transition-opacity duration-700"></div>
+                    {/* Subtle top brand accent line */}
+                    <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-teal-500 via-emerald-500 to-emerald-400"></div>
 
-                    {/* The Premium Card */}
-                    <div className="relative z-10 bg-slate-900 rounded-[2.5rem] md:rounded-[4rem] overflow-hidden shadow-2xl shadow-emerald-900/20">
+                    <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
                         
-                        {/* Decorative Wave/Slant Element */}
-                        <div className="absolute top-0 right-0 w-1/2 h-full bg-emerald-600/10 skew-x-[-15deg] transform origin-top translate-x-20 hidden lg:block"></div>
-
-                        <div className="flex flex-col lg:flex-row items-center p-8 md:p-16 lg:p-20 gap-10 lg:gap-16">
+                        {/* Left Side: Editorial Brand Showcase */}
+                        <div className="flex-shrink-0 relative">
+                            <div className="relative w-32 h-32 md:w-40 md:h-40 rounded-3xl bg-slate-50 border border-slate-100 p-6 flex items-center justify-center group-hover:scale-105 transition-transform duration-500 shadow-sm">
+                                <img
+                                    src="logo.png" 
+                                    alt="Health Kangaroo"
+                                    className="w-full h-full object-contain"
+                                />
+                            </div>
                             
-                            {/* Left Side: Brand & Logo */}
-                            <div className="flex-shrink-0 relative">
-                                <div className="relative w-32 h-32 md:w-44 md:h-44 bg-white rounded-full p-6 shadow-2xl flex items-center justify-center animate-float">
-                                    <img
-                                        src="logo.png" // Replace with your actual Kangaroo Logo
-                                        alt="Health Kangaroo"
-                                        className="w-full h-full object-contain"
-                                    />
-                                    {/* Pulse Effect */}
-                                    <div className="absolute inset-0 rounded-full border-4 border-emerald-500/30 animate-ping"></div>
-                                </div>
-                                
-                                {/* Floating Badge (Lab Microscope Icon) */}
-                                <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-3 rounded-2xl shadow-xl">
-                                    <FaMicroscope size={20} />
-                                </div>
+                            {/* Premium floating micro-badge */}
+                            <div className="absolute -bottom-2 -right-2 bg-gradient-to-br from-slate-900 to-slate-800 text-teal-400 p-3 rounded-2xl shadow-lg border border-slate-700/50">
+                                <FaMicroscope size={16} />
                             </div>
-
-                            {/* Middle: Content */}
-                            <div className="flex-1 text-center lg:text-left space-y-6">
-                                <div className="space-y-2">
-                                    <h3 className="text-emerald-400 font-black uppercase tracking-[0.3em] text-xs">
-                                        Partner with Health Kangaroo
-                                    </h3>
-                                    <h2 className="text-3xl md:text-5xl font-black text-white leading-tight">
-                                        Ready to deliver <br />
-                                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-200 italic">
-                                            Premium Lab Services?
-                                        </span>
-                                    </h2>
-                                </div>
-                                <p className="text-slate-400 text-base md:text-lg font-medium max-w-xl leading-relaxed">
-                                    Join an elite network of diagnostic centers. We provide the logistics and digital platform, you provide the precision results our clients depend on.
-                                </p>
-                            </div>
-
-                            {/* Right Side: CTA Button */}
-                            <div className="flex-shrink-0 w-full lg:w-auto">
-                                <button className="w-full lg:w-auto group/btn flex items-center justify-center gap-4 bg-emerald-500 hover:bg-white text-slate-900 px-10 py-6 rounded-3xl font-black text-sm uppercase tracking-widest transition-all duration-500 shadow-xl shadow-emerald-500/20 active:scale-95">
-                                    Join Our Team
-                                    <FaArrowRight className="group-hover/btn:translate-x-2 transition-transform duration-300" />
-                                </button>
-                                <p className="text-center mt-4 text-slate-500 text-[10px] font-bold uppercase tracking-tighter">
-                                    NABL & ISO Labs Preferred
-                                </p>
-                            </div>
-
                         </div>
+
+                        {/* Middle: Premium Typography & Structural Layout */}
+                        <div className="flex-1 text-center lg:text-left space-y-5">
+                            <div className="space-y-2">
+                                <div className="inline-flex items-center gap-2 bg-slate-100 px-3 py-1 rounded-full text-slate-600 font-semibold uppercase tracking-wider text-[10px]">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    Enterprise Network
+                                </div>
+                                <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight leading-[1.15]">
+                                    Ready to deliver <br />
+                                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-600 via-emerald-600 to-emerald-500">
+                                        Premium Lab Services?
+                                    </span>
+                                </h2>
+                            </div>
+                            <p className="text-slate-500 text-sm md:text-base max-w-xl leading-relaxed font-normal">
+                                Partner with an elite diagnostic infrastructure. We manage the digital layer and complex logistics, letting your laboratory focus entirely on clinical precision.
+                            </p>
+                        </div>
+
+                        {/* Right Side: High-End Interactive CTA */}
+                        <div className="flex-shrink-0 w-full lg:w-auto flex flex-col items-center lg:items-end gap-4">
+                            <button className="w-full lg:w-auto group flex items-center justify-center gap-4 bg-slate-900 hover:bg-slate-800 text-white px-8 py-4.5 rounded-xl font-semibold text-sm transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0">
+                                Apply for Affiliation
+                                <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
+                                    <FaArrowRight className="text-[10px] text-white" />
+                                </div>
+                            </button>
+                            
+                            {/* Compliance Badging */}
+                            <div className="flex items-center gap-2 text-slate-400 font-medium text-[11px] tracking-wider uppercase">
+                                <span>NABL & ISO Labs Preferred</span>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
             </div>
-
-            {/* Custom Animations */}
-            <style jsx>{`
-                @keyframes float {
-                    0% { transform: translateY(0px); }
-                    50% { transform: translateY(-10px); }
-                    100% { transform: translateY(0px); }
-                }
-                .animate-float {
-                    animation: float 4s ease-in-out infinite;
-                }
-            `}</style>
         </section>
     );
 }
