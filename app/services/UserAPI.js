@@ -391,10 +391,7 @@ const UserAPI = {
     },
     getLabSlots: async (labId, date) => {
         const response = await authApi.get("/user/labs/slots", {
-            params: {
-                labId,
-                date // This will be sent as ?labId=...&date=YYYY-MM-DD
-            }
+            params: { labId, date }
         });
         return response.data;
     },
@@ -423,7 +420,6 @@ const UserAPI = {
         return response.data;
     },
     checkoutPharmacyOrder: async (checkoutData) => {
-        console.log("Checkout Data for Pharmacy:", checkoutData);
         const response = await authApi.post("/user/pharmacy/checkout", checkoutData);
         return response.data;
     },
@@ -446,24 +442,6 @@ const UserAPI = {
         const response = await authApi.post("/user/labs/confirm-prescription", data);
         return response.data;
     },
-
-    // --- Tracking & History ---
-    // getMyBookings: async () => {
-    //     const response = await authApi.get("/user/labs/my-bookings");
-    //     return response.data;
-    // },
-    // getBookingTrackingDetails: async (id) => {
-    //     const response = await authApi.get(`/user/labs/details/${id}/track`);
-    //     return response.data;
-    // },
-    // cancelBooking: async (id, reason) => {
-    //     const response = await authApi.put(`/user/labs/cancel/${id}`, { reason });
-    //     return response.data;
-    // },
-    // rateLabOrder: async (ratingData) => {
-    //     const response = await authApi.post("/user/labs/rate", ratingData);
-    //     return response.data;
-    // },
 
     // --- Cart Management ---
     getMyCart: async () => {
@@ -505,7 +483,6 @@ const UserAPI = {
 
 
     // Nurse api 
-    // ... existing apis
     getNurseServices: async (coords) => {
         const response = await publicApi.post("/user/nurse/list", coords);
         return response.data;
@@ -569,9 +546,7 @@ const UserAPI = {
         return response.data;
     },
     getDoctorAvailability: async (doctorId, date) => {
-        const response = await authApi.get(
-            `/user/doctors/slots/${doctorId}?date=${date}`
-        );
+        const response = await authApi.get(`/user/doctors/slots/${doctorId}?date=${date}`);
         return response.data;
     },
     getDoctorCoupons: async (doctorId) => {
@@ -580,13 +555,11 @@ const UserAPI = {
     },
     validateDoctorCoupon: async (data) => {
         // data = { couponCode, doctorId, totalAmount }
-        const response = await authApi.post("/user/nurse/validate-coupon", data); // Replace with your actual endpoint 
-        console.log(response.data)
+        const response = await authApi.post("/user/nurse/validate-coupon", data); // Replace with your actual 
         return response.data;
     },
     getDoctorVisitCharges: async (doctorId) => {
-        const response = await publicApi.get(
-            `/user/doctors/visit-charges/${doctorId}`
+        const response = await publicApi.get(`/user/doctors/visit-charges/${doctorId}`
         );
         return response.data;
     },
@@ -643,7 +616,7 @@ const UserAPI = {
         return response.data;
     },
     recheduleHospitalBooking: async (newDate) => {
-        const response = await authApi.post(`/user/hospital/reschedule`, newDate );
+        const response = await authApi.post(`/user/hospital/reschedule`, newDate);
         return response.data;
     },
 
@@ -653,10 +626,7 @@ const UserAPI = {
         return response.data;
     },
     getNearestAmbulances: async (data) => {
-        const response = await publicApi.post(
-            "/user/ambulance/nearest-ambulances",
-            data
-        );
+        const response = await publicApi.post( "/user/ambulance/nearest-ambulances", data);
         return response.data;
     },
 
@@ -670,13 +640,12 @@ const UserAPI = {
         return response.data;
     },
     getAmbulanceDetail: async (ambulanceId) => {
-        const response = await publicApi.get(
-            `/user/ambulance/details/${ambulanceId}`
+        const response = await publicApi.get(`/user/ambulance/details/${ambulanceId}`
         );
         return response.data;
     },
 
-    getAmbulanceCoupons: async (ambulanceId) => { 
+    getAmbulanceCoupons: async (ambulanceId) => {
         const response = await authApi.get(`/user/ambulance/coupons/${ambulanceId}`);
         return response.data;
     },

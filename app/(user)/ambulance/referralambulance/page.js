@@ -214,7 +214,7 @@ export default function ReferralBookingPage() {
 
       console.log("1. CALLING CHECKOUT API (JSON):", checkoutPayload);
       const checkoutRes = await UserAPI.checkOutAmbulance(checkoutPayload);
-      
+
       if (!checkoutRes.success) {
         console.error("CHECKOUT FAILED:", checkoutRes);
         alert(checkoutRes.message || "Pricing calculation failed");
@@ -227,7 +227,7 @@ export default function ReferralBookingPage() {
 
       // 3. PREPARE FINAL BOOKING (FORM DATA)
       const data = new FormData();
-      
+
       // Top level fields requested for the API
       data.append("ambulanceId", selectedAmbulance._id);
       data.append("pickupHospitalId", formData.pickupHospitalId);
@@ -238,6 +238,7 @@ export default function ReferralBookingPage() {
       data.append("reason", formData.referralReason);
       data.append("triageLevel", formData.triageLevel);
       data.append("staffType", staffTypeVal);
+      data.append("couponCode", couponCode.trim());
 
       // patientDetails object - matching the schema structure
       data.append("patientDetails", JSON.stringify({
@@ -263,7 +264,7 @@ export default function ReferralBookingPage() {
 
       // couponDetails object - FIX: Ensure couponId is correctly mapped from checkout response
       data.append("couponDetails", JSON.stringify({
-        couponId: pricingData.couponId || null, 
+        couponId: pricingData.couponId || null,
         couponCode: pricingData.finalCouponCode || couponCode,
         discountValue: pricingData.discount || 0
       }));
