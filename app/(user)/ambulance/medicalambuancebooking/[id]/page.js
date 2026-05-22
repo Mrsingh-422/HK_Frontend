@@ -1,4 +1,5 @@
-"use client";
+'use client'
+
 import React, { useState, useEffect } from 'react';
 import {
   MapPin, ChevronDown, Camera, ShieldAlert, MessageSquare,
@@ -15,6 +16,7 @@ export default function AmbulanceBookingPage() {
   // --- State Management ---
   const [ambulance, setAmbulance] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
 
   // Dynamic Data States
@@ -31,7 +33,7 @@ export default function AmbulanceBookingPage() {
   // Form States
   const [formData, setFormData] = useState({
     pickupLocation: "Locating you...",
-    relation: "",
+    relation: "self", // Default to self
     emergencyType: "",
     supportStaff: { nurse: false, doctor: false },
     hospital: "",
@@ -59,10 +61,6 @@ export default function AmbulanceBookingPage() {
         const familyRes = await UserAPI.getFamilyMembers();
         if (familyRes.success) {
           setFamilyMembers(familyRes.data);
-          // Set default relation if members exist
-          if (familyRes.data.length > 0) {
-            setFormData(prev => ({ ...prev, relation: familyRes.data[0]._id }));
-          }
         }
 
         // 4. Fetch specific ambulance details
@@ -94,24 +92,38 @@ export default function AmbulanceBookingPage() {
     init();
   }, [id]);
 
-  const handleImage = (e) => {
-    const file = e.target.files[0];
-    if (file) setPreviewImage(URL.createObjectURL(file));
-  };
+  // --- Calculations ---
+  const currentSubtotal = ambulance ? (ambulance.pricing?.fixedPrice || 0) + 
+                          (formData.supportStaff.doctor ? (ambulance.supportStaff?.doctor?.price || 500) : 0) + 
+                          (formData.supportStaff.nurse ? (ambulance.supportStaff?.nurse?.price || 200) : 0) : 0;
 
-  // --- Coupon Logic Handlers ---
+  let discountAmount = 0;
+  if (appliedCoupon) {
+    const couponInfo = availableCoupons.find(c => c.couponName.toUpperCase() === (appliedCoupon.couponName || couponCode).toUpperCase());
+    if (couponInfo) {
+      if (currentSubtotal >= couponInfo.minOrderAmount) {
+        const calculatedDiscount = (currentSubtotal * couponInfo.discountPercentage) / 100;
+        discountAmount = Math.min(calculatedDiscount, couponInfo.maxDiscount);
+      }
+    } else if (appliedCoupon.discountPercentage) {
+      const calculatedDiscount = (currentSubtotal * appliedCoupon.discountPercentage) / 100;
+      discountAmount = appliedCoupon.maxDiscount ? Math.min(calculatedDiscount, appliedCoupon.maxDiscount) : calculatedDiscount;
+    }
+  }
+
+  const finalTotalAmount = Math.max(0, currentSubtotal - discountAmount);
+
+  // --- Logic Handlers ---
   const handleValidateCoupon = async () => {
     if (!couponCode.trim()) return;
     setValidatingCoupon(true);
     setCouponError("");
-
     try {
       if (UserAPI.validateAmbulanceCoupon) {
         const res = await UserAPI.validateAmbulanceCoupon({
           couponCode: couponCode.trim(),
           subtotal: currentSubtotal
         });
-
         if (res.success) {
           setAppliedCoupon(res.data || { couponName: couponCode.trim() });
           setCouponError("");
@@ -121,8 +133,7 @@ export default function AmbulanceBookingPage() {
         }
       }
     } catch (err) {
-      console.error("Error validating coupon:", err);
-      setCouponError("Could not validate coupon. Please try again.");
+      setCouponError("Could not validate coupon.");
       setAppliedCoupon(null);
     } finally {
       setValidatingCoupon(false);
@@ -135,32 +146,87 @@ export default function AmbulanceBookingPage() {
     setCouponError("");
   };
 
-  if (loading || !ambulance) return <div className="p-20 text-center font-bold">Loading Dispatch Details...</div>;
-
-  // --- Dynamic Pricing System Calculations ---
-  const currentSubtotal = (ambulance.pricing?.fixedPrice || 0) + (formData.supportStaff.doctor ? 500 : 0) + (formData.supportStaff.nurse ? 200 : 0);
-
-  let discountAmount = 0;
-  if (appliedCoupon) {
-    // Find matching coupon from array logic to parse rules if return payload variation exists
-    const couponInfo = availableCoupons.find(c => c.couponName.toUpperCase() === (appliedCoupon.couponName || couponCode).toUpperCase());
-
-    if (couponInfo) {
-      if (currentSubtotal >= couponInfo.minOrderAmount) {
-        const calculatedDiscount = (currentSubtotal * couponInfo.discountPercentage) / 100;
-        discountAmount = Math.min(calculatedDiscount, couponInfo.maxDiscount);
-      }
-    } else if (appliedCoupon.discountPercentage) {
-      // Fallback on direct response payload matching
-      const calculatedDiscount = (currentSubtotal * appliedCoupon.discountPercentage) / 100;
-      discountAmount = appliedCoupon.maxDiscount ? Math.min(calculatedDiscount, appliedCoupon.maxDiscount) : calculatedDiscount;
-    } else {
-      // Uniform generic safety handling fallback
-      discountAmount = 0;
+  const handleSubmit = async () => {
+    if (!formData.hospital) {
+      alert("Please select a hospital.");
+      return;
     }
-  }
 
-  const finalTotalAmount = Math.max(0, currentSubtotal - discountAmount);
+    setIsSubmitting(true);
+    try {
+      // 1. Prepare Staff Type
+      const staffArr = [];
+      if (formData.supportStaff.nurse) staffArr.push("Nurse");
+      if (formData.supportStaff.doctor) staffArr.push("Doctor");
+      const staffTypeVal = staffArr.length > 0 ? staffArr.join(", ") : "None";
+
+      // 2. Checkout API Call
+      const checkoutPayload = {
+        ambulanceId: id,
+        serviceType: "Medical Ambulance",
+        staffType: staffTypeVal,
+        couponCode: couponCode.trim()
+      };
+
+      const checkoutRes = await UserAPI.checkOutAmbulance(checkoutPayload);
+      if (!checkoutRes.success) {
+        alert(checkoutRes.message || "Pricing calculation failed");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const pricingData = checkoutRes.data;
+
+      // 3. Prepare Final Booking Data
+      const data = new FormData();
+      data.append("ambulanceId", id);
+      data.append("hospitalId", formData.hospital);
+      data.append("pickupLocation", formData.pickupLocation);
+      data.append("serviceType", "Medical Ambulance");
+      data.append("staffType", staffTypeVal);
+      data.append("couponCode", couponCode.trim());
+      data.append("triageLevel", formData.priority);
+
+      // Determine patient details
+      const member = familyMembers.find(m => m._id === formData.relation);
+      data.append("patientDetails", JSON.stringify({
+        name: formData.relation === "self" ? "User" : (member?.memberName || "Patient"),
+        relation: formData.relation === "self" ? "Self" : (member?.relation || "Relative"),
+        condition: formData.emergencyType || "Emergency",
+      }));
+
+      data.append("pricing", JSON.stringify({
+        ambulanceCharge: pricingData.ambulanceCharge,
+        supportingStaffCharge: pricingData.supportingStaffCharge,
+        subtotal: pricingData.subtotal,
+        discount: pricingData.discount,
+        total: pricingData.total
+      }));
+
+      data.append("couponDetails", JSON.stringify({
+        couponId: pricingData.couponId || null,
+        couponCode: pricingData.finalCouponCode || couponCode,
+        discountValue: pricingData.discount || 0
+      }));
+
+      // 4. Final Booking
+      const res = await UserAPI.bookAmbulance(data);
+      if (res.success) {
+        alert("Booking Confirmed!");
+        router.push(`/userscreens/ambulanceappointment`);
+      } else {
+        alert(res.message || "Booking Failed");
+      }
+
+    } catch (err) {
+      console.error("Submission Error:", err);
+      alert("An error occurred during booking.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (loading || !ambulance) return <div className="p-20 text-center font-bold">Loading Dispatch Details...</div>;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans pb-20">
@@ -189,7 +255,6 @@ export default function AmbulanceBookingPage() {
           <div className="lg:col-span-5 space-y-6">
             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
               <div className="space-y-6">
-                {/* Pickup Location Input */}
                 <div className="space-y-2">
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Pickup Location</label>
                   <div className="relative">
@@ -203,7 +268,6 @@ export default function AmbulanceBookingPage() {
                   </div>
                 </div>
 
-                {/* Patient Relation Dropdown (DYNAMIC) */}
                 <div className="space-y-2">
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Patient (Family)</label>
                   <div className="relative">
@@ -218,13 +282,11 @@ export default function AmbulanceBookingPage() {
                           {member.memberName} ({member.relation})
                         </option>
                       ))}
-                      <option value="stranger">Stranger</option>
                     </select>
                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
                   </div>
                 </div>
 
-                {/* Emergency Description */}
                 <div className="space-y-2">
                   <textarea
                     rows="2"
@@ -235,7 +297,6 @@ export default function AmbulanceBookingPage() {
                   />
                 </div>
 
-                {/* Bottom Location Display */}
                 <div className="flex items-start gap-3 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
                   <Navigation className="w-5 h-5 text-[#08B36A] mt-0.5" />
                   <div>
@@ -275,9 +336,8 @@ export default function AmbulanceBookingPage() {
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Ambulance Details & Dropdowns */}
+          {/* RIGHT COLUMN */}
           <div className="lg:col-span-7 space-y-8">
-            {/* Detailed Ambulance Response Info Card */}
             <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white space-y-6">
               <div className="flex flex-col md:flex-row items-start md:items-center gap-6 pb-6 border-b border-slate-800">
                 <div className="w-32 h-24 rounded-2xl bg-slate-800 overflow-hidden shrink-0">
@@ -304,7 +364,6 @@ export default function AmbulanceBookingPage() {
                 </div>
               </div>
 
-              {/* Contact & Technical Details */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
@@ -346,7 +405,6 @@ export default function AmbulanceBookingPage() {
               </div>
             </div>
 
-            {/* Choose Your Hospital Dropdown (DYNAMIC) */}
             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
               <h3 className="text-lg font-black mb-6">Choose Your Hospital</h3>
               <div className="relative">
@@ -367,7 +425,6 @@ export default function AmbulanceBookingPage() {
               </div>
             </div>
 
-            {/* Priority Selection Dropdown */}
             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6">Choose Emergency Priority</h3>
               <div className="relative">
@@ -386,10 +443,8 @@ export default function AmbulanceBookingPage() {
               </div>
             </div>
 
-            {/* Coupon Application Container */}
             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 space-y-4">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Apply Offers & Coupons</h3>
-
               <div className="flex gap-3">
                 <div className="relative flex-1">
                   <Ticket className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -419,33 +474,14 @@ export default function AmbulanceBookingPage() {
                   </button>
                 )}
               </div>
-
-              {couponError && (
-                <p className="text-xs font-bold text-red-500 flex items-center gap-1 mt-1">
-                  <AlertCircle className="w-3.5 h-3.5" /> {couponError}
-                </p>
-              )}
-
-              {appliedCoupon && (
-                <p className="text-xs font-bold text-[#08B36A] flex items-center gap-1 mt-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Code "{appliedCoupon.couponName || couponCode}" applied successfully!
-                </p>
-              )}
-
-              {/* Quick Coupon Selector Suggestions */}
+              {couponError && <p className="text-xs font-bold text-red-500 flex items-center gap-1 mt-1"><AlertCircle className="w-3.5 h-3.5" /> {couponError}</p>}
+              {appliedCoupon && <p className="text-xs font-bold text-[#08B36A] flex items-center gap-1 mt-1"><CheckCircle2 className="w-3.5 h-3.5" /> Code "{appliedCoupon.couponName || couponCode}" applied successfully!</p>}
               {!appliedCoupon && availableCoupons.length > 0 && (
                 <div className="pt-2">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Available Coupons for you:</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Available Coupons:</p>
                   <div className="flex flex-wrap gap-2">
                     {availableCoupons.map((coupon) => (
-                      <button
-                        key={coupon._id}
-                        onClick={() => {
-                          setCouponCode(coupon.couponName);
-                          setCouponError("");
-                        }}
-                        className="text-xs font-bold px-3 py-1.5 bg-emerald-50 text-[#08B36A] border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-all"
-                      >
+                      <button key={coupon._id} onClick={() => { setCouponCode(coupon.couponName); setCouponError(""); }} className="text-xs font-bold px-3 py-1.5 bg-emerald-50 text-[#08B36A] border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-all">
                         {coupon.couponName} ({coupon.discountPercentage}% OFF)
                       </button>
                     ))}
@@ -454,28 +490,20 @@ export default function AmbulanceBookingPage() {
               )}
             </div>
 
-            {/* Final Fare & Confirm */}
             <div className="bg-white rounded-[3rem] p-8 shadow-xl border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="space-y-1">
-                <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Est. Fare (Transparent Pricing)</p>
+                <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Est. Fare</p>
                 <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-black text-slate-900">
-                    ₹{finalTotalAmount}
-                  </p>
-                  {discountAmount > 0 && (
-                    <span className="text-sm font-bold text-slate-400 line-through">
-                      ₹{currentSubtotal}
-                    </span>
-                  )}
+                  <p className="text-3xl font-black text-slate-900">₹{finalTotalAmount}</p>
+                  {discountAmount > 0 && <span className="text-sm font-bold text-slate-400 line-through">₹{currentSubtotal}</span>}
                 </div>
-                {discountAmount > 0 && (
-                  <p className="text-xs font-bold text-[#08B36A]">
-                    Saved ₹{discountAmount} on this trip
-                  </p>
-                )}
               </div>
-              <button className="w-full md:w-auto bg-[#08B36A] hover:bg-emerald-600 text-white px-12 py-5 rounded-2xl font-black text-lg shadow-lg shadow-emerald-200 transition-all active:scale-95">
-                Confirm Dispatch
+              <button 
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="w-full md:w-auto bg-[#08B36A] hover:bg-emerald-600 disabled:bg-slate-300 text-white px-12 py-5 rounded-2xl font-black text-lg shadow-lg shadow-emerald-200 transition-all active:scale-95"
+              >
+                {isSubmitting ? "Processing..." : "Confirm Dispatch"}
               </button>
             </div>
           </div>
