@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import UserAPI from '@/app/services/UserAPI';
+import {Suspense} from 'react';
 
 export default function AccidentalAmbulanceWeb() {
     const router = useRouter();
@@ -150,6 +151,7 @@ export default function AccidentalAmbulanceWeb() {
     };
 
     return (
+        <Suspense fallback={<div>Loading...</div>}>
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
             <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
@@ -349,5 +351,6 @@ export default function AccidentalAmbulanceWeb() {
                 </div>
             </main>
         </div>
+        </Suspense>
     );
 }

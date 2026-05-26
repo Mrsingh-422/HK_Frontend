@@ -11,25 +11,25 @@ function FromHealth() {
             <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-gradient-to-tr from-slate-100 to-transparent rounded-full blur-2xl pointer-events-none"></div>
 
             <div className="max-w-6xl mx-auto relative z-10">
-                
+
                 {/* Premium White Card with glass-like crisp borders */}
                 <div className="bg-white rounded-[2rem] border border-slate-200/60 shadow-[0_30px_70px_-20px_rgba(15,23,42,0.04)] relative overflow-hidden p-8 md:p-14 lg:p-16">
-                    
+
                     {/* Subtle top brand accent line */}
                     <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-teal-500 via-emerald-500 to-emerald-400"></div>
 
                     <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
-                        
+
                         {/* Left Side: Editorial Brand Showcase */}
                         <div className="flex-shrink-0 relative">
                             <div className="relative w-32 h-32 md:w-40 md:h-40 rounded-3xl bg-slate-50 border border-slate-100 p-6 flex items-center justify-center group-hover:scale-105 transition-transform duration-500 shadow-sm">
                                 <img
-                                    src="logo.png" 
+                                    src="logo.png"
                                     alt="Health Kangaroo"
                                     className="w-full h-full object-contain"
                                 />
                             </div>
-                            
+
                             {/* Premium floating micro-badge */}
                             <div className="absolute -bottom-2 -right-2 bg-gradient-to-br from-slate-900 to-slate-800 text-teal-400 p-3 rounded-2xl shadow-lg border border-slate-700/50">
                                 <FaMicroscope size={16} />
@@ -63,7 +63,7 @@ function FromHealth() {
                                     <FaArrowRight className="text-[10px] text-white" />
                                 </div>
                             </button>
-                            
+
                             {/* Compliance Badging */}
                             <div className="flex items-center gap-2 text-slate-400 font-medium text-[11px] tracking-wider uppercase">
                                 <span>NABL & ISO Labs Preferred</span>

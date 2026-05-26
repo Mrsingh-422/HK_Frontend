@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { 
-    FaArrowLeft, FaHospital, FaProcedures, 
+import {
+    FaArrowLeft, FaHospital, FaProcedures,
     FaShieldAlt, FaCheck, FaTimes, FaTag, FaReceipt,
     FaUser, FaPhone, FaCalendarDay, FaVenusMars, FaCreditCard,
     FaMapMarkerAlt, FaGlobe, FaPlus, FaUpload, FaUserMd, FaStethoscope
@@ -15,18 +15,19 @@ const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 export default function CheckoutPage() {
     const router = useRouter();
     const [booking, setBooking] = useState(null);
-    
+
     // API Data State
     const [doctors, setDoctors] = useState([]);
     const [services, setServices] = useState([]);
     const [coupons, setCoupons] = useState([]);
-    const [familyMembers, setFamilyMembers] = useState([]); 
-    
+    const [familyMembers, setFamilyMembers] = useState([]);
+
     // Selection State
     const [selectedMemberId, setSelectedMemberId] = useState("self");
-    const [selectedDoctorId, setSelectedDoctorId] = useState(null); 
-    const [selectedServiceIds, setSelectedServiceIds] = useState([]); 
-    
+    const [selectedDoctorId, setSelectedDoctorId] = useState(null);
+    const [selectedServiceIds, setSelectedServiceIds] = useState([]);
+    const [bedBookingType, setBedBookingType] = useState("General-Bed");
+
     // Expanded Patient Details State
     const [patientDetails, setPatientDetails] = useState({
         fullName: "",
@@ -72,7 +73,7 @@ export default function CheckoutPage() {
                 UserAPI.getHospitalServices(hospitalId),
                 UserAPI.getHospitalCoupons(hospitalId)
             ]);
-            
+
             if (docRes.success) setDoctors(docRes.data);
             if (serviceRes.success) setServices(serviceRes.data);
             if (couponRes.success) setCoupons(couponRes.data);
@@ -160,11 +161,11 @@ export default function CheckoutPage() {
                 couponCode: codeToApply,
                 subtotal: subtotal
             });
-            
+
             if (response.success) {
                 // Find the coupon in our list to ensure we have the ID
                 const matchedCoupon = coupons.find(c => c.couponName === codeToApply);
-                
+
                 setAppliedCoupon({
                     ...response.data,
                     ...(matchedCoupon || {}), // Spread the local object to ensure _id is present
@@ -177,8 +178,8 @@ export default function CheckoutPage() {
                 setAppliedCoupon(null);
                 setDiscountAmount(0);
             }
-        } catch (error) { 
-            setCouponError("Error validating coupon"); 
+        } catch (error) {
+            setCouponError("Error validating coupon");
         }
     };
 
@@ -192,10 +193,10 @@ export default function CheckoutPage() {
     const finalTotal = subtotal - discountAmount;
 
     const toggleService = (serviceId) => {
-        setSelectedServiceIds((prev) => 
+        setSelectedServiceIds((prev) =>
             prev.includes(serviceId) ? prev.filter(id => id !== serviceId) : [...prev, serviceId]
         );
-        if(appliedCoupon) removeCoupon();
+        if (appliedCoupon) removeCoupon();
     };
 
     const toggleDoctor = (doctorId) => {
@@ -226,6 +227,7 @@ export default function CheckoutPage() {
             doctorId: selectedDoctorId || null,
             bedId: booking.bedId,
             bookingType: "Admission",
+            bedBookingType: bedBookingType,
             triageLevel: "Emergency",
             startDate: booking.startDate,
             endDate: booking.endDate,
@@ -286,7 +288,7 @@ export default function CheckoutPage() {
 
             <main className="max-w-7xl mx-auto px-6 mt-10">
                 <div className="grid lg:grid-cols-12 gap-8 items-start">
-                    
+
                     <div className="lg:col-span-8 space-y-6">
                         {/* 01. ADMISSION OVERVIEW */}
                         <section className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
@@ -295,12 +297,33 @@ export default function CheckoutPage() {
                             </h2>
                             <div className="grid sm:grid-cols-2 gap-4">
                                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                                    <div className="flex items-center gap-3 mb-2 text-slate-400"><FaHospital size={12}/><span className="text-[9px] font-black uppercase tracking-tighter">Medical Facility</span></div>
+                                    <div className="flex items-center gap-3 mb-2 text-slate-400"><FaHospital size={12} /><span className="text-[9px] font-black uppercase tracking-tighter">Medical Facility</span></div>
                                     <p className="font-bold text-slate-800">{booking.hospitalName}</p>
                                 </div>
                                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                                    <div className="flex items-center gap-3 mb-2 text-slate-400"><FaProcedures size={12}/><span className="text-[9px] font-black uppercase tracking-tighter">Assigned Unit</span></div>
+                                    <div className="flex items-center gap-3 mb-2 text-slate-400"><FaProcedures size={12} /><span className="text-[9px] font-black uppercase tracking-tighter">Assigned Unit</span></div>
                                     <p className="font-bold text-slate-800">{booking.wardName} — <span className="text-emerald-600">Bed #{booking.bedNumber}</span></p>
+                                </div>
+                            </div>
+
+                            {/* BOOKING TYPE SELECTION */}
+                            <div className="mt-6 pt-6 border-t border-slate-100">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Booking Type</label>
+                                <div className="flex gap-4">
+                                    {["General-Bed", "Emergency-Bed"].map((type) => (
+                                        <button
+                                            key={type}
+                                            type="button"
+                                            onClick={() => setBedBookingType(type)}
+                                            className={`flex-1 py-4 rounded-2xl border-2 font-bold transition-all ${
+                                                bedBookingType === type
+                                                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                                                    : "border-slate-100 bg-slate-50 text-slate-400"
+                                            }`}
+                                        >
+                                            {type === "General-Bed" ? "General Bed" : "Emergency Bed"}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
                         </section>
@@ -341,7 +364,7 @@ export default function CheckoutPage() {
                                     <span className={`text-[10px] font-black uppercase tracking-tight ${selectedMemberId === "add" ? "text-emerald-600" : "text-slate-400"}`}>Add</span>
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
                                 <div className="md:col-span-2 space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Name</label>
@@ -359,7 +382,7 @@ export default function CheckoutPage() {
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gender</label>
                                     <div className="flex gap-4">
                                         {["Male", "Female"].map((g) => (
-                                            <button key={g} type="button" onClick={() => setPatientDetails({...patientDetails, gender: g})} className={`flex-1 py-4 rounded-2xl border-2 font-bold transition-all ${patientDetails.gender === g ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-100 bg-slate-50 text-slate-400"}`}>{g}</button>
+                                            <button key={g} type="button" onClick={() => setPatientDetails({ ...patientDetails, gender: g })} className={`flex-1 py-4 rounded-2xl border-2 font-bold transition-all ${patientDetails.gender === g ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-100 bg-slate-50 text-slate-400"}`}>{g}</button>
                                         ))}
                                     </div>
                                 </div>
@@ -380,7 +403,7 @@ export default function CheckoutPage() {
                                     <div className="flex gap-8">
                                         {["Yes", "No"].map((opt) => (
                                             <label key={opt} className="flex items-center gap-3 cursor-pointer group">
-                                                <div onClick={() => setPatientDetails({...patientDetails, haveInsurance: opt})} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${patientDetails.haveInsurance === opt ? "border-emerald-500 bg-emerald-500" : "border-slate-300"}`}>
+                                                <div onClick={() => setPatientDetails({ ...patientDetails, haveInsurance: opt })} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${patientDetails.haveInsurance === opt ? "border-emerald-500 bg-emerald-500" : "border-slate-300"}`}>
                                                     {patientDetails.haveInsurance === opt && <div className="w-2 h-2 bg-white rounded-full"></div>}
                                                 </div>
                                                 <span className="text-sm font-bold text-slate-600 uppercase tracking-widest">{opt}</span>
