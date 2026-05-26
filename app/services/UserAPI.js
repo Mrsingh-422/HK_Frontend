@@ -615,8 +615,8 @@ const UserAPI = {
         const response = await authApi.get("/user/hospital/my-bookings");
         return response.data;
     },
-    recheduleHospitalBooking: async (newDate) => {
-        const response = await authApi.post(`/user/hospital/reschedule`, newDate);
+    recheduleHospitalBooking: async (data) => {
+        const response = await authApi.post(`/user/hospital/reschedule`, data);
         return response.data;
     },
 
@@ -659,6 +659,22 @@ const UserAPI = {
         const response = await authApi.get("/user/ambulance/my-bookings");
         return response.data;
     },
+
+
+    // Your existing reschedule function
+    recheduleHospitalBooking: async (data) => {
+        const response = await authApi.post(`/user/hospital/reschedule`, data);
+        return response.data;
+    },
+
+    // ADD THIS NEW API FUNCTION HERE:
+    getBedMonthlySchedule: async (bedId, month, year) => {
+        const response = await authApi.get(`/user/hospital/monthly-schedule`, {
+            params: { bedId, month, year }
+        });
+        return response.data;
+    },
+
 
 
 };

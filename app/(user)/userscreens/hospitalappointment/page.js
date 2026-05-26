@@ -9,7 +9,37 @@ import { FaUserMd, FaUserAlt, FaWallet, FaBed, FaCalendarAlt, FaStethoscope } fr
 import { MdVerified, MdOutlineBedroomChild } from "react-icons/md";
 import UserAPI from "@/app/services/UserAPI";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5002";
+
+// --- Helper Functions for Date calculations ---
+const getUtcDate = (dateStr) => {
+  if (!dateStr) return 0;
+  const d = new Date(dateStr);
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+};
+
+const formatDateString = (y, m, d) => {
+  const mm = String(m + 1).padStart(2, '0');
+  const dd = String(d).padStart(2, '0');
+  return `${y}-${mm}-${dd}`;
+};
+
+const getDatesInRange = (startDate, endDate) => {
+  if (!startDate || !endDate) return [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const dates = [];
+  let current = new Date(start);
+  
+  while (current <= end) {
+    const y = current.getFullYear();
+    const m = current.getMonth();
+    const d = current.getDate();
+    dates.push(formatDateString(y, m, d));
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+};
 
 function MyHospitalAppointments() {
   const [selectedAppt, setSelectedAppt] = useState(null);
@@ -19,17 +49,43 @@ function MyHospitalAppointments() {
   // Pagination State
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0 });
 
-  // Reschedule State
+  // Reschedule & Calendar States
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [rescheduleData, setRescheduleData] = useState({ start: "", end: "" });
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  
+  // States for API monthly bed schedule
+  const [monthlySchedule, setMonthlySchedule] = useState([]);
+  const [isScheduleLoading, setIsScheduleLoading] = useState(false);
 
   useEffect(() => {
     fetchBookings(1);
   }, []);
 
+  // Fetch bed availability schedule on month/year navigation or initialization
+  useEffect(() => {
+    if (isRescheduling && selectedAppt) {
+      if (selectedAppt.startDate) {
+        setCurrentMonth(new Date(selectedAppt.startDate));
+      }
+      const bedId = selectedAppt.bedId?._id || selectedAppt.bedId;
+      if (bedId) {
+        fetchBedMonthlySchedule(bedId, currentMonth.getMonth() + 1, currentMonth.getFullYear());
+      }
+    }
+  }, [isRescheduling, selectedAppt]);
+
+  // Handle month switches by re-fetching the schedule
+  const handleMonthChange = (nextMonth) => {
+    setCurrentMonth(nextMonth);
+    const bedId = selectedAppt?.bedId?._id || selectedAppt?.bedId;
+    if (bedId) {
+      fetchBedMonthlySchedule(bedId, nextMonth.getMonth() + 1, nextMonth.getFullYear());
+    }
+  };
+
   const fetchBookings = async (page) => {
     try {
-      // Assuming UserAPI supports page query, adjust if necessary
       const response = await UserAPI.getMyHospitalBookings(page); 
       if (response.success) {
         setMyAppointments(response.data);
@@ -40,17 +96,63 @@ function MyHospitalAppointments() {
     }
   };
 
+  const fetchBedMonthlySchedule = async (bedId, month, year) => {
+    setIsScheduleLoading(true);
+    try {
+      // 1. Try to invoke from UserAPI if implemented
+      if (typeof UserAPI.getBedMonthlySchedule === "function") {
+        const response = await UserAPI.getBedMonthlySchedule(bedId, month, year);
+        if (response && response.success) {
+          setMonthlySchedule(response.data || []);
+          setIsScheduleLoading(false);
+          return;
+        }
+      }
+
+      // 2. Direct fetch fallback wrapper matching the API endpoint format
+      const res = await fetch(`${BASE_URL}/user/hospital/bed-monthly-schedule?bedId=${bedId}&month=${month}&year=${year}`);
+      const json = await res.json();
+      if (json.success) {
+        setMonthlySchedule(json.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching bed monthly schedule:", error);
+      setMonthlySchedule([]);
+    } finally {
+      setIsScheduleLoading(false);
+    }
+  };
+
   const handleReschedule = async () => {
     if (!rescheduleData.start || !rescheduleData.end) {
-      alert("Please select both dates");
+      alert("Please select both dates on the calendar.");
+      return;
+    }
+
+    const originalDiffDays = Math.round((getUtcDate(selectedAppt.endDate) - getUtcDate(selectedAppt.startDate)) / (1000 * 60 * 60 * 24)) + 1;
+    const newDiffDays = Math.round((getUtcDate(rescheduleData.end) - getUtcDate(rescheduleData.start)) / (1000 * 60 * 60 * 24)) + 1;
+
+    if (originalDiffDays !== newDiffDays) {
+      alert(`The rescheduled booking must be exactly ${originalDiffDays} days (matching your original booking duration). Currently, you selected ${newDiffDays} days.`);
+      return;
+    }
+
+    // Ensure no occupied/blocked days exist inside the selected range
+    const rangeDates = getDatesInRange(rescheduleData.start, rescheduleData.end);
+    const hasBookedDate = rangeDates.some((d) => {
+      const dayData = monthlySchedule.find((item) => item.date === d);
+      return dayData ? dayData.status !== "Available" : false;
+    });
+
+    if (hasBookedDate) {
+      alert("The selected range includes days that are already booked.");
       return;
     }
 
     const payload = {
         appointmentId: selectedAppt._id,
         newStartDate: rescheduleData.start,
-        newEndDate: rescheduleData.end,
-        newBedId: selectedAppt.bedId?._id || selectedAppt.bedId
+        newEndDate: rescheduleData.end
     };
 
     try {
@@ -59,6 +161,7 @@ function MyHospitalAppointments() {
         alert("Booking rescheduled successfully!");
         setIsRescheduling(false);
         setIsModalOpen(false);
+        setRescheduleData({ start: "", end: "" });
         fetchBookings(pagination.currentPage);
       } else {
         alert(response.message || "Reschedule failed");
@@ -68,6 +171,56 @@ function MyHospitalAppointments() {
       alert("Something went wrong.");
     }
   };
+
+  // --- Calendar Date Selection handler ---
+  const handleDayClick = (dateStr, isBooked) => {
+    if (isBooked) return;
+
+    if (!rescheduleData.start || (rescheduleData.start && rescheduleData.end)) {
+      // Start a new selection range
+      setRescheduleData({ start: dateStr, end: "" });
+    } else {
+      // If only Start Date is selected
+      if (dateStr < rescheduleData.start) {
+        setRescheduleData({ start: dateStr, end: "" });
+      } else {
+        // Validate if there's any booked date inside the range from start date to clicked date
+        const rangeDates = getDatesInRange(rescheduleData.start, dateStr);
+        const hasBookedDate = rangeDates.some((d) => {
+          const dayData = monthlySchedule.find((item) => item.date === d);
+          return dayData ? dayData.status !== "Available" : false;
+        });
+
+        if (hasBookedDate) {
+          alert("The selected range includes days that are already booked. Please select another date.");
+          return;
+        }
+
+        setRescheduleData({ ...rescheduleData, end: dateStr });
+      }
+    }
+  };
+
+  // --- Calendar month navigation ---
+  const handlePrevMonth = () => {
+    const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
+    handleMonthChange(nextMonth);
+  };
+
+  const handleNextMonth = () => {
+    const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+    handleMonthChange(nextMonth);
+  };
+
+  // --- Generate visual days grid array for calendar ---
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth(); // 0-indexed
+  const firstDayIndex = new Date(year, month, 1).getDay(); // 0 (Sunday) to 6 (Saturday)
+  const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const blanks = Array(firstDayIndex).fill(null);
+  const daysInMonth = Array.from({ length: totalDaysInMonth }, (_, i) => i + 1);
+  const allDays = [...blanks, ...daysInMonth];
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -174,7 +327,7 @@ function MyHospitalAppointments() {
                 <h2 className="text-xl font-black uppercase tracking-widest">{selectedAppt.hospitalId?.name || "Home Visit"}</h2>
                 <p className="text-gray-400 text-[10px] font-bold tracking-widest uppercase">Booking ID: {selectedAppt.bookingId}</p>
               </div>
-              <button onClick={() => {setIsModalOpen(false); setIsRescheduling(false);}} className="p-2 hover:bg-white/10 rounded-full"><HiOutlineX size={24} /></button>
+              <button onClick={() => {setIsModalOpen(false); setIsRescheduling(false); setRescheduleData({ start: "", end: "" });}} className="p-2 hover:bg-white/10 rounded-full"><HiOutlineX size={24} /></button>
             </div>
 
             <div className="p-8 overflow-y-auto space-y-10">
@@ -221,20 +374,108 @@ function MyHospitalAppointments() {
                   </>
               ) : (
                 <section className="space-y-6">
-                  <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest">Select New Dates</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black text-gray-400 uppercase">New Start Date</label>
-                      <input type="date" className="w-full bg-gray-50 p-4 rounded-2xl border border-gray-100 font-bold" onChange={(e) => setRescheduleData({...rescheduleData, start: e.target.value})} />
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest">Select New Dates</h4>
+                      {isScheduleLoading && (
+                        <span className="text-[9px] font-black uppercase text-[#08b36a] bg-green-50 px-2 py-0.5 rounded-md animate-pulse">
+                          Fetching Availability...
+                        </span>
+                      )}
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black text-gray-400 uppercase">New End Date</label>
-                      <input type="date" className="w-full bg-gray-50 p-4 rounded-2xl border border-gray-100 font-bold" onChange={(e) => setRescheduleData({...rescheduleData, end: e.target.value})} />
+                    <span className="text-[10px] font-black uppercase text-green-600 bg-green-50 px-3 py-1 rounded-lg">
+                      Duration: {Math.round((getUtcDate(selectedAppt.endDate) - getUtcDate(selectedAppt.startDate)) / (1000 * 60 * 60 * 24)) + 1} Days
+                    </span>
+                  </div>
+
+                  {/* CUSTOM HOTEL-STYLE CALENDAR */}
+                  <div className="bg-gray-50 p-6 rounded-[32px] border border-gray-100">
+                    <div className="flex justify-between items-center mb-6">
+                      <button type="button" onClick={handlePrevMonth} className="p-2 hover:bg-gray-200 rounded-xl transition-all">
+                        <HiChevronLeft size={20} />
+                      </button>
+                      <h5 className="font-black text-sm text-gray-800 uppercase tracking-wider">
+                        {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                      </h5>
+                      <button type="button" onClick={handleNextMonth} className="p-2 hover:bg-gray-200 rounded-xl transition-all">
+                        <HiChevronRight size={20} />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-2 text-center mb-2">
+                      {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
+                        <span key={day} className="text-[10px] font-black text-gray-400 uppercase">{day}</span>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-2">
+                      {allDays.map((day, idx) => {
+                        if (day === null) {
+                          return <div key={`empty-${idx}`} />;
+                        }
+
+                        const dateStr = formatDateString(year, month, day);
+                        
+                        // Find matching data from the monthlySchedule API response
+                        const daySchedule = monthlySchedule.find((item) => item.date === dateStr);
+                        const isBooked = daySchedule ? daySchedule.status !== "Available" : false;
+
+                        const isStart = rescheduleData.start === dateStr;
+                        const isEnd = rescheduleData.end === dateStr;
+                        const isInRange = rescheduleData.start && rescheduleData.end && dateStr > rescheduleData.start && dateStr < rescheduleData.end;
+
+                        let dayStyle = "bg-white text-gray-800 hover:bg-gray-100";
+                        let tooltip = "Available";
+
+                        if (isBooked) {
+                          if (daySchedule?.status === "Maintenance") {
+                            dayStyle = "bg-amber-50 text-amber-600 line-through cursor-not-allowed opacity-70";
+                            tooltip = "Under Maintenance";
+                          } else {
+                            dayStyle = "bg-red-50 text-red-500 line-through cursor-not-allowed opacity-60";
+                            tooltip = daySchedule?.currentOccupant ? `Occupied: ${daySchedule.currentOccupant}` : "Occupied";
+                          }
+                        } else if (isStart || isEnd) {
+                          dayStyle = "bg-[#08b36a] text-white font-black scale-105 shadow-md shadow-green-100";
+                        } else if (isInRange) {
+                          dayStyle = "bg-green-50 text-[#08b36a] font-bold";
+                        }
+
+                        return (
+                          <button
+                            key={`day-${day}`}
+                            type="button"
+                            disabled={isBooked}
+                            title={tooltip}
+                            onClick={() => handleDayClick(dateStr, isBooked)}
+                            className={`h-10 w-full rounded-xl text-xs flex items-center justify-center transition-all ${dayStyle}`}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
+
+                  {/* SELECTED RANGE SUMMARY */}
+                  <div className="flex justify-between items-center text-xs font-bold text-gray-600 bg-gray-50 px-6 py-4 rounded-2xl border border-gray-100">
+                    <div>
+                      <p className="text-[9px] font-black text-gray-400 uppercase">Selected Range</p>
+                      <p className="mt-1 text-gray-800 font-bold">
+                        {rescheduleData.start ? new Date(rescheduleData.start).toLocaleDateString() : "Choose first date"} 
+                        {rescheduleData.end ? ` — ${new Date(rescheduleData.end).toLocaleDateString()}` : " (Choose last date)"}
+                      </p>
+                    </div>
+                    {rescheduleData.start && rescheduleData.end && (
+                      <span className="text-[10px] font-black bg-gray-200 text-gray-700 px-3 py-1 rounded-lg">
+                        {Math.round((getUtcDate(rescheduleData.end) - getUtcDate(rescheduleData.start)) / (1000 * 60 * 60 * 24)) + 1} Days Selected
+                      </span>
+                    )}
+                  </div>
+
                   <div className="flex gap-4">
-                    <button onClick={() => setIsRescheduling(false)} className="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-gray-100 text-gray-600">Cancel</button>
-                    <button onClick={handleReschedule} className="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-gray-900 text-white">Confirm Reschedule</button>
+                    <button onClick={() => { setIsRescheduling(false); setRescheduleData({ start: "", end: "" }); }} className="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-gray-100 text-gray-600">Cancel</button>
+                    <button onClick={handleReschedule} className="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-gray-900 text-white hover:bg-[#08b36a] transition-all">Confirm Reschedule</button>
                   </div>
                 </section>
               )}
