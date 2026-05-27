@@ -8,6 +8,7 @@ import GlobalModal from "./components/GlobalModal";
 import TopNavbar from "./components/TopNavbar";
 
 import { Toaster } from 'react-hot-toast';
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: "Home Health Kangaroo",
