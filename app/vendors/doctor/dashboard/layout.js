@@ -33,7 +33,7 @@ const DoctorTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) => {
     const menuItems =[
         { name: 'My Profile', href: '/vendors/doctor/dashboard/profile', icon: FaUserCircle },
     ];
-
+    
     return (
         <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-8 flex-shrink-0 z-40 transition-all duration-300">
             

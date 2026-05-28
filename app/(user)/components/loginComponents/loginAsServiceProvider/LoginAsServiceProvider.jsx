@@ -11,7 +11,7 @@ function LoginAsServiceProvider() {
 
   // ✅ State for form inputs
   const [category, setCategory] = useState("");
-  const [mobile, setMobile] = useState("");
+  const [identifier, setIdentifier] = useState(""); // Handles both Email or Mobile
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
@@ -28,34 +28,70 @@ function LoginAsServiceProvider() {
       setError("Please select a category.");
       return;
     }
-    if (!mobile || !password) {
-      setError("Please enter both mobile number and password.");
+    if (!identifier || !password) {
+      setError("Please enter your email/mobile number and password.");
       return;
     }
 
     try {
+      // Detect if input is an email or mobile number
+      const isEmail = identifier.includes("@");
+
       const loginData = {
         category, // Sent to backend and used for dynamic token storage keys
-        phone: mobile,
         password,
         remember,
+        // Dynamically send 'email' or 'phone' based on input
+        ...(isEmail ? { email: identifier } : { phone: identifier }),
       };
 
-      await loginAsServiceProvider(loginData);
+      // Call context function and capture direct API response
+      const resData = await loginAsServiceProvider(loginData);
+
+      // Extract details from response object
+      const token = resData?.token;
+      // alert(token)
+      const profileStatus = resData?.profileStatus;
+      const providerData = resData?.data;
+
+      // Map chosen category option to correct storage key and path segments
+      let key = "";
+      let pathSegment = "";
+
+      const normalizedCategory = category.toLowerCase();
+      if (normalizedCategory === "nurse") {
+        key = "nursing";
+        pathSegment = "nursevendor";
+      } else if (normalizedCategory === "pharmacy") {
+        key = "pharmacy";
+        pathSegment = "pharmacy";
+      } else if (normalizedCategory === "lab") {
+        key = "lab";
+        pathSegment = "labvendor";
+      }
+
+      // Save token and profile details locally here inside the component
+      if (key && token) {
+        localStorage.setItem(`${key}Token`, token);
+        if (providerData) {
+          localStorage.setItem(`${key}Provider`, JSON.stringify(providerData));
+        }
+      }
 
       setSuccess("Login Successful! Redirecting...");
 
       setTimeout(() => {
         closeModal();
 
-        // DYNAMIC REDIRECTION BASED ON SELECTED CATEGORY
-        const path = category.toLowerCase();
-        if (path === "lab") {
-          router.push("/vendors/labvendor/documents");
-        } else if (path === "pharmacy") {
-          router.push("/vendors/pharmacy/documents");
-        } else if (path === "nurse") {
-          router.push("/vendors/nursevendor/documents");
+        // Dynamic routing based on 'profileStatus'
+        const isApproved = profileStatus === "Approved";
+
+        if (pathSegment) {
+          if (isApproved) {
+            router.push(`/vendors/${pathSegment}/dashboard`);
+          } else {
+            router.push(`/vendors/${pathSegment}/documents`);
+          }
         } else {
           router.push("/");
         }
@@ -111,15 +147,16 @@ function LoginAsServiceProvider() {
               <option value="Lab">Lab / Phlebotomist</option>
             </select>
 
+            {/* EMAIL OR MOBILE INPUT */}
             <input
               type="text"
-              placeholder="Enter your mobile number"
+              placeholder="Enter your email or mobile number"
               className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
-              value={mobile}
-              onChange={(e) => setMobile(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
             />
             <p className="text-[13px] text-gray-500 mb-3 text-left">
-              We'll never share your mobile number with anyone else.
+              We'll never share your credentials with anyone else.
             </p>
 
             <input

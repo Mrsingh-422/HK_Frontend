@@ -15,10 +15,6 @@ export const AuthProvider = ({ children }) => {
     const [userToken, setUserToken] = useState(null);
     const [admin, setAdmin] = useState(null);
 
-    // Hospital
-    const [hospital, setHospital] = useState(null);
-    const [hospitalToken, setHospitalToken] = useState(null);
-
     // Vendors (Lab, Nursing, Pharmacy)
     const [provider, setProvider] = useState(null);
     const [labToken, setLabToken] = useState(null);
@@ -29,11 +25,6 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const hydrateAuth = () => {
             try {
-                // 1. Hospital Hydration
-                const storedHToken = localStorage.getItem("hospitalToken");
-                const storedHospital = localStorage.getItem("hospital");
-                if (storedHToken) setHospitalToken(storedHToken);
-                if (storedHospital) setHospital(JSON.parse(storedHospital));
 
                 // 2. User & Admin Hydration
                 const storedUToken = localStorage.getItem("userToken");
@@ -144,47 +135,7 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const registerAsHospital = async (userData) => {
-        try {
-            setLoading(true);
-            const response = await axios.post(`${API_URL}/api/auth/hospital/register`, userData);
-            const { token, data } = response.data;
-            localStorage.setItem("hospitalToken", token);
-            setHospitalToken(token);
-            localStorage.setItem("hospital", JSON.stringify(data));
-            setHospital(data);
-            return response.data;
-        }
-        catch (error) {
-            const message =
-                error.response?.data?.message || "Registration failed";
-            return Promise.reject(message);
-        }
-        finally {
-            setLoading(false);
-        }
-    }
-
     // 2. REFINED LOGIN FUNCTION
-    const loginAsHospital = async (userData) => {
-        try {
-            setLoading(true);
-            const response = await axios.post(`${API_URL}/api/auth/hospital/login`, userData);
-            const { token, data, profileStatus, fullAccess } = response.data;
-
-            const hospitalData = { ...data, profileStatus, fullAccess };
-            localStorage.setItem("hospitalToken", token);
-            localStorage.setItem("hospital", JSON.stringify(hospitalData));
-
-            setHospitalToken(token);
-            setHospital(hospitalData);
-            return response.data;
-        } catch (error) {
-            return Promise.reject(error.response?.data?.message || "Login failed");
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const registerAsDoctorAppointment = async (userData) => {
         try {
@@ -316,30 +267,13 @@ export const AuthProvider = ({ children }) => {
     // ================= LOGIN SERVICE PROVIDER =================
     const loginAsServiceProvider = async (userData) => {
         try {
-            setLoading(true);
             const response = await axios.post(`${API_URL}/api/auth/provider/login`, userData);
-            const { token, data, profileStatus, fullAccess } = response.data;
-
-            const providerData = { ...data, profileStatus, fullAccess };
-            const category = providerData?.category || userData.category;
-            const key = getProviderKey(category);
-
-            // Set Specific Tokens based on category
-            if (key === 'lab') setLabToken(token);
-            if (key === 'nursing') setNursingToken(token);
-            if (key === 'pharmacy') setPharmacyToken(token);
-
-            localStorage.setItem(`${key}Token`, token);
-            localStorage.setItem(`${key}Provider`, JSON.stringify(providerData));
-
-            setProvider(providerData);
             return response.data;
         } catch (error) {
             return Promise.reject(error.response?.data?.message || "Login failed");
-        } finally {
-            setLoading(false);
-        }
+        } 
     };
+
     const uploadLabDocuments = async (userData) => {
         try {
             setLoading(true);
@@ -491,8 +425,6 @@ export const AuthProvider = ({ children }) => {
             admin,
             loading,
             logout,
-            hospital,
-            hospitalToken,
             provider,
             labToken,
             nursingToken,
@@ -500,13 +432,11 @@ export const AuthProvider = ({ children }) => {
             registerAsUser,
             registerAsDoctorAppointment,
             registerAsServiceProvider,
-            registerAsHospital,
             loginAsUser,
             loginAsDoctorAppointment,
             loginAsServiceProvider,
             uploadLabDocuments,
             loginAsAdmin,
-            loginAsHospital,
             forgotPassword,
             verifyOtp,
             resetPassword,

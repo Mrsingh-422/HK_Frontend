@@ -5,7 +5,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 /**
 * TOKEN HELPERS
 */
-const getLabToken = () => typeof window !== 'undefined' ? localStorage.getItem('labToken') : null;
+const getLabToken = () => localStorage.getItem('labToken');
  
 const getAnyToken = () => {
     if (typeof window !== 'undefined') {

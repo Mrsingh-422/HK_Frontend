@@ -21,7 +21,7 @@ export default function NurseVerificationPage() {
     const { uploadNurseDocuments, loading, logout } = useAuth()
  
     // --- STATES ---
-    const [status, setStatus] = useState('Incomplete')
+    const [status, setStatus] = useState('')
     // Fix 1: Changed "experience" to "experienceYears" to match backend
     const [metadata, setMetadata] = useState({ state: "", authority: "", experienceYears: "", gstNumber: "" })
     const [files, setFiles] = useState({})

@@ -6,8 +6,8 @@ import "../globals.css";
 import Footer from "./components/Footer";
 import GlobalModal from "./components/GlobalModal";
 import TopNavbar from "./components/TopNavbar";
-
 import { Toaster } from 'react-hot-toast';
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: "Home Health Kangaroo",
@@ -15,23 +15,24 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
+
   return (
-    <html lang="en">
-      <body>
-        <AuthProvider >
-          <UserProvider >
-            <CartProvider>
-              <GlobalProvider>
-                <TopNavbar />
-                {children}
-                <Footer />
-                <GlobalModal />
-                <Toaster /> {/* Required for react-hot-toast */}
-              </GlobalProvider>
-            </CartProvider>
-          </UserProvider>
-        </AuthProvider>
-      </body>
-    </html>
+    <>
+      <AuthProvider >
+        <UserProvider >
+          <CartProvider>
+            <GlobalProvider>
+              <TopNavbar />
+              {children}
+              <Footer />
+              <GlobalModal />
+              <Toaster /> {/* Required for react-hot-toast */}
+            </GlobalProvider>
+          </CartProvider>
+        </UserProvider>
+      </AuthProvider>
+    </>
+
   );
+
 }

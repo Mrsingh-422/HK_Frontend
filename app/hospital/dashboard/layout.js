@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
     FaThLarge,
-    FaBriefcaseMedical,
+    FaHeartbeat,
     FaProcedures,
     FaHistory,
     FaSignOutAlt,
@@ -13,60 +13,50 @@ import {
     FaBars,
     FaTimes,
     FaHospital,
-    FaCode,
-    FaAccessibleIcon,
-    FaServer,
-    FaChevronDown, // Added
-    FaChevronUp    // Added
+    FaTicketAlt,
+    FaStethoscope,
+    FaFileInvoice,
+    FaChevronDown,
+    FaChevronUp,
+    FaCogs    
 } from "react-icons/fa";
 import { useAuth } from '@/app/context/AuthContext';
 import HospitalTopBar from './components/HospitalTopBar';
 
 export default function HospitalLayout({ children }) {
     const [isSidebarOpen, setSidebarOpen] = useState(false);
-    const [openDropdown, setOpenDropdown] = useState(''); // State for dropdowns
-    
-    const { logout, hospital, loading, hospitalToken } = useAuth();
+    const [openDropdown, setOpenDropdown] = useState(''); 
     const pathname = usePathname();
     const router = useRouter();
+    const [hospital, setHospital] = useState(null);
 
     // --- PROTECTION & REDIRECT LOGIC ---
     useEffect(() => {
-        if (loading) return;
-
         const storedToken = localStorage.getItem("hospitalToken");
-
-        if (!storedToken) {
-            router.push("/");
-            return;
+        localStorage.getItem("hospital") && setHospital(JSON.parse(localStorage.getItem("hospital")));
+        if( !storedToken) {
+            alert("login first");
+            router.push("/"); // Redirect to homepage if not authenticated
         }
-
-        if (hospital) {
-            if (hospital.profileStatus !== 'Approved' && pathname !== '/hospital/documents') {
-                router.push('/hospital/documents');
-            }
-        }
-    }, [hospital, loading, pathname, router, hospitalToken]);
+    }, []);
 
     const menuItems = [
         { name: 'Dashboard', href: '/hospital/dashboard', icon: FaThLarge },
-        { name: 'Emergency Case', href: '/hospital/dashboard/emergencycase', icon: FaBriefcaseMedical },
+        { name: 'Emergency Case', href: '/hospital/dashboard/emergencycase', icon: FaHeartbeat },
         { name: 'Hospital Admission', href: '/hospital/dashboard/Admissions', icon: FaProcedures },
         { name: 'History', href: '/hospital/dashboard/history', icon: FaHistory },
-        { name: 'Manage Coupons', href: '/hospital/dashboard/coupons', icon: FaCode },
-        { name: 'Manage Service', href: '/hospital/dashboard/manage-service', icon: FaServer },
-        { name: 'Emergency Discharge', href: '/hospital/dashboard/emergencydischarge', icon: FaSignOutAlt },
+        { name: 'Manage Coupons', href: '/hospital/dashboard/coupons', icon: FaTicketAlt },
+        { name: 'Manage Service', href: '/hospital/dashboard/manage-service', icon: FaStethoscope },
+        { name: 'Emergency Discharge', href: '/hospital/dashboard/emergencydischarge', icon: FaFileInvoice },
         { name: 'Referral Ambulance', href: '/hospital/dashboard/referralambulance', icon: FaAmbulance },
         { 
             name: 'Settings', 
-            icon: FaCog,
-            // Added subItems for the dropdown
+            icon: FaCogs,
             subItems: [
-                
                 { name: 'Manage Doctors', href: '/hospital/dashboard/manage-doctor'},
                 { name: 'Manage Ambulance', href: '/hospital/dashboard/manage-ambulance'},
                 { name: 'Manage Wards', href: '/hospital/dashboard/manage-wards' },
-            
+                { name: 'Terms & Conditions', href: '/hospital/dashboard/terms-and-conditions' },
             ]
         },
     ];
@@ -84,29 +74,29 @@ export default function HospitalLayout({ children }) {
     };
 
     // --- FULL SCREEN LOADER ---
-    if (loading) {
-        return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-white">
-                <div className="relative flex items-center justify-center">
-                    <div className="w-16 h-16 border-4 border-green-100 border-t-[#08B36A] rounded-full animate-spin"></div>
-                    <FaHospital className="absolute text-[#08B36A] text-xl" />
-                </div>
-                <p className="mt-4 text-gray-500 font-medium animate-pulse">Verifying Access...</p>
-            </div>
-        );
-    }
+    // if (loading) {
+    //     return (
+    //         <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+    //             <div className="relative flex items-center justify-center">
+    //                 <div className="w-16 h-16 border-4 border-green-100 border-t-[#08B36A] rounded-full animate-spin"></div>
+    //                 <FaHospital className="absolute text-[#08B36A] text-xl" />
+    //             </div>
+    //             <p className="mt-4 text-gray-500 font-medium animate-pulse">Verifying Access...</p>
+    //         </div>
+    //     );
+    // }
 
-    if (!hospitalToken && typeof window !== "undefined" && !localStorage.getItem("hospitalToken")) {
-        return null;
-    }
+    // if (!hospitalToken && typeof window !== "undefined" && !localStorage.getItem("hospitalToken")) {
+    //     return null;
+    // }
 
     return (
         <div className="min-h-screen bg-gray-50 flex">
-            {/* --- SIDEBAR --- */}
+            {/* --- SIDEBAR (Fixed and Non-moving) --- */}
             <aside className={`
                 fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
-                lg:translate-x-0 lg:static lg:inset-0
+                lg:translate-x-0
             `}>
                 <div className="h-full flex flex-col">
                     <div className="p-6 border-b border-gray-50 flex items-center gap-3">
@@ -124,11 +114,9 @@ export default function HospitalLayout({ children }) {
                     <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
                         {menuItems.map((item) => {
                             const hasSubItems = !!item.subItems;
-                            // Check if the current route is the parent or any of its children
                             const isActive = pathname === item.href || (hasSubItems && item.subItems.some(sub => sub.href === pathname));
                             const isOpen = openDropdown === item.name;
 
-                            // If it's a dropdown menu item
                             if (hasSubItems) {
                                 return (
                                     <div key={item.name} className="flex flex-col space-y-1">
@@ -147,7 +135,6 @@ export default function HospitalLayout({ children }) {
                                             {isOpen ? <FaChevronUp className="text-sm" /> : <FaChevronDown className="text-sm" />}
                                         </button>
 
-                                        {/* Dropdown Options */}
                                         {isOpen && (
                                             <div className="pl-11 pr-2 py-1 space-y-1">
                                                 {item.subItems.map((subItem) => {
@@ -173,7 +160,6 @@ export default function HospitalLayout({ children }) {
                                 );
                             }
 
-                            // If it's a standard standalone menu item
                             return (
                                 <Link
                                     key={item.name}
@@ -194,8 +180,8 @@ export default function HospitalLayout({ children }) {
                 </div>
             </aside>
 
-            {/* --- MAIN SECTION --- */}
-            <div className="flex-1 flex flex-col min-w-0">
+            {/* --- MAIN SECTION (Adjusted for fixed sidebar) --- */}
+            <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
                 <main className="flex-1 p-0">
                     <HospitalTopBar onMenuClick={() => setSidebarOpen(true)} />
                     <div className="p-4 md:p-8">

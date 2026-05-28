@@ -1,8 +1,8 @@
 "use client";
 import React, { useState } from "react";
 import { useGlobalContext } from "@/app/context/GlobalContext";
-import { useAuth } from "@/app/context/AuthContext";
 import { useRouter } from "next/navigation";
+import HospitalAPI from "@/app/services/HospitalAPI";
 
 function LoginAsHospital() {
   const [identifier, setIdentifier] = useState(""); // phone OR email
@@ -14,7 +14,6 @@ function LoginAsHospital() {
   const [success, setSuccess] = useState("");
 
   const { openModal, closeModal } = useGlobalContext();
-  const { loginAsHospital } = useAuth();
 
   const router = useRouter();
 
@@ -40,7 +39,15 @@ function LoginAsHospital() {
       };
 
       // 1. Capture the response from the login function
-      const res = await loginAsHospital(userLoginData);
+      const res = await HospitalAPI.login(userLoginData);
+
+      // 1.1. If login fails, throw an error message
+      if (res.error) throw res.error;
+
+      // 1.2. If login is successful, store the token and profileStatus in localStorage
+      localStorage.setItem("hospitalToken", res.token);
+      localStorage.setItem("hospital", JSON.stringify(res.data));
+      localStorage.setItem("profileStatus", res.profileStatus);
 
       setSuccess("Login successful! Redirecting...");
 

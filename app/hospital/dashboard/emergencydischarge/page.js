@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 import {
   FaUserCheck, FaFileAlt, FaSignOutAlt, FaHospitalUser,
   FaClock, FaMapMarkerAlt, FaNotesMedical, FaTimes,
-  FaCheckCircle, FaSearch, FaExclamationCircle
+  FaCheckCircle, FaSearch, FaExclamationCircle, FaUserMd
 } from 'react-icons/fa'
 import PatientDetailModal from './components/PatientDetailModal';
 import CompleteDischargeModal from './components/CompleteDischargeModal';
@@ -38,7 +38,7 @@ export default function EmergencyDischargePage() {
       name: "Elena Gilbert",
       age: 24,
       gender: "Female",
-      condition: "Severe Dehydration",
+      condition: "Severe Dehydration", 
       room: "ER-B12",
       dischargeTime: "01:15 PM",
       doctor: "Dr. House",
@@ -74,7 +74,6 @@ export default function EmergencyDischargePage() {
     alert(`Discharge complete for patient. Total: $${data.amount}`);
   };
 
-
   const filteredPatients = patients.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.id.toLowerCase().includes(searchTerm.toLowerCase())
@@ -87,7 +86,7 @@ export default function EmergencyDischargePage() {
       <div className="max-w-7xl mx-auto mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-4">
-            <span className="p-3 bg-green-500 rounded-2xl shadow-lg shadow-green-200 text-white">
+            <span className="p-3 bg-green-500 rounded-2xl shadow-lg shadow-green-200 text-white flex items-center justify-center">
               <FaSignOutAlt />
             </span>
             Discharge Lounge
@@ -106,58 +105,115 @@ export default function EmergencyDischargePage() {
         </div>
       </div>
 
-      {/* --- CARDS GRID --- */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredPatients.map((patient) => (
-          <div key={patient.id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col">
+      {/* --- TABLE CONTAINER --- */}
+      {filteredPatients.length > 0 && (
+        <div className="max-w-7xl mx-auto bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/75 border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <th className="p-4">Patient Info</th>
+                  <th className="p-4">Condition</th>
+                  <th className="p-4">Doctor & Location</th>
+                  <th className="p-4">Est. Time</th>
+                  <th className="p-4">Discharge Summary</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredPatients.map((patient) => (
+                  <tr key={patient.id} className="hover:bg-slate-50/50 transition-colors">
+                    
+                    {/* Patient Name, ID, Age, Gender */}
+                    <td className="p-4">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-green-600 uppercase tracking-wider mb-0.5">{patient.id}</span>
+                        <span className="text-sm font-black text-slate-800 leading-tight">{patient.name}</span>
+                        <span className="text-[11px] font-bold text-slate-400 mt-0.5">
+                          {patient.age} Yrs &bull; {patient.gender}
+                        </span>
+                      </div>
+                    </td>
 
-            {/* Top Section */}
-            <div className="p-8 pb-4">
-              <div className="flex justify-between items-start mb-4">
-                <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${patient.status === 'Ready' ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'}`}>
-                  {patient.status}
-                </div>
-                <p className="text-slate-400 font-black text-[11px] uppercase tracking-widest">{patient.id}</p>
-              </div>
+                    {/* Condition */}
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 bg-rose-50 text-rose-500 rounded-md text-xs">
+                          <FaNotesMedical size={10} />
+                        </span>
+                        <span className="font-bold text-slate-700 text-xs">{patient.condition}</span>
+                      </div>
+                    </td>
 
-              <h3 className="text-2xl font-black text-slate-800 mb-1">{patient.name}</h3>
-              <p className="text-slate-500 font-bold text-sm mb-6 flex items-center gap-2">
-                <FaNotesMedical className="text-slate-300" /> {patient.condition}
-              </p>
+                    {/* Doctor & Location */}
+                    <td className="p-4">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
+                          <FaUserMd className="text-slate-400" size={11} />
+                          <span>{patient.doctor}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
+                          <FaMapMarkerAlt className="text-slate-400" size={11} />
+                          <span>Room {patient.room}</span>
+                        </div>
+                      </div>
+                    </td>
 
-              <div className="space-y-3 mb-6">
-                <div className="flex items-center gap-3 text-slate-600">
-                  <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400"><FaMapMarkerAlt size={12} /></div>
-                  <span className="text-sm font-bold">Location: <span className="text-slate-800">{patient.room}</span></span>
-                </div>
-                <div className="flex items-center gap-3 text-slate-600">
-                  <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400"><FaClock size={12} /></div>
-                  <span className="text-sm font-bold">Est. Time: <span className="text-slate-800">{patient.dischargeTime}</span></span>
-                </div>
-              </div>
-            </div>
+                    {/* Estimated Time */}
+                    <td className="p-4">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                        <FaClock className="text-slate-400" size={11} />
+                        <span>{patient.dischargeTime}</span>
+                      </div>
+                    </td>
 
-            {/* Bottom Buttons */}
-            <div className="mt-auto p-4 bg-slate-50/50 flex gap-3">
-              <button
-                onClick={() => {
-                  setActivePatient(patient);
-                  setIsCompleteOpen(true);
-                }}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-green-100"
-              >
-                <FaCheckCircle /> COMPLETE
-              </button>
-              <button
-                onClick={() => handleOpenDetail(patient)}
-                className="flex-1 bg-white border-2 border-slate-200 text-slate-600 hover:border-slate-800 hover:text-slate-800 py-4 rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition"
-              >
-                <FaFileAlt /> DETAILS
-              </button>
-            </div>
+                    {/* Discharge Summary */}
+                    <td className="p-4 max-w-xs">
+                      <p className="text-[11px] text-slate-500 font-medium line-clamp-2 leading-relaxed">
+                        {patient.summary}
+                      </p>
+                    </td>
+
+                    {/* Status */}
+                    <td className="p-4">
+                      <span className={`inline-flex px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                        patient.status === 'Ready' 
+                          ? 'bg-green-50 text-green-600' 
+                          : 'bg-orange-50 text-orange-600'
+                      }`}>
+                        {patient.status}
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="p-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => {
+                            setActivePatient(patient);
+                            setIsCompleteOpen(true);
+                          }}
+                          className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-black text-[10px] flex items-center gap-1 transition shadow-sm"
+                        >
+                          <FaCheckCircle size={10} /> COMPLETE
+                        </button>
+                        <button
+                          onClick={() => handleOpenDetail(patient)}
+                          className="px-3 py-2 bg-white border border-slate-200 text-slate-600 hover:border-slate-800 hover:text-slate-800 rounded-lg font-black text-[10px] flex items-center gap-1 transition"
+                        >
+                          <FaFileAlt size={10} /> DETAILS
+                        </button>
+                      </div>
+                    </td>
+
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
       {/* RENDER MODAL */}
       {
@@ -182,7 +238,7 @@ export default function EmergencyDischargePage() {
       {/* Empty State */}
       {
         filteredPatients.length === 0 && (
-          <div className="text-center py-20">
+          <div className="text-center py-20 max-w-7xl mx-auto bg-white rounded-3xl border border-slate-100 shadow-sm">
             <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
               <FaUserCheck size={30} />
             </div>
@@ -191,6 +247,6 @@ export default function EmergencyDischargePage() {
           </div>
         )
       }
-    </div >
+    </div>
   )
 }

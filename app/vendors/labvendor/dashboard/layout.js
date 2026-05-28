@@ -14,22 +14,22 @@ import LabTopBar from './components/LabTopBar';
 
 // Move static data outside the component to prevent re-creation on every render
 const menuItems = [
-    { name: 'Dashboard', href: '/vendors/labvendor/labdashboard', icon: FaFlask },
-    { name: 'Orders', href: '/vendors/labvendor/labdashboard/laborders', icon: FaClipboardList },
-    { name: 'Manage Phlebotomist', href: '/vendors/labvendor/labdashboard/ManagePhlebotomist', icon: FaVials },
-    { name: 'Assign Phlebotomist', href: '/vendors/labvendor/labdashboard/assign-phlebotomist', icon: FaUserMd },
-    { name: 'Track Phlebotomist', href: '/vendors/labvendor/labdashboard/track-phlebotomist', icon: FaMapMarkedAlt },
-    { name: 'Manage Tests', href: '/vendors/labvendor/labdashboard/tests', icon: FaVials }, // Added Tests here
-    { name: 'Manage Packages', href: '/vendors/labvendor/labdashboard/packages', icon: FaBoxOpen },
-    { name: 'Add Services', href: '/vendors/labvendor/labdashboard/addservices', icon: FaPlusSquare },
-    { name: 'Upload Reports', href: '/vendors/labvendor/labdashboard/upload-reports', icon: FaFileMedical },
-    { name: 'Manage Documents', href: '/vendors/labvendor/labdashboard/manage-documents', icon: FaFolderOpen },
-    { name: 'Promotions', href: '/vendors/labvendor/labdashboard/promotions', icon: FaBullhorn },
-    { name: 'Order History', href: '/vendors/labvendor/labdashboard/order-history', icon: FaHistory },
-    { name: 'Wallet & Earning', href: '/vendors/labvendor/labdashboard/wallet', icon: FaWallet },
-    { name: 'Availability', href: '/vendors/labvendor/labdashboard/availability', icon: FaCalendarCheck },
-    { name: 'Delivery Charges', href: '/vendors/labvendor/labdashboard/delivery-charge', icon: FaTruck },
-    { name: 'Settings', href: '/vendors/labvendor/labdashboard/settings', icon: FaCog },
+    { name: 'Dashboard', href: '/vendors/labvendor/dashboard', icon: FaFlask },
+    { name: 'Orders', href: '/vendors/labvendor/dashboard/laborders', icon: FaClipboardList },
+    { name: 'Manage Phlebotomist', href: '/vendors/labvendor/dashboard/ManagePhlebotomist', icon: FaVials },
+    { name: 'Assign Phlebotomist', href: '/vendors/labvendor/dashboard/assign-phlebotomist', icon: FaUserMd },
+    { name: 'Track Phlebotomist', href: '/vendors/labvendor/dashboard/track-phlebotomist', icon: FaMapMarkedAlt },
+    { name: 'Manage Tests', href: '/vendors/labvendor/dashboard/tests', icon: FaVials }, // Added Tests here
+    { name: 'Manage Packages', href: '/vendors/labvendor/dashboard/packages', icon: FaBoxOpen },
+    { name: 'Add Services', href: '/vendors/labvendor/dashboard/addservices', icon: FaPlusSquare },
+    { name: 'Upload Reports', href: '/vendors/labvendor/dashboard/upload-reports', icon: FaFileMedical },
+    { name: 'Manage Documents', href: '/vendors/labvendor/dashboard/manage-documents', icon: FaFolderOpen },
+    { name: 'Promotions', href: '/vendors/labvendor/dashboard/promotions', icon: FaBullhorn },
+    { name: 'Order History', href: '/vendors/labvendor/dashboard/order-history', icon: FaHistory },
+    { name: 'Wallet & Earning', href: '/vendors/labvendor/dashboard/wallet', icon: FaWallet },
+    { name: 'Availability', href: '/vendors/labvendor/dashboard/availability', icon: FaCalendarCheck },
+    { name: 'Delivery Charges', href: '/vendors/labvendor/dashboard/delivery-charge', icon: FaTruck },
+    { name: 'Settings', href: '/vendors/labvendor/dashboard/settings', icon: FaCog },
 ];
 
 export default function LabVendorLayout({ children }) {
@@ -41,9 +41,7 @@ export default function LabVendorLayout({ children }) {
     const router = useRouter();
 
     useEffect(() => {
-        // 1. Wait until loading is finished
-        if (loading) return;
-
+        const labToken = localStorage.getItem("labToken");
         // 2. If no token is found in context, redirect to login
         if (!labToken) {
             router.push("/");

@@ -4,9 +4,10 @@ import { useAuth } from "@/app/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import { useUserContext } from "@/app/context/UserContext";
+import HospitalAPI from "@/app/services/HospitalAPI";
 
 function RegisterAsHospital() {
-  const { registerAsHospital, loading } = useAuth();
+  const { loading } = useAuth();
   const { closeModal, openModal } = useGlobalContext();
   const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
   const router = useRouter();
@@ -113,10 +114,12 @@ function RegisterAsHospital() {
         state: selectedState?.name || "",
         city: selectedCity?.name || "",
       };
+      console.log(finalData);
 
       delete finalData.confirmPassword;
-      await registerAsHospital(finalData);
-
+      const res = await HospitalAPI.regester(finalData);
+      localStorage.setItem("hospitalToken", res.token);
+      localStorage.setItem("hospital", res.profileStatus);
       setSuccess("Hospital Registered Successfully! Redirecting...");
       setTimeout(() => {
         closeModal();

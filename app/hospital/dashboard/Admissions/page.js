@@ -8,13 +8,17 @@ const ManageAdmissions = () => {
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
+
   // Modals State
   const [selectedAdmission, setSelectedAdmission] = useState(null);
   const [driverModal, setDriverModal] = useState({ isOpen: false, driversList: [], selectedDriverId: '' });
   const [dischargeModal, setDischargeModal] = useState({ isOpen: false, billingItems: [{ name: 'Medicines', price: '' }] });
   const [doctorModal, setDoctorModal] = useState({ isOpen: false, doctorsList: [], selectedDoctorId: '' });
 
-  // 🌟 NEW: Bed Assignment Modal State (Multi-Step)
+  // Bed Assignment Modal State (Multi-Step)
   const [bedAssignModal, setBedAssignModal] = useState({ 
     isOpen: false, 
     step: 1, // 1: Select Ward, 2: Select Bed
@@ -42,13 +46,21 @@ const ManageAdmissions = () => {
     }
   };
 
+  // Pagination Logic
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = admissions.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(admissions.length / itemsPerPage);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
   // ---------------------------------------------------------
   // 🛏️ ACTION: ASSIGN BED (STEP 1: FETCH WARDS)
   // ---------------------------------------------------------
   const openBedAssignModal = async () => {
     setBedAssignModal({ isOpen: true, step: 1, wards: [], beds: [], selectedWard: null, isLoadingData: true });
     try {
-      const response = await HospitalAPI.getWardsList(); // Reuse existing ward API
+      const response = await HospitalAPI.getWardsList(); 
       if (response?.success) {
         setBedAssignModal(prev => ({ ...prev, wards: response.data, isLoadingData: false }));
       } else {
@@ -65,12 +77,12 @@ const ManageAdmissions = () => {
   const handleSelectWard = async (ward) => {
     setBedAssignModal(prev => ({ ...prev, step: 2, selectedWard: ward, isLoadingData: true }));
     try {
-      const response = await HospitalAPI.getWardBeds(ward._id); // Reuse existing bed API
+      const response = await HospitalAPI.getWardBeds(ward._id); 
       if (response?.success) {
         setBedAssignModal(prev => ({ ...prev, beds: response.data, isLoadingData: false }));
       } else {
         alert(response?.message || 'Could not fetch beds.');
-        setBedAssignModal(prev => ({ ...prev, step: 1, isLoadingData: false })); // Go back if error
+        setBedAssignModal(prev => ({ ...prev, step: 1, isLoadingData: false })); 
       }
     } catch (error) {
       alert('Error fetching beds.');
@@ -81,21 +93,17 @@ const ManageAdmissions = () => {
   // 🛏️ ACTION: ADMIT PATIENT TO SPECIFIC BED
   const handleSelectBed = async (bed) => {
     if (bed.status !== 'Available') return alert('Please select an Available bed.');
-    
     if (!confirm(`Are you sure you want to admit patient to Bed: ${bed.bedNumber} in ${bedAssignModal.selectedWard.name}?`)) return;
 
     setIsProcessing(true);
     try {
-      const payload = { 
-        appointmentId: selectedAdmission._id, 
-        bedId: bed._id 
-      };
+      const payload = { appointmentId: selectedAdmission._id, bedId: bed._id };
       const response = await HospitalAPI.admitPatientToBed(payload);
       if (response?.success) {
         alert(`Success! Patient admitted to Bed ${bed.bedNumber}.`);
         setBedAssignModal({ isOpen: false, step: 1, wards: [], beds: [], selectedWard: null, isLoadingData: false });
-        setSelectedAdmission(null); // Close main modal
-        fetchAdmissions(); // Refresh List
+        setSelectedAdmission(null); 
+        fetchAdmissions(); 
       } else {
         alert('Error: ' + response.message);
       }
@@ -125,7 +133,6 @@ const ManageAdmissions = () => {
   const handleAssignDoctor = async (e) => {
     e.preventDefault();
     if (!doctorModal.selectedDoctorId) return alert('Please select a doctor!');
-    
     setIsProcessing(true);
     try {
       const payload = { appointmentId: selectedAdmission._id, doctorId: doctorModal.selectedDoctorId };
@@ -156,7 +163,6 @@ const ManageAdmissions = () => {
   const handleAssignDriver = async (e) => {
     e.preventDefault();
     if (!driverModal.selectedDriverId) return alert('Please select a driver!');
-    
     setIsProcessing(true);
     try {
       const payload = { caseId: selectedAdmission._id, driverId: driverModal.selectedDriverId };
@@ -219,162 +225,191 @@ const ManageAdmissions = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Confirmed': return 'bg-green-50 text-green-700 border-green-200';
-      case 'Hospital-Pending': return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+      case 'Confirmed': return 'bg-[#08B36A]/10 text-[#08B36A] border-[#08B36A]/30';
+      case 'Hospital-Pending': return 'bg-[#08B36A]/5 text-[#08B36A] border-[#08B36A]/20';
       case 'Discharged': return 'bg-gray-100 text-gray-700 border-gray-200';
-      default: return 'bg-blue-50 text-blue-700 border-blue-200';
+      default: return 'bg-[#08B36A]/10 text-[#08B36A] border-[#08B36A]/20';
     }
   };
 
   return (
-    <div className="p-6 max-w-[90rem] mx-auto font-sans min-h-screen relative bg-gray-50/50">
+    <div className="p-4 md:p-6 max-w-[90rem] mx-auto font-sans min-h-screen relative bg-gray-50/50">
       
       {/* ---------------- HEADER ---------------- */}
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
         <div>
-          <h2 className="text-3xl font-extrabold text-gray-800 tracking-tight">Hospital Admissions</h2>
-          <p className="text-sm text-gray-500 mt-1 font-medium">Manage admissions, assign beds & doctors, and process billing.</p>
+          <h2 className="text-2xl font-extrabold text-gray-800 tracking-tight">Hospital Admissions</h2>
+          <p className="text-[12px] text-gray-500 mt-0.5 font-medium">Manage ward allocation, staff assignment, and patient billing.</p>
         </div>
-        <div className="mt-4 md:mt-0 bg-blue-50 px-6 py-3 rounded-xl border border-blue-100 flex items-center gap-3 shadow-sm">
-           <span className="text-3xl">🏥</span>
+        <div className="mt-4 md:mt-0 bg-[#08B36A]/10 px-5 py-2.5 rounded-xl border border-[#08B36A]/20 flex items-center gap-3">
+           <span className="text-2xl">🏥</span>
            <div>
-              <p className="text-xs font-black text-blue-800 uppercase tracking-widest">Active Admissions</p>
-              <p className="text-xl font-black text-blue-900">{admissions.length}</p>
+              <p className="text-[10px] font-black text-[#08B36A] uppercase tracking-widest leading-none">In-Patient</p>
+              <p className="text-lg font-black text-[#08B36A] leading-none mt-1">{admissions.length}</p>
            </div>
         </div>
       </div>
 
-      {/* ---------------- ADMISSIONS TABLE LISTING ---------------- */}
+      {/* ---------------- ADMISSIONS TABLE LISTING (ENLARGED) ---------------- */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center h-64 gap-4"><SpinnerIcon className="w-10 h-10 text-blue-500 animate-spin" /><p className="text-lg text-gray-500 font-bold">Loading Admissions...</p></div>
+        <div className="flex flex-col items-center justify-center h-64 gap-4"><SpinnerIcon className="w-10 h-10 text-[#08B36A] animate-spin" /><p className="text-sm text-gray-500 font-bold">Syncing Records...</p></div>
       ) : admissions.length === 0 ? (
-        <div className="text-center bg-white p-20 rounded-3xl shadow-sm border-2 border-dashed border-gray-300">
-          <div className="w-24 h-24 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center text-5xl mb-6 mx-auto shadow-inner">🛏️</div>
-          <p className="text-gray-700 text-2xl font-black">No Admissions Found</p>
-          <p className="text-gray-500 mt-2">There are currently no active patient admissions.</p>
+        <div className="text-center bg-white p-16 rounded-3xl shadow-sm border-2 border-dashed border-gray-200">
+          <div className="w-20 h-20 bg-[#08B36A]/10 text-[#08B36A] rounded-full flex items-center justify-center text-4xl mb-4 mx-auto shadow-inner">🛏️</div>
+          <p className="text-gray-700 text-xl font-black">No Admissions Found</p>
         </div>
       ) : (
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto scrollbar-hide">
-            <table className="w-full text-left border-collapse whitespace-nowrap">
-              <thead>
-                <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 text-[10px] uppercase tracking-widest font-black">
-                  <th className="p-5">Booking ID</th>
-                  <th className="p-5">Patient Details</th>
-                  <th className="p-5">Bed / Ward</th>
-                  <th className="p-5">Assigned Doctor</th>
-                  <th className="p-5">Amount</th>
-                  <th className="p-5">Status</th>
-                  <th className="p-5 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {admissions.map((adm) => {
-                  const patient = adm.patients?.[0] || {};
-                  const isEmergency = adm.triageLevel === 'Emergency';
-                  const hasBed = adm.bedId && typeof adm.bedId === 'object' ? true : false; // Handle populated bed data if any
+        <>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto scrollbar-hide">
+              <table className="w-full text-left border-collapse whitespace-nowrap">
+                <thead>
+                  <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-[0.15em] font-black">
+                    <th className="px-6 py-5">ID</th>
+                    <th className="px-6 py-5">Patient Profile</th>
+                    <th className="px-6 py-5">Allocation</th>
+                    <th className="px-6 py-5">Doctor</th>
+                    <th className="px-6 py-5">Bill</th>
+                    <th className="px-6 py-5">Status</th>
+                    <th className="px-6 py-5 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {currentItems.map((adm) => {
+                    const patient = adm.patients?.[0] || {};
+                    const isEmergency = adm.triageLevel === 'Emergency';
 
-                  return (
-                    <tr 
-                      key={adm._id} 
-                      className="hover:bg-blue-50/40 transition-colors duration-200 group cursor-pointer"
-                      onClick={() => setSelectedAdmission(adm)}
-                    >
-                      {/* Booking ID */}
-                      <td className="p-5">
-                        <span className="bg-gray-100 text-gray-800 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-gray-200">
-                          {adm.bookingId}
-                        </span>
-                      </td>
-
-                      {/* Patient Info */}
-                      <td className="p-5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-lg border border-blue-200 shadow-sm">
-                            {patient.patientName?.charAt(0) || '?'}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-black text-gray-900">{patient.patientName || 'Unknown'}</p>
-                              {isEmergency && <span className="text-red-500 animate-pulse text-xs" title="Emergency Case">🚨</span>}
-                            </div>
-                            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mt-0.5">
-                              {patient.gender || 'N/A'} • {patient.patientAge ? `${patient.patientAge} Yrs` : 'N/A'}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Assigned Bed */}
-                      <td className="p-5">
-                        {adm.bedId && adm.bedId.bedNumber ? (
-                          <div className="flex items-center gap-2">
-                            <span className="bg-gray-900 text-white text-xs font-black px-2.5 py-1 rounded shadow-sm">{adm.bedId.bedNumber}</span>
-                            <span className="text-xs font-bold text-gray-600">{adm.bedId.wardId?.name || 'Assigned'}</span>
-                          </div>
-                        ) : (
-                          <span className="text-xs font-bold text-yellow-600 bg-yellow-50 px-2.5 py-1 rounded-md border border-yellow-100 animate-pulse">
-                            Bed Required
+                    return (
+                      <tr 
+                        key={adm._id} 
+                        className="hover:bg-[#08B36A]/5 transition-colors duration-200 group cursor-pointer"
+                        onClick={() => setSelectedAdmission(adm)}
+                      >
+                        {/* Booking ID */}
+                        <td className="px-6 py-5">
+                          <span className="text-xs font-black text-gray-600 bg-gray-50 px-3 py-1.5 rounded border border-gray-200">
+                            #{adm.bookingId}
                           </span>
-                        )}
-                      </td>
+                        </td>
 
-                      {/* Assigned Doctor */}
-                      <td className="p-5">
-                        {adm.doctorId?.name ? (
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg">👨‍⚕️</span>
-                            <span className="text-sm font-bold text-gray-800">{adm.doctorId.name}</span>
+                        {/* Patient Info */}
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-lg bg-[#08B36A]/10 text-[#08B36A] flex items-center justify-center font-black text-sm border border-[#08B36A]/20">
+                              {patient.patientName?.charAt(0) || '?'}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-base font-black text-gray-900 leading-none">{patient.patientName || 'Unknown'}</p>
+                                {isEmergency && <span className="text-[#08B36A] text-xs" title="Emergency"></span>}
+                              </div>
+                              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mt-1.5">
+                                {patient.gender} • {patient.patientAge}y
+                              </p>
+                            </div>
                           </div>
-                        ) : (
-                          <span className="text-xs font-bold text-gray-400 italic">Not Assigned</span>
-                        )}
-                      </td>
+                        </td>
 
-                      {/* Amount */}
-                      <td className="p-5">
-                        <p className="text-sm font-black text-green-700">₹{adm.totalAmount}</p>
-                        <p className={`text-[9px] font-black uppercase tracking-widest mt-1 ${adm.paymentStatus === 'Paid' ? 'text-green-600' : 'text-red-500'}`}>
-                          {adm.paymentStatus}
-                        </p>
-                      </td>
+                        {/* Bed */}
+                        <td className="px-6 py-5">
+                          {adm.bedId && adm.bedId.bedNumber ? (
+                            <div className="flex flex-col leading-tight">
+                              <span className="text-sm font-black text-gray-800">Bed {adm.bedId.bedNumber}</span>
+                              <span className="text-[11px] font-bold text-gray-500 uppercase mt-0.5">{adm.bedId.wardId?.name}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] font-black text-[#08B36A] bg-[#08B36A]/10 px-3 py-1 rounded border border-[#08B36A]/20 animate-pulse uppercase">
+                              Bed Needed
+                            </span>
+                          )}
+                        </td>
 
-                      {/* Status */}
-                      <td className="p-5">
-                        <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full border shadow-sm ${getStatusColor(adm.status)}`}>
-                          {adm.status}
-                        </span>
-                      </td>
+                        {/* Doctor */}
+                        <td className="px-6 py-5">
+                          {adm.doctorId?.name ? (
+                            <p className="text-sm font-bold text-gray-700">Dr. {adm.doctorId.name}</p>
+                          ) : (
+                            <span className="text-xs text-gray-300 italic">Unassigned</span>
+                          )}
+                        </td>
 
-                      {/* Action */}
-                      <td className="p-5 text-center">
-                        <button className="bg-white border border-gray-200 text-gray-700 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-200 text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-sm">
-                          View Details
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                        {/* Amount */}
+                        <td className="px-6 py-5">
+                          <p className="text-base font-black text-gray-800">₹{adm.totalAmount}</p>
+                          <p className={`text-[10px] font-black uppercase mt-1 ${adm.paymentStatus === 'Paid' ? 'text-[#08B36A]' : 'text-[#08B36A]/60'}`}>
+                            {adm.paymentStatus}
+                          </p>
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-6 py-5">
+                          <span className={`text-[10px] font-black uppercase tracking-wider px-4 py-1.5 rounded-full border ${getStatusColor(adm.status)}`}>
+                            {adm.status}
+                          </span>
+                        </td>
+
+                        {/* Action */}
+                        <td className="px-6 py-5 text-center">
+                          <button className="bg-white border border-gray-200 text-gray-500 group-hover:bg-[#08B36A] group-hover:text-white group-hover:border-[#08B36A] text-xs font-black px-4 py-2 rounded-lg transition-all">
+                            Manage
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+
+          {/* ---------------- PAGINATION ---------------- */}
+          <div className="mt-6 flex flex-col sm:flex-row justify-between items-center bg-white px-5 py-4 rounded-xl border border-gray-100 shadow-sm gap-4">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+              Showing <span className="text-[#08B36A]">{indexOfFirstItem + 1}</span> to <span className="text-[#08B36A]">{Math.min(indexOfLastItem, admissions.length)}</span> of <span className="text-[#08B36A]">{admissions.length}</span> records
+            </p>
+            <div className="flex gap-2">
+              <button 
+                onClick={(e) => { e.stopPropagation(); paginate(currentPage - 1); }} 
+                disabled={currentPage === 1}
+                className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-lg hover:bg-[#08B36A] hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 transition-all text-gray-600"
+              >
+                Prev
+              </button>
+              {[...Array(totalPages)].map((_, i) => (
+                <button
+                  key={i}
+                  onClick={(e) => { e.stopPropagation(); paginate(i + 1); }}
+                  className={`w-9 h-9 text-[10px] font-black rounded-lg border transition-all ${currentPage === i + 1 ? 'bg-[#08B36A] text-white border-[#08B36A]' : 'bg-white text-gray-600 border-gray-100 hover:border-[#08B36A]'}`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button 
+                onClick={(e) => { e.stopPropagation(); paginate(currentPage + 1); }} 
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-lg hover:bg-[#08B36A] hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 transition-all text-gray-600"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* ---------------------------------------------------------
-         MODAL 1: FULL ADMISSION DETAILS
+         MODAL 1: ADMISSION DETAILS
       --------------------------------------------------------- */}
       {selectedAdmission && !driverModal.isOpen && !dischargeModal.isOpen && !doctorModal.isOpen && !bedAssignModal.isOpen && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 md:pl-64 bg-gray-900/60 backdrop-blur-md transition-opacity animate-fadeIn">
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 md:pl-64 bg-gray-900/60 backdrop-blur-md animate-fadeIn">
           <div className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2rem] shadow-2xl relative scrollbar-hide flex flex-col">
             
             <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-gray-100 px-8 py-5 flex justify-between items-center z-10">
                <div>
                   <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
                      Admission Overview
-                     {selectedAdmission.triageLevel === 'Emergency' && <span className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full uppercase tracking-widest ml-2 border border-red-200">Emergency</span>}
+                     {selectedAdmission.triageLevel === 'Emergency' && <span className="bg-[#08B36A]/10 text-[#08B36A] text-xs px-2 py-1 rounded-full uppercase tracking-widest ml-2 border border-[#08B36A]/20">Emergency</span>}
                   </h2>
-                  <p className="text-gray-500 font-bold text-xs uppercase tracking-wide mt-1">Booking ID: <span className="text-blue-600">{selectedAdmission.bookingId}</span></p>
+                  <p className="text-gray-500 font-bold text-xs uppercase tracking-wide mt-1">Booking ID: <span className="text-[#08B36A]">{selectedAdmission.bookingId}</span></p>
                </div>
                <button onClick={() => setSelectedAdmission(null)} className="text-gray-400 hover:text-red-500 bg-gray-50 border border-gray-200 hover:border-red-200 w-10 h-10 flex items-center justify-center rounded-full transition-all">
                  <CloseIcon className="w-5 h-5"/>
@@ -388,20 +423,19 @@ const ManageAdmissions = () => {
                     <span className="text-xl font-black">{selectedAdmission.status}</span>
                  </div>
                  
-                 {/* BED ALLOCATION STATUS */}
-                 <div className="flex-1 p-4 rounded-2xl border flex flex-col justify-center items-center bg-gray-900 text-white border-gray-800 shadow-md">
+                 <div className="flex-1 p-4 rounded-2xl border flex flex-col justify-center items-center bg-[#08B36A] text-white border-[#08B36A] shadow-md">
                     <span className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-70">Bed Allocation</span>
                     {selectedAdmission.bedId?.bedNumber ? (
                        <div className="flex flex-col items-center">
-                         <span className="text-2xl font-black text-blue-400">{selectedAdmission.bedId.bedNumber}</span>
-                         <span className="text-xs font-bold mt-1 text-gray-300">{selectedAdmission.bedId.wardId?.name}</span>
+                         <span className="text-2xl font-black text-white">{selectedAdmission.bedId.bedNumber}</span>
+                         <span className="text-xs font-bold mt-1 text-white/80">{selectedAdmission.bedId.wardId?.name}</span>
                        </div>
                     ) : (
-                       <span className="text-lg font-black text-yellow-500 animate-pulse">Pending Bed</span>
+                       <span className="text-lg font-black text-white/80 animate-pulse">Pending Bed</span>
                     )}
                  </div>
 
-                 <div className={`flex-1 p-4 rounded-2xl border flex flex-col justify-center items-center ${selectedAdmission.paymentStatus === 'Paid' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                 <div className={`flex-1 p-4 rounded-2xl border flex flex-col justify-center items-center ${selectedAdmission.paymentStatus === 'Paid' ? 'bg-[#08B36A]/10 text-[#08B36A] border-[#08B36A]/20' : 'bg-[#08B36A]/5 text-[#08B36A]/60 border-[#08B36A]/10'}`}>
                     <span className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-70">Payment</span>
                     <span className="text-xl font-black flex items-center gap-1">{selectedAdmission.paymentStatus === 'Paid' ? '✅ Paid' : '❌ Pending'} </span>
                  </div>
@@ -422,36 +456,42 @@ const ManageAdmissions = () => {
                </div>
             </div>
 
-            {/* 🔥 STICKY FOOTER ACTION BUTTONS */}
             <div className="sticky bottom-0 bg-white border-t border-gray-100 p-6 flex flex-wrap justify-end gap-3 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
                {selectedAdmission.status !== 'Discharged' && (
-                 <>
-                   {/* Assign BED Button */}
-                   {(!selectedAdmission.bedId || !selectedAdmission.bedId.bedNumber) && (
-                     <button onClick={openBedAssignModal} className="px-6 py-3.5 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 border border-yellow-200 font-bold rounded-xl flex items-center gap-2 transition-colors">
-                       🛏️ Assign Bed
-                     </button>
-                   )}
+               <>
+  {(!selectedAdmission.doctorId || selectedAdmission.status === 'Hospital-Pending') && (
+    <button onClick={openAssignDoctorModal} disabled={isProcessing} className="px-6 py-3.5 bg-[#08B36A]/10 hover:bg-[#08B36A]/20 text-[#08B36A] border border-[#08B36A]/20 font-bold rounded-xl flex items-center gap-2 transition-colors">
+      {isProcessing ? (
+        <SpinnerIcon className="w-5 h-5 animate-spin" />
+      ) : (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      )} 
+      Assign Doctor
+    </button>
+  )}
 
-                   {/* Assign Doctor Button */}
-                   {(!selectedAdmission.doctorId || selectedAdmission.status === 'Hospital-Pending') && (
-                     <button onClick={openAssignDoctorModal} disabled={isProcessing} className="px-6 py-3.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 font-bold rounded-xl flex items-center gap-2 transition-colors">
-                       {isProcessing ? <SpinnerIcon className="w-5 h-5 animate-spin" /> : '👨‍⚕️'} Assign Doctor
-                     </button>
-                   )}
+  <button onClick={openAssignDriverModal} disabled={isProcessing} className="px-6 py-3.5 bg-[#08B36A]/10 hover:bg-[#08B36A]/20 text-[#08B36A] border border-[#08B36A]/20 font-bold rounded-xl flex items-center gap-2 transition-colors">
+    {isProcessing ? (
+      <SpinnerIcon className="w-5 h-5 animate-spin" />
+    ) : (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0zM13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+      </svg>
+    )} 
+    Assign Ambulance
+  </button>
 
-                   {/* Assign Ambulance */}
-                   <button onClick={openAssignDriverModal} disabled={isProcessing} className="px-6 py-3.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold rounded-xl flex items-center gap-2 transition-colors">
-                     {isProcessing ? <SpinnerIcon className="w-5 h-5 animate-spin" /> : '🚑'} Assign Ambulance
-                   </button>
-
-                   {/* Initiate Discharge */}
-                   {selectedAdmission.bedId?.bedNumber && selectedAdmission.status !== 'Hospital-Pending' && (
-                     <button onClick={openDischargeModal} className="px-8 py-3.5 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 font-black rounded-xl flex items-center gap-2 transition-all">
-                       🧾 Initiate Discharge
-                     </button>
-                   )}
-                 </>
+  {selectedAdmission.bedId?.bedNumber && selectedAdmission.status !== 'Hospital-Pending' && (
+    <button onClick={openDischargeModal} className="px-8 py-3.5 bg-[#08B36A] hover:bg-[#08B36A]/90 text-white shadow-lg shadow-[#08B36A]/20 font-black rounded-xl flex items-center gap-2 transition-all">
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+      Initiate Discharge
+    </button>
+  )}
+</>
                )}
             </div>
 
@@ -459,254 +499,171 @@ const ManageAdmissions = () => {
         </div>
       )}
 
-      {/* ---------------------------------------------------------
-         🌟 MODAL 1.5: 🛏️ BED ASSIGNMENT (MULTI-STEP)
-      --------------------------------------------------------- */}
-      {bedAssignModal.isOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:pl-64 bg-gray-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2rem] shadow-2xl relative scrollbar-hide flex flex-col">
-            
-            {/* Header */}
-            <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-gray-100 px-8 py-5 flex justify-between items-center z-10">
-               <div>
-                  <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-                     🛏️ Assign Bed Allocation
-                  </h2>
-                  <p className="text-blue-600 font-bold text-xs uppercase tracking-wide mt-1">
-                    {bedAssignModal.step === 1 ? 'Step 1: Select a Ward' : `Step 2: Select an Available Bed in ${bedAssignModal.selectedWard?.name}`}
-                  </p>
-               </div>
-               <div className="flex items-center gap-3">
-                 {bedAssignModal.step === 2 && (
-                    <button onClick={() => setBedAssignModal(prev => ({...prev, step: 1, selectedWard: null, beds: []}))} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-all">
-                      ⬅ Back to Wards
-                    </button>
-                 )}
-                 <button onClick={() => setBedAssignModal({ isOpen: false, step: 1, wards: [], beds: [], selectedWard: null, isLoadingData: false })} className="text-gray-400 hover:text-red-500 bg-gray-50 border border-gray-200 hover:border-red-200 w-10 h-10 flex items-center justify-center rounded-full transition-all">
-                   <CloseIcon className="w-5 h-5"/>
-                 </button>
-               </div>
-            </div>
 
-            <div className="p-8 flex-grow">
-               {bedAssignModal.isLoadingData ? (
-                  <div className="flex flex-col justify-center items-center h-48 gap-3">
-                     <SpinnerIcon className="w-8 h-8 text-blue-500 animate-spin" />
-                     <p className="text-gray-500 font-bold text-sm">Loading Data...</p>
-                  </div>
-               ) : bedAssignModal.step === 1 ? (
-                  /* --- STEP 1: WARDS GRID --- */
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                     {bedAssignModal.wards.length === 0 ? (
-                       <p className="col-span-full text-center text-gray-500 font-bold py-10">No wards available.</p>
-                     ) : (
-                       bedAssignModal.wards.map(ward => (
-                         <div 
-                           key={ward._id} onClick={() => handleSelectWard(ward)} 
-                           className="bg-white border-2 border-gray-200 rounded-2xl p-5 cursor-pointer hover:border-blue-500 hover:shadow-lg hover:shadow-blue-100 transition-all group"
-                         >
-                           <h3 className="text-xl font-black text-gray-800 group-hover:text-blue-600 transition-colors">{ward.name}</h3>
-                           <p className="text-xs text-gray-500 font-bold uppercase mt-1">{ward.type}</p>
-                           
-                           <div className="mt-6 flex justify-between items-center border-t border-gray-100 pt-4">
-                              <span className="text-xs font-bold text-gray-600">Total: {ward.totalBeds}</span>
-                              <span className={`text-xs font-black px-3 py-1 rounded border shadow-sm ${ward.availableBeds > 0 ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                                {ward.availableBeds > 0 ? `${ward.availableBeds} Available` : 'Full'}
-                              </span>
-                           </div>
-                         </div>
-                       ))
-                     )}
-                  </div>
-               ) : (
-                  /* --- STEP 2: BEDS GRID --- */
-                  <div>
-                    {/* Status Legends */}
-                    <div className="flex items-center justify-end gap-4 mb-6">
-                       <span className="text-green-600 font-bold text-[10px] tracking-wide uppercase flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div> Available</span>
-                       <span className="text-red-600 font-bold text-[10px] tracking-wide uppercase flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500"></div> Occupied</span>
-                       <span className="text-yellow-600 font-bold text-[10px] tracking-wide uppercase flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500"></div> Maintenance</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                       {bedAssignModal.beds.length === 0 ? (
-                          <p className="col-span-full text-center text-gray-500 font-bold py-10">No beds found in this ward.</p>
-                       ) : (
-                          bedAssignModal.beds.map(bed => {
-                             const isAvail = bed.status === 'Available';
-                             const isOccupied = bed.status === 'Occupied';
-                             const isMaint = bed.status === 'Maintenance';
-                             
-                             let cardStyle = "bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed";
-                             let badgeStyle = "bg-gray-200 text-gray-800";
-                             
-                             if (isAvail) { cardStyle = "bg-green-50 border-green-200 hover:shadow-lg hover:shadow-green-100 hover:-translate-y-1 cursor-pointer"; badgeStyle = "bg-green-200 text-green-800"; }
-                             else if (isOccupied) { cardStyle = "bg-red-50 border-red-200 opacity-70 cursor-not-allowed"; badgeStyle = "bg-red-200 text-red-800"; }
-                             else if (isMaint) { cardStyle = "bg-yellow-50 border-yellow-300 border-dashed opacity-70 cursor-not-allowed"; badgeStyle = "bg-yellow-200 text-yellow-800"; }
-
-                             return (
-                                <div key={bed._id} onClick={() => isAvail && handleSelectBed(bed)} className={`relative p-4 rounded-2xl border-2 flex flex-col items-center justify-center text-center transition-all group ${cardStyle}`}>
-                                   <span className="text-3xl mb-2 drop-shadow-sm">{isOccupied ? '🛌' : isMaint ? '🛠️' : '🛏️'}</span>
-                                   <span className="text-sm font-black text-gray-900 tracking-wider uppercase">{bed.bedNumber}</span>
-                                   <span className={`mt-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${badgeStyle}`}>
-                                     {bed.status}
-                                   </span>
-                                   <span className="mt-2 text-[10px] text-gray-500 font-bold">₹{bed.pricePerDay || 0}/day</span>
-                                   
-                                   {/* Select Overlay */}
-                                   {isAvail && (
-                                     <div className="absolute inset-0 bg-green-500/10 opacity-0 group-hover:opacity-100 rounded-xl transition-opacity flex items-center justify-center backdrop-blur-[1px]">
-                                        <span className="bg-green-600 text-white text-xs font-black px-3 py-1.5 rounded-full shadow-md">Click to Assign</span>
-                                     </div>
-                                   )}
-                                </div>
-                             )
-                          })
-                       )}
-                    </div>
-                  </div>
-               )}
-            </div>
-          </div>
+{/* --- MODAL 2: ASSIGN DOCTOR --- */}
+{doctorModal.isOpen && (
+  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:pl-64 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+    <div className="bg-white w-full max-w-xl max-h-[85vh] overflow-hidden rounded-[2.5rem] shadow-2xl flex flex-col">
+      <div className="bg-[#08B36A] px-8 py-6 text-white flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-black uppercase tracking-tight">Select Physician</h2>
+          <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest mt-1">Personnel Assignment</p>
         </div>
-      )}
+        <button onClick={() => setDoctorModal({ isOpen: false, doctorsList: [], selectedDoctorId: '' })} className="hover:bg-white/10 w-8 h-8 flex items-center justify-center rounded-full transition-all"><CloseIcon className="w-5 h-5"/></button>
+      </div>
 
-      {/* ---------------------------------------------------------
-         MODAL 2: ASSIGN DOCTOR (APPROVE ADMISSION)
-      --------------------------------------------------------- */}
-      {doctorModal.isOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:pl-64 bg-gray-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white w-full max-w-md overflow-hidden rounded-[2rem] shadow-2xl relative">
-            <div className="bg-green-50 border-b border-green-100 px-8 py-6 flex justify-between items-center">
-               <h2 className="text-xl font-black text-green-900 flex items-center gap-2">👨‍⚕️ Assign Doctor</h2>
-               <button onClick={() => setDoctorModal({ isOpen: false, doctorsList: [], selectedDoctorId: '' })} className="text-gray-400 hover:text-red-500 bg-white border border-gray-200 w-8 h-8 flex items-center justify-center rounded-full"><CloseIcon className="w-4 h-4"/></button>
-            </div>
-            <div className="p-8">
-              <form onSubmit={handleAssignDoctor} className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-xs text-gray-700 font-black tracking-wide uppercase">Select Available Doctor</label>
-                  {doctorModal.doctorsList.length === 0 ? (
-                    <p className="text-sm text-red-500 font-bold bg-red-50 p-4 rounded-xl border border-red-100">No doctors registered in your hospital yet.</p>
-                  ) : (
-                    <select required value={doctorModal.selectedDoctorId} onChange={(e) => setDoctorModal({...doctorModal, selectedDoctorId: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:border-green-500 font-semibold bg-white cursor-pointer">
-                      <option value="">-- Choose Doctor --</option>
-                      {doctorModal.doctorsList.map(doc => (
-                        <option key={doc._id} value={doc._id}>Dr. {doc.name} ({doc.speciality || 'General'})</option>
-                      ))}
-                    </select>
-                  )}
+      <div className="p-8 overflow-y-auto flex-grow bg-slate-50">
+        <div className="grid grid-cols-1 gap-3">
+          {doctorModal.doctorsList.length === 0 ? (
+            <p className="text-center py-10 text-slate-400 text-xs font-black uppercase">No active doctors</p>
+          ) : (
+            doctorModal.doctorsList.map(doc => (
+              <div 
+                key={doc._id}
+                onClick={() => setDoctorModal({...doctorModal, selectedDoctorId: doc._id})}
+                className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between group
+                  ${doctorModal.selectedDoctorId === doc._id ? 'bg-[#08B36A] border-[#08B36A] shadow-lg shadow-[#08B36A]/20' : 'bg-white border-white hover:border-slate-200'}`}
+              >
+                <div>
+                  <h4 className={`font-black text-sm uppercase ${doctorModal.selectedDoctorId === doc._id ? 'text-white' : 'text-slate-800'}`}>Dr. {doc.name}</h4>
+                  <p className={`text-[10px] font-bold uppercase tracking-tight ${doctorModal.selectedDoctorId === doc._id ? 'text-white/80' : 'text-slate-400'}`}>{doc.speciality || 'General Medicine'}</p>
                 </div>
-                <button type="submit" disabled={isProcessing || doctorModal.doctorsList.length === 0} className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-black py-4 rounded-xl shadow-lg shadow-green-200 transition-all flex justify-center items-center gap-2">
-                  {isProcessing && <SpinnerIcon className="w-5 h-5 text-white animate-spin" />} Assign & Approve Request
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ---------------------------------------------------------
-         MODAL 3: ASSIGN AMBULANCE DRIVER
-      --------------------------------------------------------- */}
-      {driverModal.isOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:pl-64 bg-gray-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white w-full max-w-md overflow-hidden rounded-[2rem] shadow-2xl relative">
-            <div className="bg-indigo-50 border-b border-indigo-100 px-8 py-6 flex justify-between items-center">
-               <h2 className="text-xl font-black text-indigo-900 flex items-center gap-2">🚑 Assign Driver</h2>
-               <button onClick={() => setDriverModal({ isOpen: false, driversList: [], selectedDriverId: '' })} className="text-gray-400 hover:text-red-500 bg-white border border-gray-200 w-8 h-8 flex items-center justify-center rounded-full"><CloseIcon className="w-4 h-4"/></button>
-            </div>
-            <div className="p-8">
-              <form onSubmit={handleAssignDriver} className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-xs text-gray-700 font-black tracking-wide uppercase">Select Available Driver</label>
-                  {driverModal.driversList.length === 0 ? (
-                    <p className="text-sm text-red-500 font-bold bg-red-50 p-4 rounded-xl border border-red-100">No drivers are currently "On Duty".</p>
-                  ) : (
-                    <select required value={driverModal.selectedDriverId} onChange={(e) => setDriverModal({...driverModal, selectedDriverId: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:border-indigo-500 font-semibold bg-white cursor-pointer">
-                      <option value="">-- Choose Driver --</option>
-                      {driverModal.driversList.map(driver => (
-                        <option key={driver._id} value={driver._id}>{driver.name} (Exp: {driver.experienceYears}y)</option>
-                      ))}
-                    </select>
-                  )}
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${doctorModal.selectedDoctorId === doc._id ? 'bg-white border-white' : 'border-slate-100'}`}>
+                   {doctorModal.selectedDoctorId === doc._id && <div className="w-2 h-2 bg-[#08B36A] rounded-full"></div>}
                 </div>
-                <button type="submit" disabled={isProcessing || driverModal.driversList.length === 0} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black py-4 rounded-xl shadow-lg shadow-indigo-200 transition-all flex justify-center items-center gap-2">
-                  {isProcessing && <SpinnerIcon className="w-5 h-5 text-white animate-spin" />} Dispatch Ambulance
-                </button>
-              </form>
-            </div>
-          </div>
+              </div>
+            ))
+          )}
         </div>
-      )}
+      </div>
+
+      <div className="p-8 bg-white border-t border-slate-100">
+        <button 
+          onClick={handleAssignDoctor}
+          disabled={isProcessing || !doctorModal.selectedDoctorId} 
+          className="w-full bg-[#08B36A] hover:bg-[#08B36A]/90 disabled:bg-slate-200 text-white font-black py-4 rounded-2xl transition-all uppercase text-xs tracking-[0.2em] flex justify-center items-center gap-2"
+        >
+          {isProcessing ? <SpinnerIcon className="w-4 h-4 animate-spin" /> : 'Confirm Assignment'}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* --- MODAL 3: ASSIGN DRIVER --- */}
+{driverModal.isOpen && (
+  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:pl-64 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+    <div className="bg-white w-full max-w-xl max-h-[85vh] overflow-hidden rounded-[2.5rem] shadow-2xl flex flex-col">
+      <div className="bg-[#08B36A] px-8 py-6 text-white flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-black uppercase tracking-tight">Assign Dispatcher</h2>
+          <p className="text-[10px] text-white/70 font-bold uppercase tracking-widest mt-1">Vehicle Logistics</p>
+        </div>
+        <button onClick={() => setDriverModal({ isOpen: false, driversList: [], selectedDriverId: '' })} className="hover:bg-white/10 w-8 h-8 flex items-center justify-center rounded-full transition-all"><CloseIcon className="w-5 h-5"/></button>
+      </div>
+
+      <div className="p-8 overflow-y-auto flex-grow bg-slate-50">
+        <div className="grid grid-cols-1 gap-3">
+          {driverModal.driversList.length === 0 ? (
+            <p className="text-center py-10 text-slate-400 text-xs font-black uppercase">No drivers available</p>
+          ) : (
+            driverModal.driversList.map(driver => (
+              <div 
+                key={driver._id}
+                onClick={() => setDriverModal({...driverModal, selectedDriverId: driver._id})}
+                className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between
+                  ${driverModal.selectedDriverId === driver._id ? 'bg-[#08B36A] border-[#08B36A] shadow-lg shadow-[#08B36A]/20' : 'bg-white border-white hover:border-slate-200'}`}
+              >
+                <div>
+                  <h4 className={`font-black text-sm uppercase ${driverModal.selectedDriverId === driver._id ? 'text-white' : 'text-slate-800'}`}>{driver.name}</h4>
+                  <p className={`text-[10px] font-bold uppercase tracking-tight ${driverModal.selectedDriverId === driver._id ? 'text-white/80' : 'text-slate-400'}`}>Experience: {driver.experienceYears} Years</p>
+                </div>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${driverModal.selectedDriverId === driver._id ? 'bg-white border-white' : 'border-slate-100'}`}>
+                   {driverModal.selectedDriverId === driver._id && <div className="w-2 h-2 bg-[#08B36A] rounded-full"></div>}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="p-8 bg-white border-t border-slate-100">
+        <button 
+          onClick={handleAssignDriver}
+          disabled={isProcessing || !driverModal.selectedDriverId} 
+          className="w-full bg-[#08B36A] hover:bg-[#08B36A]/90 disabled:bg-slate-200 text-white font-black py-4 rounded-2xl transition-all uppercase text-xs tracking-[0.2em] flex justify-center items-center gap-2"
+        >
+          {isProcessing ? <SpinnerIcon className="w-4 h-4 animate-spin" /> : 'Confirm Dispatch'}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* ---------------------------------------------------------
-         MODAL 4: DISCHARGE & BILLING INVOICE
+         MODAL 4: DISCHARGE & BILLING
       --------------------------------------------------------- */}
       {dischargeModal.isOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:pl-64 bg-gray-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white w-full max-w-2xl max-h-[95vh] overflow-y-auto rounded-[2rem] shadow-2xl relative scrollbar-hide">
             
-            <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-8 py-6 flex justify-between items-center z-10">
+            <div className="sticky top-0 bg-[#08B36A] border-b border-[#08B36A]/10 px-8 py-6 flex justify-between items-center z-10">
                <div>
                  <h2 className="text-xl font-black text-white flex items-center gap-2">🧾 Discharge & Final Billing</h2>
-                 <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mt-1">Patient: {selectedAdmission?.patients[0]?.patientName}</p>
+                 <p className="text-white/70 text-xs font-bold uppercase tracking-widest mt-1">Patient: {selectedAdmission?.patients[0]?.patientName}</p>
                </div>
-               <button type="button" onClick={() => setDischargeModal({ isOpen: false, billingItems: [] })} className="text-gray-300 hover:text-white bg-gray-800 border border-gray-700 w-10 h-10 flex items-center justify-center rounded-full transition-all"><CloseIcon className="w-5 h-5"/></button>
+               <button type="button" onClick={() => setDischargeModal({ isOpen: false, billingItems: [] })} className="text-white/70 hover:text-white bg-white/10 border border-white/20 w-10 h-10 flex items-center justify-center rounded-full transition-all"><CloseIcon className="w-5 h-5"/></button>
             </div>
 
             <div className="p-8">
               <form onSubmit={handleDischargeSubmit} className="space-y-6">
                 
-                {/* Initial Amount Box */}
-                <div className="bg-green-50 border border-green-200 p-5 rounded-2xl flex justify-between items-center mb-6">
+                <div className="bg-[#08B36A]/5 border border-[#08B36A]/20 p-5 rounded-2xl flex justify-between items-center mb-6">
                    <div>
-                     <p className="text-xs text-green-700 font-black uppercase tracking-widest">Admission Base Amount</p>
-                     <p className="text-[10px] text-green-600 font-medium">Already paid during booking</p>
+                     <p className="text-xs text-[#08B36A] font-black uppercase tracking-widest">Base Amount</p>
+                     <p className="text-[10px] text-[#08B36A]/60 font-medium">Paid during booking</p>
                    </div>
-                   <span className="text-2xl font-black text-green-700">₹{selectedAdmission?.totalAmount || 0}</span>
+                   <span className="text-2xl font-black text-[#08B36A]">₹{selectedAdmission?.totalAmount || 0}</span>
                 </div>
 
-                {/* Extra Services Items Array */}
                 <div className="space-y-4">
-                  <h3 className="text-sm font-black text-gray-800 uppercase border-b pb-2">Add Extra Services / Medicine Charges</h3>
+                  <h3 className="text-sm font-black text-gray-800 uppercase border-b pb-2">Add Extra Charges</h3>
                   {dischargeModal.billingItems.map((item, index) => (
                     <div key={index} className="flex gap-3 items-center group">
                        <input 
-                         type="text" required placeholder="Item Name (e.g. Nursing, Lab)" 
+                         type="text" required placeholder="Item Name" 
                          value={item.name} onChange={(e) => updateBillingRow(index, 'name', e.target.value)} 
-                         className="flex-1 border-2 border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-blue-500 font-semibold"
+                         className="flex-1 border-2 border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-[#08B36A] font-semibold"
                        />
                        <div className="relative w-1/3">
                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₹</span>
                          <input 
                            type="number" required placeholder="Amount" 
                            value={item.price} onChange={(e) => updateBillingRow(index, 'price', e.target.value)} 
-                           className="w-full border-2 border-gray-200 rounded-xl p-3 pl-8 text-sm focus:outline-none focus:border-blue-500 font-black text-gray-800"
+                           className="w-full border-2 border-gray-200 rounded-xl p-3 pl-8 text-sm focus:outline-none focus:border-[#08B36A] font-black text-gray-800"
                          />
                        </div>
-                       <button type="button" onClick={() => removeBillingRow(index)} className="text-gray-300 hover:text-red-500 p-2 transition-colors" title="Remove Row">
+                       <button type="button" onClick={() => removeBillingRow(index)} className="text-gray-300 hover:text-red-500 p-2 transition-colors">
                          <TrashIcon className="w-5 h-5" />
                        </button>
                     </div>
                   ))}
-                  <button type="button" onClick={addBillingRow} className="text-sm font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-2">
-                     <span className="text-lg">+</span> Add Another Item
+                  <button type="button" onClick={addBillingRow} className="text-sm font-bold text-[#08B36A] hover:text-[#08B36A]/80 flex items-center gap-1 mt-2">
+                     <span className="text-lg">+</span> Add Item
                   </button>
                 </div>
 
-                {/* Calculate Rough Total Dynamically on Frontend */}
                 <div className="bg-gray-50 border border-gray-200 p-5 rounded-2xl flex justify-between items-center mt-6">
-                   <span className="text-sm text-gray-600 font-black uppercase tracking-widest">Total Grand Bill</span>
+                   <span className="text-sm text-gray-600 font-black uppercase tracking-widest">Grand Total</span>
                    <span className="text-3xl font-black text-gray-900">
                      ₹{(selectedAdmission?.totalAmount || 0) + dischargeModal.billingItems.reduce((sum, item) => sum + (Number(item.price) || 0), 0)}
                    </span>
                 </div>
 
                 <div className="pt-4 border-t border-gray-100">
-                  <button type="submit" disabled={isProcessing} className="w-full bg-gray-900 hover:bg-black text-white font-black py-4 rounded-xl shadow-xl transition-all flex justify-center items-center gap-2 text-lg">
-                    {isProcessing && <SpinnerIcon className="w-6 h-6 text-white animate-spin" />} Finalize Discharge & Release Bed
+                  <button type="submit" disabled={isProcessing} className="w-full bg-[#08B36A] hover:bg-[#08B36A]/90 text-white font-black py-4 rounded-xl shadow-xl transition-all flex justify-center items-center gap-2 text-lg">
+                    {isProcessing && <SpinnerIcon className="w-6 h-6 text-white animate-spin" />} Finalize Discharge
                   </button>
-                  <p className="text-center text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-3">This action will credit the amount to your hospital wallet.</p>
                 </div>
 
               </form>
@@ -720,10 +677,6 @@ const ManageAdmissions = () => {
 };
 
 export default ManageAdmissions;
-
-// ---------------------------------------------------------
-// REUSABLE COMPONENTS & ICONS
-// ---------------------------------------------------------
 
 const InfoSection = ({ title, children }) => (
   <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 shadow-sm w-full block">

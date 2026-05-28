@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/app/context/AuthContext'
 import {
   FaStethoscope, FaPlus, FaEdit, FaTimes, FaSpinner, 
-  FaRupeeSign, FaFileImage, FaHeading, FaAlignLeft
+  FaRupeeSign, FaFileImage, FaHeading, FaAlignLeft, FaTrashAlt
 } from "react-icons/fa"
 import HospitalAPI from '@/app/services/HospitalAPI';
 
@@ -134,27 +134,27 @@ export default function HospitalServicesPage() {
 
   return (
     <>
-      <div className="max-w-6xl mx-auto space-y-6 pb-12">
+      <div className="max-w-7xl mx-auto space-y-6 pb-12 px-4">
         
         {/* --- HEADER SECTION --- */}
-        <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden relative">
-          <div className="h-32 bg-gradient-to-r from-[#08B36A] via-emerald-500 to-teal-700 relative flex items-center px-8">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden relative">
+          <div className="h-28 bg-gradient-to-r from-[#08B36A] via-emerald-500 to-[#069e5d] relative flex items-center px-8">
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
             
-            <div className="relative z-10 flex w-full justify-between items-center text-white pt-2">
+            <div className="relative z-10 flex w-full justify-between items-center text-white">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
-                  <FaStethoscope size={28} className="text-white" />
+                  <FaStethoscope size={24} className="text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-extrabold tracking-tight">Hospital Services</h1>
-                  <p className="text-sm text-green-50 opacity-90 font-medium">Manage and list medical services</p>
+                  <h1 className="text-2xl font-black tracking-tight">Hospital Services</h1>
+                  <p className="text-xs text-green-50 opacity-90 font-medium uppercase tracking-wider">Inventory Management</p>
                 </div>
               </div>
               
               <button 
                 onClick={openAddModal}
-                className="hidden sm:flex bg-white text-[#08B36A] px-6 py-2.5 rounded-2xl font-bold hover:bg-gray-50 hover:shadow-lg transition-all items-center gap-2"
+                className="hidden sm:flex bg-white text-[#08B36A] px-6 py-2.5 rounded-xl font-bold hover:bg-gray-50 hover:shadow-lg transition-all items-center gap-2"
               >
                 <FaPlus /> Add New Service
               </button>
@@ -172,93 +172,123 @@ export default function HospitalServicesPage() {
             </button>
         </div>
 
-        {/* --- SERVICES GRID --- */}
-        {services.length === 0 ? (
-           <div className="bg-white rounded-[2rem] p-12 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-              <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center text-[#08B36A] mb-4 opacity-50">
-                <FaStethoscope size={40} />
-              </div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2">No Services Added</h3>
-              <p className="text-gray-500 max-w-md mx-auto">You haven't listed any hospital services yet. Add services like X-Ray, Blood Test, etc. to display them.</p>
-           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {services.map((service) => {
-              const imgUrl = service.image ? `${backendUrl}${service.image}` : null;
-              return (
-                <div key={service._id} className="bg-white rounded-[1.5rem] shadow-sm border border-gray-100 overflow-hidden group hover:shadow-lg transition-all duration-300 flex flex-col">
-                  
-                  {/* Image Header */}
-                  <div className="h-40 bg-gray-50 relative overflow-hidden flex items-center justify-center border-b border-gray-100">
-                    {imgUrl ? (
-                      <img src={imgUrl} alt={service.serviceName} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    ) : (
-                      <FaStethoscope className="text-gray-300 text-4xl opacity-50" />
-                    )}
-                    
-                    {/* Price Tag Overlay */}
-                    <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-sm text-[#08B36A] font-black text-sm flex items-center gap-1 border border-white">
-                      <FaRupeeSign size={12} /> {service.price}
-                    </div>
-                  </div>
-
-                  <div className="p-5 flex-1 flex flex-col">
-                    <h3 className="text-xl font-black text-gray-800 mb-2 truncate" title={service.serviceName}>
-                      {service.serviceName}
-                    </h3>
-                    <p className="text-sm text-gray-500 line-clamp-3 leading-relaxed flex-1">
-                      {service.description || "No description provided."}
-                    </p>
-                    
-                    <button 
-                      onClick={() => openEditModal(service)}
-                      className="mt-4 w-full py-2.5 rounded-xl font-bold text-[#08B36A] bg-green-50 hover:bg-[#08B36A] hover:text-white border border-green-100 transition-all flex items-center justify-center gap-2"
-                    >
-                      <FaEdit /> Edit Service
-                    </button>
-                  </div>
+        {/* --- SERVICES TABLE --- */}
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+          {services.length === 0 ? (
+             <div className="p-16 flex flex-col items-center justify-center text-center">
+                <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center text-[#08B36A] mb-4 opacity-50">
+                  <FaStethoscope size={40} />
                 </div>
-              )
-            })}
-          </div>
-        )}
+                <h3 className="text-xl font-bold text-gray-800 mb-2">No Services Added</h3>
+                <p className="text-gray-500 max-w-md mx-auto">You haven't listed any hospital services yet.</p>
+             </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/80 border-b border-gray-100">
+                    <th className="px-6 py-4 text-[11px] font-black text-gray-500 uppercase tracking-widest">Service Details</th>
+                    <th className="px-6 py-4 text-[11px] font-black text-gray-500 uppercase tracking-widest hidden md:table-cell">Description</th>
+                    <th className="px-6 py-4 text-[11px] font-black text-gray-500 uppercase tracking-widest">Price</th>
+                    <th className="px-6 py-4 text-[11px] font-black text-gray-500 uppercase tracking-widest text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {services.map((service) => {
+                    const imgUrl = service.image ? `${backendUrl}${service.image}` : null;
+                    return (
+                      <tr key={service._id} className="hover:bg-gray-50/50 transition-colors group">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-100 flex items-center justify-center">
+                              {imgUrl ? (
+                                <img src={imgUrl} alt={service.serviceName} className="w-full h-full object-cover" />
+                              ) : (
+                                <FaStethoscope className="text-gray-300 text-xl" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-bold text-gray-800 text-sm">{service.serviceName}</p>
+                              <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5 md:hidden">
+                                {service.description?.substring(0, 30)}...
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 hidden md:table-cell">
+                          <p className="text-sm text-gray-500 line-clamp-2 max-w-md leading-relaxed">
+                            {service.description || "No description provided."}
+                          </p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-[#08B36A] font-black text-sm rounded-lg border border-green-100">
+                            <FaRupeeSign size={10} /> {service.price}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button 
+                            onClick={() => openEditModal(service)}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white text-gray-600 border border-gray-200 rounded-xl font-bold text-xs hover:bg-[#08B36A] hover:text-white hover:border-[#08B36A] transition-all shadow-sm"
+                          >
+                            <FaEdit /> Edit
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* --- ADD / EDIT SERVICE MODAL --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[2rem] shadow-2xl flex flex-col relative animate-in zoom-in-95 duration-200">
+          <div className="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[2rem] shadow-2xl flex flex-col relative animate-in zoom-in-95 duration-200 scrollbar-hide">
             
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-gray-50 border-b border-gray-100 px-6 py-5 flex items-center justify-between">
-              <h2 className="text-xl font-extrabold text-gray-800 flex items-center gap-2">
-                {editId ? <FaEdit className="text-[#08B36A]"/> : <FaPlus className="text-[#08B36A]"/>} 
-                {editId ? 'Update Service' : 'Add New Service'}
-              </h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 bg-white text-gray-500 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors border border-gray-100">
+            <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-8 py-6 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-green-50 text-[#08B36A] rounded-xl">
+                  {editId ? <FaEdit size={20}/> : <FaPlus size={20}/>}
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-gray-800">
+                    {editId ? 'Update Service' : 'Add New Service'}
+                  </h2>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Service Catalog</p>
+                </div>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors border border-gray-100">
                 <FaTimes />
               </button>
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-5">
+            <form onSubmit={handleSubmit} className="p-8 space-y-6">
               
               {/* Image Upload Area */}
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Service Image</label>
-                <div className="relative border-2 border-dashed border-gray-300 rounded-2xl h-36 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors overflow-hidden group">
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2.5 ml-1">Service Image</label>
+                <div className="relative border-2 border-dashed border-gray-200 rounded-2xl h-40 flex flex-col items-center justify-center bg-gray-50/50 hover:bg-green-50/30 hover:border-[#08B36A]/30 transition-all overflow-hidden group cursor-pointer">
                   {imagePreview ? (
                     <>
-                      <img src={imagePreview} alt="Preview" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity" />
-                      <div className="relative z-10 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-lg text-sm font-bold text-gray-700 flex items-center gap-2 shadow-sm">
-                        <FaEdit /> Change Image
+                      <img src={imagePreview} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="bg-white px-4 py-2 rounded-xl text-xs font-black text-gray-800 flex items-center gap-2 shadow-sm">
+                          <FaFileImage /> Change Image
+                        </div>
                       </div>
                     </>
                   ) : (
                     <>
-                      <FaFileImage className="text-gray-400 text-3xl mb-2" />
-                      <span className="text-sm font-bold text-gray-600">Click to upload image</span>
-                      <span className="text-xs text-gray-400 mt-1">(JPEG, PNG, JPG)</span>
+                      <div className="p-3 bg-white rounded-2xl shadow-sm mb-3">
+                        <FaFileImage className="text-gray-300 text-2xl" />
+                      </div>
+                      <span className="text-xs font-bold text-gray-500">Drop your image here or click to browse</span>
+                      <span className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">Recommended: 800x600 px</span>
                     </>
                   )}
                   <input 
@@ -268,58 +298,60 @@ export default function HospitalServicesPage() {
                 </div>
               </div>
 
-              {/* Service Name */}
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Service Name <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><FaHeading className="text-gray-400" /></div>
-                  <input 
-                    type="text" name="serviceName" required 
-                    value={formData.serviceName} onChange={handleTextChange} 
-                    className="w-full pl-11 pr-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-bold text-gray-800" 
-                    placeholder="e.g. Full Body MRI"
-                  />
+              <div className="space-y-4">
+                {/* Service Name */}
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2.5 ml-1">Service Name <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400"><FaHeading size={14} /></div>
+                    <input 
+                      type="text" name="serviceName" required 
+                      value={formData.serviceName} onChange={handleTextChange} 
+                      className="w-full pl-11 pr-4 py-4 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-bold text-gray-800 text-sm outline-none" 
+                      placeholder="e.g. Cardiology Consultation"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* Price */}
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Price (₹) <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><FaRupeeSign className="text-gray-400" /></div>
-                  <input 
-                    type="number" name="price" required min="0"
-                    value={formData.price} onChange={handleTextChange} 
-                    className="w-full pl-11 pr-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" 
-                    placeholder="1500"
-                  />
+                {/* Price */}
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2.5 ml-1">Price (₹) <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400"><FaRupeeSign size={14} /></div>
+                    <input 
+                      type="number" name="price" required min="0"
+                      value={formData.price} onChange={handleTextChange} 
+                      className="w-full pl-11 pr-4 py-4 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-bold text-gray-800 text-sm outline-none" 
+                      placeholder="0.00"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* Description */}
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Description</label>
-                <div className="relative">
-                  <div className="absolute top-4 left-4 flex items-start pointer-events-none"><FaAlignLeft className="text-gray-400" /></div>
-                  <textarea 
-                    name="description" rows="3"
-                    value={formData.description} onChange={handleTextChange} 
-                    className="w-full pl-11 pr-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800 resize-none" 
-                    placeholder="Write a short description about this service..."
-                  ></textarea>
+                {/* Description */}
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2.5 ml-1">Description</label>
+                  <div className="relative">
+                    <div className="absolute top-4 left-4 flex items-start pointer-events-none text-gray-400"><FaAlignLeft size={14} /></div>
+                    <textarea 
+                      name="description" rows="4"
+                      value={formData.description} onChange={handleTextChange} 
+                      className="w-full pl-11 pr-4 py-4 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-bold text-gray-800 text-sm outline-none resize-none" 
+                      placeholder="Describe what this service includes..."
+                    ></textarea>
+                  </div>
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="pt-4 mt-2 border-t border-gray-100">
+              <div className="pt-4">
                 <button 
                   type="submit" disabled={isSubmitting} 
-                  className="w-full py-4 rounded-2xl font-bold text-white bg-[#08B36A] hover:bg-emerald-600 transition shadow-lg shadow-green-500/30 flex items-center justify-center gap-2"
+                  className="w-full py-4 rounded-2xl font-black text-sm text-white bg-[#08B36A] hover:bg-[#069e5d] transition-all shadow-xl shadow-green-200 flex items-center justify-center gap-3"
                 >
                   {isSubmitting ? (
-                    <><FaSpinner className="animate-spin" /> Saving...</>
+                    <><FaSpinner className="animate-spin" /> Processing...</>
                   ) : (
-                    <>{editId ? 'Update Service' : 'Save Service'}</>
+                    <>{editId ? 'Update Service Details' : 'Confirm & Save Service'}</>
                   )}
                 </button>
               </div>

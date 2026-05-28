@@ -33,21 +33,21 @@ export default function LabVendorLayout({ children }) {
  
     const menuItems = [
        
-        { name: 'Home', href: '/vendors/nursevendor/nursedashboard/homenurse', icon: FaHome },
-        { name: 'Orders', href: '/vendors/nursevendor/nursedashboard/ordersnurse', icon: FaClipboardList },
-        { name: 'Manage Nurse', href: '/vendors/nursevendor/nursedashboard/managenurse', icon: FaUserNurse },
-        { name: 'Assign Nurse', href: '/vendors/nursevendor/nursedashboard/assignnurse', icon: FaUserPlus },
-        { name: 'Track Nurse', href: '/vendors/nursevendor/nursedashboard/tracknurse', icon: FaMapMarkerAlt },
-        { name: 'Add Services', href: '/vendors/nursevendor/nursedashboard/addservices', icon: FaPlusSquare },
-        { name: 'Add Package', href: '/vendors/nursevendor/nursedashboard/addpackage', icon: FaBox },
-        { name: 'Availabilities', href: '/vendors/nursevendor/nursedashboard/availabilities', icon: FaCalendarCheck },
-        { name: 'Promotions', href: '/vendors/nursevendor/nursedashboard/promotions', icon: FaBullhorn },
-        { name: 'Order History', href: '/vendors/nursevendor/nursedashboard/orderhistory', icon: FaHistory },
-        { name: 'Manage Documents', href: '/vendors/nursevendor/nursedashboard/documents', icon: FaFileMedical },
-        { name: 'Profile', href: '/vendors/nursevendor/nursedashboard/profile', icon: FaUserCircle },
-        { name: 'Manage Delivery Charges', href: '/vendors/nursevendor/nursedashboard/deliverycharges', icon: FaTruck },
-        { name: 'Wallet & Earning', href: '/vendors/nursevendor/nursedashboard/wallet&earning', icon: FaWallet },
-        { name: 'FAQ', href: '/vendors/nursevendor/nursedashboard/faq', icon: FaQuestionCircle },
+        { name: 'Home', href: '/vendors/nursevendor/dashboard/homenurse', icon: FaHome },
+        { name: 'Orders', href: '/vendors/nursevendor/dashboard/ordersnurse', icon: FaClipboardList },
+        { name: 'Manage Nurse', href: '/vendors/nursevendor/dashboard/managenurse', icon: FaUserNurse },
+        { name: 'Assign Nurse', href: '/vendors/nursevendor/dashboard/assignnurse', icon: FaUserPlus },
+        { name: 'Track Nurse', href: '/vendors/nursevendor/dashboard/tracknurse', icon: FaMapMarkerAlt },
+        { name: 'Add Services', href: '/vendors/nursevendor/dashboard/addservices', icon: FaPlusSquare },
+        { name: 'Add Package', href: '/vendors/nursevendor/dashboard/addpackage', icon: FaBox },
+        { name: 'Availabilities', href: '/vendors/nursevendor/dashboard/availabilities', icon: FaCalendarCheck },
+        { name: 'Promotions', href: '/vendors/nursevendor/dashboard/promotions', icon: FaBullhorn },
+        { name: 'Order History', href: '/vendors/nursevendor/dashboard/orderhistory', icon: FaHistory },
+        { name: 'Manage Documents', href: '/vendors/nursevendor/dashboard/documents', icon: FaFileMedical },
+        { name: 'Profile', href: '/vendors/nursevendor/dashboard/profile', icon: FaUserCircle },
+        { name: 'Manage Delivery Charges', href: '/vendors/nursevendor/dashboard/deliverycharges', icon: FaTruck },
+        { name: 'Wallet & Earning', href: '/vendors/nursevendor/dashboard/wallet&earning', icon: FaWallet },
+        { name: 'FAQ', href: '/vendors/nursevendor/dashboard/faq', icon: FaQuestionCircle },
     ];
  
     return (

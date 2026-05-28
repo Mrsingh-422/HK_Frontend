@@ -29,16 +29,16 @@ function Page() {
         // Check localStorage directly
         const checkAuth = () => {
             const hospitalToken = localStorage.getItem("hospitalToken");
-            const hospitalData = localStorage.getItem("hospital");
+            const hospital = localStorage.getItem("hospital");
 
-            if (!hospitalToken || !hospitalData) {
+            if (!hospitalToken) {
                 alert("Please login as a hospital to access this page");
                 router.push('/');
                 return;
             }
 
             // Parse hospital data
-            const hospital = JSON.parse(hospitalData);
+            // const hospital = JSON.parse(hospitalData);
 
             // Check profile status
             if (hospital.profileStatus === 'Approved') {
@@ -194,8 +194,8 @@ function Page() {
     }
 
     // Get current hospital status
-    const hospitalData = hospital || JSON.parse(localStorage.getItem('hospital') || '{}');
-    const currentStatus = hospitalData.profileStatus || 'Incomplete';
+    // const hospitalData = hospital || JSON.parse(localStorage.getItem('hospital') || '{}');
+    const currentStatus = hospital || 'Incomplete';
 
     return (
         <>
