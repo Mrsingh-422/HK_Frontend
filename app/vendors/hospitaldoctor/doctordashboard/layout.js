@@ -31,7 +31,7 @@ const DoctorTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) => {
     }, []);
 
     const menuItems = [
-        { name: 'My Profile', href: '/vendors/independentdoctor/doctordashboard/profile', icon: FaUserCircle },
+        { name: 'My Profile', href: '/vendors/hospitaldoctor/doctordashboard/profile', icon: FaUserCircle },
     ];
 
     return (
@@ -128,21 +128,21 @@ export default function DoctorVendorLayout({ children }) {
 
     // 🌟 Sidebar Menu Items (Naye 5 items ko end me add kar diya gaya hai) 🌟
     const menuItems = [
-        { name: 'Dashboard', href: '/vendors/independentdoctor/doctordashboard', icon: FaChartLine },
-        { name: 'Appointments', href: '/vendors/independentdoctor/doctordashboard/appointments', icon: FaCalendarCheck },
-        { name: 'Availability', href: '/vendors/independentdoctor/doctordashboard/availability', icon: FaClock },
-        { name: 'Coupons', href: '/vendors/independentdoctor/doctordashboard/coupons', icon: FaTicketAlt },
-        { name: 'Consultation History', href: '/vendors/independentdoctor/doctordashboard/consultation-history', icon: FaHistory },
-        { name: 'Wallet & Earnings', href: '/vendors/independentdoctor/doctordashboard/wallet', icon: FaWallet },
-        { name: 'Documents', href: '/vendors/independentdoctor/doctordashboard/documents', icon: FaFileAlt },
-        { name: 'Chats', href: '/vendors/independentdoctor/doctordashboard/chats', icon: FaComments },
+        { name: 'Dashboard', href: '/vendors/hospitaldoctor/doctordashboard', icon: FaChartLine },
+        { name: 'Appointments', href: '/vendors/hospitaldoctor/doctordashboard/appointments', icon: FaCalendarCheck },
+        { name: 'Availability', href: '/vendors/hospitaldoctor/doctordashboard/availability', icon: FaClock },
+        { name: 'Coupons', href: '/vendors/hospitaldoctor/doctordashboard/coupons', icon: FaTicketAlt },
+        { name: 'Consultation History', href: '/vendors/hospitaldoctor/doctordashboard/consultation-history', icon: FaHistory },
+        { name: 'Wallet & Earnings', href: '/vendors/hospitaldoctor/doctordashboard/wallet', icon: FaWallet },
+        { name: 'Documents', href: '/vendors/hospitaldoctor/doctordashboard/documents', icon: FaFileAlt },
+        { name: 'Chats', href: '/vendors/hospitaldoctor/doctordashboard/chats', icon: FaComments },
 
         // ---- Ye Naye 5 items hain image ke mutabik ----
-        { name: 'Emergency Case', href: '/vendors/independentdoctor/doctordashboard/emergency-case', icon: FaAmbulance },
-        { name: 'Admission Case', href: '/vendors/independentdoctor/doctordashboard/admission-case', icon: FaHospital },
-        { name: 'History', href: '/vendors/independentdoctor/doctordashboard/history', icon: FaNotesMedical },
-        { name: 'Emergency Request', href: '/vendors/independentdoctor/doctordashboard/emergency-request', icon: FaMedkit },
-        { name: 'Hospital Request', href: '/vendors/independentdoctor/doctordashboard/hospital-request', icon: FaBriefcaseMedical },
+        { name: 'Emergency Case', href: '/vendors/hospitaldoctor/doctordashboard/emergency-case', icon: FaAmbulance },
+        { name: 'Admission Case', href: '/vendors/hospitaldoctor/doctordashboard/admission-case', icon: FaHospital },
+        { name: 'History', href: '/vendors/hospitaldoctor/doctordashboard/history', icon: FaNotesMedical },
+        { name: 'Emergency Request', href: '/vendors/hospitaldoctor/doctordashboard/emergency-request', icon: FaMedkit },
+        { name: 'Hospital Request', href: '/vendors/hospitaldoctor/doctordashboard/hospital-request', icon: FaBriefcaseMedical },
     ];
 
     return (
