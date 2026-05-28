@@ -14,7 +14,7 @@ function LoginAsDoctorAppointment() {
   const [mobile, setMobile] = useState(""); // This will act as identifier (email or phone)
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
-  
+
   // ✅ Logic States
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -32,10 +32,10 @@ function LoginAsDoctorAppointment() {
 
     try {
       const response = await DoctorAPI.login(loginData);
-      
+
       // Store Token
-      localStorage.setItem("doctorToken", response.token);
-      
+      localStorage.setItem("independentDoctorToken", response.token);
+
       // Update Global User State
       if (setUser) setUser(response.user || response.data);
 
@@ -44,14 +44,14 @@ function LoginAsDoctorAppointment() {
 
       if (response.fullAccess && status === "Approved") {
         // Only approved doctors go to dashboard
-        router.push("/vendors/doctor/dashboard");
+        router.push("/vendors/independentdoctor/doctordashboard");
         closeModal();
       } else {
         // Incomplete, Pending, or Rejected doctors go to documents page
-        router.push("/vendors/doctor/documents");
+        router.push("/vendors/independentdoctor/documents");
         closeModal();
       }
-      
+
     } catch (err) {
       setError(err.response?.data?.message || "Login failed. Please check your credentials.");
     } finally {
@@ -63,7 +63,7 @@ function LoginAsDoctorAppointment() {
     <div className="w-full bg-white">
       {/* TOP LOGIN BOX */}
       <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
-        
+
         {/* LEFT IMAGE - Hidden on mobile, visible from md up */}
         <div className="hidden md:block flex-shrink-0">
           <img
@@ -131,7 +131,7 @@ function LoginAsDoctorAppointment() {
             <span
               className="font-bold cursor-pointer hover:underline"
               onClick={() => {
-                closeModal(); 
+                closeModal();
                 openModal("register");
               }}
             >

@@ -8,7 +8,7 @@ const doctorApi = axios.create({
 });
 
 // Helper to get token
-const getDoctorToken = () => typeof window !== 'undefined' ? localStorage.getItem('doctorToken') : null;
+const getDoctorToken = () => typeof window !== 'undefined' ? localStorage.getItem('independentDoctorToken') : null;
 
 // 2. Add Request Interceptor
 doctorApi.interceptors.request.use(
@@ -38,8 +38,12 @@ const DoctorAPI = {
         }
     },
     register: async (data) => {
-        const response = await doctorApi.post('/api/auth/doctor/register', data);
-        return response.data;
+        try {
+            const response = await doctorApi.post('/api/auth/doctor/register', data);
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error.response?.data?.message || "Registration failed");
+        }
     },
 
     verifyOtp: async (phone, otp) => {

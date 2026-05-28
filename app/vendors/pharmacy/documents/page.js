@@ -30,7 +30,7 @@ export default function PharmacyVerificationPage() {
         const currentStatus = user.profileStatus || 'Incomplete'
         
         if (currentStatus === 'Approved') {
-            router.push('/vendors/pharmacy/pharmacydashboard')
+            router.push('/vendors/pharmacy/dashboard')
         }
         setStatus(currentStatus)
     }, [router])

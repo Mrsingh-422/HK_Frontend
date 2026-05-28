@@ -135,23 +135,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    // 2. REFINED LOGIN FUNCTION
-
-    const registerAsDoctorAppointment = async (userData) => {
-        try {
-            setLoading(true);
-            const response = await axios.post(`${API_URL}/api/auth/doctor/register`, userData);
-            const { token, user } = response.data;
-            setUser(user);
-            return response.data;
-        } catch (error) {
-            const message =
-                error.response?.data?.message || "Registration failed";
-            return Promise.reject(message);
-        } finally {
-            setLoading(false);
-        }
-    }
 
     const uploadHospitalDocuments = async (userData) => {
         try {
@@ -174,30 +157,6 @@ export const AuthProvider = ({ children }) => {
             setLoading(false);
         }
     };
-
-    const registerAsDoctor = async (userData) => {
-        const response = await axios.post(`${API_URL}/api/auth/doctor/register`, userData);
-        // We don't set user yet because OTP is pending
-        return response.data;
-    };
-
-    const loginAsDoctorAppointment = async (userData) => {
-        try {
-            setLoading(true);
-            const response = await axios.post(
-                `${API_URL}/api/auth/doctor/login`,
-                userData
-            );
-            const { token, user } = response.data;
-            setUser(user);
-            return response.data;
-        } catch (error) {
-            const message = error.response?.data?.message || "Login failed";
-            return Promise.reject(message);
-        } finally {
-            setLoading(false);
-        }
-    };
     // Verify OTP & Save Token
     const verifyDoctorOtp = async (phone, otp) => {
         const response = await axios.post(`${API_URL}/api/auth/doctor/verify-otp`, { phone, otp });
@@ -208,16 +167,6 @@ export const AuthProvider = ({ children }) => {
         return response.data;
     };
     // Upload Documents (Step 3)
-    const uploadDoctorDocs = async (formData) => {
-        const token = localStorage.getItem("doctorToken");
-        const response = await axios.put(`${API_URL}/api/auth/doctor/upload-docs`, formData, {
-            headers: {
-                "Content-Type": "multipart/form-data",
-                Authorization: `Bearer ${token}`,
-            },
-        });
-        return response.data;
-    };
 
     const uploadDoctorDocuments = async (formData) => {
         try {
@@ -430,10 +379,8 @@ export const AuthProvider = ({ children }) => {
             nursingToken,
             pharmacyToken,
             registerAsUser,
-            registerAsDoctorAppointment,
             registerAsServiceProvider,
             loginAsUser,
-            loginAsDoctorAppointment,
             loginAsServiceProvider,
             uploadLabDocuments,
             loginAsAdmin,
