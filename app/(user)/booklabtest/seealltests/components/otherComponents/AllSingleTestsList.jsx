@@ -22,14 +22,14 @@ const CATEGORY_IMAGES = {
 
 // --- PROFESSIONAL SKELETON ---
 const TestCardSkeleton = () => (
-    <div className="bg-white rounded-2xl border border-slate-100 p-4 animate-pulse h-[380px] flex flex-col shadow-sm">
-        <div className="h-40 bg-slate-100 rounded-xl mb-4" />
+    <div className="bg-white rounded-2xl border border-slate-100 p-4 animate-pulse h-[360px] flex flex-col shadow-sm">
+        <div className="h-32 sm:h-40 bg-slate-100 rounded-xl mb-4" />
         <div className="space-y-3 flex-1">
             <div className="h-3 bg-slate-100 rounded w-1/4" />
             <div className="h-5 bg-slate-100 rounded w-full" />
             <div className="h-3 bg-slate-50 rounded w-1/2 mt-4" />
         </div>
-        <div className="h-12 bg-slate-100 rounded-xl w-full mt-4" />
+        <div className="h-10 bg-slate-100 rounded-xl w-full mt-4" />
     </div>
 );
 
@@ -89,15 +89,15 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
     };
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-10" id="tests-grid-top">
+        <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-6 space-y-10" id="tests-grid-top">
             
-            {/* Grid Container */}
-            <div className="grid grid-cols-1 xs:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {/* Grid Container - Configured for 2 columns on small screens */}
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
                 {loading ? (
                     Array(8).fill(0).map((_, i) => <TestCardSkeleton key={i} />)
                 ) : (
                     tests.map((test) => {
-                        // Logic: Use minPrice if available, else standardMRP
+                        // Logic: Use minPrice if available, else fallback to standardMRP
                         const displayPrice = test.minPrice || test.standardMRP || 0;
                         const strikePrice = test.standardMRP || 0;
                         const hasDiscount = strikePrice > displayPrice;
@@ -111,7 +111,7 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                                 className="group bg-white rounded-2xl border border-slate-200 hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/10 transition-all duration-300 flex flex-col overflow-hidden cursor-pointer"
                             >
                                 {/* Thumbnail Section */}
-                                <div className="relative h-40 w-full overflow-hidden bg-slate-50">
+                                <div className="relative h-32 sm:h-40 w-full overflow-hidden bg-slate-50">
                                     <img
                                         src={testImage}
                                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
@@ -124,56 +124,52 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                                     
                                     {hasDiscount && (
-                                        <div className="absolute top-3 right-3 bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg backdrop-blur-sm">
+                                        <div className="absolute top-2 right-2 sm:top-3 sm:right-3 bg-emerald-500 text-white text-[8px] sm:text-[10px] font-bold px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full shadow-lg backdrop-blur-sm">
                                             {Math.round(((strikePrice - displayPrice) / strikePrice) * 100)}% OFF
                                         </div>
                                     )}
 
-                                    <div className="absolute bottom-3 left-3">
-                                        <span className="bg-white/90 backdrop-blur-md text-[9px] font-bold text-slate-700 px-2 py-1 rounded-md uppercase tracking-wider shadow-sm">
+                                    <div className="absolute bottom-2 left-2 sm:bottom-3 sm:left-3">
+                                        <span className="bg-white/90 backdrop-blur-md text-[7px] sm:text-[9px] font-bold text-slate-700 px-1.5 py-0.5 rounded uppercase tracking-wider shadow-sm">
                                             {test.mainCategory || 'General'}
                                         </span>
                                     </div>
                                 </div>
 
                                 {/* Content Section */}
-                                <div className="p-5 flex-1 flex flex-col">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-1.5 bg-amber-50 px-2 py-0.5 rounded-md">
-                                            <FaStar className="text-amber-500" size={10} />
-                                            <span className="text-[11px] font-bold text-amber-700">4.8</span>
+                                <div className="p-3 sm:p-5 flex-1 flex flex-col">
+                                    <div className="flex items-center justify-between mb-1 sm:mb-2">
+                                        <div className="flex items-center gap-1 bg-amber-50 px-1.5 py-0.5 rounded">
+                                            <FaStar className="text-amber-500" size={8} />
+                                            <span className="text-[9px] sm:text-[11px] font-bold text-amber-700">4.8</span>
                                         </div>
-                                        <span className="text-[10px] text-slate-400 font-medium">Code: {test.testCode || 'N/A'}</span>
+                                        <span className="hidden sm:block text-[10px] text-slate-400 font-medium">Code: {test.testCode || 'N/A'}</span>
                                     </div>
 
-                                    <h3 className="text-[15px] font-bold text-slate-900 line-clamp-2 h-11 mb-3 leading-tight group-hover:text-emerald-600 transition-colors">
+                                    <h3 className="text-[12px] sm:text-[15px] font-bold text-slate-900 line-clamp-2 h-8 sm:h-11 mb-2 sm:mb-3 leading-tight group-hover:text-emerald-600 transition-colors">
                                         {test.testName}
                                     </h3>
 
-                                    <div className="space-y-2.5 mb-6">
-                                        <div className="flex items-center gap-3 text-slate-600">
-                                            <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center">
-                                                <FaVial size={11} className="text-emerald-500" />
-                                            </div>
-                                            <span className="text-[12px] font-medium truncate">{test.sampleType || 'Sample Required'}</span>
+                                    <div className="space-y-1.5 sm:space-y-2.5 mb-4 sm:mb-6">
+                                        <div className="flex items-center gap-2 sm:gap-3 text-slate-600">
+                                            <FaVial size={10} className="text-emerald-500 shrink-0" />
+                                            <span className="text-[10px] sm:text-[12px] font-medium truncate">{test.sampleType || 'Sample Required'}</span>
                                         </div>
-                                        <div className="flex items-center gap-3 text-slate-600">
-                                            <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center">
-                                                <FaCheckCircle size={11} className="text-blue-500" />
-                                            </div>
-                                            <span className="text-[12px] font-medium">NABL Accredited Lab</span>
+                                        <div className="flex items-center gap-2 sm:gap-3 text-slate-600">
+                                            <FaCheckCircle size={10} className="text-blue-500 shrink-0" />
+                                            <span className="text-[10px] sm:text-[12px] font-medium truncate">NABL Accredited</span>
                                         </div>
                                     </div>
 
                                     {/* Price & CTA Section */}
-                                    <div className="mt-auto pt-4 border-t border-slate-50 flex items-center justify-between">
+                                    <div className="mt-auto pt-3 sm:pt-4 border-t border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                         <div className="flex flex-col">
                                             {hasDiscount && (
-                                                <span className="text-[11px] text-slate-400 line-through mb-0.5">₹{strikePrice}</span>
+                                                <span className="text-[9px] sm:text-[11px] text-slate-400 line-through">₹{strikePrice}</span>
                                             )}
-                                            <div className="flex items-baseline gap-1">
-                                                <span className="text-xs font-bold text-slate-900">₹</span>
-                                                <span className="text-xl font-black text-slate-900 tracking-tight">{displayPrice}</span>
+                                            <div className="flex items-baseline gap-0.5">
+                                                <span className="text-[10px] sm:text-xs font-bold text-slate-900">₹</span>
+                                                <span className="text-base sm:text-xl font-black text-slate-900 tracking-tight">{displayPrice}</span>
                                             </div>
                                         </div>
 
@@ -182,13 +178,13 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                                                 e.stopPropagation();
                                                 handleCardClick(test._id);
                                             }}
-                                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[12px] font-bold transition-all duration-300 ${isAdded
-                                                ? "bg-slate-100 text-slate-500 cursor-default"
-                                                : "bg-emerald-600 text-white shadow-md shadow-emerald-200 hover:bg-emerald-700 hover:-translate-y-0.5"
+                                            className={`flex items-center justify-center gap-1.5 px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[10px] sm:text-[12px] font-bold transition-all duration-300 ${isAdded
+                                                ? "bg-slate-100 text-slate-500"
+                                                : "bg-emerald-600 text-white shadow-md shadow-emerald-100 hover:bg-emerald-700"
                                                 }`}
                                         >
-                                            {isAdded ? "Added" : "Book Now"}
-                                            {!isAdded && <FaArrowRight size={10} />}
+                                            <span className="truncate">{isAdded ? "Added" : "Book Now"}</span>
+                                            {!isAdded && <FaArrowRight size={8} className="shrink-0" />}
                                         </button>
                                     </div>
                                 </div>
