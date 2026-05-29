@@ -11,7 +11,7 @@ import UserAPI from "@/app/services/UserAPI";
 
 export default function BookingConfirmation() {
   const router = useRouter();
-  
+
   // Existing States
   const [bookingData, setBookingData] = useState(null);
   const [availableSlots, setAvailableSlots] = useState([]);
