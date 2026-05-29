@@ -577,7 +577,7 @@ const UserAPI = {
         return response.data;
     },
 
-    
+
     //Hospital apis
     getHospitalsList: async (data) => {
         const response = await publicApi.post("/user/hospital/list", data);
@@ -625,13 +625,19 @@ const UserAPI = {
         return response.data;
     },
 
+    //Pending to show how many times user can reschedule and cancel
+    cancelHospitalBooking: async (appointmentId, reason) => {
+        const response = await authApi.patch(`/user/hospital/cancel/${appointmentId}`, reason);
+        return response.data;
+    },
+
     //Ambulance api
     getAmbulanceCategories: async () => {
         const response = await publicApi.get("/user/ambulance/get-enums");
         return response.data;
     },
     getNearestAmbulances: async (data) => {
-        const response = await publicApi.post( "/user/ambulance/nearest-ambulances", data);
+        const response = await publicApi.post("/user/ambulance/nearest-ambulances", data);
         return response.data;
     },
 

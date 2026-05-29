@@ -8,6 +8,7 @@ import {
 import { FaUserMd, FaUserAlt, FaWallet, FaBed, FaCalendarAlt, FaStethoscope } from "react-icons/fa";
 import { MdVerified, MdOutlineBedroomChild } from "react-icons/md";
 import UserAPI from "@/app/services/UserAPI";
+import { Toaster, toast } from 'react-hot-toast';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5002";
 
@@ -125,7 +126,7 @@ function MyHospitalAppointments() {
 
   const handleReschedule = async () => {
     if (!rescheduleData.start || !rescheduleData.end) {
-      alert("Please select both dates on the calendar.");
+      toast.error("Please select both dates on the calendar.");
       return;
     }
 
@@ -133,7 +134,7 @@ function MyHospitalAppointments() {
     const newDiffDays = Math.round((getUtcDate(rescheduleData.end) - getUtcDate(rescheduleData.start)) / (1000 * 60 * 60 * 24)) + 1;
 
     if (originalDiffDays !== newDiffDays) {
-      alert(`The rescheduled booking must be exactly ${originalDiffDays} days (matching your original booking duration). Currently, you selected ${newDiffDays} days.`);
+      toast.error(`The rescheduled booking must be exactly ${originalDiffDays} days (matching original duration).`);
       return;
     }
 
@@ -145,30 +146,63 @@ function MyHospitalAppointments() {
     });
 
     if (hasBookedDate) {
-      alert("The selected range includes days that are already booked.");
+      toast.error("The selected range includes days that are already booked.");
       return;
     }
 
     const payload = {
         appointmentId: selectedAppt._id,
         newStartDate: rescheduleData.start,
-        newEndDate: rescheduleData.end
+        newEndDate: rescheduleData.end,
+        newBedId: selectedAppt.bedId?._id || selectedAppt.bedId,
     };
 
     try {
       const response = await UserAPI.recheduleHospitalBooking(payload);
       if (response.success) {
-        alert("Booking rescheduled successfully!");
+        toast.success("Booking rescheduled successfully!");
         setIsRescheduling(false);
         setIsModalOpen(false);
         setRescheduleData({ start: "", end: "" });
         fetchBookings(pagination.currentPage);
       } else {
-        alert(response.message || "Reschedule failed");
+        toast.error(response.message || "Reschedule failed");
       }
     } catch (error) {
       console.error("Error rescheduling:", error);
-      alert("Something went wrong.");
+      toast.error("Something went wrong.");
+    }
+  };
+
+  const handleCancelBooking = async (appointmentId) => {
+    // 1. Ask for reason
+    const reason = window.prompt("Please enter the reason for cancellation:");
+    
+    // If user clicked cancel on the prompt, stop
+    if (reason === null) return;
+
+    // Validation: Reason must not be empty
+    if (!reason.trim()) {
+      toast.error("Cancellation reason is required.");
+      return;
+    }
+
+    // 2. Final Confirmation
+    if (window.confirm("Are you sure you want to cancel this booking?")) {
+      try {
+        // Passing the reason as an object { reason: "..." } to the API
+        const response = await UserAPI.cancelHospitalBooking(appointmentId, { reason: reason });
+        if (response.success) {
+          toast.success("Booking cancelled successfully!");
+          setIsModalOpen(false);
+          fetchBookings(pagination.currentPage);
+        } else {
+          toast.error(response.message || "Cancellation failed");
+        }
+      } catch (error) {
+        console.error("Error cancelling booking:", error);
+        toast.error("Something went wrong while cancelling.");
+      }
     }
   };
 
@@ -192,7 +226,7 @@ function MyHospitalAppointments() {
         });
 
         if (hasBookedDate) {
-          alert("The selected range includes days that are already booked. Please select another date.");
+          toast.error("Selected range includes booked days.");
           return;
         }
 
@@ -227,6 +261,7 @@ function MyHospitalAppointments() {
       case "Admitted": return "bg-purple-100 text-purple-700 border-purple-200";
       case "Confirmed": return "bg-green-100 text-green-700 border-green-200";
       case "Completed": return "bg-blue-100 text-blue-700 border-blue-200";
+      case "Cancelled": return "bg-red-100 text-red-700 border-red-200";
       case "Hospital-Pending": return "bg-orange-100 text-orange-700 border-orange-200";
       default: return "bg-gray-100 text-gray-700 border-gray-200";
     }
@@ -234,6 +269,7 @@ function MyHospitalAppointments() {
 
   return (
     <div className="min-h-screen bg-[#fcfcfc] py-10 px-4 md:px-8 font-sans">
+      <Toaster position="top-center" reverseOrder={false} />
       <div className="max-w-5xl mx-auto">
 
         {/* HEADER */}
@@ -359,8 +395,8 @@ function MyHospitalAppointments() {
                         </div>
                     </section>
 
-                    {selectedAppt.hospitalId && (
-                      <div className="flex justify-between items-center bg-green-50/50 p-6 rounded-3xl border border-green-100">
+                    {selectedAppt.hospitalId && selectedAppt.status !== "Cancelled" && (
+                      <div className="flex justify-between items-center bg-green-50/50 p-6 rounded-3xl border border-green-100 gap-4">
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-[#08b36a] shadow-sm"><MdOutlineBedroomChild size={24} /></div>
                           <div>
@@ -368,7 +404,10 @@ function MyHospitalAppointments() {
                             <p className="font-bold text-gray-800">{selectedAppt.bookingType}</p>
                           </div>
                         </div>
-                        <button onClick={() => setIsRescheduling(true)} className="bg-[#08b36a] text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase hover:bg-green-600 transition-all">Reschedule</button>
+                        <div className="flex gap-2">
+                           <button onClick={() => handleCancelBooking(selectedAppt._id)} className="bg-red-500 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 transition-all">Cancel</button>
+                           <button onClick={() => setIsRescheduling(true)} className="bg-[#08b36a] text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase hover:bg-green-600 transition-all">Reschedule</button>
+                        </div>
                       </div>
                     )}
                   </>
