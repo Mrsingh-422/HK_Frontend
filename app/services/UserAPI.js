@@ -572,8 +572,13 @@ const UserAPI = {
         return response.data
     },
 
-    //Hospital apis
+    getMyDoctorAppointments: async () => {
+        const response = await authApi.get("/user/doctors/my-appointments");
+        return response.data;
+    },
 
+    
+    //Hospital apis
     getHospitalsList: async (data) => {
         const response = await publicApi.post("/user/hospital/list", data);
         return response.data;

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation"; // 1. Import useRouter
+import { useRouter } from "next/navigation";
 import UserAPI from "@/app/services/UserAPI";
 import {
     FaStar,
@@ -22,19 +22,19 @@ const CATEGORY_IMAGES = {
 
 // --- PROFESSIONAL SKELETON ---
 const TestCardSkeleton = () => (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 animate-pulse h-[340px] flex flex-col">
-        <div className="h-32 bg-slate-50 rounded-lg mb-4" />
+    <div className="bg-white rounded-2xl border border-slate-100 p-4 animate-pulse h-[380px] flex flex-col shadow-sm">
+        <div className="h-40 bg-slate-100 rounded-xl mb-4" />
         <div className="space-y-3 flex-1">
             <div className="h-3 bg-slate-100 rounded w-1/4" />
             <div className="h-5 bg-slate-100 rounded w-full" />
             <div className="h-3 bg-slate-50 rounded w-1/2 mt-4" />
         </div>
-        <div className="h-10 bg-slate-100 rounded-lg w-full mt-4" />
+        <div className="h-12 bg-slate-100 rounded-xl w-full mt-4" />
     </div>
 );
 
 const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
-    const router = useRouter(); // 2. Initialize router
+    const router = useRouter();
     const { cartItemIds } = useCart();
     const [tests, setTests] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -74,7 +74,6 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
         fetchTests();
     }, [fetchTests]);
 
-    // 3. Update navigation function
     const handleCardClick = (testId) => {
         router.push(`/booklabtest/testdetails/${testId}`);
     };
@@ -90,78 +89,92 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
     };
 
     return (
-        <div className="space-y-10" id="tests-grid-top">
-            {/* Modal removed as it's no longer needed here */}
-
-            {/* Professional Compact Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-10" id="tests-grid-top">
+            
+            {/* Grid Container */}
+            <div className="grid grid-cols-1 xs:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {loading ? (
                     Array(8).fill(0).map((_, i) => <TestCardSkeleton key={i} />)
                 ) : (
                     tests.map((test) => {
+                        // Logic: Use minPrice if available, else standardMRP
+                        const displayPrice = test.minPrice || test.standardMRP || 0;
+                        const strikePrice = test.standardMRP || 0;
+                        const hasDiscount = strikePrice > displayPrice;
                         const isAdded = cartItemIds.includes(test._id);
-                        const displayPrice = test.offerPrice || test.minPrice || test.mrp || test.standardMRP;
-                        const strikePrice = test.standardMRP || test.mrp;
                         const testImage = CATEGORY_IMAGES[test.mainCategory] || CATEGORY_IMAGES.Default;
 
                         return (
                             <div
                                 key={test._id}
-                                onClick={() => handleCardClick(test._id)} // Navigate on click
-                                className="group bg-white rounded-xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden cursor-pointer"
+                                onClick={() => handleCardClick(test._id)}
+                                className="group bg-white rounded-2xl border border-slate-200 hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/10 transition-all duration-300 flex flex-col overflow-hidden cursor-pointer"
                             >
-                                {/* Professional Thumbnail */}
-                                <div className="relative h-32 w-full overflow-hidden bg-slate-50 border-b border-slate-100">
+                                {/* Thumbnail Section */}
+                                <div className="relative h-40 w-full overflow-hidden bg-slate-50">
                                     <img
                                         src={testImage}
-                                        className="w-full h-full object-cover grayscale-[0.2] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-105"
+                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                                         alt={test.testName}
                                         onError={(e) => {
                                             e.target.onerror = null;
                                             e.target.src = CATEGORY_IMAGES.Default;
                                         }}
                                     />
-                                    {strikePrice > displayPrice && (
-                                        <div className="absolute top-2 right-2 bg-emerald-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-md shadow-sm">
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                                    
+                                    {hasDiscount && (
+                                        <div className="absolute top-3 right-3 bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg backdrop-blur-sm">
                                             {Math.round(((strikePrice - displayPrice) / strikePrice) * 100)}% OFF
                                         </div>
                                     )}
+
+                                    <div className="absolute bottom-3 left-3">
+                                        <span className="bg-white/90 backdrop-blur-md text-[9px] font-bold text-slate-700 px-2 py-1 rounded-md uppercase tracking-wider shadow-sm">
+                                            {test.mainCategory || 'General'}
+                                        </span>
+                                    </div>
                                 </div>
 
-                                {/* Test Details */}
-                                <div className="p-4 flex-1 flex flex-col">
+                                {/* Content Section */}
+                                <div className="p-5 flex-1 flex flex-col">
                                     <div className="flex items-center justify-between mb-2">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                            {test.mainCategory || 'Diagnostic'}
-                                        </span>
-                                        <div className="flex items-center gap-1">
-                                            <FaStar className="text-amber-400" size={9} />
-                                            <span className="text-[10px] font-bold text-slate-600">4.8</span>
+                                        <div className="flex items-center gap-1.5 bg-amber-50 px-2 py-0.5 rounded-md">
+                                            <FaStar className="text-amber-500" size={10} />
+                                            <span className="text-[11px] font-bold text-amber-700">4.8</span>
                                         </div>
+                                        <span className="text-[10px] text-slate-400 font-medium">Code: {test.testCode || 'N/A'}</span>
                                     </div>
 
-                                    <h3 className="text-[13px] font-bold text-slate-900 line-clamp-2 h-9 mb-3 leading-snug group-hover:text-emerald-600 transition-colors">
+                                    <h3 className="text-[15px] font-bold text-slate-900 line-clamp-2 h-11 mb-3 leading-tight group-hover:text-emerald-600 transition-colors">
                                         {test.testName}
                                     </h3>
 
-                                    <div className="space-y-1.5 mb-4">
-                                        <div className="flex items-center gap-2 text-slate-500">
-                                            <FaVial size={10} className="text-slate-400" />
-                                            <span className="text-[11px] font-medium truncate">{test.sampleType || 'Blood Sample'}</span>
+                                    <div className="space-y-2.5 mb-6">
+                                        <div className="flex items-center gap-3 text-slate-600">
+                                            <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center">
+                                                <FaVial size={11} className="text-emerald-500" />
+                                            </div>
+                                            <span className="text-[12px] font-medium truncate">{test.sampleType || 'Sample Required'}</span>
                                         </div>
-                                        <div className="flex items-center gap-2 text-slate-500">
-                                            <FaCheckCircle size={10} className="text-emerald-500" />
-                                            <span className="text-[11px] font-medium">NABL Accredited</span>
+                                        <div className="flex items-center gap-3 text-slate-600">
+                                            <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center">
+                                                <FaCheckCircle size={11} className="text-blue-500" />
+                                            </div>
+                                            <span className="text-[12px] font-medium">NABL Accredited Lab</span>
                                         </div>
                                     </div>
 
-                                    {/* Action Footer */}
-                                    <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
+                                    {/* Price & CTA Section */}
+                                    <div className="mt-auto pt-4 border-t border-slate-50 flex items-center justify-between">
                                         <div className="flex flex-col">
-                                            {strikePrice > displayPrice && (
-                                                <span className="text-[9px] text-slate-400 line-through">₹{strikePrice}</span>
+                                            {hasDiscount && (
+                                                <span className="text-[11px] text-slate-400 line-through mb-0.5">₹{strikePrice}</span>
                                             )}
-                                            <span className="text-base font-bold text-slate-900">₹{displayPrice}</span>
+                                            <div className="flex items-baseline gap-1">
+                                                <span className="text-xs font-bold text-slate-900">₹</span>
+                                                <span className="text-xl font-black text-slate-900 tracking-tight">{displayPrice}</span>
+                                            </div>
                                         </div>
 
                                         <button
@@ -169,13 +182,13 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                                                 e.stopPropagation();
                                                 handleCardClick(test._id);
                                             }}
-                                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${isAdded
-                                                ? "bg-slate-50 text-slate-400 border border-slate-200"
-                                                : "bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-600 hover:text-white"
+                                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[12px] font-bold transition-all duration-300 ${isAdded
+                                                ? "bg-slate-100 text-slate-500 cursor-default"
+                                                : "bg-emerald-600 text-white shadow-md shadow-emerald-200 hover:bg-emerald-700 hover:-translate-y-0.5"
                                                 }`}
                                         >
                                             {isAdded ? "Added" : "Book Now"}
-                                            {!isAdded && <FaArrowRight size={9} />}
+                                            {!isAdded && <FaArrowRight size={10} />}
                                         </button>
                                     </div>
                                 </div>
@@ -185,18 +198,18 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                 )}
             </div>
 
-            {/* Pagination */}
+            {/* Enhanced Pagination */}
             {totalPages > 1 && !loading && (
-                <div className="flex justify-center items-center gap-6 py-8 border-t border-slate-100">
+                <div className="flex flex-col sm:flex-row justify-center items-center gap-6 py-12 border-t border-slate-100">
                     <button
                         onClick={() => handlePageChange(currentPage - 1)}
                         disabled={currentPage === 1}
-                        className="flex items-center gap-2 text-[11px] font-bold text-slate-500 hover:text-emerald-600 disabled:opacity-30 transition-colors"
+                        className="flex items-center gap-2 text-[12px] font-bold text-slate-600 hover:text-emerald-600 disabled:opacity-30 disabled:hover:text-slate-600 transition-colors px-4 py-2"
                     >
-                        <FaChevronLeft size={9} /> Previous
+                        <FaChevronLeft size={10} /> Previous
                     </button>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
                         {[...Array(totalPages)].map((_, i) => {
                             const p = i + 1;
                             if (p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1)) {
@@ -204,15 +217,15 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                                     <button
                                         key={p}
                                         onClick={() => handlePageChange(p)}
-                                        className={`w-7 h-7 rounded-md text-[11px] font-bold transition-all ${currentPage === p
-                                            ? "bg-slate-900 text-white shadow-sm"
-                                            : "text-slate-500 hover:bg-slate-100"}`}
+                                        className={`w-10 h-10 rounded-xl text-[12px] font-bold transition-all duration-200 ${currentPage === p
+                                            ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200"
+                                            : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"}`}
                                     >
                                         {p}
                                     </button>
                                 );
                             }
-                            if (p === currentPage - 2 || p === currentPage + 2) return <span key={p} className="text-slate-300 px-1 text-[11px]">...</span>;
+                            if (p === currentPage - 2 || p === currentPage + 2) return <span key={p} className="text-slate-300 px-1">...</span>;
                             return null;
                         })}
                     </div>
@@ -220,21 +233,23 @@ const AllSingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                     <button
                         onClick={() => handlePageChange(currentPage + 1)}
                         disabled={currentPage === totalPages}
-                        className="flex items-center gap-2 text-[11px] font-bold text-slate-500 hover:text-emerald-600 disabled:opacity-30 transition-colors"
+                        className="flex items-center gap-2 text-[12px] font-bold text-slate-600 hover:text-emerald-600 disabled:opacity-30 disabled:hover:text-slate-600 transition-colors px-4 py-2"
                     >
-                        Next <FaChevronRight size={9} />
+                        Next <FaChevronRight size={10} />
                     </button>
                 </div>
             )}
 
             {/* Empty State */}
             {!loading && tests.length === 0 && (
-                <div className="text-center py-20 border border-slate-200 rounded-xl bg-white">
-                    <div className="bg-slate-50 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <FaPrescriptionBottleAlt className="text-slate-300" size={20} />
+                <div className="text-center py-24 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                    <div className="bg-white w-20 h-20 rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-6">
+                        <FaPrescriptionBottleAlt className="text-slate-300" size={32} />
                     </div>
-                    <h3 className="text-slate-900 font-bold text-sm">No tests found</h3>
-                    <p className="text-slate-500 text-[11px] mt-1">Try refining your search or selected lab.</p>
+                    <h3 className="text-slate-900 font-bold text-lg">No medical tests found</h3>
+                    <p className="text-slate-500 text-sm mt-2 max-w-xs mx-auto">
+                        We couldn't find any tests matching your criteria. Please try adjusting your filters or search terms.
+                    </p>
                 </div>
             )}
         </div>
