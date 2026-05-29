@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useMemo } from "react";
-import { useRouter } from "next/navigation"; 
+import { useRouter } from "next/navigation";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 // Import libphonenumber-js functions
 import { getCountries, getCountryCallingCode } from "libphonenumber-js";
@@ -8,7 +8,7 @@ import FireStationAPI from "@/app/services/FireStationAPI";
 
 function LoginAsFireHead() {
   const [identifier, setIdentifier] = useState(""); // phone OR email
-  const [countryDialCode, setCountryDialCode] = useState("+91"); 
+  const [countryDialCode, setCountryDialCode] = useState("+91");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
 
@@ -67,7 +67,7 @@ function LoginAsFireHead() {
       // 5. Redirect and close modal
       setTimeout(() => {
         closeModal();
-        // router.push("/policeandfire/fireheadquarter");
+        router.push("/policeandfire/fireheadquater");
       }, 1500);
 
     } catch (err) {
@@ -178,8 +178,8 @@ function LoginAsFireHead() {
           Fire Station HeadQuarter
         </h3>
         <p className="text-sm md:text-base leading-relaxed text-[#333]">
-          Official portal for Fire Station HeadQuarter administration. Please use your 
-          authorized phone or email credentials to access the command dashboard. 
+          Official portal for Fire Station HeadQuarter administration. Please use your
+          authorized phone or email credentials to access the command dashboard.
           Unauthorized access is strictly prohibited.
         </p>
       </div>

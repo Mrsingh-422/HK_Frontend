@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import FireStationAPI from "@/app/services/FireStationAPI";
+import { useRouter } from "next/navigation";
 
 function LoginAsFireStation() {
     const [identifier, setIdentifier] = useState(""); // Changed from phone to identifier
@@ -11,6 +12,7 @@ function LoginAsFireStation() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const router = useRouter();
 
     const { openModal, closeModal } = useGlobalContext();
 
@@ -39,7 +41,7 @@ function LoginAsFireStation() {
             const response = await FireStationAPI.LoginFireStation(userLoginData);
 
             const token = response?.token || response?.data?.token;
-            
+
             if (token) {
                 localStorage.setItem("firestationToken", token);
             }
@@ -47,6 +49,7 @@ function LoginAsFireStation() {
             setSuccess("Login successful! Redirecting...");
 
             setTimeout(() => {
+                router.push("/policeandfire/firestation");
                 closeModal();
             }, 1500);
         } catch (err) {

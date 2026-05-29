@@ -19,7 +19,7 @@ import {
   FaTimes,
   FaLocationArrow,
   FaCity,
-  FaChevronDown
+  FaChevronDown, FaUserMd
 } from "react-icons/fa";
 import { FiMessageCircle } from "react-icons/fi";
 
@@ -157,7 +157,8 @@ export default function TopNavbar() {
   const menuItems = [
     { icon: <FaUserCircle />, label: "My Account", link: "/userscreens/myaccount" },
     { icon: <FaHistory />, label: "My Orders", link: "/userscreens/previousorders" },
-    { icon: <FaHospital />, label: "Hospital Appointment", link: "/userscreens/hospitalappointment" },
+    { icon: <FaHospital />, label: "Hospital Booking", link: "/userscreens/hospitalappointment" },
+    { icon: <FaUserMd />, label: "Doctor Appointment", link: "/userscreens/doctorappointment" },
     { icon: <FaAmbulance />, label: "Ambulance Booking", link: "/userscreens/ambulanceappointment" },
     { icon: <FiMessageCircle />, label: "Chats", link: "/userscreens/mychats" },
     { icon: <FaFilePrescription />, label: "My Prescriptions", link: "/userscreens/myprescriptions" },

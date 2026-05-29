@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  FaArrowLeft, FaArrowRight, 
-  FaCrown, FaTag, FaSpinner, 
-  FaUserCircle, FaMapMarkerAlt, FaCheckCircle 
+import {
+  FaArrowLeft, FaArrowRight,
+  FaCrown, FaTag, FaSpinner,
+  FaUserCircle, FaMapMarkerAlt, FaCheckCircle
 } from 'react-icons/fa';
 import UserAPI from "@/app/services/UserAPI";
 
@@ -47,7 +47,7 @@ export default function BookingConfirmation() {
       fetchSelectionData();
       fetchVisitCharges(parsed.doctorId);
     } else {
-      router.push('/'); 
+      router.push('/');
     }
   }, [router]);
 
@@ -84,15 +84,15 @@ export default function BookingConfirmation() {
       setSelectedSlot(null);
       const res = await UserAPI.getDoctorAvailability(bookingData.doctorId, date);
       if (res.success) setAvailableSlots(res.slots || []);
-    } catch (error) { 
-      console.error(error); 
-    } finally { 
-      setLoadingSlots(false); 
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoadingSlots(false);
     }
   }, [bookingData]);
 
-  useEffect(() => { 
-    if (selectedDate) fetchSlots(selectedDate); 
+  useEffect(() => {
+    if (selectedDate) fetchSlots(selectedDate);
   }, [selectedDate, fetchSlots]);
 
   const fetchDoctorCoupons = async (id) => {
@@ -107,10 +107,11 @@ export default function BookingConfirmation() {
     const base = Number(bookingData?.fee || 0);
     const premium = Number(selectedSlot?.premiumFee || 0);
     const platform = 0;
-    
+
     let homeVisitFee = 0;
     let travelFee = 0;
 
+    // Only calculate visit/travel fees if it's Home Care
     if (bookingData?.selectedService === 'Home Care' && visitCharges) {
       homeVisitFee = Number(visitCharges.fixedPrice || 0);
       const distanceValue = Number(bookingData?.distance || 0);
@@ -157,11 +158,11 @@ export default function BookingConfirmation() {
         setAppliedCoupon(null);
         setCouponError(res.message || "Invalid coupon");
       }
-    } catch (e) { 
+    } catch (e) {
       setAppliedCoupon(null);
-      setCouponError("Coupon validation failed"); 
-    } finally { 
-      setIsValidating(false); 
+      setCouponError("Coupon validation failed");
+    } finally {
+      setIsValidating(false);
     }
   };
 
@@ -179,13 +180,19 @@ export default function BookingConfirmation() {
     try {
       setIsSubmitting(true);
 
-      // Clean Distance value (ensure it's not NaN)
       const dist = Number(bookingData.distance) || 0;
 
-      // Construct Payload exactly as per your backend schema
+      // 1. Map UI types to Backend Enum types
+      let mappedType = "Clinic Visit";
+      if (bookingData.selectedService === "Virtual Consultation") {
+        mappedType = "Video Consult";
+      } else if (bookingData.selectedService === "Home Care") {
+        mappedType = "Home Visit";
+      }
+
       const payload = {
         doctorId: bookingData.doctorId,
-        consultationType: bookingData.selectedService === "Home Care" ? "Home Visit" : "Clinic Visit",
+        consultationType: mappedType, // This now correctly handles 'Video Consult'
         appointmentDate: selectedDate,
         timeSlot: selectedSlot.time,
         distance: dist,
@@ -210,34 +217,32 @@ export default function BookingConfirmation() {
         },
         couponCode: appliedCoupon ? couponCode : "",
         pricingBreakdown: {
-            baseFee: pricing.base + pricing.premium,
-            visitCharges: pricing.homeVisitFee + pricing.travelFee,
-            extraCharges: pricing.platform,
-            discountAmount: pricing.discount,
-            subtotal: pricing.subtotal
+          baseFee: pricing.base + pricing.premium,
+          visitCharges: pricing.homeVisitFee + pricing.travelFee,
+          extraCharges: pricing.platform,
+          discountAmount: pricing.discount,
+          subtotal: pricing.subtotal
         },
         totalAmount: pricing.total
       };
 
-      // 1. Get Checkout Summary
       const summaryRes = await UserAPI.doctorCheckoutSummary(payload);
-      
+
       if (summaryRes.success) {
-        // 2. Book Appointment
         const bookingRes = await UserAPI.bookDoctorAppointment(payload);
         if (bookingRes.success) {
           localStorage.removeItem('pendingBooking');
-          alert("Success")
-        //   router.push(`/booking-success?id=${bookingRes.data?._id || ''}`);
+          alert("Appointment Booked Successfully!");
+          router.push('/userscreens/doctorappointment'); // Redirect to your success or list page
         } else {
-          alert(bookingRes.message || "Booking failed at checkout step");
+          alert(bookingRes.message || "Booking failed");
         }
       } else {
-        alert(summaryRes.message || "Failed to validate checkout summary");
+        alert(summaryRes.message || "Validation failed");
       }
     } catch (error) {
       console.error("Booking Error:", error);
-      alert(error?.response?.data?.message || "Internal Server Error (500). Please check your connection or details.");
+      alert("An error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -249,10 +254,10 @@ export default function BookingConfirmation() {
     const days = [];
     for (let i = 0; i < 14; i++) {
       const d = new Date(); d.setDate(d.getDate() + i);
-      days.push({ 
-        full: d.toISOString().split('T')[0], 
-        day: d.toLocaleDateString('en-US', { weekday: 'short' }), 
-        date: d.getDate() 
+      days.push({
+        full: d.toISOString().split('T')[0],
+        day: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        date: d.getDate()
       });
     }
     return days;
@@ -273,7 +278,7 @@ export default function BookingConfirmation() {
 
       <main className="max-w-6xl mx-auto px-6 pt-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-          
+
           {/* LEFT: SELECTIONS */}
           <div className="lg:col-span-7 space-y-12">
             <div>
@@ -285,7 +290,7 @@ export default function BookingConfirmation() {
             <section>
               <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Select Patient</h3>
               <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
-                {loadingSelectionData ? [1,2].map(i => <div key={i} className="w-40 h-20 bg-slate-50 animate-pulse rounded-2xl" />) : (
+                {loadingSelectionData ? [1, 2].map(i => <div key={i} className="w-40 h-20 bg-slate-50 animate-pulse rounded-2xl" />) : (
                   familyMembers.map((member) => (
                     <button
                       key={member._id}
@@ -318,8 +323,8 @@ export default function BookingConfirmation() {
                     key={item.full}
                     onClick={() => setSelectedDate(item.full)}
                     className={`flex-shrink-0 w-16 h-20 rounded-2xl border transition-all flex flex-col items-center justify-center
-                      ${selectedDate === item.full 
-                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-md' 
+                      ${selectedDate === item.full
+                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-md'
                         : 'bg-white border-slate-200 text-slate-600 hover:border-emerald-300'}`}
                   >
                     <span className="text-[10px] font-bold uppercase opacity-80">{item.day}</span>
@@ -334,7 +339,7 @@ export default function BookingConfirmation() {
               <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Available Slots</h3>
               {loadingSlots ? (
                 <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
-                  {[1,2,3,4].map(i => <div key={i} className="h-12 bg-slate-50 animate-pulse rounded-xl" />)}
+                  {[1, 2, 3, 4].map(i => <div key={i} className="h-12 bg-slate-50 animate-pulse rounded-xl" />)}
                 </div>
               ) : (
                 <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
@@ -363,7 +368,7 @@ export default function BookingConfirmation() {
             <section>
               <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Select Address</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {loadingSelectionData ? [1,2].map(i => <div key={i} className="h-24 bg-slate-50 animate-pulse rounded-2xl" />) : (
+                {loadingSelectionData ? [1, 2].map(i => <div key={i} className="h-24 bg-slate-50 animate-pulse rounded-2xl" />) : (
                   addresses.map((addr) => (
                     <button
                       key={addr._id}
@@ -446,20 +451,20 @@ export default function BookingConfirmation() {
               {/* COUPON SECTION */}
               <div className="space-y-4 mb-8">
                 <div className="relative">
-                  <input 
-                    type="text" 
-                    placeholder="ENTER CODE" 
+                  <input
+                    type="text"
+                    placeholder="ENTER CODE"
                     value={couponCode}
                     onChange={(e) => {
-                        setCouponCode(e.target.value.toUpperCase());
-                        if(couponError) setCouponError("");
+                      setCouponCode(e.target.value.toUpperCase());
+                      if (couponError) setCouponError("");
                     }}
                     className={`w-full bg-white border rounded-xl py-3 pl-10 pr-24 text-xs font-bold focus:ring-2 transition-all outline-none
                       ${couponError ? 'border-rose-500 focus:ring-rose-500/10' : 'border-slate-200 focus:ring-emerald-500/20'}`}
                   />
                   <FaTag className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={12} />
-                  
-                  <button 
+
+                  <button
                     disabled={isValidating || (!couponCode && !appliedCoupon)}
                     onClick={() => appliedCoupon ? removeCoupon() : handleApplyCoupon()}
                     className={`absolute right-1 top-1 bottom-1 px-4 rounded-lg text-[10px] font-black uppercase transition-colors
@@ -469,7 +474,7 @@ export default function BookingConfirmation() {
                   </button>
                 </div>
                 {couponError && <p className="text-[10px] font-bold text-rose-500 ml-1">{couponError}</p>}
-                
+
                 <div className="flex gap-2 overflow-x-auto no-scrollbar">
                   {coupons.map((cp) => (
                     <button key={cp._id} onClick={() => handleApplyCoupon(cp.couponName)} className="flex-shrink-0 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[9px] font-bold text-slate-500 hover:border-emerald-500">
@@ -479,7 +484,7 @@ export default function BookingConfirmation() {
                 </div>
               </div>
 
-              <button 
+              <button
                 disabled={!selectedSlot || !selectedMember || !selectedAddress || isSubmitting}
                 className={`w-full py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2
                   ${(selectedSlot && selectedMember && selectedAddress && !isSubmitting) ? 'bg-emerald-600 text-white shadow-lg hover:bg-emerald-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
@@ -487,10 +492,10 @@ export default function BookingConfirmation() {
               >
                 {isSubmitting ? <FaSpinner className="animate-spin" /> : 'Continue to Payment'} <FaArrowRight size={12} />
               </button>
-              
+
               {!selectedSlot || !selectedMember || !selectedAddress ? (
                 <p className="text-[9px] text-center text-slate-400 mt-4 uppercase font-bold tracking-tight">
-                    Please select {!selectedMember && 'Patient, '}{!selectedSlot && 'Slot, '}{!selectedAddress && 'Address'} to proceed
+                  Please select {!selectedMember && 'Patient, '}{!selectedSlot && 'Slot, '}{!selectedAddress && 'Address'} to proceed
                 </p>
               ) : null}
             </div>
