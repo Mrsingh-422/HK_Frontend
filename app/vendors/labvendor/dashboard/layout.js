@@ -87,7 +87,7 @@ export default function LabVendorLayout({ children }) {
                 ${isCollapsed ? 'w-20' : 'w-64'} 
             `}>
                 <div className="p-4 border-b border-gray-50 flex items-center justify-center min-h-[70px] flex-shrink-0">
-                    <Link href="/vendors/labvendor/labdashboard" className="flex items-center justify-center overflow-hidden">
+                    <Link href="/vendors/labvendor/dashboard" className="flex items-center justify-center overflow-hidden">
                         {isCollapsed ? (
                             <Image src="/logo.png" alt="Logo" width={40} height={40} className="object-contain" />
                         ) : (

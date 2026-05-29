@@ -7,7 +7,6 @@ import {
   FaArrowRight, FaFilter, FaFemale, FaUserMd, FaHeartbeat, FaVial,
   FaShieldAlt, FaPlus, FaClock, FaVials, FaFileAlt
 } from "react-icons/fa";
-import TestDetailsModal from "./otherComponents/TestDetailsModal";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import UserAPI from "@/app/services/UserAPI";
 
@@ -58,9 +57,9 @@ function BookYourDiseaseTest() {
   const filteredPackages = useMemo(() => {
     return labTests.filter((pkg) => {
       const matchesSearch = pkg.testName.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = activeCategory === "All" || 
-                               pkg.mainCategory === activeCategory || 
-                               pkg.category === activeCategory;
+      const matchesCategory = activeCategory === "All" ||
+        pkg.mainCategory === activeCategory ||
+        pkg.category === activeCategory;
       return matchesSearch && matchesCategory;
     });
   }, [searchTerm, activeCategory, labTests]);
@@ -87,7 +86,6 @@ function BookYourDiseaseTest() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20 font-sans text-slate-900 overflow-x-hidden">
-      <TestDetailsModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} pkg={selectedPkg} />
 
       {/* --- 1. PREMIUM HERO SECTION (Linear Gradient) --- */}
       <section className="relative bg-[#08B36A] pt-10 sm:pt-12 pb-24 sm:pb-32 px-4 overflow-hidden">
@@ -239,10 +237,7 @@ function BookYourDiseaseTest() {
                         <span className="text-[8px] sm:text-[10px] text-slate-300 line-through font-bold">{display.price}</span>
                       </div>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedPkg(test) || setIsModalOpen(true);
-                        }}
+                        onClick={() => router.push(`/booklabtest/testdetails/${display.id}`)}
                         className="w-full bg-slate-900 text-white py-2.5 sm:py-3.5 rounded-lg sm:rounded-xl text-[8px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-[#08B36A] transition-all active:scale-95"
                       >
                         Book Now
@@ -255,9 +250,9 @@ function BookYourDiseaseTest() {
           </div>
 
           {loading && (
-             <div className="flex justify-center py-12 sm:py-20">
-                <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-t-4 border-[#08B36A]"></div>
-             </div>
+            <div className="flex justify-center py-12 sm:py-20">
+              <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-t-4 border-[#08B36A]"></div>
+            </div>
           )}
         </section>
 

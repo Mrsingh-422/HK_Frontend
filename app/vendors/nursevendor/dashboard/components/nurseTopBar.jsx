@@ -106,7 +106,7 @@ export default function NurseTopBar({ onToggleSidebar, isCollapsed }) {
             
             <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-gray-100 rounded-2xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
               <Link 
-                href="/vendors/nursevendor/nursedashboard/profile" 
+                href="/vendors/nursevendor/dashboard/profile" 
                 className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-green-50 hover:text-[#08B36A] transition-colors"
                 onClick={() => setIsDropdownOpen(false)}
               >

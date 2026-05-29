@@ -32,7 +32,7 @@ const PharmacyTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed, prof
     }, []);
 
     const menuItems = [
-        { name: 'My Profile', href: '/vendors/pharmacy/pharmacydashboard/profile', icon: FaUserCircle },
+        { name: 'My Profile', href: '/vendors/pharmacy/dashboard/profile', icon: FaUserCircle },
     ];
 
     /**

@@ -57,7 +57,7 @@ export default function LabTopBar({ onMobileMenuClick }) {
   },[]);
 
   const menuItems =[
-    { name: 'Profile', href: '/vendors/labvendor/labdashboard/lab-profile', icon: FaUserCircle },
+    { name: 'Profile', href: '/vendors/labvendor/dashboard/lab-profile', icon: FaUserCircle },
   ];
 
   return (
