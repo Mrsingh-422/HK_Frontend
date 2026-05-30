@@ -164,6 +164,12 @@ const UserAPI = {
         const response = await publicApi.get(`/user/pharmacy/standard-list`, { params });
         return response.data;
     },
+
+    getFreshNewArrivals: async (params) => {
+        // params example: { page: 1, limit: 10 }
+        const response = await publicApi.get(`/user/pharmacy/latest-added-medicines`, { params });
+        return response.data;
+    },
     pharmacyProductDetail: async (productId, params) => {
         // vendorId example: "69df18ad0cf05769b93d6761"
         // params example: { lat: 30.7333, lng: 76.7233 }

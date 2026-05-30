@@ -83,7 +83,7 @@ function AllPharmacyProducts() {
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] font-sans pb-20">
-            <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 pt-6 md:pt-10">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 md:pt-10">
 
                 {/* --- HEADER SECTION --- */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 md:mb-10 gap-4">
@@ -95,21 +95,22 @@ function AllPharmacyProducts() {
                             {totalProducts} Items Available
                         </div>
                     </div>
-                    
+
                     <button className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-[10px] font-black hover:border-[#08B36A] hover:text-[#08B36A] transition-all shadow-sm active:scale-95">
                         <Filter size={14} /> <span>SORT BY RELEVANCE</span>
                     </button>
                 </div>
 
                 {/* --- PRODUCT GRID --- */}
+                {/* Updated Grid: grid-cols-2 (Phone), md:grid-cols-3 (Tablet), lg:grid-cols-4 (Laptop/Desktop) */}
                 {loading ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
-                        {[...Array(10)].map((_, i) => (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-8">
+                        {[...Array(8)].map((_, i) => (
                             <div key={i} className="bg-white aspect-[3/4.5] rounded-2xl md:rounded-[2rem] animate-pulse border border-slate-100 shadow-sm" />
                         ))}
                     </div>
                 ) : displayedProducts.length > 0 ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-8">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-8">
                         {displayedProducts.map((product, index) => {
                             const displayImage = RANDOM_IMAGES[index % RANDOM_IMAGES.length];
 

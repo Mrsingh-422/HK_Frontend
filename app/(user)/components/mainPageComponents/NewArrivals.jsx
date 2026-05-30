@@ -1,170 +1,193 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
     FaStar,
-    FaClock,
-    FaEye,
     FaArrowRight,
-    FaLeaf
+    FaLeaf,
+    FaChevronLeft,
+    FaChevronRight,
+    FaEye,
+    FaArrowCircleRight
 } from "react-icons/fa";
+import UserAPI from "@/app/services/UserAPI";
 
-const NEW_ARRIVALS = [
-    {
-        id: 101,
-        name: "Brahmi Vati (Gold Edition)",
-        benefit: "Memory & Cognitive Support",
-        rating: 5.0,
-        reviews: 84,
-        price: 899,
-        mrp: 1200,
-        discount: "25% OFF",
-        tag: "New Launch",
-        image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQvGcegvM-XqKb10DG0G2ryNycbr4GNL0ZAZA&s",
-    },
-    {
-        id: 102,
-        name: "Ayurvedic Sleep Drops",
-        benefit: "Deep Rest & Relaxation",
-        rating: 4.9,
-        reviews: 156,
-        price: 549,
-        mrp: 799,
-        discount: "31% OFF",
-        tag: "Fresh Stock",
-        image: "https://images.unsplash.com/photo-1628771065518-0d82f1938462?q=80&w=500&auto=format&fit=crop",
-    },
-    {
-        id: 103,
-        name: "Amrit Kalash Nectar",
-        benefit: "Immunity Booster",
-        rating: 4.8,
-        reviews: 92,
-        price: 1499,
-        mrp: 1999,
-        discount: "25% OFF",
-        tag: "Limited",
-        image: "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=500&auto=format&fit=crop",
-    },
-    {
-        id: 104,
-        name: "Turmeric Curcumin Plus",
-        benefit: "Joint & Skin Health",
-        rating: 4.7,
-        reviews: 210,
-        price: 450,
-        mrp: 650,
-        discount: "30% OFF",
-        tag: "Pure",
-        image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=500&auto=format&fit=crop",
-    },
+// Compact helper for images
+const RANDOM_IMAGES = [
+    "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=500&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=500&auto=format&fit=crop",
+    "https://m.media-amazon.com/images/I/71S2lC+1icL.jpg",
+    "https://images.unsplash.com/photo-1607619056574-7b8d3ee536b2?q=80&w=500&auto=format&fit=crop",
+    "https://cdn.pixabay.com/photo/2020/10/02/09/01/tablets-5620566_1280.jpg",
 ];
 
 export default function NewArrivals() {
     const router = useRouter();
+    const scrollRef = useRef(null);
+    const [arrivals, setArrivals] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchNewArrivals = async () => {
+            try {
+                setLoading(true);
+                const response = await UserAPI.getFreshNewArrivals({ page: 1, limit: 12 });
+                if (response.success) {
+                    setArrivals(response.data);
+                }
+            } catch (error) {
+                console.error("Error fetching arrivals:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchNewArrivals();
+    }, []);
+
+    const scroll = (direction) => {
+        if (scrollRef.current) {
+            const { clientWidth } = scrollRef.current;
+            const scrollAmount = direction === "left" ? -clientWidth : clientWidth;
+            scrollRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
+        }
+    };
 
     return (
-        <section className="py-6 pt-16 bg-[#F8FAFC]">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <section className="py-10 md:py-16 bg-[#F8FAFC]">
+            <div className="max-w-7xl mx-auto px-4 md:px-6">
 
                 {/* --- HEADER --- */}
-                <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
-                    <div className="max-w-2xl">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 mb-4">
-                            <FaClock className="text-blue-600" size={12} />
-                            <span className="text-[11px] font-bold text-blue-700 uppercase tracking-widest">Just Landed</span>
+                <div className="flex items-center justify-between mb-8 md:mb-10">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <span className="h-1 w-6 bg-emerald-500 rounded-full"></span>
+                            <span className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.2em]">Latest Launch</span>
                         </div>
-                        <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+                        <h2 className="text-xl md:text-3xl font-black text-slate-900 tracking-tight leading-none">
                             Fresh <span className="text-emerald-700">New Arrivals</span>
                         </h2>
-                        <p className="mt-3 text-slate-600 text-base md:text-lg">
-                            Explore our latest additions to the Ayurvedic pharmacy, formulated with freshly harvested herbs.
-                        </p>
                     </div>
 
-                    <button
-                        onClick={() => router.push("/buymedicine/seeallmed")}
-                        className="flex items-center justify-center gap-2 px-6 py-3 rounded-full border-2 border-slate-900 text-slate-900 font-bold text-sm hover:bg-slate-900 hover:text-white transition-all group"
-                    >
-                        View All Collection <FaArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                    </button>
-                </div>
-
-                {/* --- PRODUCT GRID --- */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-8">
-                    {NEW_ARRIVALS.map((item) => (
-                        <div
-                            key={item.id}
-                            className="group bg-white rounded-3xl border border-slate-100 hover:border-emerald-200 hover:shadow-2xl hover:shadow-emerald-900/5 transition-all duration-300 flex flex-col overflow-hidden"
-                        >
-                            {/* Image Container */}
-                            <div className="relative aspect-square overflow-hidden bg-slate-50">
-                                <img
-                                    src={item.image}
-                                    alt={item.name}
-                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                />
-                                <div className="absolute top-3 left-3">
-                                    <span className="bg-emerald-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-sm uppercase">
-                                        {item.tag}
-                                    </span>
-                                </div>
-                                {/* Mobile Quick Action */}
-                                <button className="absolute bottom-3 right-3 p-3 bg-white text-emerald-700 rounded-2xl shadow-lg md:hidden border border-slate-100">
-                                    <FaEye size={14} />
-                                </button>
-                            </div>
-
-                            {/* Content */}
-                            <div className="p-4 md:p-6 flex flex-col flex-grow">
-                                <div className="flex items-center gap-1 mb-2">
-                                    <FaStar className="text-yellow-400" size={12} />
-                                    <span className="text-xs font-bold text-slate-700">{item.rating}</span>
-                                    <span className="text-[10px] text-slate-400 font-medium">({item.reviews})</span>
-                                </div>
-
-                                <h3 className="text-base md:text-lg font-bold text-slate-900 leading-tight mb-1 group-hover:text-emerald-700 transition-colors">
-                                    {item.name}
-                                </h3>
-                                <p className="text-xs text-slate-500 font-medium mb-4">
-                                    {item.benefit}
-                                </p>
-
-                                <div className="mt-auto">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <span className="text-lg font-black text-slate-900">₹{item.price}</span>
-                                        <span className="text-xs text-slate-400 line-through">₹{item.mrp}</span>
-                                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                                            {item.discount}
-                                        </span>
-                                    </div>
-
-                                    <button
-                                        onClick={() => router.push(`/product/${item.id}`)}
-                                        className="hidden md:flex w-full items-center justify-center gap-2 bg-emerald-700 border border-slate-200 text-white py-3 rounded-xl text-xs font-bold hover:bg-slate-50 hover:text-black hover:border-emerald-700 transition-all cursor-pointer active:scale-95"
-                                    >
-                                        <FaEye size={14} /> VIEW DETAILS
-                                    </button>
-                                </div>
-                            </div>
+                    <div className="flex items-center gap-2">
+                        <div className="hidden md:flex gap-1.5">
+                            <button onClick={() => scroll('left')} className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all shadow-sm cursor-pointer active:scale-90">
+                                <FaChevronLeft size={12} />
+                            </button>
+                            <button onClick={() => scroll('right')} className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all shadow-sm cursor-pointer active:scale-90">
+                                <FaChevronRight size={12} />
+                            </button>
                         </div>
-                    ))}
+                        <button
+                            onClick={() => router.push("/buymedicine/seeallmed")}
+                            className="text-xs font-black text-slate-400 hover:text-emerald-600 transition-all uppercase tracking-widest flex items-center gap-2"
+                        >
+                            See All <FaChevronRight size={10} />
+                        </button>
+                    </div>
                 </div>
 
-                {/* --- SMALL INFO BAR --- */}
-                <div className="mt-12 flex flex-wrap justify-center gap-8 text-slate-400">
+                {/* --- PRODUCT SCROLL (5 on Desktop, 2 on Mobile) --- */}
+                <div
+                    ref={scrollRef}
+                    className="flex overflow-x-auto gap-3 md:gap-5 pb-10 scrollbar-hide snap-x snap-mandatory pt-1"
+                >
+                    {loading ? (
+                        [...Array(5)].map((_, i) => (
+                            <div key={i} className="flex-shrink-0 w-[calc(50%-8px)] lg:w-[calc(20%-16px)] bg-white rounded-2xl h-[340px] animate-pulse border border-slate-100" />
+                        ))
+                    ) : (
+                        <>
+                            {arrivals.map((item, index) => {
+                                const displayImage = RANDOM_IMAGES[index % RANDOM_IMAGES.length];
+
+                                return (
+                                    <div
+                                        key={item.inventoryId}
+                                        onClick={() => router.push(`/buymedicine/singleproductdetail/${item.medicineId}`)}
+                                        className="flex-shrink-0 w-[calc(50%-8px)] lg:w-[calc(20%-16px)] snap-start group bg-white border border-slate-100 rounded-[1.5rem] md:rounded-[2.2rem] p-2 md:p-3 hover:shadow-2xl hover:shadow-slate-200 hover:-translate-y-1 transition-all duration-500 cursor-pointer flex flex-col relative"
+                                    >
+                                        {/* Image Section */}
+                                        <div className="relative aspect-square w-full mb-3 bg-slate-50 rounded-xl md:rounded-[1.8rem] overflow-hidden shrink-0">
+                                            <img
+                                                src={displayImage}
+                                                alt={item.name}
+                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                                            />
+                                            {item.discount > 0 && (
+                                                <div className="absolute top-2 left-2 bg-emerald-600 text-white text-[7px] md:text-[8px] font-black px-2 py-0.5 md:py-1 rounded-md shadow-lg uppercase">
+                                                    {item.discount}% Off
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Content Area */}
+                                        <div className="flex flex-col flex-1 px-1 min-w-0">
+                                            <div className="flex items-center gap-1 mb-1">
+                                                <FaStar className="text-amber-400" size={8} />
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Top Rated</span>
+                                            </div>
+
+                                            <h3 className="text-[11px] md:text-sm font-black text-slate-800 line-clamp-1 mb-0.5 uppercase group-hover:text-emerald-700 transition-colors">
+                                                {item.name}
+                                            </h3>
+                                            <p className="text-[8px] md:text-[10px] text-slate-400 font-bold tracking-widest truncate mb-3 uppercase">
+                                                {item.salt === "N/A" ? "Herbal Purity" : item.salt}
+                                            </p>
+
+                                            <div className="flex items-end justify-between mb-4">
+                                                <div className="flex flex-col">
+                                                    {parseInt(item.mrp) > item.bestPrice && (
+                                                        <span className="text-[8px] md:text-[9px] text-slate-300 line-through font-bold">₹{item.mrp}</span>
+                                                    )}
+                                                    <span className="text-[14px] md:text-lg font-black text-slate-900 leading-none tracking-tight">₹{item.bestPrice}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* --- THE PREMIUM VIEW DETAIL BUTTON --- */}
+                                            <div className="mt-auto">
+                                                <button className="w-full py-2.5 md:py-3 bg-emerald-600 text-white rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-[0.15em] flex items-center justify-center gap-2 group-hover:bg-slate-900 transition-all duration-300 shadow-lg shadow-slate-100">
+                                                    <FaEye size={12} className="opacity-70" /> View Detail
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+
+                            {/* --- THE FINAL VIEW ALL CARD --- */}
+                            <div
+                                onClick={() => router.push("/buymedicine/seeallmed")}
+                                className="flex-shrink-0 w-[calc(50%-8px)] lg:w-[calc(20%-16px)] snap-start group bg-slate-50 border-2 border-dashed border-slate-200 rounded-[1.5rem] md:rounded-[2.2rem] p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:bg-white hover:border-emerald-300"
+                            >
+                                <div className="w-10 h-10 md:w-14 md:h-14 bg-white rounded-full flex items-center justify-center mb-3 shadow-sm border border-slate-100 group-hover:scale-110 group-hover:text-emerald-600 transition-all">
+                                    <FaArrowCircleRight className="text-slate-300 text-xl md:text-2xl group-hover:text-emerald-500" />
+                                </div>
+                                <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">More</p>
+                                <p className="text-[11px] md:text-sm font-black text-slate-900 leading-tight uppercase">Discover All<br />Arrivals</p>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* --- TRUST BAR --- */}
+                <div className="mt-4 flex flex-wrap justify-center gap-8 md:gap-16 text-slate-400 border-t border-slate-100 pt-8">
                     <div className="flex items-center gap-2">
-                        <FaLeaf size={14} className="text-emerald-500" />
-                        <span className="text-[11px] font-bold uppercase tracking-wider">Sustainably Sourced</span>
+                        <FaLeaf size={12} className="text-emerald-500" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Sustainably Sourced</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <FaLeaf size={14} className="text-emerald-500" />
-                        <span className="text-[11px] font-bold uppercase tracking-wider">Small Batch Production</span>
+                        <FaStar size={12} className="text-emerald-500" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Purity Guaranteed</span>
                     </div>
                 </div>
 
             </div>
+
+            <style jsx global>{`
+                .scrollbar-hide::-webkit-scrollbar { display: none; }
+                .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+            `}</style>
         </section>
     );
 }
