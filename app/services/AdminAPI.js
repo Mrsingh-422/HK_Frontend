@@ -392,6 +392,36 @@ const AdminAPI = {
         return response.data;
     },
 
+    // =============================
+    // Hospital Bed Reschedule Limits
+    // =============================
+
+    // Get Current Hospital Bed Limit
+    adminGetHospitalRescheduleLimit: async () => {
+        const response = await api.get('/admin/hospital/reschedule-limit');
+        return response.data;
+    },
+
+    // Update Hospital Bed Limit
+    adminUpdateHospitalRescheduleLimit: async (limit) => {
+        const response = await api.patch('/admin/hospital/update-reschedule-limit', { limit });
+        return response.data;
+    },
+
+    // =============================
+    // Doctor Appointment Reschedule Limits
+    // =============================
+    // Get Current Doctor Reschedule Limit
+    adminGetDoctorRescheduleLimit: async () => {
+        const response = await api.get('/admin/doctor/reschedule-limit');
+        return response.data;
+    },
+    // Update Doctor Reschedule Limit
+    adminUpdateDoctorRescheduleLimit: async (limit) => {
+        const response = await api.patch('/admin/doctor/update-reschedule-limit', { limit });
+        return response.data;
+    },
+
 };
 
 export default AdminAPI;

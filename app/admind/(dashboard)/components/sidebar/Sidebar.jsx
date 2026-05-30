@@ -33,7 +33,8 @@ import {
     FaNewspaper,
     FaUserPlus,
     FaMoneyBill,
-    FaUser
+    FaUser,
+    FaRegCalendarAlt
 } from "react-icons/fa";
 
 import "./Sidebar.css";
@@ -233,6 +234,12 @@ export default function Sidebar() {
                 <Link href="/admind/managehospital" className={`menu-item ${isActive("/admind/managehospital") ? "active" : ""}`}>
                     <FaHospital className="icon" />
                     <span>Manage Hospital</span>
+                </Link>
+
+                {/* Manage Reschedule */}
+                <Link href="/admind/managedoctors" className={`menu-item ${isActive("/admind/managedoctors") ? "active" : ""}`}>
+                    <FaRegCalendarAlt className="icon" />
+                    <span>Manage Doctors</span>
                 </Link>
 
                 {/* App Banners */}

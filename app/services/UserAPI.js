@@ -677,7 +677,6 @@ const UserAPI = {
         return response.data;
     },
 
-
     // Your existing reschedule function
     recheduleHospitalBooking: async (data) => {
         const response = await authApi.post(`/user/hospital/reschedule`, data);
