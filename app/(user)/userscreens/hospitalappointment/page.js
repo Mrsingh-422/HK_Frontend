@@ -5,7 +5,7 @@ import {
   HiOutlineLocationMarker, HiOutlineX, HiOutlineReceiptTax, 
   HiOutlineCalendar, HiOutlineDocumentDownload, HiOutlineClock, HiChevronLeft, HiChevronRight
 } from "react-icons/hi";
-import { FaUserMd, FaUserAlt, FaWallet, FaBed, FaCalendarAlt, FaStethoscope } from "react-icons/fa";
+import { FaUserMd, FaUserAlt, FaWallet, FaBed, FaCalendarAlt, FaStethoscope, FaInfoCircle, FaExclamationTriangle } from "react-icons/fa";
 import { MdVerified, MdOutlineBedroomChild } from "react-icons/md";
 import UserAPI from "@/app/services/UserAPI";
 import { Toaster, toast } from 'react-hot-toast';
@@ -47,6 +47,11 @@ function MyHospitalAppointments() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [myAppointments, setMyAppointments] = useState([]);
   
+  // Cancellation Modal States
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
+  
   // Pagination State
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0 });
 
@@ -55,6 +60,10 @@ function MyHospitalAppointments() {
   const [rescheduleData, setRescheduleData] = useState({ start: "", end: "" });
   const [currentMonth, setCurrentMonth] = useState(new Date());
   
+  // Logic States from API
+  const [maxRescheduleLimit, setMaxRescheduleLimit] = useState(0);
+  const maxCancellationLimit = 1; // Assuming 1 based on common hospital policies
+
   // States for API monthly bed schedule
   const [monthlySchedule, setMonthlySchedule] = useState([]);
   const [isScheduleLoading, setIsScheduleLoading] = useState(false);
@@ -63,7 +72,6 @@ function MyHospitalAppointments() {
     fetchBookings(1);
   }, []);
 
-  // Fetch bed availability schedule on month/year navigation or initialization
   useEffect(() => {
     if (isRescheduling && selectedAppt) {
       if (selectedAppt.startDate) {
@@ -76,7 +84,6 @@ function MyHospitalAppointments() {
     }
   }, [isRescheduling, selectedAppt]);
 
-  // Handle month switches by re-fetching the schedule
   const handleMonthChange = (nextMonth) => {
     setCurrentMonth(nextMonth);
     const bedId = selectedAppt?.bedId?._id || selectedAppt?.bedId;
@@ -90,7 +97,12 @@ function MyHospitalAppointments() {
       const response = await UserAPI.getMyHospitalBookings(page); 
       if (response.success) {
         setMyAppointments(response.data);
-        setPagination(response.pagination);
+        setPagination(response.pagination || { 
+            currentPage: page, 
+            totalPages: Math.ceil(response.total / 10), 
+            totalCount: response.total 
+        });
+        setMaxRescheduleLimit(response.maxRescheduleLimit || 0);
       }
     } catch (error) {
       console.error("Error fetching bookings:", error);
@@ -100,7 +112,6 @@ function MyHospitalAppointments() {
   const fetchBedMonthlySchedule = async (bedId, month, year) => {
     setIsScheduleLoading(true);
     try {
-      // 1. Try to invoke from UserAPI if implemented
       if (typeof UserAPI.getBedMonthlySchedule === "function") {
         const response = await UserAPI.getBedMonthlySchedule(bedId, month, year);
         if (response && response.success) {
@@ -109,8 +120,6 @@ function MyHospitalAppointments() {
           return;
         }
       }
-
-      // 2. Direct fetch fallback wrapper matching the API endpoint format
       const res = await fetch(`${BASE_URL}/user/hospital/bed-monthly-schedule?bedId=${bedId}&month=${month}&year=${year}`);
       const json = await res.json();
       if (json.success) {
@@ -134,11 +143,10 @@ function MyHospitalAppointments() {
     const newDiffDays = Math.round((getUtcDate(rescheduleData.end) - getUtcDate(rescheduleData.start)) / (1000 * 60 * 60 * 24)) + 1;
 
     if (originalDiffDays !== newDiffDays) {
-      toast.error(`The rescheduled booking must be exactly ${originalDiffDays} days (matching original duration).`);
+      toast.error(`The rescheduled booking must be exactly ${originalDiffDays} days.`);
       return;
     }
 
-    // Ensure no occupied/blocked days exist inside the selected range
     const rangeDates = getDatesInRange(rescheduleData.start, rescheduleData.end);
     const hasBookedDate = rangeDates.some((d) => {
       const dayData = monthlySchedule.find((item) => item.date === d);
@@ -174,68 +182,54 @@ function MyHospitalAppointments() {
     }
   };
 
-  const handleCancelBooking = async (appointmentId) => {
-    // 1. Ask for reason
-    const reason = window.prompt("Please enter the reason for cancellation:");
-    
-    // If user clicked cancel on the prompt, stop
-    if (reason === null) return;
-
-    // Validation: Reason must not be empty
-    if (!reason.trim()) {
-      toast.error("Cancellation reason is required.");
+  const submitCancellation = async () => {
+    if (!cancelReason.trim()) {
+      toast.error("Please provide a reason for cancellation.");
       return;
     }
 
-    // 2. Final Confirmation
-    if (window.confirm("Are you sure you want to cancel this booking?")) {
-      try {
-        // Passing the reason as an object { reason: "..." } to the API
-        const response = await UserAPI.cancelHospitalBooking(appointmentId, { reason: reason });
-        if (response.success) {
-          toast.success("Booking cancelled successfully!");
-          setIsModalOpen(false);
-          fetchBookings(pagination.currentPage);
-        } else {
-          toast.error(response.message || "Cancellation failed");
-        }
-      } catch (error) {
-        console.error("Error cancelling booking:", error);
-        toast.error("Something went wrong while cancelling.");
+    setIsCancelling(true);
+    try {
+      const response = await UserAPI.cancelHospitalBooking(selectedAppt._id, { reason: cancelReason });
+      if (response.success) {
+        toast.success("Booking cancelled successfully!");
+        setIsCancelModalOpen(false);
+        setIsModalOpen(false);
+        setCancelReason("");
+        fetchBookings(pagination.currentPage);
+      } else {
+        toast.error(response.message || "Cancellation failed");
       }
+    } catch (error) {
+      console.error("Error cancelling booking:", error);
+      toast.error("Something went wrong while cancelling.");
+    } finally {
+      setIsCancelling(false);
     }
   };
 
-  // --- Calendar Date Selection handler ---
   const handleDayClick = (dateStr, isBooked) => {
     if (isBooked) return;
-
     if (!rescheduleData.start || (rescheduleData.start && rescheduleData.end)) {
-      // Start a new selection range
       setRescheduleData({ start: dateStr, end: "" });
     } else {
-      // If only Start Date is selected
       if (dateStr < rescheduleData.start) {
         setRescheduleData({ start: dateStr, end: "" });
       } else {
-        // Validate if there's any booked date inside the range from start date to clicked date
         const rangeDates = getDatesInRange(rescheduleData.start, dateStr);
         const hasBookedDate = rangeDates.some((d) => {
           const dayData = monthlySchedule.find((item) => item.date === d);
           return dayData ? dayData.status !== "Available" : false;
         });
-
         if (hasBookedDate) {
           toast.error("Selected range includes booked days.");
           return;
         }
-
         setRescheduleData({ ...rescheduleData, end: dateStr });
       }
     }
   };
 
-  // --- Calendar month navigation ---
   const handlePrevMonth = () => {
     const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
     handleMonthChange(nextMonth);
@@ -246,12 +240,10 @@ function MyHospitalAppointments() {
     handleMonthChange(nextMonth);
   };
 
-  // --- Generate visual days grid array for calendar ---
   const year = currentMonth.getFullYear();
-  const month = currentMonth.getMonth(); // 0-indexed
-  const firstDayIndex = new Date(year, month, 1).getDay(); // 0 (Sunday) to 6 (Saturday)
+  const month = currentMonth.getMonth();
+  const firstDayIndex = new Date(year, month, 1).getDay();
   const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
-
   const blanks = Array(firstDayIndex).fill(null);
   const daysInMonth = Array.from({ length: totalDaysInMonth }, (_, i) => i + 1);
   const allDays = [...blanks, ...daysInMonth];
@@ -261,7 +253,8 @@ function MyHospitalAppointments() {
       case "Admitted": return "bg-purple-100 text-purple-700 border-purple-200";
       case "Confirmed": return "bg-green-100 text-green-700 border-green-200";
       case "Completed": return "bg-blue-100 text-blue-700 border-blue-200";
-      case "Cancelled": return "bg-red-100 text-red-700 border-red-200";
+      case "Cancelled": 
+      case "Cancelled-By-User": return "bg-red-100 text-red-700 border-red-200";
       case "Hospital-Pending": return "bg-orange-100 text-orange-700 border-orange-200";
       default: return "bg-gray-100 text-gray-700 border-gray-200";
     }
@@ -395,18 +388,58 @@ function MyHospitalAppointments() {
                         </div>
                     </section>
 
-                    {selectedAppt.hospitalId && selectedAppt.status !== "Cancelled" && (
-                      <div className="flex justify-between items-center bg-green-50/50 p-6 rounded-3xl border border-green-100 gap-4">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-[#08b36a] shadow-sm"><MdOutlineBedroomChild size={24} /></div>
-                          <div>
-                            <p className="text-[10px] font-black text-[#08b36a] uppercase">Booking Type</p>
-                            <p className="font-bold text-gray-800">{selectedAppt.bookingType}</p>
-                          </div>
+                    {selectedAppt.hospitalId && !selectedAppt.status.toLowerCase().includes("cancel") && (
+                      <div className="flex flex-col bg-green-50/50 p-6 rounded-3xl border border-green-100 gap-6">
+                        <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-[#08b36a] shadow-sm"><MdOutlineBedroomChild size={24} /></div>
+                                <div>
+                                    <p className="text-[10px] font-black text-[#08b36a] uppercase">Booking Type</p>
+                                    <p className="font-bold text-gray-800">{selectedAppt.bookingType}</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[9px] font-black text-gray-400 uppercase">Reschedule Status</p>
+                                <p className={`text-xs font-bold ${selectedAppt.rescheduleCount >= maxRescheduleLimit ? 'text-red-500' : 'text-gray-700'}`}>
+                                    {selectedAppt.rescheduleCount} / {maxRescheduleLimit} Used
+                                </p>
+                            </div>
                         </div>
+
                         <div className="flex gap-2">
-                           <button onClick={() => handleCancelBooking(selectedAppt._id)} className="bg-red-500 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 transition-all">Cancel</button>
-                           <button onClick={() => setIsRescheduling(true)} className="bg-[#08b36a] text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase hover:bg-green-600 transition-all">Reschedule</button>
+                           {/* CANCEL BUTTON WITH LIMIT LOGIC */}
+                           {selectedAppt.cancellationCount < maxCancellationLimit ? (
+                             <button 
+                                onClick={() => setIsCancelModalOpen(true)} 
+                                className="flex-1 bg-red-500 text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 transition-all active:scale-95"
+                             >
+                                Cancel Booking
+                             </button>
+                           ) : (
+                             <button 
+                                disabled
+                                className="flex-1 bg-gray-200 text-gray-400 cursor-not-allowed px-6 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2"
+                             >
+                                Limit Reached <FaInfoCircle />
+                             </button>
+                           )}
+
+                           {/* RESCHEDULE BUTTON WITH LIMIT LOGIC */}
+                           {selectedAppt.rescheduleCount < maxRescheduleLimit ? (
+                               <button 
+                                onClick={() => setIsRescheduling(true)} 
+                                className="flex-1 bg-[#08b36a] text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase hover:bg-green-600 transition-all active:scale-95"
+                               >
+                                Reschedule
+                               </button>
+                           ) : (
+                               <button 
+                                disabled
+                                className="flex-1 bg-gray-200 text-gray-400 cursor-not-allowed px-6 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2"
+                               >
+                                Limit Reached <FaInfoCircle />
+                               </button>
+                           )}
                         </div>
                       </div>
                     )}
@@ -416,11 +449,6 @@ function MyHospitalAppointments() {
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-3">
                       <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest">Select New Dates</h4>
-                      {isScheduleLoading && (
-                        <span className="text-[9px] font-black uppercase text-[#08b36a] bg-green-50 px-2 py-0.5 rounded-md animate-pulse">
-                          Fetching Availability...
-                        </span>
-                      )}
                     </div>
                     <span className="text-[10px] font-black uppercase text-green-600 bg-green-50 px-3 py-1 rounded-lg">
                       Duration: {Math.round((getUtcDate(selectedAppt.endDate) - getUtcDate(selectedAppt.startDate)) / (1000 * 60 * 60 * 24)) + 1} Days
@@ -430,90 +458,35 @@ function MyHospitalAppointments() {
                   {/* CUSTOM HOTEL-STYLE CALENDAR */}
                   <div className="bg-gray-50 p-6 rounded-[32px] border border-gray-100">
                     <div className="flex justify-between items-center mb-6">
-                      <button type="button" onClick={handlePrevMonth} className="p-2 hover:bg-gray-200 rounded-xl transition-all">
-                        <HiChevronLeft size={20} />
-                      </button>
-                      <h5 className="font-black text-sm text-gray-800 uppercase tracking-wider">
-                        {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                      </h5>
-                      <button type="button" onClick={handleNextMonth} className="p-2 hover:bg-gray-200 rounded-xl transition-all">
-                        <HiChevronRight size={20} />
-                      </button>
+                      <button type="button" onClick={handlePrevMonth} className="p-2 hover:bg-gray-200 rounded-xl transition-all"><HiChevronLeft size={20} /></button>
+                      <h5 className="font-black text-sm text-gray-800 uppercase tracking-wider">{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h5>
+                      <button type="button" onClick={handleNextMonth} className="p-2 hover:bg-gray-200 rounded-xl transition-all"><HiChevronRight size={20} /></button>
                     </div>
-
                     <div className="grid grid-cols-7 gap-2 text-center mb-2">
-                      {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
-                        <span key={day} className="text-[10px] font-black text-gray-400 uppercase">{day}</span>
-                      ))}
+                      {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (<span key={day} className="text-[10px] font-black text-gray-400 uppercase">{day}</span>))}
                     </div>
-
                     <div className="grid grid-cols-7 gap-2">
                       {allDays.map((day, idx) => {
-                        if (day === null) {
-                          return <div key={`empty-${idx}`} />;
-                        }
-
+                        if (day === null) return <div key={`empty-${idx}`} />;
                         const dateStr = formatDateString(year, month, day);
-                        
-                        // Find matching data from the monthlySchedule API response
                         const daySchedule = monthlySchedule.find((item) => item.date === dateStr);
                         const isBooked = daySchedule ? daySchedule.status !== "Available" : false;
-
                         const isStart = rescheduleData.start === dateStr;
                         const isEnd = rescheduleData.end === dateStr;
                         const isInRange = rescheduleData.start && rescheduleData.end && dateStr > rescheduleData.start && dateStr < rescheduleData.end;
-
                         let dayStyle = "bg-white text-gray-800 hover:bg-gray-100";
-                        let tooltip = "Available";
-
-                        if (isBooked) {
-                          if (daySchedule?.status === "Maintenance") {
-                            dayStyle = "bg-amber-50 text-amber-600 line-through cursor-not-allowed opacity-70";
-                            tooltip = "Under Maintenance";
-                          } else {
-                            dayStyle = "bg-red-50 text-red-500 line-through cursor-not-allowed opacity-60";
-                            tooltip = daySchedule?.currentOccupant ? `Occupied: ${daySchedule.currentOccupant}` : "Occupied";
-                          }
-                        } else if (isStart || isEnd) {
-                          dayStyle = "bg-[#08b36a] text-white font-black scale-105 shadow-md shadow-green-100";
-                        } else if (isInRange) {
-                          dayStyle = "bg-green-50 text-[#08b36a] font-bold";
-                        }
-
+                        if (isBooked) dayStyle = "bg-red-50 text-red-500 line-through cursor-not-allowed opacity-60";
+                        else if (isStart || isEnd) dayStyle = "bg-[#08b36a] text-white font-black scale-105 shadow-md shadow-green-100";
+                        else if (isInRange) dayStyle = "bg-green-50 text-[#08b36a] font-bold";
                         return (
-                          <button
-                            key={`day-${day}`}
-                            type="button"
-                            disabled={isBooked}
-                            title={tooltip}
-                            onClick={() => handleDayClick(dateStr, isBooked)}
-                            className={`h-10 w-full rounded-xl text-xs flex items-center justify-center transition-all ${dayStyle}`}
-                          >
-                            {day}
-                          </button>
+                          <button key={`day-${day}`} type="button" disabled={isBooked} onClick={() => handleDayClick(dateStr, isBooked)} className={`h-10 w-full rounded-xl text-xs flex items-center justify-center transition-all ${dayStyle}`}>{day}</button>
                         );
                       })}
                     </div>
                   </div>
 
-                  {/* SELECTED RANGE SUMMARY */}
-                  <div className="flex justify-between items-center text-xs font-bold text-gray-600 bg-gray-50 px-6 py-4 rounded-2xl border border-gray-100">
-                    <div>
-                      <p className="text-[9px] font-black text-gray-400 uppercase">Selected Range</p>
-                      <p className="mt-1 text-gray-800 font-bold">
-                        {rescheduleData.start ? new Date(rescheduleData.start).toLocaleDateString() : "Choose first date"} 
-                        {rescheduleData.end ? ` — ${new Date(rescheduleData.end).toLocaleDateString()}` : " (Choose last date)"}
-                      </p>
-                    </div>
-                    {rescheduleData.start && rescheduleData.end && (
-                      <span className="text-[10px] font-black bg-gray-200 text-gray-700 px-3 py-1 rounded-lg">
-                        {Math.round((getUtcDate(rescheduleData.end) - getUtcDate(rescheduleData.start)) / (1000 * 60 * 60 * 24)) + 1} Days Selected
-                      </span>
-                    )}
-                  </div>
-
                   <div className="flex gap-4">
-                    <button onClick={() => { setIsRescheduling(false); setRescheduleData({ start: "", end: "" }); }} className="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-gray-100 text-gray-600">Cancel</button>
+                    <button onClick={() => { setIsRescheduling(false); setRescheduleData({ start: "", end: "" }); }} className="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-gray-100 text-gray-600">Back</button>
                     <button onClick={handleReschedule} className="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-gray-900 text-white hover:bg-[#08b36a] transition-all">Confirm Reschedule</button>
                   </div>
                 </section>
@@ -525,26 +498,67 @@ function MyHospitalAppointments() {
                   <table className="w-full text-left">
                     <thead className="bg-gray-50"><tr><th className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase">Description</th><th className="px-6 py-3 text-[10px] font-black text-gray-400 uppercase text-right">Amount</th></tr></thead>
                     <tbody className="divide-y divide-gray-50">
-                      <tr><td className="px-6 py-4 text-xs font-bold text-gray-600">Base Fee</td><td className="px-6 py-4 text-xs font-bold text-gray-800 text-right">₹{selectedAppt.pricingBreakdown.baseFee}</td></tr>
-                      <tr><td className="px-6 py-4 text-xs font-bold text-gray-600">Subtotal</td><td className="px-6 py-4 text-xs font-bold text-gray-800 text-right">₹{selectedAppt.pricingBreakdown.subtotal}</td></tr>
-                      {selectedAppt.pricingBreakdown.discountAmount > 0 && <tr><td className="px-6 py-4 text-xs font-bold text-red-500">Discount</td><td className="px-6 py-4 text-xs font-bold text-red-500 text-right">-₹{selectedAppt.pricingBreakdown.discountAmount}</td></tr>}
+                      <tr><td className="px-6 py-4 text-xs font-bold text-gray-600">Base Fee</td><td className="px-6 py-4 text-xs font-bold text-gray-800 text-right">₹{selectedAppt.pricingBreakdown?.baseFee?.toLocaleString()}</td></tr>
+                      <tr><td className="px-6 py-4 text-xs font-bold text-gray-600">Subtotal</td><td className="px-6 py-4 text-xs font-bold text-gray-800 text-right">₹{selectedAppt.pricingBreakdown?.subtotal?.toLocaleString()}</td></tr>
+                      {selectedAppt.pricingBreakdown?.discountAmount > 0 && <tr><td className="px-6 py-4 text-xs font-bold text-red-500">Discount</td><td className="px-6 py-4 text-xs font-bold text-red-500 text-right">-₹{selectedAppt.pricingBreakdown.discountAmount.toLocaleString()}</td></tr>}
                     </tbody>
-                    <tfoot className="bg-gray-900 text-white"><tr><td className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Total Payable</td><td className="px-6 py-4 font-black text-right">₹{selectedAppt.totalAmount}</td></tr></tfoot>
+                    <tfoot className="bg-gray-900 text-white"><tr><td className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Total Payable</td><td className="px-6 py-4 font-black text-right">₹{selectedAppt.totalAmount?.toLocaleString()}</td></tr></tfoot>
                   </table>
                 </div>
               </section>
 
               {selectedAppt.specialServices?.length > 0 && (
                 <section>
-                    <div className="flex items-center gap-2 mb-4"><FaStethoscope className="text-[#08b36a]" />
-                    <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Special Services</h4></div>
+                    <div className="flex items-center gap-2 mb-4"><FaStethoscope className="text-[#08b36a]" /><h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Special Services</h4></div>
                     <div className="flex flex-wrap gap-2">
-                        {selectedAppt.specialServices.map((svc) => (
-                            <span key={svc._id} className="bg-gray-100 px-4 py-2 rounded-xl text-[10px] font-black text-gray-600 uppercase">{svc.serviceName} (+₹{svc.price})</span>
-                        ))}
+                        {selectedAppt.specialServices.map((svc) => (<span key={svc._id} className="bg-gray-100 px-4 py-2 rounded-xl text-[10px] font-black text-gray-600 uppercase">{svc.serviceName} (+₹{svc.price})</span>))}
                     </div>
                 </section>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- CANCELLATION REASON MODAL --- */}
+      {isCancelModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-md">
+          <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden p-8 animate-in fade-in zoom-in duration-300">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-500 mb-2">
+                <FaExclamationTriangle size={32} />
+              </div>
+              <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight">Cancel Booking?</h2>
+              <p className="text-gray-400 text-xs font-bold leading-relaxed uppercase tracking-widest">
+                This action cannot be undone. Please provide a reason for cancelling your admission.
+              </p>
+              
+              <div className="w-full mt-6">
+                <label className="block text-[9px] font-black text-gray-400 uppercase text-left mb-2 ml-1">Cancellation Reason</label>
+                <textarea 
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="E.g., Medical emergency at home, recovered early..."
+                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-red-500 focus:outline-none transition-all h-32 resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3 w-full mt-6">
+                <button 
+                  onClick={() => setIsCancelModalOpen(false)} 
+                  disabled={isCancelling}
+                  className="flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"
+                >
+                  Go Back
+                </button>
+                <button 
+                  onClick={submitCancellation}
+                  disabled={isCancelling}
+                  className="flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-200 transition-all flex items-center justify-center"
+                >
+                  {isCancelling ? "Processing..." : "Confirm Cancel"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
