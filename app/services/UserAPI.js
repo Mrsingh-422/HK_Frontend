@@ -583,6 +583,15 @@ const UserAPI = {
         return response.data;
     },
 
+    rescheduleDoctorAppointment: async (data) => {
+        const response = await authApi.post(`/user/doctors/reschedule/`, data);
+        return response.data;
+    },
+
+    cancelDoctorAppointment: async (appointmentId, reason) => {
+        const response = await authApi.patch(`/user/doctors/cancel/${appointmentId}`, { reason });
+        return response.data;
+    },
 
     //Hospital apis
     getHospitalsList: async (data) => {
@@ -677,11 +686,6 @@ const UserAPI = {
         return response.data;
     },
 
-    // Your existing reschedule function
-    recheduleHospitalBooking: async (data) => {
-        const response = await authApi.post(`/user/hospital/reschedule`, data);
-        return response.data;
-    },
 
     // ADD THIS NEW API FUNCTION HERE:
     getBedMonthlySchedule: async (bedId, month, year) => {

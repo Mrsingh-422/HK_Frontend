@@ -3,167 +3,197 @@
 import { useRouter } from "next/navigation";
 import React, { useState, useMemo, useEffect } from "react";
 import {
-    FaStar, FaMapMarkerAlt, FaPhoneAlt, FaHospital, FaArrowRight, FaBed, FaUserMd
+    FaStar, FaMapMarkerAlt, FaHospital, FaArrowRight, FaBed, FaUserMd, FaLocationArrow
 } from "react-icons/fa";
-import { HOSPITAL_DATA } from "@/app/constants/constants";
-import HospitalDetailsModal from "./otherComponents/HospitalDetailsModal";
-import { useGlobalContext } from "@/app/context/GlobalContext";
+import UserAPI from "@/app/services/UserAPI";
+
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 function FindHospital() {
     const router = useRouter();
-    const { getSingleHospitalPageData } = useGlobalContext();
 
+    const [hospitals, setHospitals] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
-    const [selectedHospital, setSelectedHospital] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
 
+    // --- FETCH DATA FROM API ---
     useEffect(() => {
-        const fetchContent = async () => {
+        const fetchHospitals = async () => {
             try {
-                await getSingleHospitalPageData();
-            } catch (err) {
-                console.error("Backend failed");
+                setLoading(true);
+                const storedCoords = localStorage.getItem("userCoords");
+                let payload = { lat: 0, lng: 0 };
+
+                if (storedCoords) {
+                    try { 
+                        const parsed = JSON.parse(storedCoords);
+                        payload = { lat: parsed.lat, lng: parsed.lng };
+                    } catch (e) {
+                        console.error("Coordinate parse error", e);
+                    }
+                }
+
+                const response = await UserAPI.getHospitalsList(payload);
+                if (response.success) {
+                    setHospitals(response.data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch hospitals:", error);
+            } finally {
+                setLoading(false);
             }
         };
-        fetchContent();
-    }, [getSingleHospitalPageData]);
+        fetchHospitals();
+    }, []);
 
-    const handleSelectHospital = (hospital) => {
-        setSelectedHospital(hospital);
-        setIsModalOpen(true);
+    // --- NAVIGATION HANDLERS ---
+    const goToDetail = (id) => {
+        router.push(`/hospital/hospitaldetail/${id}`);
     };
 
-    const closeModal = () => {
-        setIsModalOpen(false);
-        setTimeout(() => setSelectedHospital(null), 300);
+    const handleSeeAll = () => {
+        router.push("/hospital/seeallhospitals");
     };
 
+    // --- PROCESS & FILTER DATA ---
     const processedHospitals = useMemo(() => {
-        return HOSPITAL_DATA.filter((item) =>
-            item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.address.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-    }, [searchTerm]);
+        return hospitals
+            .filter((hosp) =>
+                hosp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (hosp.address || "").toLowerCase().includes(searchTerm.toLowerCase())
+            )
+            .map((hosp) => ({
+                ...hosp,
+                displayImage: hosp.hospitalImage && hosp.hospitalImage.length > 0 
+                    ? `${BASE_URL}${hosp.hospitalImage[0]}` 
+                    : `${BASE_URL}/uploads/hospitals/default.png`,
+                displayAddress: hosp.address || `${hosp.city || ''}, ${hosp.state || ''}`,
+                rating: hosp.rating || 4.8,
+                doctorsCount: hosp.doctors || 15,
+                bedsCount: hosp.beds || 50,
+                dist: hosp.distance || 0
+            }));
+    }, [hospitals, searchTerm]);
 
-    const hasMore = processedHospitals.length > 6;
+    // ONLY SHOW TOP 6
+    const displayHospitals = processedHospitals.slice(0, 6);
 
     return (
-        <div className="min-h-screen py-6 md:py-12 px-3 sm:px-6 lg:px-8 font-sans bg-[#f8fafc]">
-
-            <HospitalDetailsModal
-                isOpen={isModalOpen}
-                hospital={selectedHospital}
-                onClose={closeModal}
-            />
-
+        <div className="py-8 md:py-16 px-3 sm:px-6 lg:px-8 bg-[#FDFDFD] font-sans">
             <div className="max-w-7xl mx-auto">
                 
-                {/* ================= HOSPITAL GRID ================= */}
+                {/* --- HEADER --- */}
+                <div className="mb-8 md:mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+                    <div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-[#08B36A] rounded-lg text-[10px] font-black uppercase tracking-[0.2em] mb-4">
+                            <FaHospital /> Premium Healthcare
+                        </div>
+                        <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight leading-none">
+                            Nearby <span className="text-[#08B36A]">Hospitals</span>
+                        </h2>
+                    </div>
+                </div>
+
+                {/* --- HOSPITAL GRID --- */}
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-8">
-                    {processedHospitals.length > 0 ? (
-                        processedHospitals.slice(0, 6).map((hospital) => (
+                    {loading ? (
+                        [1, 2, 3, 4, 5, 6].map((n) => (
+                            <div key={n} className="h-64 sm:h-80 bg-slate-50 animate-pulse rounded-[1.2rem] md:rounded-[2.5rem]"></div>
+                        ))
+                    ) : displayHospitals.length > 0 ? (
+                        displayHospitals.map((hospital) => (
                             <div 
-                                key={hospital.id} 
-                                className="bg-white rounded-[1.2rem] md:rounded-[2.5rem] overflow-hidden shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-500 group flex flex-col"
+                                key={hospital._id} 
+                                onClick={() => goToDetail(hospital._id)}
+                                className="group bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-3 md:p-5 shadow-sm border border-slate-100 flex flex-col hover:shadow-2xl hover:shadow-emerald-100/50 hover:-translate-y-2 transition-all duration-500 cursor-pointer"
                             >
-                                {/* Image & Badges */}
-                                <div className="relative h-28 sm:h-48 md:h-56 overflow-hidden bg-slate-100">
+                                {/* Image Area */}
+                                <div className="h-28 sm:h-48 md:h-56 w-full relative overflow-hidden rounded-[1rem] md:rounded-[2rem] bg-slate-100 mb-4 md:mb-6">
                                     <img
-                                        src={hospital.image}
+                                        src={hospital.displayImage}
+                                        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                                         alt={hospital.name}
-                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                        onError={(e) => { e.target.src = "https://placehold.co/600x400?text=Hospital"; }}
                                     />
                                     
-                                    {/* Top Left: Emergency Pulse */}
-                                    {hospital.emergency && (
-                                        <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-red-600 text-white text-[7px] sm:text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1 shadow-lg shadow-red-200 uppercase tracking-widest">
-                                            <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-white rounded-full animate-ping"></span>
-                                            SOS Emergency
+                                    <div className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4">
+                                        <div className="bg-[#08B36A] text-white px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl flex items-center gap-1.5 shadow-lg">
+                                            <FaLocationArrow className="text-[7px] sm:text-[9px]" />
+                                            <span className="text-[8px] sm:text-[10px] font-black tracking-tighter">
+                                                {hospital.dist.toFixed(1)} km
+                                            </span>
                                         </div>
-                                    )}
+                                    </div>
 
-                                    {/* Top Right: Rating */}
-                                    <div className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-white/95 backdrop-blur-sm px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg flex items-center gap-1 shadow-sm">
+                                    <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-white/90 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 shadow-sm">
                                         <FaStar className="text-yellow-400 text-[8px] sm:text-xs" />
-                                        <span className="text-[9px] sm:text-xs font-black text-slate-800">{hospital.rating}</span>
+                                        <span className="text-[9px] sm:text-xs font-black text-slate-900">{hospital.rating}</span>
                                     </div>
                                 </div>
 
-                                {/* Content Section */}
-                                <div className="p-3 sm:p-6 flex flex-col flex-1 space-y-3 sm:space-y-4">
-                                    <div>
-                                        <h3 className="text-[13px] sm:text-lg md:text-xl font-black text-slate-800 group-hover:text-[#08B36A] transition-colors line-clamp-1">
-                                            {hospital.name}
-                                        </h3>
-                                        <p className="text-slate-400 font-medium text-[9px] sm:text-xs mt-0.5 line-clamp-1">
-                                            {hospital.address}
-                                        </p>
-                                    </div>
+                                {/* Info */}
+                                <div className="flex-1 flex flex-col min-w-0">
+                                    <h3 className="text-sm sm:text-lg md:text-xl font-black text-slate-800 line-clamp-1 group-hover:text-[#08B36A] transition-colors uppercase tracking-tight">
+                                        {hospital.name}
+                                    </h3>
+                                    <p className="text-[8px] sm:text-xs font-semibold text-slate-400 line-clamp-1 mb-4">
+                                        {hospital.displayAddress}
+                                    </p>
 
-                                    {/* Stats Row */}
-                                    <div className="flex items-center justify-between py-2 border-y border-slate-50">
-                                        <div className="flex items-center gap-1 sm:gap-2">
-                                            <FaUserMd className="text-blue-500 text-[10px] sm:text-xs" />
-                                            <span className="text-[9px] sm:text-xs font-bold text-slate-600">{hospital.doctors}+ Drs</span>
-                                        </div>
-                                        <div className="flex items-center gap-1 sm:gap-2">
-                                            <FaBed className="text-emerald-500 text-[10px] sm:text-xs" />
-                                            <span className="text-[9px] sm:text-xs font-bold text-slate-600">{hospital.beds} Beds</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Specialties (Only first 2 on mobile to save space) */}
-                                    <div className="flex flex-wrap gap-1 md:gap-2">
-                                        {hospital.specialties?.slice(0, 2).map((spec, i) => (
-                                            <span key={i} className="text-[8px] sm:text-[10px] font-bold bg-slate-50 text-slate-500 px-2 py-0.5 rounded-md uppercase tracking-tight">
-                                                {spec}
-                                            </span>
-                                        ))}
-                                    </div>
-
-                                    {/* Footer */}
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-50 mt-auto">
-                                        <div className="flex items-center gap-1 text-[#08B36A] font-black text-[9px] sm:text-[11px] uppercase tracking-wider">
-                                            <FaMapMarkerAlt /> {hospital.distance}m away
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-50 text-[#08B36A] rounded-lg sm:rounded-xl flex items-center justify-center cursor-pointer hover:bg-[#08B36A] hover:text-white transition-all">
-                                                <FaPhoneAlt className="text-[9px] sm:text-xs" />
+                                    {/* Stats Grid */}
+                                    <div className="grid grid-cols-2 gap-2 md:gap-3 mb-5">
+                                        <div className="bg-slate-50 rounded-xl md:rounded-2xl p-2 md:p-3 flex items-center gap-2 md:gap-3">
+                                            <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-white flex items-center justify-center text-[#08B36A] shadow-sm">
+                                                <FaUserMd className="text-[10px] md:text-sm" />
                                             </div>
-                                            <button
-                                                onClick={() => handleSelectHospital(hospital)}
-                                                className="flex-1 bg-[#08B36A] hover:bg-slate-900 text-white font-black py-2 sm:py-3 px-4 sm:px-6 rounded-lg sm:rounded-xl transition-all shadow-lg shadow-[#08B36A]/10 active:scale-95 uppercase tracking-widest text-[8px] sm:text-[10px]"
-                                            >
-                                                Book Now
-                                            </button>
+                                            <div>
+                                                <div className="text-[10px] md:text-xs font-black text-slate-800">{hospital.doctorsCount}+</div>
+                                                <div className="text-[7px] md:text-[8px] font-black uppercase text-slate-400">Drs</div>
+                                            </div>
                                         </div>
+                                        <div className="bg-slate-50 rounded-xl md:rounded-2xl p-2 md:p-3 flex items-center gap-2 md:gap-3">
+                                            <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-white flex items-center justify-center text-blue-500 shadow-sm">
+                                                <FaBed className="text-[10px] md:text-sm" />
+                                            </div>
+                                            <div>
+                                                <div className="text-[10px] md:text-xs font-black text-slate-800">{hospital.bedsCount}</div>
+                                                <div className="text-[7px] md:text-[8px] font-black uppercase text-slate-400">Beds</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Action Footer */}
+                                    <div className="mt-auto flex items-center justify-between pt-4 border-t border-slate-50">
+                                        <div className="flex items-center gap-1.5 md:gap-2">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                            <span className="text-[8px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest">Open 24/7</span>
+                                        </div>
+                                        <button className="bg-slate-900 group-hover:bg-[#08B36A] text-white font-black px-4 md:px-8 py-2 md:py-3 rounded-lg md:rounded-2xl text-[8px] md:text-[10px] uppercase tracking-widest transition-all shadow-sm">
+                                            View
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         ))
                     ) : (
-                        <div className="col-span-full bg-white py-20 rounded-[2.5rem] border-2 border-dashed border-slate-200 text-center">
-                            <FaHospital className="mx-auto text-6xl text-slate-200 mb-4" />
-                            <h3 className="text-xl font-bold text-slate-800">No Hospitals Found</h3>
+                        <div className="col-span-full py-20 bg-white rounded-[2rem] border-2 border-dashed border-slate-100 text-center">
+                             <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">No Hospitals Found</h3>
                         </div>
                     )}
                 </div>
 
-                {/* ================= SEE ALL BUTTON ================= */}
-                {hasMore && (
-                    <div className="mt-12 text-center">
-                        <button
-                            onClick={() => router.push("/hospital/seeallhospitals")}
-                            className="cursor-pointer inline-flex items-center gap-3 bg-white text-[#08B36A] border-2 border-[#08B36A] font-black px-10 py-3.5 rounded-2xl hover:bg-[#08B36A] hover:text-white transition-all shadow-lg active:scale-95 group text-sm"
-                        >
-                            Explore All Units <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
-                        </button>
-                        <p className="text-slate-400 text-[10px] font-bold mt-4 uppercase tracking-widest">
-                            Verified Hospital Network
-                        </p>
-                    </div>
-                )}
+                {/* --- SEE ALL HOSPITALS BUTTON --- */}
+                <div className="mt-14 text-center">
+                    <button
+                        onClick={handleSeeAll}
+                        className="group inline-flex items-center gap-4 bg-white text-slate-900 border-2 border-slate-900 font-black px-10 md:px-16 py-4 md:py-5 rounded-2xl md:rounded-[2.5rem] hover:bg-slate-900 hover:text-white transition-all shadow-2xl shadow-slate-200 active:scale-95 text-[10px] md:text-xs uppercase tracking-[0.3em] cursor-pointer"
+                    >
+                        See All Hospitals <FaArrowRight className="group-hover:translate-x-2 transition-transform" />
+                    </button>
+                    <p className="mt-5 text-[9px] font-black text-slate-300 uppercase tracking-[0.5em]">
+                        Verified Medical Network
+                    </p>
+                </div>
             </div>
         </div>
     );
