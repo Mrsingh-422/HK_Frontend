@@ -421,6 +421,14 @@ const UserAPI = {
         const response = await authApi.post(`/user/pharmacy/validate-coupon`, { couponName, pharmacyId, totalAmount });
         return response.data;
     },
+
+    getPharmacyOrders: async (page = 1, limit = 10) => {
+        const response = await authApi.get("/user/pharmacy/order-history", {
+            params: { page, limit }
+        });
+        return response.data;
+    },
+
     checkoutLabBooking: async (checkoutData) => {
         const response = await authApi.post("/user/labs/checkout", checkoutData);
         return response.data;
