@@ -3,14 +3,15 @@
 import React, { useState } from 'react';
 import ManageDoctorReschedule from './components/ManageDoctorRechedule'; // Adjust path
 import { CalendarRange, Users } from 'lucide-react';
+import ManageDoctors from './components/ManageDoctors';
 
 function Page() {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     return (
-        <div className="min-h-screen bg-gray-50 p-8 font-sans">
-            <div className="max-w-6xl mx-auto">
-                
+        <div className="min-h-screen bg-gray-50 pt-8 font-sans">
+            <div className="max-w-7xl mx-auto">
+
                 {/* Page Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                     <div>
@@ -31,15 +32,12 @@ function Page() {
                     </button>
                 </div>
 
-                {/* Dashboard Placeholder */}
-                <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl h-96 flex items-center justify-center text-slate-400">
-                    <p>Doctor List Content Goes Here...</p>
-                </div>
+                <ManageDoctors />
 
                 {/* MODAL COMPONENT */}
-                <ManageDoctorReschedule 
-                    isOpen={isModalOpen} 
-                    onClose={() => setIsModalOpen(false)} 
+                <ManageDoctorReschedule
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
                 />
             </div>
         </div>

@@ -24,6 +24,8 @@ import AppointmentComponent from "./components/mainPageComponents/AppointmentCom
 import NewArrivals from "./components/mainPageComponents/NewArrivals";
 import HospitalsMainPage from "./components/mainPageComponents/HospitalsMainPage";
 import NurseSection from "./components/mainPageComponents/NurseSection";
+import FeaturedProducts from "./buymedicine/components/FeaturedProducts";
+import SomeProducts from "./components/mainPageComponents/SomeProducts";
 
 export default function Home() {
   return (
@@ -34,6 +36,7 @@ export default function Home() {
       <NewArrivals />
       <MedicineComponent />
       <AppointmentComponent />
+      <SomeProducts />
       <PersonalCare />
       <LabTests />
       <SomeDesign />

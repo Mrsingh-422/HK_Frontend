@@ -422,6 +422,24 @@ const AdminAPI = {
         return response.data;
     },
 
+    //Admin Functions to manage Independent Doctors
+
+    getIndependentDoctorsList: async (page = 1, limit = 20, search = "") => {
+        const response = await api.get('/admin/doctor/list', {
+            params: { page, limit, search }
+        });
+        return response.data;
+    },
+    approveOrRejectIndependentDoctor: async (doctorId, status, reason = "") => {
+        const response = await api.patch(`/admin/doctor/approve/${doctorId}`, { status, reason });
+        return response.data;
+    },
+
+    toggleActiveOrInactiveIndependentDoctor: async (doctorId) => {
+        const response = await api.patch(`/admin/doctor/toggle-active/${doctorId}`);
+        return response.data;
+    }
+
 };
 
 export default AdminAPI;

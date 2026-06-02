@@ -222,7 +222,6 @@ export default function NurseVendorManager() {
                 <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
                   <th className="px-8 py-5">Nurse Identity</th>
                   <th className="px-8 py-5">Location</th>
-                  <th className="px-8 py-5 text-center">Live Status</th>
                   <th className="px-8 py-5 text-center">Status</th>
                   <th className="px-8 py-5 text-right">Verification</th>
                 </tr>
@@ -254,11 +253,6 @@ export default function NurseVendorManager() {
                         <p className="text-[10px] text-slate-400 font-black uppercase mt-1 tracking-tighter">
                           {vendor.state}, {vendor.country}
                         </p>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className={`w-10 h-5 mx-auto rounded-full relative transition-all duration-300 ${vendor.isActive ? 'bg-[#08B36A]' : 'bg-slate-200'}`}>
-                        <div className={`absolute top-1 bg-white w-3 h-3 rounded-full transition-all duration-300 ${vendor.isActive ? 'right-1' : 'left-1'}`}></div>
                       </div>
                     </td>
                     <td className="px-8 py-6 text-center">
