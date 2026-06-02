@@ -1,307 +1,327 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import UserAPI from '../../../../services/UserAPI'; 
 import {
-    FiX, FiStar, FiArrowLeft, FiCheckCircle, FiClock,
-    FiDownload, FiActivity, FiMapPin, FiClipboard,
-    FiFileText, FiRefreshCw, FiExternalLink, FiSearch, FiLayers
+    FiX, FiStar, FiActivity, FiLayers, FiHome,
+    FiDownload, FiSearch, FiRefreshCw, FiChevronLeft, FiChevronRight,
+    FiUser, FiMapPin, FiClock, FiCreditCard
 } from 'react-icons/fi';
 import { MdOutlineScience, MdVerified } from 'react-icons/md';
 
-// --- SUB-COMPONENT: LAB STATUS STEPPER ---
-const StatusStepper = ({ currentStep }) => {
-    const steps = ["Booked", "Sample Collected", "In Lab", "Report Ready"];
+// --- SUB-COMPONENT: STEPPER ---
+const StatusStepper = ({ status }) => {
+    // Mapping API status strings to visual steps
+    const statusMap = { 
+        "Confirmed": 0, 
+        "Phlebotomist Assigned": 1, 
+        "Sample Collected": 2, 
+        "Report Ready": 3 
+    };
+    const currentStep = statusMap[status] ?? 1;
+    const steps = ["Booked", "Assigned", "Collected", "Completed"];
+
     return (
-        <div className="w-full py-10 px-4">
+        <div className="w-full py-8 px-2">
             <div className="relative flex items-center justify-between">
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-slate-100 -z-10"></div>
-                <div
-                    className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-600 transition-all duration-1000 z-10"
-                    style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
-                ></div>
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-600 transition-all duration-700 z-10"
+                    style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}></div>
                 {steps.map((step, index) => (
-                    <div key={step} className="flex flex-col items-center gap-2.5">
-                        <div className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-500 ${index <= currentStep ? "bg-indigo-600 border-indigo-100 ring-4 ring-indigo-50" : "bg-white border-slate-200"
-                            }`}></div>
-                        <span className={`text-[9px] font-bold uppercase tracking-[0.15em] ${index <= currentStep ? "text-slate-900" : "text-slate-400"
-                            }`}>{step}</span>
+                    <div key={step} className="flex flex-col items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full border-2 transition-all duration-500 ${index <= currentStep ? "bg-indigo-600 border-indigo-100 ring-4 ring-indigo-50" : "bg-white border-slate-200"}`} />
+                        <span className={`text-[8px] font-black uppercase tracking-tighter ${index <= currentStep ? "text-slate-900" : "text-slate-400"}`}>{step}</span>
                     </div>
                 ))}
             </div>
-        </div>
-    );
-};
-
-// --- SUB-COMPONENT: STAR RATER ---
-const StarRating = ({ title, onBack, onSubmit }) => {
-    const [rating, setRating] = useState(0);
-    const [hover, setHover] = useState(0);
-    return (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 text-center py-6">
-            <button onClick={onBack} className="flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase mb-8 hover:text-emerald-600 transition-colors mx-auto">
-                <FiArrowLeft /> Back to Summary
-            </button>
-            <h3 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">Rate Lab Experience</h3>
-            <p className="text-slate-500 text-sm mb-10 font-medium">How was the service at {title}?</p>
-            <div className="flex justify-center gap-4 mb-12">
-                {[1, 2, 3, 4, 5].map((s) => (
-                    <button key={s} onMouseEnter={() => setHover(s)} onMouseLeave={() => setHover(0)} onClick={() => setRating(s)} className="transform transition-transform active:scale-90">
-                        <FiStar size={42} className={`${(hover || rating) >= s ? "fill-amber-400 text-amber-400 drop-shadow-md" : "text-slate-100"} transition-all`} />
-                    </button>
-                ))}
-            </div>
-            <button
-                disabled={rating === 0}
-                onClick={() => onSubmit(rating)}
-                className={`w-full py-5 rounded-[24px] font-black text-[11px] uppercase tracking-widest transition-all ${rating > 0 ? "bg-emerald-600 text-white shadow-xl shadow-emerald-100" : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                    }`}
-            >
-                Confirm Rating
-            </button>
         </div>
     );
 };
 
 function LabOrders() {
-    const [orders] = useState([
-        {
-            id: "LAB-4410",
-            status: "Report Ready",
-            currentStep: 3,
-            date: "12 Oct 2023",
-            name: "Heart Health Package",
-            vendor: "City Care Diagnostics",
-            price: "₹2,799",
-            actual: "₹4,500",
-            image: "https://images.unsplash.com/photo-1580281657521-6b6b2c8b8f6c?auto=format&fit=crop&w=200&q=80",
-            rating: 4.5,
-            tests: "25 Parameters",
-            detailedTests: ["ECG", "Lipid Profile", "CRP", "Homocysteine", "Troponin I", "CK-MB", "Blood Glucose"]
-        },
-        {
-            id: "LAB-5021",
-            status: "Processing",
-            currentStep: 2,
-            date: "Today, 10:00 AM",
-            name: "Full Body Checkup",
-            vendor: "Pathology Lab Inc",
-            price: "₹1,499",
-            actual: "₹2,999",
-            image: "https://images.unsplash.com/photo-1579152276503-3172e276081e?auto=format&fit=crop&w=200&q=80",
-            tests: "60+ Parameters"
-        },
-        {
-            id: "LAB-0035",
-            status: "Cancelled",
-            currentStep: 0,
-            date: "20 Sep 2023",
-            name: "COVID-19 RT-PCR",
-            vendor: "Apollo Diagnostics",
-            price: "₹699",
-            actual: "₹999",
-            image: "https://images.unsplash.com/photo-1583946099361-ff78a1c0851e?auto=format&fit=crop&w=200&q=80",
-            tests: "Single Parameter"
-        }
-    ]);
+    const [loading, setLoading] = useState(true);
+    const [orders, setOrders] = useState([]);
+    const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0 });
+    const [modal, setModal] = useState({ isOpen: false, data: null });
 
-    const [modal, setModal] = useState({ isOpen: false, type: 'details', data: null });
-
-    const getStatusStyle = (status) => {
-        switch (status) {
-            case 'Report Ready': return 'text-emerald-600 bg-emerald-50';
-            case 'Processing': return 'text-indigo-600 bg-indigo-50';
-            case 'Cancelled': return 'text-rose-500 bg-rose-50';
-            default: return 'text-slate-500 bg-slate-50';
+    // Fetch Data
+    const loadBookings = useCallback(async (page = 1) => {
+        setLoading(true);
+        try {
+            const res = await UserAPI.getLabBookings(page, 10);
+            if (res.success) {
+                setOrders(res.data);
+                setPagination({
+                    currentPage: res.currentPage,
+                    totalPages: res.totalPages,
+                    totalCount: res.count
+                });
+            }
+        } catch (error) {
+            console.error("Failed to fetch bookings:", error);
+        } finally {
+            setLoading(false);
         }
+    }, []);
+
+    useEffect(() => {
+        loadBookings();
+    }, [loadBookings]);
+
+    // Helpers
+    const getItemsCount = (items) => (items?.tests?.length || 0) + (items?.packages?.length || 0);
+
+    const getItemsSummary = (items) => {
+        const tests = items.tests?.map(t => t.name) || [];
+        const packages = items.packages?.map(p => p.name) || [];
+        const all = [...tests, ...packages];
+        return all.length > 0 ? all.join(", ") : "Diagnostic Booking";
+    };
+
+    const getStatusStyles = (status) => {
+        if (status === 'Report Ready') return 'text-emerald-600 bg-emerald-50';
+        if (['Cancelled', 'Rejected'].includes(status)) return 'text-rose-500 bg-rose-50';
+        return 'text-indigo-600 bg-indigo-50';
     };
 
     return (
         <div className="bg-white border border-slate-200 rounded-[32px] overflow-hidden shadow-sm">
-            {/* Table Header */}
+            {/* Header */}
             <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
                 <div>
-                    <h3 className="font-black text-slate-900 text-xl tracking-tight">Diagnostic Ledger</h3>
-                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Laboratory & Radiology Reports</p>
+                    <h3 className="font-black text-slate-900 text-xl tracking-tight">Lab Records</h3>
+                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Found {pagination.totalCount} Bookings</p>
                 </div>
                 <div className="relative w-full md:w-80">
                     <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input type="text" placeholder="Search by test or lab ID..." className="w-full bg-slate-50 border-none rounded-2xl py-3.5 pl-12 text-sm font-semibold outline-none ring-1 ring-slate-100 focus:ring-indigo-500 transition-all" />
+                    <input type="text" placeholder="Search Order ID..." className="w-full bg-slate-50 border-none rounded-2xl py-3.5 pl-12 text-sm font-semibold outline-none ring-1 ring-slate-100 focus:ring-indigo-500 transition-all" />
                 </div>
             </div>
 
-            {/* THE TABLE */}
-            <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="bg-slate-50/50">
-                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Order ID</th>
-                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Test Details</th>
-                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Parameters</th>
-                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Date</th>
-                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Total</th>
-                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Status</th>
-                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 text-right">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {orders.map((order) => (
-                            <tr key={order.id} className="hover:bg-slate-50/50 transition-colors group">
-                                <td className="px-8 py-6">
-                                    <span className="text-xs font-bold text-slate-400 tracking-tighter">#{order.id}</span>
-                                </td>
-                                <td className="px-8 py-6">
-                                    <div className="flex items-center gap-4">
-                                        <img src={order.image} className="w-11 h-11 rounded-2xl object-cover ring-4 ring-white shadow-sm" alt="" />
-                                        <div>
-                                            <p className="text-sm font-black text-slate-800 leading-none mb-1.5 group-hover:text-indigo-600 transition-colors">{order.name}</p>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{order.vendor}</p>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="px-8 py-6">
-                                    <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-500">
-                                        <FiLayers className="text-indigo-500" /> {order.tests}
-                                    </span>
-                                </td>
-                                <td className="px-8 py-6 text-xs font-bold text-slate-700">{order.date}</td>
-                                <td className="px-8 py-6">
-                                    <span className="text-sm font-black text-slate-900">{order.price}</span>
-                                </td>
-                                <td className="px-8 py-6">
-                                    <span className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusStyle(order.status)}`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${order.status === 'Report Ready' ? 'bg-emerald-500' :
-                                            order.status === 'Processing' ? 'bg-indigo-500 animate-pulse' : 'bg-rose-500'
-                                            }`} />
-                                        {order.status}
-                                    </span>
-                                </td>
-                                <td className="px-8 py-6 text-right">
-                                    {order.status === "Cancelled" ? (
-                                        <button className="text-slate-300 hover:text-indigo-600 transition-colors"><FiRefreshCw size={18} /></button>
-                                    ) : (
-                                        <button
-                                            onClick={() => setModal({ isOpen: true, type: order.status === 'Processing' ? 'track' : 'details', data: order })}
-                                            className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${order.status === 'Report Ready' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100 hover:bg-slate-900' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-900 hover:text-white hover:border-slate-900'
-                                                }`}
-                                        >
-                                            {order.status === 'Report Ready' ? 'View Report' : 'Track Lab'}
-                                        </button>
-                                    )}
-                                </td>
+            {/* Table */}
+            <div className="overflow-x-auto min-h-[400px]">
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center py-32 gap-4">
+                        <FiRefreshCw className="animate-spin text-indigo-600" size={30} />
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Loading your health data...</p>
+                    </div>
+                ) : (
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50/50">
+                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Order Info</th>
+                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Tests/Packages</th>
+                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Appointment</th>
+                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Net Amount</th>
+                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Action</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {orders.map((order) => (
+                                <tr key={order._id} className="hover:bg-slate-50/50 transition-colors group">
+                                    <td className="px-8 py-6">
+                                        <p className="text-xs font-black text-slate-900 leading-none mb-1">#{order.bookingId}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">{order.labId?.name}</p>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <div className="max-w-[220px]">
+                                            <p className="text-sm font-black text-slate-800 truncate leading-none mb-1">{getItemsSummary(order.items)}</p>
+                                            <p className="text-[9px] font-bold text-indigo-500 uppercase flex items-center gap-1">
+                                                <FiLayers /> {getItemsCount(order.items)} Items
+                                            </p>
+                                        </div>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <p className="text-xs font-bold text-slate-700">{new Date(order.appointmentDate).toLocaleDateString('en-GB')}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase">{order.appointmentTime}</p>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <span className="text-sm font-black text-slate-900">₹{order.billSummary?.totalAmount}</span>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{order.paymentMethod}</p>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${getStatusStyles(order.status)}`}>
+                                            {order.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-8 py-6 text-right">
+                                        <button
+                                            onClick={() => setModal({ isOpen: true, data: order })}
+                                            className="px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border border-slate-200 hover:bg-slate-900 hover:text-white transition-all shadow-sm"
+                                        >
+                                            View Full Summary
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
             </div>
 
-            {/* --- CLINICAL MODAL SYSTEM --- */}
-            {modal.isOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-white w-full max-w-2xl rounded-[48px] shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
+            {/* Pagination */}
+            <div className="p-6 border-t border-slate-100 flex items-center justify-between bg-slate-50/20">
+                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                    Page {pagination.currentPage} of {pagination.totalPages}
+                </p>
+                <div className="flex gap-2">
+                    <button
+                        disabled={pagination.currentPage === 1}
+                        onClick={() => loadBookings(pagination.currentPage - 1)}
+                        className="p-2 rounded-lg border border-slate-200 bg-white disabled:opacity-30 hover:bg-slate-100"
+                    >
+                        <FiChevronLeft />
+                    </button>
+                    <button
+                        disabled={pagination.currentPage >= pagination.totalPages}
+                        onClick={() => loadBookings(pagination.currentPage + 1)}
+                        className="p-2 rounded-lg border border-slate-200 bg-white disabled:opacity-30 hover:bg-slate-100"
+                    >
+                        <FiChevronRight />
+                    </button>
+                </div>
+            </div>
 
-                        <div className="p-8 border-b border-slate-50 flex justify-between items-center">
+            {/* --- DETAILED DIALOG MODAL --- */}
+            {modal.isOpen && modal.data && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
+                        
+                        {/* Modal Header */}
+                        <div className="p-6 border-b flex justify-between items-center bg-slate-50/50">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-                                    <MdOutlineScience size={20} />
+                                <span className="bg-indigo-600 text-white p-2 rounded-xl"><FiActivity size={18}/></span>
+                                <div>
+                                    <h3 className="font-black text-xs uppercase tracking-widest text-slate-900">Order: {modal.data.bookingId}</h3>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Placed on {new Date(modal.data.createdAt).toLocaleDateString()}</p>
                                 </div>
-                                <h3 className="font-black text-[11px] uppercase tracking-widest text-slate-400">Diagnostic Summary</h3>
                             </div>
-                            <button onClick={() => setModal({ ...modal, isOpen: false })} className="w-10 h-10 flex items-center justify-center bg-slate-50 hover:bg-slate-100 rounded-full transition-all text-slate-400"><FiX /></button>
+                            <button onClick={() => setModal({ ...modal, isOpen: false })} className="w-10 h-10 flex items-center justify-center bg-white border rounded-full text-slate-400 hover:text-rose-500 hover:border-rose-100 transition-all"><FiX size={20} /></button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-10 no-scrollbar">
-                            {/* 1. TRACKING VIEW */}
-                            {modal.type === 'track' && (
-                                <div className="space-y-10">
-                                    <div className="text-center bg-slate-900 rounded-[40px] p-10 text-white relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 p-10 opacity-10"><FiActivity size={120} /></div>
-                                        <div className="inline-flex items-center gap-2 bg-indigo-500/20 text-indigo-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase mb-6 tracking-widest">
-                                            <span className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse" />
-                                            Lab In Progress
+                        <div className="p-8 overflow-y-auto no-scrollbar">
+                            {/* Tracking & Lab Info */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 font-black text-xl">
+                                            {modal.data.labId?.name.charAt(0)}
                                         </div>
-                                        <h2 className="text-4xl font-black mb-2 tracking-tight tracking-tight">Analyzing Samples</h2>
-                                        <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">Est. Ready: 24-48 Hours</p>
+                                        <div>
+                                            <h4 className="font-black text-slate-900 text-lg leading-tight">{modal.data.labId?.name}</h4>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1"><FiMapPin/> {modal.data.labId?.city}</p>
+                                        </div>
                                     </div>
-                                    <StatusStepper currentStep={modal.data.currentStep} />
-                                    <button className="w-full py-5 bg-indigo-600 text-white rounded-3xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 hover:bg-slate-900 transition-all">
-                                        Contact Lab Support
-                                    </button>
+                                    <StatusStepper status={modal.data.status} />
                                 </div>
-                            )}
 
-                            {/* 2. SPECIFICATION VIEW */}
-                            {modal.type === 'details' && (
-                                <div className="space-y-10">
-                                    {/* Header Section */}
-                                    <div className="flex flex-col md:flex-row gap-10">
-                                        <img src={modal.data.image} className="w-40 h-40 rounded-[40px] object-cover ring-8 ring-slate-50 shadow-inner" alt="" />
-                                        <div className="pt-2 flex-1 text-center md:text-left">
-                                            <h2 className="text-3xl font-black text-slate-900 mb-2 leading-tight">{modal.data.name}</h2>
-                                            <p className="text-emerald-600 font-black uppercase text-[11px] tracking-widest mb-6 flex items-center justify-center md:justify-start gap-1">
-                                                <MdVerified className="text-blue-500" /> {modal.data.vendor}
-                                            </p>
-                                            <div className="flex flex-wrap justify-center md:justify-start gap-4">
-                                                <div className="bg-slate-50 px-5 py-2.5 rounded-2xl border border-slate-100">
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Price Paid</p>
-                                                    <p className="text-sm font-black text-slate-900">{modal.data.price}</p>
-                                                </div>
-                                                <div className="bg-slate-50 px-5 py-2.5 rounded-2xl border border-slate-100">
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Parameters</p>
-                                                    <p className="text-sm font-black text-slate-900">{modal.data.tests}</p>
-                                                </div>
+                                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                                    <p className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest">Appointment Details</p>
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-3 text-xs font-bold text-slate-700">
+                                            <FiClock className="text-indigo-500"/> {new Date(modal.data.appointmentDate).toLocaleDateString('en-GB', {weekday: 'long', day: 'numeric', month: 'short'})}
+                                        </div>
+                                        <div className="flex items-center gap-3 text-xs font-bold text-slate-700">
+                                            <FiActivity className="text-indigo-500"/> {modal.data.appointmentTime}
+                                        </div>
+                                        <div className="flex items-center gap-3 text-xs font-bold text-slate-700">
+                                            {modal.data.collectionType === "Home Collection" ? <FiHome className="text-emerald-500"/> : <FiMapPin className="text-blue-500"/>} 
+                                            {modal.data.collectionType}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Tests & Packages List */}
+                            <div className="mb-8">
+                                <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Included Items</h5>
+                                <div className="grid grid-cols-1 gap-2">
+                                    {modal.data.items.tests.map((test, i) => (
+                                        <div key={i} className="flex justify-between items-center bg-slate-50 px-5 py-4 rounded-2xl border border-slate-100">
+                                            <span className="text-xs font-bold text-slate-700">{test.name}</span>
+                                            <span className="text-xs font-black text-slate-900">₹{test.price}</span>
+                                        </div>
+                                    ))}
+                                    {modal.data.items.packages.map((pkg, i) => (
+                                        <div key={i} className="flex justify-between items-center bg-indigo-50/50 px-5 py-4 rounded-2xl border border-indigo-100">
+                                            <span className="text-xs font-black text-indigo-700">{pkg.name} <span className="text-[9px] opacity-50 uppercase font-black">(Package)</span></span>
+                                            <span className="text-xs font-black text-indigo-900">₹{pkg.price}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Patient Info */}
+                            <div className="mb-8">
+                                <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Assigned Patients</h5>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {modal.data.patients.map((p, i) => (
+                                        <div key={i} className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-slate-100">
+                                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500"><FiUser size={14}/></div>
+                                            <div>
+                                                <p className="text-xs font-black text-slate-900 leading-none mb-1">{p.name}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase">{p.gender} • {p.relation}</p>
                                             </div>
                                         </div>
-                                    </div>
+                                    ))}
+                                </div>
+                            </div>
 
-                                    {/* Parameters Grid */}
-                                    <div className="space-y-4">
-                                        <h4 className="font-black text-[10px] uppercase tracking-[0.25em] text-slate-400 flex items-center gap-2"><FiFileText className="text-indigo-500" /> Included Parameters</h4>
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                            {modal.data.detailedTests?.map((test, i) => (
-                                                <div key={i} className="text-[10px] font-bold text-slate-600 bg-slate-50 px-4 py-3 rounded-2xl border border-slate-100 flex items-center gap-2">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {test}
-                                                </div>
-                                            )) || <p className="text-xs text-slate-400 col-span-full italic">Standard diagnostic profiling applies.</p>}
-                                        </div>
+                            {/* Billing Summary */}
+                            <div className="bg-slate-900 text-white rounded-[32px] p-8">
+                                <div className="flex items-center gap-2 mb-6">
+                                    <FiCreditCard className="text-indigo-400"/>
+                                    <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Final Bill Summary</h5>
+                                </div>
+                                <div className="space-y-3 text-xs font-bold border-b border-slate-800 pb-6 mb-6">
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-500">Items Subtotal</span>
+                                        <span>₹{modal.data.billSummary.itemTotal}</span>
                                     </div>
-
-                                    {/* Action Bar */}
-                                    <div className="pt-8 border-t border-slate-100 space-y-4">
-                                        {modal.data.status === 'Report Ready' && (
-                                            <button className="w-full py-5 bg-emerald-600 text-white rounded-3xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-100 flex items-center justify-center gap-3 hover:bg-slate-900 transition-all">
-                                                <FiDownload size={18} /> Download Health Report (PDF)
-                                            </button>
-                                        )}
-                                        <div className="flex gap-4">
-                                            <button onClick={() => setModal({ ...modal, type: 'rating', ratingTarget: modal.data.vendor })} className="flex-1 py-4 border-2 border-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:border-indigo-600 hover:text-indigo-600 transition-all">
-                                                <FiStar className="inline mr-2" /> Rate Lab
-                                            </button>
-                                            <button className="flex-1 py-4 border-2 border-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest">
-                                                <FiExternalLink className="inline mr-2" /> Share Details
-                                            </button>
+                                    <div className="flex justify-between text-rose-400">
+                                        <span>Coupon Discount</span>
+                                        <span>- ₹{modal.data.billSummary.couponDiscount}</span>
+                                    </div>
+                                    {modal.data.billSummary.rapidDeliveryCharge > 0 && (
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-500">Rapid Delivery</span>
+                                            <span>₹{modal.data.billSummary.rapidDeliveryCharge}</span>
                                         </div>
+                                    )}
+                                    {modal.data.billSummary.homeVisitCharge > 0 && (
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-500">Home Visit Fee</span>
+                                            <span>₹{modal.data.billSummary.homeVisitCharge}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">Net Amount Paid</p>
+                                        <p className="text-3xl font-black">₹{modal.data.billSummary.totalAmount}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Payment Status</p>
+                                        <p className="text-xs font-black text-emerald-400 uppercase">{modal.data.paymentStatus}</p>
                                     </div>
                                 </div>
-                            )}
+                            </div>
+                        </div>
 
-                            {/* 3. RATING VIEW */}
-                            {modal.type === 'rating' && (
-                                <StarRating
-                                    title={modal.data?.vendor}
-                                    onBack={() => setModal({ ...modal, type: 'details' })}
-                                    onSubmit={(s) => {
-                                        alert(`Submitted ${s} stars for diagnostic accuracy.`);
-                                        setModal({ ...modal, isOpen: false });
-                                    }}
-                                />
-                            )}
+                        {/* Footer Actions */}
+                        <div className="p-6 border-t bg-slate-50/50 flex flex-col sm:flex-row gap-3">
+                             <button className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-center gap-2">
+                                <FiDownload size={16}/> Download Receipt
+                             </button>
+                             {modal.data.status === 'Report Ready' && (
+                                <button className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 flex items-center justify-center gap-2">
+                                   <MdOutlineScience size={16}/> View Lab Report
+                                </button>
+                             )}
                         </div>
                     </div>
                 </div>
             )}
-
-            <style jsx global>{`
-                .no-scrollbar::-webkit-scrollbar { display: none; }
-            `}</style>
         </div>
     );
 }

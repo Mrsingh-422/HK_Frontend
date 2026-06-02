@@ -485,6 +485,13 @@ const UserAPI = {
         return response.data;
     },
 
+    getLabBookings: async (page = 1, limit = 10) => {
+        const response = await authApi.get("/user/labs/my-bookings", {
+            params: { page, limit }
+        });
+        return response.data;
+    },
+
 
 
 
