@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import AdminAPI from '../../../../services/AdminAPI'; // Adjust path as needed
 import { 
   FaSearch, 
   FaEye, 
@@ -15,45 +16,69 @@ import {
   FaStore,
   FaCheckCircle,
   FaReceipt,
-  FaClipboardList
+  FaClipboardList,
+  FaChevronLeft,
+  FaChevronRight,
+  FaUser,
+  FaMapMarkerAlt
 } from 'react-icons/fa';
 
 export default function PharmacyOrders() {
   // --- STATE MANAGEMENT ---
-  const [orders, setOrders] = useState([
-    { srNo: 1, id: "PH-ORD-5501", patient: "Yash User", email: "HK@Dev123", pharmacy: "Apollo Pharmacy", time: "11:20 AM", status: "Approved", date: "2024-12-13", prescription: "Required" },
-    { srNo: 2, id: "PH-ORD-5502", patient: "NAMAN SHARMA", email: "naman@gmail.com", pharmacy: "Wellness Forever", time: "12:45 PM", status: "Pending", date: "2024-12-14", prescription: "Verified" },
-    { srNo: 3, id: "PH-ORD-5503", patient: "Nitish Kumar", email: "nitish@hk.com", pharmacy: "MedPlus Hub", time: "02:15 PM", status: "Approved", date: "2024-12-13", prescription: "N/A" },
-    { srNo: 4, id: "PH-ORD-5504", patient: "Deepankar", email: "deep@gmail.com", pharmacy: "City Life Pharma", time: "04:30 PM", status: "Cancelled", date: "2024-12-15", prescription: "Expired" },
-  ]);
-
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0 });
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // --- API FETCHING ---
+  const fetchOrders = useCallback(async (page = 1) => {
+    setLoading(true);
+    try {
+      const response = await AdminAPI.getPharmacyBookings(page, 10);
+      if (response.success) {
+        setOrders(response.data);
+        setPagination({
+          currentPage: response.currentPage,
+          totalPages: response.totalPages,
+          totalCount: response.count
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching pharmacy bookings:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
   // --- LOGIC ---
 
-  // Search filter (ID, Patient, or Pharmacy)
+  // Local filter for the current page data
   const filteredOrders = useMemo(() => {
     return orders.filter(order => 
-      order.patient.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.pharmacy.toLowerCase().includes(searchTerm.toLowerCase())
+      order.orderId.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      order.userId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.pharmacyId?.name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [searchTerm, orders]);
 
-  // Open Details Modal
   const openDetails = (order) => {
     setSelectedOrder(order);
     setIsModalOpen(true);
   };
 
-  // Cancel Order Logic
-  const handleCancelOrder = (e, id) => {
-    e.stopPropagation(); 
-    if (window.confirm("Are you sure you want to cancel this medicine order?")) {
-      setOrders(orders.filter(order => order.id !== id));
-      alert("Pharmacy Order Cancelled Successfully.");
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Shipped': return 'bg-blue-50 text-blue-600 ring-1 ring-blue-100';
+      case 'Completed': return 'bg-green-50 text-green-600 ring-1 ring-green-100';
+      case 'Under Review': return 'bg-amber-50 text-amber-600 ring-1 ring-amber-100';
+      case 'Placed': return 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100';
+      default: return 'bg-red-50 text-red-600 ring-1 ring-red-100';
     }
   };
 
@@ -69,7 +94,7 @@ export default function PharmacyOrders() {
             </div>
             <div>
               <h1 className="text-2xl font-black text-slate-800 tracking-tight leading-none uppercase">PHARMACY ORDERS</h1>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2 text-center md:text-left">Prescription & Medicine Tracking</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">Prescription & Medicine Tracking</p>
             </div>
           </div>
           <button onClick={() => window.history.back()} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-6 py-2.5 rounded-xl font-bold text-xs shadow-sm hover:bg-slate-50 transition-all uppercase tracking-widest active:scale-95">
@@ -78,20 +103,21 @@ export default function PharmacyOrders() {
         </div>
 
         {/* --- MAIN CONTENT CARD --- */}
-        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+        <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
           
           {/* Search bar */}
-          <div className="p-6 border-b border-slate-50 bg-white">
-            <div className="relative max-w-md group">
+          <div className="p-6 border-b border-slate-50 bg-white flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="relative max-w-md w-full group">
               <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#08B36A] transition-colors" />
               <input 
                 type="text" 
-                placeholder="Search ID, patient or pharmacy..." 
+                placeholder="Search MED-ID, Patient or Pharmacy..." 
                 className="w-full pl-11 pr-4 py-3 bg-slate-50 border-none rounded-2xl text-sm outline-none focus:ring-2 focus:ring-[#08B36A]/20 transition-all font-medium"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+            <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Total Orders: {pagination.totalCount}</p>
           </div>
 
           {/* Table */}
@@ -100,63 +126,76 @@ export default function PharmacyOrders() {
               <thead>
                 <tr className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
                   <th className="p-6">Sr.No</th>
-                  <th className="p-6">Patient Details</th>
+                  <th className="p-6">Patient / User</th>
                   <th className="p-6">Vendor (Pharmacy)</th>
-                  <th className="p-6">Order ID</th>
+                  <th className="p-6">Total Bill</th>
                   <th className="p-6">Status</th>
                   <th className="p-6 text-center">Summary</th>
-                  <th className="p-6 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {filteredOrders.map((order) => (
+                {loading ? (
+                    <tr><td colSpan="6" className="p-20 text-center text-slate-300 font-bold uppercase animate-pulse">Syncing Pharmacy Records...</td></tr>
+                ) : filteredOrders.map((order, index) => (
                   <tr 
-                    key={order.id} 
+                    key={order._id} 
                     onClick={() => openDetails(order)}
                     className="group hover:bg-slate-50/80 cursor-pointer transition-all"
                   >
-                    <td className="p-6 text-sm font-bold text-slate-400">{order.srNo}</td>
+                    <td className="p-6 text-sm font-bold text-slate-300">
+                        {(pagination.currentPage - 1) * 10 + index + 1}
+                    </td>
                     <td className="p-6">
-                        <p className="text-sm font-black text-slate-800 tracking-tight">{order.patient}</p>
-                        <p className="text-[10px] font-bold text-[#08B36A] uppercase">{order.email}</p>
+                        <p className="text-sm font-black text-slate-800 tracking-tight uppercase">{order.userId?.name || "Guest"}</p>
+                        <p className="text-[10px] font-bold text-[#08B36A] uppercase">{order.orderId}</p>
                     </td>
                     <td className="p-6">
                         <div className="flex items-center gap-2">
                            <FaStore className="text-slate-300 group-hover:text-[#08B36A] transition-colors" size={12}/>
-                           <span className="text-sm font-bold text-slate-600">{order.pharmacy}</span>
+                           <span className="text-sm font-bold text-slate-600">{order.pharmacyId?.name}</span>
                         </div>
                     </td>
-                    <td className="p-6 text-sm font-bold text-blue-600 tracking-tighter">{order.id}</td>
                     <td className="p-6">
-                      <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
-                        order.status === 'Approved' ? 'bg-green-50 text-green-600' : 
-                        order.status === 'Pending' ? 'bg-orange-50 text-orange-600' : 'bg-red-50 text-red-600'
-                      }`}>
+                        <p className="text-sm font-black text-slate-800">₹{order.billSummary?.totalAmount}</p>
+                        <p className="text-[9px] font-black text-slate-400 uppercase">{order.paymentMethod}</p>
+                    </td>
+                    <td className="p-6">
+                      <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${getStatusColor(order.status)}`}>
                         {order.status}
                       </span>
                     </td>
                     <td className="p-6 text-center">
-                       <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center mx-auto text-slate-400 group-hover:text-[#08B36A] transition-colors shadow-sm">
+                       <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center mx-auto text-slate-400 group-hover:text-[#08B36A] transition-colors">
                           <FaEye />
                        </div>
-                    </td>
-                    <td className="p-6 text-right">
-                      <button 
-                        onClick={(e) => handleCancelOrder(e, order.id)}
-                        className="bg-red-50 text-red-500 hover:bg-red-600 hover:text-white px-5 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-90 flex items-center gap-2 ml-auto shadow-sm"
-                      >
-                        <FaTrashAlt size={10} /> Cancel
-                      </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {filteredOrders.length === 0 && (
-                <div className="p-20 text-center text-slate-300 font-bold uppercase tracking-widest text-xs">
-                    No matching orders found
-                </div>
-            )}
+          </div>
+
+          {/* --- PAGINATION --- */}
+          <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              Page {pagination.currentPage} of {pagination.totalPages}
+            </p>
+            <div className="flex gap-2">
+              <button 
+                disabled={pagination.currentPage === 1}
+                onClick={() => fetchOrders(pagination.currentPage - 1)}
+                className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 disabled:opacity-30 hover:text-[#08B36A] transition-all active:scale-90 shadow-sm"
+              >
+                <FaChevronLeft size={12}/>
+              </button>
+              <button 
+                disabled={pagination.currentPage === pagination.totalPages}
+                onClick={() => fetchOrders(pagination.currentPage + 1)}
+                className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 disabled:opacity-30 hover:text-[#08B36A] transition-all active:scale-90 shadow-sm"
+              >
+                <FaChevronRight size={12}/>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -166,12 +205,12 @@ export default function PharmacyOrders() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setIsModalOpen(false)}></div>
           
-          <div className="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="relative bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
             {/* Modal Header */}
             <div className="p-8 bg-[#08B36A] text-white flex justify-between items-center">
               <div>
-                <h2 className="text-xl font-black uppercase tracking-tight">Order Receipt Detail</h2>
-                <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest mt-1">Order Ref: {selectedOrder.id}</p>
+                <h2 className="text-xl font-black uppercase tracking-tight">Order Manifest Detail</h2>
+                <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest mt-1">Ref ID: {selectedOrder.orderId}</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-3 bg-white/20 hover:bg-white/30 rounded-full transition-all outline-none">
                 <FaTimes />
@@ -179,32 +218,80 @@ export default function PharmacyOrders() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-10 space-y-8">
-                <div className="grid grid-cols-2 gap-8">
-                    <InfoItem icon={<FaIdBadge/>} label="Order Serial" val={selectedOrder.id} />
-                    <InfoItem icon={<FaCalendarAlt/>} label="Order Date" val={selectedOrder.date} />
-                    <InfoItem icon={<FaStore/>} label="Assigned Vendor" val={selectedOrder.pharmacy} />
-                    <InfoItem icon={<FaClock/>} label="Last Updated" val={selectedOrder.time} />
-                    <InfoItem icon={<FaClipboardList/>} label="Prescription Status" val={selectedOrder.prescription} />
-                    <InfoItem icon={<FaReceipt/>} label="Type" val="Direct Purchase" />
+            <div className="p-10 space-y-8 overflow-y-auto no-scrollbar">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
+                    <InfoItem icon={<FaIdBadge/>} label="Med Order ID" val={selectedOrder.orderId} />
+                    <InfoItem icon={<FaCalendarAlt/>} label="Booking Date" val={new Date(selectedOrder.createdAt).toLocaleDateString()} />
+                    <InfoItem icon={<FaStore/>} label="Pharmacy" val={selectedOrder.pharmacyId?.name} />
+                    <InfoItem icon={<FaClock/>} label="Delivery Time" val={selectedOrder.appointmentTime} />
+                    <InfoItem icon={<FaClipboardList/>} label="Order Type" val={selectedOrder.orderType} />
+                    <InfoItem icon={<FaReceipt/>} label="Payment Status" val={selectedOrder.paymentStatus} />
                 </div>
 
+                {/* Items List */}
                 <div className="border-t border-slate-100 pt-8">
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-4">Customer Details</p>
-                    <div className="flex items-center gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-[#08B36A] shadow-sm font-black text-lg">
-                            {selectedOrder.patient.charAt(0)}
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-4">Prescribed Medicines</p>
+                    <div className="space-y-2">
+                        {selectedOrder.items?.map((item, idx) => (
+                            <div key={idx} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                <div>
+                                    <p className="text-xs font-black text-slate-800 uppercase">{item.name}</p>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Qty: {item.quantity} • {item.duration}</p>
+                                </div>
+                                <p className="text-xs font-black text-slate-900">₹{item.price}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Patient & Address */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                    <div className="p-5 bg-slate-50 rounded-3xl border border-slate-100">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Customer Info</p>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-[#08B36A] shadow-sm font-black">
+                                {selectedOrder.userId?.name?.charAt(0)}
+                            </div>
+                            <div>
+                                <p className="text-xs font-black text-slate-800">{selectedOrder.userId?.name}</p>
+                                <p className="text-[9px] font-bold text-slate-400">{selectedOrder.userId?.phone}</p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="text-base font-black text-slate-800 leading-none">{selectedOrder.patient}</p>
-                            <p className="text-xs font-bold text-slate-400 mt-2 flex items-center gap-2"><FaEnvelope size={10} className="text-[#08B36A]"/> {selectedOrder.email}</p>
+                    </div>
+                    <div className="p-5 bg-slate-50 rounded-3xl border border-slate-100">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Delivery Address</p>
+                        <div className="flex gap-2">
+                            <FaMapMarkerAlt className="text-red-400 mt-1" size={10}/>
+                            <p className="text-[10px] font-bold text-slate-600 leading-relaxed">
+                                {selectedOrder.address?.houseNo}, {selectedOrder.address?.sector}, {selectedOrder.address?.city}, {selectedOrder.address?.pincode}
+                            </p>
                         </div>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3 justify-center py-2 bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
-                    <FaCheckCircle className="text-[#08B36A]" size={14} />
-                    <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Verification Status: Verified & {selectedOrder.status}</span>
+                {/* Final Billing Card */}
+                <div className="bg-slate-900 rounded-[2rem] p-8 text-white">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Financial Summary</p>
+                    <div className="space-y-3">
+                        <div className="flex justify-between text-xs">
+                            <span className="text-slate-400">Items Total</span>
+                            <span className="font-bold">₹{selectedOrder.billSummary?.itemTotal}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                            <span className="text-slate-400">Delivery Fee</span>
+                            <span className="font-bold">₹{selectedOrder.billSummary?.deliveryCharge}</span>
+                        </div>
+                        {selectedOrder.billSummary?.couponDiscount > 0 && (
+                            <div className="flex justify-between text-xs text-red-400">
+                                <span>Discount</span>
+                                <span className="font-bold">-₹{selectedOrder.billSummary?.couponDiscount}</span>
+                            </div>
+                        )}
+                        <div className="flex justify-between items-center border-t border-slate-800 pt-4 mt-2">
+                            <span className="text-sm font-black uppercase tracking-widest">Net Payable</span>
+                            <span className="text-2xl font-black text-[#08B36A]">₹{selectedOrder.billSummary?.totalAmount}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -214,7 +301,7 @@ export default function PharmacyOrders() {
                 onClick={() => setIsModalOpen(false)}
                 className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-all active:scale-[0.98]"
               >
-                Done
+                Close Record
               </button>
             </div>
           </div>
@@ -227,7 +314,7 @@ export default function PharmacyOrders() {
 function InfoItem({ icon, label, val }) {
     return (
         <div className="flex gap-4">
-            <div className="text-[#08B36A] mt-1 opacity-60 shrink-0">{icon}</div>
+            <div className="text-[#08B36A] mt-1 opacity-60 shrink-0 text-sm">{icon}</div>
             <div>
                 <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">{label}</p>
                 <p className="text-sm font-black text-slate-700">{val || "N/A"}</p>

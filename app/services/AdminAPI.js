@@ -438,7 +438,50 @@ const AdminAPI = {
     toggleActiveOrInactiveIndependentDoctor: async (doctorId) => {
         const response = await api.patch(`/admin/doctor/toggle-active/${doctorId}`);
         return response.data;
-    }
+    },
+
+    //All Get Bookings for Admin Dashboard
+    getDoctorAppointments: async (page = 1, limit = 10) => {
+        const response = await api.get("/admin/doctor/appointments", {
+            params: { page, limit }
+        });
+        return response.data;
+    },
+
+    getHospitalAppointments: async (page = 1, limit = 10) => {
+        const response = await api.get("/admin/hospital/appointments", {
+            params: { page, limit }
+        });
+        return response.data;
+    },
+
+    getAmbulanceBookings: async (page = 1, limit = 10) => {
+        const response = await api.get("/admin/ambulance/bookings", {
+            params: { page, limit }
+        });
+        return response.data;
+    },
+
+    getLabBookings: async (page = 1, limit = 10) => {
+        const response = await api.get("/admin/lab/bookings", {
+            params: { page, limit }
+        });
+        return response.data;
+    },
+
+    getPharmacyBookings: async (page = 1, limit = 10) => {
+        const response = await api.get("/admin/pharmacy/bookings", {
+            params: { page, limit }
+        });
+        return response.data;
+    },
+
+    getNursingBookings: async (page = 1, limit = 10) => {
+        const response = await api.get("/admin/nurse/bookings", {
+            params: { page, limit }
+        });
+        return response.data;
+    },
 
 };
 
