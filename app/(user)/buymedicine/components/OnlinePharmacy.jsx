@@ -185,6 +185,7 @@ function OnlinePharmacy() {
                 )}
               </div>
               <button
+                onClick={() => router.push('/buymedicine/uploadprescription')}
                 className="px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-3 bg-slate-900 text-white hover:bg-[#08B36A]"
               >
                 <FaUpload /> Prescription

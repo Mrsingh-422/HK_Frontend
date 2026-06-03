@@ -216,6 +216,17 @@ const UserAPI = {
         return response.data;
     },
 
+    //Pharmacy Prescription Upload
+    scanPrescription: async (formData) => {
+        console.log("FormData being sent:", formData);
+        const response = await authApi.post("/user/pharmacy/scan-rx", formData, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
+        return response.data;
+    },
+
     // ==========================================
     // PRIVATE METHODS (Token Required)
     // ==========================================
@@ -700,7 +711,6 @@ const UserAPI = {
         const response = await authApi.get("/user/ambulance/my-bookings");
         return response.data;
     },
-
 
     // ADD THIS NEW API FUNCTION HERE:
     getBedMonthlySchedule: async (bedId, month, year) => {
