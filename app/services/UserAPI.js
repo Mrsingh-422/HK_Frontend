@@ -218,11 +218,33 @@ const UserAPI = {
 
     //Pharmacy Prescription Upload
     scanPrescription: async (formData) => {
-        console.log("FormData being sent:", formData);
         const response = await authApi.post("/user/pharmacy/scan-rx", formData, {
             headers: {
                 "Content-Type": "multipart/form-data",
             },
+        });
+        return response.data;
+    },
+
+    createPrescriptionRequest: async (formData) => {
+        console.log("Prescription Request FormData being sent:", formData);
+
+        const response = await authApi.post(
+            "/user/pharmacy/prescription-request",
+            formData,
+            {
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                },
+            }
+        );
+
+        return response.data;
+    },
+
+    getAllPrescriptionRequests: async (page = 1, limit = 10) => {
+        const response = await authApi.get("/user/pharmacy/prescription-request/list", {
+            params: { page, limit },
         });
         return response.data;
     },

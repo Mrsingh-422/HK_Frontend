@@ -14,6 +14,8 @@ import OurPharmacyPartners from './components/OurPharmacyPartners'
 import NearByMedicines from './components/NearByMedicines'
 import BrandLogos from './components/BrandLogos'
 import PharmaciesNearMe from './components/PharmaciesNearMe'
+import SkinCareProducts from './components/SkinCareProducts'
+import DealOfTheDay from './components/DealOfTheDay'
 
 function page() {
     return (
@@ -21,6 +23,8 @@ function page() {
             <SecondNavbar />
             <OnlinePharmacy />
             <NearByMedicines />
+            <SkinCareProducts />
+            <DealOfTheDay />
             <BrandLogos />
             <PharmaciesNearMe />
             {/* <FeaturedProducts /> */}

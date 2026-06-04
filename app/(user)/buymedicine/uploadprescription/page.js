@@ -16,6 +16,7 @@ export default function PrescriptionFlow() {
     const [scanMeta, setScanSummary] = useState({ doctor: "", date: "" });
 
     const [filePreview, setFilePreview] = useState(null);
+    const [rawFile, setRawFile] = useState(null); // Added to store binary file for final submission
     const [manualInput, setManualInput] = useState("");
     const [durationMode, setDurationType] = useState("prescription");
     const [globalDays, setGlobalDays] = useState(7);
@@ -98,38 +99,52 @@ export default function PrescriptionFlow() {
         } catch (error) {
             console.error("Error getting pharmacies:", error);
         } finally {
+            setIsLoadingAddresses(false);
             setIsLoadingPharmacies(false);
         }
     };
 
     // --- SUBMIT REQUEST HANDLER ---
     const handleSendRequest = async () => {
-        if (!selectedPharmacy || !selectedAddress) return;
+        if (!selectedPharmacy || !selectedAddress || !rawFile) {
+            alert("Missing required information (Pharmacy, Address, or Prescription Image)");
+            return;
+        }
 
         setIsSubmitting(true);
         try {
-            // Construct request payload structured for order creation APIs
-            const requestPayload = {
-                pharmacyId: selectedPharmacy._id,
-                addressId: selectedAddress._id,
-                medicines: medicines.map(med => ({
-                    name: med.name,
-                    days: durationMode === "prescription" ? globalDays : med.days,
-                    dosage: med.dosage
-                })),
-                scanMeta: scanMeta
-            };
+            // Prepare the requested medicines array
+            const requestedMeds = medicines.map(med => ({
+                name: med.name,
+                days: durationMode === "prescription" ? globalDays : med.days,
+                dosage: med.dosage || "1-0-1"
+            }));
 
-            console.log("Sending order request package:", requestPayload);
+            // Construct FormData as per requirements
+            const formData = new FormData();
+            formData.append("prescriptionImage", rawFile);
+            formData.append("pharmacyId", selectedPharmacy._id);
+            formData.append("doctorName", scanMeta.doctor || "Prescription Request");
+            formData.append("durationType", durationMode === "prescription" ? "Full Course" : "Custom");
+            formData.append("requestedMedicines", JSON.stringify(requestedMeds));
+            formData.append("address", JSON.stringify(selectedAddress));
 
-            // Adjust this call to point to your order submission endpoint if different
-            // const response = await UserAPI.createPrescriptionOrder(requestPayload);
+            // Call the API function
+            const response = await UserAPI.createPrescriptionRequest(formData);
 
-            alert(`Request successfully sent to ${selectedPharmacy.name}!`);
-            // Reset flow or navigate away here
-            setStep(1);
-            setMedicines([]);
-            setSelectedPharmacy(null);
+
+            if (response.success) {
+                alert(`Request successfully sent to ${selectedPharmacy.name}!`);
+
+                // Reset flow
+                setStep(1);
+                setMedicines([]);
+                setRawFile(null);
+                setFilePreview(null);
+                setSelectedPharmacy(null);
+            } else {
+                alert(response.message || "Failed to submit request.");
+            }
 
         } catch (error) {
             console.error("Error sending pharmacy request:", error);
@@ -144,6 +159,7 @@ export default function PrescriptionFlow() {
         const file = e.target.files[0];
         if (!file) return;
 
+        setRawFile(file); // Store the binary file
         setFilePreview(URL.createObjectURL(file));
         setIsAnalyzing(true);
         setStep(2);
@@ -172,7 +188,6 @@ export default function PrescriptionFlow() {
         } catch (error) {
             if (error.response) {
                 console.error("DEBUG: Server Error Data:", error.response.data);
-                console.error("DEBUG: Server Status:", error.response.status);
             }
         } finally {
             setIsAnalyzing(false);
@@ -432,7 +447,7 @@ export default function PrescriptionFlow() {
                         </p>
                     </div>
                     {step === 2 && (
-                        <button onClick={() => { setStep(1); setMedicines([]) }} className="p-3 bg-slate-50 text-slate-400 rounded-full hover:bg-rose-50 hover:text-rose-500 transition-all">
+                        <button onClick={() => { setStep(1); setMedicines([]); setRawFile(null); }} className="p-3 bg-slate-50 text-slate-400 rounded-full hover:bg-rose-50 hover:text-rose-500 transition-all">
                             <FiTrash2 size={16} />
                         </button>
                     )}
