@@ -7,6 +7,7 @@ import {
     FiMinus, FiMapPin, FiStar, FiChevronRight, FiArrowLeft, FiUser, FiHome, FiSend
 } from 'react-icons/fi';
 import { MdOutlineLocalPharmacy } from 'react-icons/md';
+// import { useRouter } from 'next/router';
 
 export default function PrescriptionFlow() {
     // 1: Upload, 2: Review, 3: Address Selection, 4: Pharmacy Selection
@@ -33,6 +34,7 @@ export default function PrescriptionFlow() {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const fileInputRef = useRef(null);
+    // const router = useRouter();
 
     // Fetch addresses when moving toward address selection
     useEffect(() => {
@@ -134,7 +136,8 @@ export default function PrescriptionFlow() {
 
 
             if (response.success) {
-                alert(`Request successfully sent to ${selectedPharmacy.name}!`);
+                // router.push("/userscreens/previousorders"); // Redirect to orders page
+                
 
                 // Reset flow
                 setStep(1);

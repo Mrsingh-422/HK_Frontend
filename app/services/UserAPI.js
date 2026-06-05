@@ -216,6 +216,13 @@ const UserAPI = {
         return response.data;
     },
 
+    getProductsByCategory: async (category) => {
+        const response = await authApi.get("/user/pharmacy/category-details", {
+            params: { category },
+        });
+        return response.data;
+    },
+
     //Pharmacy Prescription Upload
     scanPrescription: async (formData) => {
         const response = await authApi.post("/user/pharmacy/scan-rx", formData, {

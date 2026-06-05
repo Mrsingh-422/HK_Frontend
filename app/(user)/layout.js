@@ -3,6 +3,7 @@ import { CartProvider } from "../context/CartContext";
 import { GlobalProvider } from "../context/GlobalContext";
 import { UserProvider } from "../context/UserContext";
 import "../globals.css";
+import ChatBot from "./chatbot/ChatBot";
 import Footer from "./components/Footer";
 import GlobalModal from "./components/GlobalModal";
 import TopNavbar from "./components/TopNavbar";
@@ -27,6 +28,7 @@ export default function RootLayout({ children }) {
               <Footer />
               <GlobalModal />
               <Toaster /> {/* Required for react-hot-toast */}
+              <ChatBot />
             </GlobalProvider>
           </CartProvider>
         </UserProvider>
