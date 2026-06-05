@@ -153,7 +153,7 @@ const AmbulanceHero = ({ searchTerm, setSearchTerm }) => {
                         </div>
 
                         {/* Search/Booking Bar */}
-                        <div className="relative group w-full max-w-3xl">
+                        {/* <div className="relative group w-full max-w-3xl">
                             <div className="absolute -inset-1 bg-gradient-to-r from-red-600 to-red-400 rounded-[2.5rem] blur opacity-20 group-hover:opacity-30 transition duration-500"></div>
                             <div className="relative flex flex-col md:flex-row items-center bg-white border border-slate-100 rounded-[2rem] p-2 shadow-xl">
                                 <div className="flex items-center flex-1 w-full px-4 border-b md:border-b-0 md:border-r border-slate-100">
@@ -171,7 +171,7 @@ const AmbulanceHero = ({ searchTerm, setSearchTerm }) => {
                                     <ChevronRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
                                 </button>
                             </div>
-                        </div>
+                        </div> */}
                     </div>
 
                     {/* Right Side: Visual & Quick Info */}

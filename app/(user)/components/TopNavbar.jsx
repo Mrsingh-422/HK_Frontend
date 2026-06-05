@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import "../components/styles/TopNavbar.css";
+import { useRouter } from "next/navigation";
 import {
   FaMapMarkerAlt,
   FaShoppingCart,
@@ -19,7 +19,12 @@ import {
   FaTimes,
   FaLocationArrow,
   FaCity,
-  FaChevronDown, FaUserMd
+  FaChevronDown,
+  FaUserMd,
+  FaCapsules,
+  FaMicroscope,
+  FaUserNurse,
+  FaStethoscope
 } from "react-icons/fa";
 import { FiMessageCircle } from "react-icons/fi";
 
@@ -31,8 +36,16 @@ import { useCart } from "@/app/context/CartContext";
 import UserAPI from "@/app/services/UserAPI";
 
 export default function TopNavbar() {
+  const router = useRouter();
   const [token, setToken] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
+
+  // --- SEARCH STATES ---
+  const [searchQuery, setSearchQuery] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchRef = useRef(null);
 
   // --- LOCATION STATES ---
   const [locationName, setLocationName] = useState("Detecting...");
@@ -47,7 +60,107 @@ export default function TopNavbar() {
 
   const DELHI_COORDS = { lat: 28.6139, lng: 77.209 };
 
-  // Helper: Reverse Geocode to get City Name
+  // --- SEARCH LOGIC ---
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (searchQuery.length >= 2) {
+        fetchSearchSuggestions();
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  const fetchSearchSuggestions = async () => {
+    setIsSearching(true);
+    try {
+      const res = await UserAPI.getGlobalSearchSuggestions(searchQuery);
+      if (res.success) {
+        setSuggestions(res.data);
+        setShowSuggestions(true);
+      }
+    } catch (err) {
+      console.error("Search suggestion error:", err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSearchSubmit = (e) => {
+    if (e.key === "Enter" && searchQuery.trim() !== "") {
+      setShowSuggestions(false);
+      router.push(`/userscreens/searchresults?query=${encodeURIComponent(searchQuery)}`);
+    }
+  };
+
+  // --- DYNAMIC NAVIGATION LOGIC BASED ON TYPE ---
+  const handleSuggestionClick = (item) => {
+    setShowSuggestions(false);
+    setSearchQuery(item.title);
+
+    const id = item.id;
+    const type = item.type; // Matches your API response 'type' field
+    // alert(`Clicked on ${type} with ID: ${id}`); // For debugging
+
+    switch (type) {
+      case "Doctor":
+        router.push(`/drappointment/doctordetail/${id}`);
+        break;
+      case "Lab":
+        router.push(`/booklabtest/singlelabdetail/${id}`);
+        break;
+      case "Lab Test":
+        router.push(`/booklabtest/testdetails/${id}`);
+        break;
+      case "Lab Package":
+        router.push(`/booklabtest/packagedetails/${id}`);
+        break;
+      case "Medicine":
+        router.push(`/buymedicine/singleproductdetail/${id}`);
+        break;
+      case "Hospital":
+        router.push(`/hospital/hospitaldetail/${id}`);
+        break;
+      case "Ambulance":
+        router.push(`/ambulance/medicalambuancebooking/${id}`);
+        break;
+      case "Nurse Service":
+        router.push(`/nursingservice/nurseservicedetail/${id}`);
+        break;
+      default:
+        // Fallback for general search results
+        router.push(`/userscreens/searchresults?query=${encodeURIComponent(item.title)}`);
+        break;
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const getIconByType = (type) => {
+    switch (type) {
+      case 'Doctor': return <FaUserMd className="text-blue-500" />;
+      case 'Medicine': return <FaCapsules className="text-green-500" />;
+      case 'Lab Test': return <FaMicroscope className="text-purple-500" />;
+      case 'Nurse Service': return <FaUserNurse className="text-pink-500" />;
+      case 'Hospital': return <FaHospital className="text-red-500" />;
+      case 'Ambulance': return <FaAmbulance className="text-orange-500" />;
+      default: return <FaStethoscope className="text-gray-400" />;
+    }
+  };
+
+  // --- LOCATION LOGIC ---
   const fetchAddressName = async (lat, lng) => {
     try {
       const response = await fetch(
@@ -62,7 +175,6 @@ export default function TopNavbar() {
     }
   };
 
-  // Helper: Update Coords in State and LocalStorage
   const updateLocation = (lat, lng) => {
     const newCoords = { lat, lng };
     setCoords(newCoords);
@@ -73,7 +185,6 @@ export default function TopNavbar() {
     setCitySuggestions([]);
   };
 
-  // Helper: Get Current GPS Location
   const handleDetectLocation = () => {
     if ("geolocation" in navigator) {
       setLocationName("Detecting...");
@@ -83,7 +194,6 @@ export default function TopNavbar() {
         },
         (error) => {
           console.error("Geolocation denied:", error);
-          alert("Location access denied. Setting default location to Delhi.");
           updateLocation(DELHI_COORDS.lat, DELHI_COORDS.lng);
         }
       );
@@ -100,14 +210,12 @@ export default function TopNavbar() {
       document.body.style.overflow = "unset";
     }
 
-    // INITIAL LOAD LOGIC
     const savedCoords = localStorage.getItem("userCoords");
     if (savedCoords) {
       const parsed = JSON.parse(savedCoords);
       setCoords(parsed);
       fetchAddressName(parsed.lat, parsed.lng);
     } else {
-      // If no saved coords, try to auto-detect or fallback to Delhi
       if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(
           (position) => updateLocation(position.coords.latitude, position.coords.longitude),
@@ -119,17 +227,14 @@ export default function TopNavbar() {
     }
   }, [profileOpen]);
 
-  // --- MANUAL SEARCH LOGIC ---
   const handleCityInputChange = async (val) => {
     setCityInput(val);
     if (val.length > 1) {
       try {
         const res = await UserAPI.getCitySuggestions(val);
-        if (res.success) {
-          setCitySuggestions(res.data);
-        }
+        if (res.success) setCitySuggestions(res.data);
       } catch (err) {
-        console.error("City suggestion error:", err);
+        console.error("City error:", err);
       }
     } else {
       setCitySuggestions([]);
@@ -141,16 +246,14 @@ export default function TopNavbar() {
       const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(item.city + ", " + item.state)}`;
       const geoRes = await fetch(geocodeUrl);
       const geoData = await geoRes.json();
-
       if (geoData && geoData.length > 0) {
         updateLocation(parseFloat(geoData[0].lat), parseFloat(geoData[0].lon));
       } else {
-        // Fallback if geocoding fails, just update name
         setLocationName(item.city);
         setShowLocationPicker(false);
       }
     } catch (error) {
-      console.error("Geocoding failed:", error);
+      console.error(error);
     }
   };
 
@@ -169,201 +272,163 @@ export default function TopNavbar() {
 
   return (
     <>
-      <nav className="tnav-wrapper">
-        <div className="tnav-container">
-          {/* LEFT: Dynamic Location */}
-          <div className="tnav-left" style={{ position: 'relative' }}>
+      <nav className="w-full bg-[#08b36a] py-3 text-white shadow-md">
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-2.5 px-5 md:flex-nowrap md:gap-5">
+
+          {/* LOCATION */}
+          <div className="relative shrink-0 order-1">
             <div
-              className="location-badge-new"
               onClick={() => setShowLocationPicker(!showLocationPicker)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
-                padding: '6px 12px', borderRadius: '8px', backgroundColor: '#f3f4f6',
-                transition: 'all 0.2s'
-              }}
+              className="flex items-center gap-2 rounded-lg bg-white/10 border border-white/10 px-3 py-1.5 cursor-pointer hover:bg-white/20"
             >
-              <FaMapMarkerAlt className="tnav-icon-marker" style={{ color: '#ef4444' }} />
-              <div className="location-texts">
-                <span className="loc-label" style={{ fontSize: '10px', display: 'block', color: '#6b7280', fontWeight: '600', textTransform: 'uppercase' }}>Deliver to</span>
-                <span className="tnav-location-text" style={{ fontSize: '13px', fontWeight: '700', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  {locationName} <FaChevronDown size={10} style={{ opacity: 0.5 }} />
+              <FaMapMarkerAlt className="text-white" />
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold uppercase opacity-80">Deliver to</span>
+                <span className="flex items-center gap-1 text-xs font-semibold whitespace-nowrap">
+                  {locationName} <FaChevronDown size={8} />
                 </span>
               </div>
             </div>
 
-            {/* DESIGNED LOCATION PICKER PANEL */}
             {showLocationPicker && (
-              <div className="location-panel-dropdown" style={{
-                position: 'absolute', top: '55px', left: '0', width: '320px',
-                backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-                zIndex: 1000, border: '1px solid #f3f4f6', overflow: 'hidden', padding: '16px'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#111827' }}>Change Location</h4>
-                  <FaTimes style={{ cursor: 'pointer', color: '#9ca3af' }} onClick={() => setShowLocationPicker(false)} />
+              <div className="absolute top-[55px] left-0 w-[300px] rounded-xl bg-white p-4 shadow-2xl z-[1000] text-gray-900 border border-gray-100">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-bold">Change Location</h4>
+                  <FaTimes className="cursor-pointer text-gray-400" onClick={() => setShowLocationPicker(false)} />
                 </div>
-
-                <div
-                  onClick={handleDetectLocation}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '12px', padding: '12px',
-                    backgroundColor: '#eff6ff', borderRadius: '12px', cursor: 'pointer',
-                    color: '#2563eb', marginBottom: '16px', transition: 'background 0.2s'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dbeafe'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#eff6ff'}
-                >
-                  <FaLocationArrow />
-                  <span style={{ fontSize: '14px', fontWeight: '600' }}>Detect my current location</span>
+                <div onClick={handleDetectLocation} className="flex items-center gap-2 rounded-lg bg-blue-50 p-2 text-blue-600 mb-3 cursor-pointer text-sm font-semibold">
+                  <FaLocationArrow /> Detect current location
                 </div>
-
-                <div style={{ position: 'relative', marginBottom: '12px' }}>
-                  <FaSearch style={{ position: 'absolute', left: '12px', top: '14px', color: '#9ca3af' }} />
-                  <input
-                    type="text"
-                    placeholder="Search for city or area..."
-                    value={cityInput}
-                    onChange={(e) => handleCityInputChange(e.target.value)}
-                    style={{
-                      width: '100%', padding: '12px 12px 12px 40px', borderRadius: '10px',
-                      border: '1px solid #e5e7eb', outline: 'none', fontSize: '14px',
-                      backgroundColor: '#f9fafb ', color: '#111827',
-                    }}
-                  />
-                </div>
-
-                <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
-                  {citySuggestions.length > 0 ? (
-                    citySuggestions.map((item, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => selectCityFromSuggestion(item)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '12px', padding: '10px',
-                          cursor: 'pointer', borderRadius: '8px', transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                      >
-                        <div style={{ width: '32px', height: '32px', backgroundColor: '#f3f4f6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <FaCity style={{ color: '#6b7280', fontSize: '14px' }} />
-                        </div>
-                        <div>
-                          <p style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#374151' }}>{item.city}</p>
-                          <p style={{ margin: 0, fontSize: '12px', color: '#9ca3af' }}>{item.state}, {item.country}</p>
-                        </div>
-                      </div>
-                    ))
-                  ) : cityInput.length > 1 ? (
-                    <div style={{ padding: '20px', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>No results found</div>
-                  ) : (
-                    <div style={{ padding: '10px', color: '#9ca3af', fontSize: '12px', fontWeight: '500' }}>RECENT CITIES</div>
-                  )}
+                <input
+                  type="text"
+                  placeholder="Search city..."
+                  value={cityInput}
+                  onChange={(e) => handleCityInputChange(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 p-2 text-sm outline-none mb-2"
+                />
+                <div className="max-h-[200px] overflow-y-auto">
+                  {citySuggestions.map((item, idx) => (
+                    <div key={idx} onClick={() => selectCityFromSuggestion(item)} className="p-2 hover:bg-gray-100 cursor-pointer rounded text-sm">
+                      <span className="font-bold">{item.city}</span>, <span className="text-gray-500">{item.state}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
           </div>
 
-          {/* CENTER: Search Bar */}
-          <div className="tnav-center">
-            <div className="search-container">
-              <FaSearch className="search-icon" />
+          {/* SEARCH BAR */}
+          <div className="w-full max-w-full order-3 mt-1.5 md:max-w-[600px] md:flex-1 md:order-2 md:mt-0 relative" ref={searchRef}>
+            <div className="relative w-full">
+              <FaSearch className={`absolute left-4 top-1/2 -translate-y-1/2 ${isSearching ? 'text-[#08b36a] animate-pulse' : 'text-gray-400'}`} />
               <input
                 type="search"
-                placeholder="Search medicines, health products..."
-                className="tnav-search-input"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchSubmit}
+                placeholder="Search medicines, doctors, hospitals..."
+                className="w-full rounded-xl border-none bg-white py-3 pl-12 pr-4 text-sm text-gray-800 outline-none shadow-sm focus:ring-2 focus:ring-white/50"
               />
             </div>
+
+            {/* SUGGESTIONS DROPDOWN */}
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute top-[52px] left-0 w-full rounded-xl bg-white shadow-2xl z-[2000] border border-gray-100 overflow-hidden">
+                <div className="max-h-[420px] overflow-y-auto py-1">
+                  {suggestions.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => handleSuggestionClick(item)}
+                      className="flex items-center gap-4 px-4 py-3 cursor-pointer hover:bg-gray-50 border-b border-gray-50 last:border-none"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-lg">
+                        {item.image ? (
+                          <img src={item.image} alt="" className="h-full w-full rounded-lg object-cover" />
+                        ) : (
+                          getIconByType(item.type)
+                        )}
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                        <p className="m-0 truncate text-sm font-bold text-gray-900">{item.title}</p>
+                        <p className="m-0 truncate text-xs text-gray-500">{item.subtitle}</p>
+                      </div>
+                      <span className="shrink-0 rounded-md bg-gray-100 px-2 py-0.5 text-[9px] font-bold uppercase text-gray-400 tracking-tighter">
+                        {item.type}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* RIGHT: Actions */}
-          <div className="tnav-right">
+          {/* ACTIONS */}
+          <div className="flex shrink-0 items-center gap-4 order-2 md:order-3">
             {!token ? (
-              <div className="auth-buttons">
-                <button className="tnav-auth-btn" onClick={() => openModal("login")}>
-                  Login
-                </button>
-                <span className="tnav-divider">|</span>
-                <button className="tnav-auth-btn" onClick={() => openModal("register")}>
-                  Signup
-                </button>
+              <div className="flex items-center gap-2">
+                <button className="text-sm font-bold text-white bg-transparent border-none cursor-pointer" onClick={() => openModal("login")}>Login</button>
+                <span className="opacity-30">|</span>
+                <button className="text-sm font-bold text-white bg-transparent border-none cursor-pointer" onClick={() => openModal("register")}>Signup</button>
               </div>
             ) : (
-              <div className="profile-trigger" onClick={() => setProfileOpen(true)}>
-                <div className="avatar-sm">K</div>
-                <span className="profile-name-label">Profile</span>
+              <div className="flex items-center gap-2 rounded-full bg-white/10 p-1 pr-3 cursor-pointer hover:bg-white/20" onClick={() => setProfileOpen(true)}>
+                <div className="h-7 w-7 flex items-center justify-center rounded-full bg-white text-xs font-bold text-[#08b36a]">K</div>
+                <span className="hidden sm:inline text-sm font-semibold">Profile</span>
               </div>
             )}
 
-            <Link href="/userscreens/offers" className="tnav-link-iconic hide-mobile">
-              <FaTag />
-              <span className="link-text">Offers</span>
-            </Link>
-
-            <Link href="/userscreens/usercart" className="tnav-link-iconic">
-              <div className="icon-badge-wrapper">
-                <FaShoppingCart />
-                {cartItemIds.length > 0 && (
-                  <span className="badge-count animate-bounce-subtle">
-                    {cartItemIds.length}
-                  </span>
-                )}
-              </div>
-              <span className="link-text">Cart</span>
+            <Link href="/userscreens/usercart" className="flex items-center gap-2 text-white no-underline relative">
+              <FaShoppingCart className="text-xl" />
+              {cartItemIds.length > 0 && (
+                <span className="absolute -top-2 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold animate-bounce">
+                  {cartItemIds.length}
+                </span>
+              )}
+              <span className="hidden lg:inline text-sm font-medium">Cart</span>
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* Backdrop for Location Picker */}
-      {showLocationPicker && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 999, backgroundColor: 'transparent' }}
-          onClick={() => setShowLocationPicker(false)}
-        />
-      )}
-
-      {/* MODALS (Login/Register) */}
+      {/* MODALS */}
       {modalType && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={closeModal}>
+          <div className="m-4 w-full max-w-md rounded-2xl bg-white p-2" onClick={(e) => e.stopPropagation()}>
             {modalType === "login" && <MainLogin onClose={closeModal} />}
             {modalType === "register" && <MainRegister onClose={closeModal} />}
           </div>
         </div>
       )}
 
-      {/* PROFILE SIDE MODAL */}
-      <div className={`profile-overlay ${profileOpen ? 'active' : ''}`} onClick={() => setProfileOpen(false)}>
-        <div className="profile-modal" onClick={(e) => e.stopPropagation()}>
-          <div className="profile-header-new">
-            <button className="close-btn" onClick={() => setProfileOpen(false)}>
-              <FaTimes />
-            </button>
-            <div className="profile-user-card">
-              <div className="profile-avatar-large">K</div>
-              <div className="profile-user-details">
-                <h3>Khanday</h3>
-                <p>+91 6006287541</p>
-                <span className="gender-tag">Male</span>
+      {/* PROFILE SIDE DRAWER */}
+      <div
+        className={`fixed inset-0 w-full h-full bg-black/50 backdrop-blur-sm z-[10001] transition-opacity duration-300 ${profileOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`}
+        onClick={() => setProfileOpen(false)}
+      >
+        <div
+          className={`absolute right-0 top-0 w-[85%] sm:w-[350px] h-full bg-white shadow-2xl transition-transform duration-300 ${profileOpen ? 'translate-x-0' : 'translate-x-full'}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="bg-[#08b36a] px-6 py-10 text-white relative">
+            <FaTimes className="absolute right-5 top-5 cursor-pointer" onClick={() => setProfileOpen(false)} />
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 flex items-center justify-center rounded-full bg-white text-2xl font-bold text-[#08b36a]">K</div>
+              <div>
+                <h3 className="font-bold">Khanday</h3>
+                <p className="text-sm opacity-80">+91 6006287541</p>
               </div>
             </div>
           </div>
-
-          <div className="profile-menu">
-            {menuItems.map((item, index) => (
-              <Link href={item.link} key={index} className="profile-item-new" onClick={() => setProfileOpen(false)}>
-                <span className="item-icon">{item.icon}</span>
-                <span className="item-label">{item.label}</span>
-                <FaChevronRight className="arrow-right" />
+          <div className="py-4 overflow-y-auto h-full">
+            {menuItems.map((item, idx) => (
+              <Link href={item.link} key={idx} className="flex items-center px-6 py-3.5 text-gray-700 no-underline hover:bg-gray-50 border-b border-gray-50" onClick={() => setProfileOpen(false)}>
+                <span className="w-10 text-[#08b36a]">{item.icon}</span>
+                <span className="flex-1 text-sm font-medium">{item.label}</span>
+                <FaChevronRight className="text-[10px] text-gray-300" />
               </Link>
             ))}
-            <div className="profile-item-new logout-new" onClick={() => {
-              setProfileOpen(false);
-              logout();
-            }}>
-              <span className="item-icon"><FaSignOutAlt /></span>
-              <span className="item-label">Logout</span>
+            <div className="flex items-center px-6 py-4 text-red-500 font-bold border-t mt-4 cursor-pointer" onClick={() => { setProfileOpen(false); logout(); }}>
+              <span className="w-10"><FaSignOutAlt /></span> Logout
             </div>
           </div>
         </div>

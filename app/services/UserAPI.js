@@ -34,6 +34,34 @@ const UserAPI = {
     // PUBLIC METHODS (No Token Needed)
     // ==========================================
 
+    // General Search Suggestions (autocomplete)
+    getGlobalSearchSuggestions: async (query, type = "") => {
+        const response = await publicApi.get("/user/homepage/suggestions", {
+            params: {
+                query,
+                ...(type && { type }) // optional filter
+            }
+        });
+        return response.data;
+    },
+
+    getNonPrescriptionProducts: async (category, page = 1, limit = 10) => {
+        const response = await authApi.get(
+            "/user/pharmacy/non-prescription-list",
+            {
+                params: {
+                    category,
+                    page,
+                    limit
+                }
+            }
+        );
+
+        return response.data;
+    },
+
+
+
     getWomensPackages: async () => {
         const response = await publicApi.get("/user/labs/standard-packages/female");
         return response.data;

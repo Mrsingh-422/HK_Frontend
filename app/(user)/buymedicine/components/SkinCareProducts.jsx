@@ -3,78 +3,44 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaStar, FaPlus, FaLeaf, FaCheckCircle } from 'react-icons/fa';
+import UserAPI from "@/app/services/UserAPI";
 
-const SkinCareProducts = () => {
+const WomenCareProducts = () => {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
-    const mockSkincare = [
-        {
-            _id: '1',
-            name: "Vitamin C Glow Serum",
-            brand: "Derma Skin",
-            mrp: 899,
-            bestPrice: 599,
-            discount: 33,
-            rating: 4.9,
-            salt: "Ascorbic Acid + Ferulic",
-            image: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?q=80&w=500&auto=format&fit=crop"
-        },
-        {
-            _id: '2',
-            name: "Hyaluronic Acid Gel",
-            brand: "Aqua Hydrate",
-            mrp: 1200,
-            bestPrice: 950,
-            discount: 20,
-            rating: 4.7,
-            salt: "Pure Hyaluronic Complex",
-            image: "https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?q=80&w=500&auto=format&fit=crop"
-        },
-        {
-            _id: '3',
-            name: "Mineral Sunscreen SPF 50",
-            brand: "Shield Tech",
-            mrp: 650,
-            bestPrice: 499,
-            discount: 15,
-            rating: 4.8,
-            salt: "Zinc + Titanium Oxide",
-            image: "https://images.unsplash.com/photo-1556228578-0d85b1a4d571?q=80&w=500&auto=format&fit=crop"
-        },
-        {
-            _id: '4',
-            name: "Retinol Night Cream",
-            brand: "Youth Revival",
-            mrp: 1500,
-            bestPrice: 1199,
-            discount: 20,
-            rating: 4.6,
-            salt: "Retinol 0.5% + Peptides",
-            image: "https://images.unsplash.com/photo-1631730432744-67295388e7c5?q=80&w=500&auto=format&fit=crop"
-        },
-        {
-            _id: '5',
-            name: "Gentle Foaming Cleanser",
-            brand: "Pure Skin",
-            mrp: 450,
-            bestPrice: 399,
-            discount: 10,
-            rating: 4.5,
-            salt: "Niacinamide + Ceramides",
-            image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?q=80&w=500&auto=format&fit=crop"
-        }
+    // High-quality dummy images for a medical/skincare look
+    const dummyImages = [
+        "https://images.unsplash.com/photo-1556228578-0d85b1a4d571?q=80&w=400&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?q=80&w=400&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1612817288484-6f916006741a?q=80&w=400&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?q=80&w=400&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?q=80&w=400&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1556228720-195a672e8a03?q=80&w=400&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?q=80&w=400&auto=format&fit=crop"
     ];
 
     useEffect(() => {
         const fetchProducts = async () => {
             try {
                 setLoading(true);
-                await new Promise(resolve => setTimeout(resolve, 800));
-                setProducts(mockSkincare);
+                // Category: Women Care, Page: 1, Limit: 7
+                const response = await UserAPI.getNonPrescriptionProducts("Women Care", 1, 7);
+                
+                if (response.success && response.data) {
+                    // Handling both standard array response and the medicineDetails nested structure
+                    let dataArray = [];
+                    if (Array.isArray(response.data)) {
+                        dataArray = response.data;
+                    } else if (response.data.medicineDetails) {
+                        dataArray = [response.data.medicineDetails];
+                    }
+                    
+                    setProducts(dataArray.slice(0, 7)); // Strictly only 7 products
+                }
             } catch (error) {
-                console.error("Error fetching skincare:", error);
+                console.error("Error fetching products:", error);
             } finally {
                 setLoading(false);
             }
@@ -83,114 +49,130 @@ const SkinCareProducts = () => {
     }, []);
 
     const handleProductClick = (id) => {
-        router.push(`/skincare/product/${id}`);
+        router.push(`/buymedicine/singleproductdetail/${id}`);
     };
 
     if (loading) {
         return (
-            <div className="bg-[#F8FAFC] py-12 px-4 flex justify-center items-center min-h-[300px]">
-                <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-emerald-500"></div>
+            <div className="bg-[#FAFBFD] py-20 px-4 flex justify-center items-center min-h-[400px]">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="relative flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-2 border-emerald-500/20 border-t-emerald-600"></div>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest animate-pulse">Loading Essentials</span>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="bg-[#F8FAFC] py-10 px-4 font-['Plus_Jakarta_Sans']">
+        <div className="bg-[#FAFBFD] py-14 px-4 sm:px-6 lg:px-8 font-['Plus_Jakarta_Sans'] overflow-hidden">
             <div className="max-w-7xl mx-auto">
                 {/* Header Section */}
-                <div className="flex justify-between items-end mb-6">
+                <div className="flex justify-between items-end mb-10 px-1">
                     <div>
-                        <span className="text-emerald-600 font-black uppercase tracking-[2px] text-[9px]">Dermatology Recommended</span>
-                        <h2 className="text-2xl font-black text-slate-900 mt-1">Skin Care Essentials</h2>
+                        <span className="text-emerald-600 font-bold uppercase tracking-widest text-xs">Specially Curated</span>
+                        <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 mt-1 tracking-tight">Women Care</h2>
                     </div>
-                    <button className="text-emerald-600 font-black text-[10px] uppercase tracking-wider hover:underline">
+                    <button 
+                        onClick={() => router.push('/buymedicine/category/Women Care')}
+                        className="bg-white border border-slate-200/80 px-5 py-2.5 rounded-xl text-slate-700 font-semibold text-xs tracking-wide hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all duration-300 shadow-sm hover:shadow-md"
+                    >
                         View All
                     </button>
                 </div>
 
                 {/* Horizontal Scroll Section */}
-                <div className="relative">
-                    <div className="flex overflow-x-auto gap-4 pb-6 snap-x no-scrollbar custom-scrollbar">
-                        {products.map((item) => (
-                            <div
-                                key={item._id}
-                                onClick={() => handleProductClick(item._id)}
-                                // Reduced widths: 220px on mobile, 240px on desktop
-                                className="min-w-[210px] md:min-w-[230px] bg-white border border-slate-100 rounded-[20px] overflow-hidden group hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-300 snap-start cursor-pointer"
-                            >
-                                {/* Image & Badges */}
-                                <div className="relative aspect-square bg-slate-50 flex items-center justify-center p-0 overflow-hidden">
-                                    <div className="absolute top-2 left-2 z-10">
-                                        <span className="bg-white/90 backdrop-blur shadow-sm px-2 py-0.5 rounded-md text-[8px] font-black text-slate-900 flex items-center gap-1">
-                                            <FaStar className="text-amber-400" /> {item.rating}
-                                        </span>
-                                    </div>
-
-                                    {item.discount > 0 && (
-                                        <div className="absolute top-2 right-2 z-10">
-                                            <span className="bg-emerald-500 text-white px-1.5 py-0.5 rounded-md text-[8px] font-black">
-                                                {item.discount}% OFF
+                <div className="relative group/container">
+                    <div className="flex overflow-x-auto gap-6 pb-8 snap-x snap-mandatory [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:rounded-full">
+                        {products.length > 0 ? (
+                            products.map((item, index) => (
+                                <div
+                                    key={item._id || index}
+                                    onClick={() => handleProductClick(item._id)}
+                                    className="min-w-[260px] md:min-w-[290px] max-w-[290px] bg-white border border-slate-100 rounded-3xl overflow-hidden group hover:border-transparent hover:shadow-[0_20px_50px_rgba(148,163,184,0.15)] transition-all duration-500 snap-start cursor-pointer flex flex-col"
+                                >
+                                    {/* Image Container with Dummy Images */}
+                                    <div className="relative aspect-[4/4.5] bg-slate-50 flex items-center justify-center overflow-hidden">
+                                        <div className="absolute top-4 left-4 z-10">
+                                            <span className="bg-white/80 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-slate-800 flex items-center gap-1 shadow-sm border border-white/40">
+                                                <FaStar className="text-amber-400 text-xs" /> 4.8
                                             </span>
                                         </div>
-                                    )}
 
-                                    <img
-                                        src={item.image}
-                                        alt={item.name}
-                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                    />
-                                </div>
-
-                                {/* Content */}
-                                <div className="p-4">
-                                    <p className="text-[9px] font-black text-emerald-600 uppercase tracking-tight mb-0.5">{item.brand}</p>
-                                    <h3 className="font-bold text-slate-900 text-sm leading-tight truncate">{item.name}</h3>
-                                    <p className="text-[10px] text-slate-400 font-medium mb-2 truncate">{item.salt}</p>
-
-                                    <div className="flex items-center gap-1.5 mb-3">
-                                        <FaCheckCircle className="text-slate-300 text-[9px]" />
-                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">Clinically Tested</span>
-                                    </div>
-
-                                    <div className="flex items-center justify-between border-t border-slate-50 pt-3">
-                                        <div>
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="text-base font-black text-slate-900">₹{item.bestPrice}</span>
-                                                {item.mrp > item.bestPrice && (
-                                                    <span className="text-[10px] text-slate-400 line-through">₹{item.mrp}</span>
-                                                )}
+                                        {item.discont_percent && item.discont_percent !== "0%" && (
+                                            <div className="absolute top-4 right-4 z-10">
+                                                <span className="bg-emerald-600 text-white px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide shadow-sm">
+                                                    {item.discont_percent} OFF
+                                                </span>
                                             </div>
+                                        )}
+
+                                        <img
+                                            src={dummyImages[index % dummyImages.length]}
+                                            alt={item.name}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                                        />
+                                        
+                                        {/* Soft elegant gradient layer overlay */}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                    </div>
+
+                                    {/* Content Area */}
+                                    <div className="p-5 flex flex-col flex-1 bg-white">
+                                        <div className="mb-3">
+                                            <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider mb-1.5 truncate">
+                                                {item.manufacturers || 'Premium Healthcare'}
+                                            </p>
+                                            <h3 className="font-bold text-slate-800 text-[15px] leading-snug line-clamp-2 h-11 group-hover:text-emerald-700 transition-colors duration-300">
+                                                {item.name}
+                                            </h3>
+                                            <p className="text-xs text-slate-400 font-medium mt-1.5 truncate">
+                                                {item.packaging || 'Standard Pack'}
+                                            </p>
                                         </div>
-                                        <button
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center hover:bg-emerald-600 transition-colors shadow-md shadow-slate-200"
-                                        >
-                                            <FaPlus size={11} />
-                                        </button>
+
+                                        <div className="flex items-center gap-1.5 mb-5">
+                                            <FaCheckCircle className="text-emerald-500 text-xs shrink-0" />
+                                            <span className="text-[11px] font-semibold text-slate-500 tracking-wide">
+                                                Verified Quality
+                                            </span>
+                                        </div>
+
+                                        {/* Pricing & CTA */}
+                                        <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-4">
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Our Price</p>
+                                                <div className="flex items-baseline gap-1.5">
+                                                    <span className="text-lg font-extrabold text-slate-900">₹{item.best_price}</span>
+                                                    {item.mrp && (
+                                                        <span className="text-xs text-slate-300 line-through font-medium">₹{item.mrp}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <button
+                                                className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-emerald-600 transition-all duration-300 shadow-md hover:shadow-emerald-100 active:scale-95 shrink-0"
+                                            >
+                                                <FaPlus size={12} />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
+                            ))
+                        ) : (
+                            <div className="w-full text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200 mx-1 shadow-sm">
+                                <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <FaLeaf className="text-slate-300 text-2xl" />
+                                </div>
+                                <p className="text-slate-700 font-bold text-sm tracking-wide">Restocking Soon</p>
+                                <p className="text-slate-400 text-xs mt-1">We are updating our medical essentials library.</p>
                             </div>
-                        ))}
+                        )}
                     </div>
                 </div>
-
-                {products.length === 0 && !loading && (
-                    <div className="text-center py-16 bg-white rounded-[24px] border border-dashed border-slate-200">
-                        <FaLeaf className="mx-auto text-slate-200 text-4xl mb-3" />
-                        <p className="text-slate-400 text-sm font-bold">No products found.</p>
-                    </div>
-                )}
             </div>
-
-            <style jsx>{`
-                .no-scrollbar::-webkit-scrollbar { display: none; }
-                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-                .custom-scrollbar::-webkit-scrollbar { height: 4px; }
-                .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-            `}</style>
         </div>
     );
 }
 
-export default SkinCareProducts;
+export default WomenCareProducts;
