@@ -60,7 +60,12 @@ const UserAPI = {
         return response.data;
     },
 
-
+    superSavingProducts: async (page = 1, limit = 10) => {
+        const response = await authApi.get("/user/pharmacy/highest-discount-medicines", {
+            params: { page, limit }
+        });
+        return response.data;
+    },
 
     getWomensPackages: async () => {
         const response = await publicApi.get("/user/labs/standard-packages/female");

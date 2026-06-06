@@ -18,16 +18,20 @@ import SkinCareProducts from './components/SkinCareProducts'
 import DealOfTheDay from './components/DealOfTheDay'
 import FitnessProducts from './components/FitnessProducts'
 import Devices from './components/Devices'
+import AyurvedaMedicines from './components/AyurvedaMedicines'
+import SuperSaving from './components/SuperSaving'
 
 function page() {
     return (
         <>
             <SecondNavbar />
             <OnlinePharmacy />
+            <SuperSaving />
             <NearByMedicines />
             <SkinCareProducts />
             <FitnessProducts />
             <Devices />
+            <AyurvedaMedicines />
             {/* <DealOfTheDay /> */}
             <BrandLogos />
             <PharmaciesNearMe />

@@ -386,7 +386,7 @@ function OnlinePharmacy() {
                         {med.mrp && parseFloat(med.mrp) > parseFloat(med.best_price || 0) && (
                           <span className="text-xs text-slate-300 line-through font-medium block mb-0.5">₹{med.mrp}</span>
                         )}
-                        <span className="text-lg font-extrabold text-slate-900 tracking-tight">₹{med.best_price}</span>
+                        <span className="text-lg font-extrabold text-slate-900 tracking-tight">₹{med.minimumPrice}</span>
                       </div>
                       <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-emerald-600 transition-all duration-300 shadow-md hover:shadow-emerald-100 active:scale-95 shrink-0">
                         <FaPlus size={11} />
