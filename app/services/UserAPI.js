@@ -222,10 +222,10 @@ const UserAPI = {
         });
         return response.data;
     },
-    getTrendingMedicines: async (data) => {
-        const response = await publicApi.post(`/user/pharmacy/trending-medicines`, data);
-        return response.data;
-    },
+    // getTrendingMedicines: async (data) => {
+    //     const response = await publicApi.post(`/user/pharmacy/trending-medicines`, data);
+    //     return response.data;
+    // },
     searchMedicineSuggestions: async (data) => {
         const response = await publicApi.post(
             `/user/pharmacy/search-suggestions`,
@@ -281,6 +281,11 @@ const UserAPI = {
         const response = await authApi.get("/user/pharmacy/prescription-request/list", {
             params: { page, limit },
         });
+        return response.data;
+    },
+
+    getAllMedicineCategories: async () => {
+        const response = await publicApi.get("/user/pharmacy/categories");
         return response.data;
     },
 
