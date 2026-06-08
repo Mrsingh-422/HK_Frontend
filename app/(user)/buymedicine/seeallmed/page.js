@@ -11,35 +11,39 @@ import UserAPI from "@/app/services/UserAPI";
 import AllPharmacyProducts from "./components/AllPharmacyProducts";
 import SecondNavbar from "../../components/SecondNavbar";
 
-// --- SKELETON COMPONENT ---
+// Helper function to resolve dynamic image paths
+const getImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    const BASE_URL = "http://192.168.1.26:5002";
+    // Cleans up 'public/' prefix to prevent duplicated path subsegments
+    const cleanPath = imagePath.replace(/^public\//, "");
+    return `${BASE_URL}/${cleanPath}`;
+};
+
+// --- REDESIGNED SKELETON COMPONENT ---
 const PharmacyCardSkeleton = () => (
-    <div className="flex-shrink-0 w-[260px] sm:w-[300px] md:w-[350px] h-[200px] md:h-[240px] bg-white/80 backdrop-blur-md rounded-2xl md:rounded-[2.5rem] border border-white p-5 md:p-7 flex flex-col justify-between animate-pulse shadow-lg shadow-slate-200/50">
+    <div className="flex-shrink-0 w-[280px] sm:w-[320px] md:w-[360px] h-[340px] bg-white rounded-3xl border border-slate-100 p-4 flex flex-col justify-between animate-pulse shadow-sm">
         <div>
-            <div className="flex justify-between items-start">
-                <div className="w-2/3">
-                    <div className="h-4 md:h-5 bg-slate-200 rounded-lg w-full mb-3"></div>
-                    <div className="h-3 bg-slate-100 rounded-md w-1/2"></div>
-                </div>
-                <div className="w-8 h-8 md:w-12 md:h-12 bg-slate-100 rounded-xl"></div>
-            </div>
-            <div className="flex gap-2 mt-6">
-                <div className="h-5 w-16 bg-slate-100 rounded-full"></div>
-                <div className="h-5 w-16 bg-slate-100 rounded-full"></div>
-            </div>
+            <div className="w-full h-40 bg-slate-200 rounded-2xl mb-4"></div>
+            <div className="h-5 bg-slate-200 rounded-lg w-2/3 mb-2"></div>
+            <div className="h-4 bg-slate-100 rounded-md w-1/3"></div>
         </div>
-        <div className="h-10 bg-slate-50 rounded-xl w-full"></div>
+        <div className="flex justify-between items-center pt-3 border-t border-slate-50">
+            <div className="h-4 bg-slate-100 rounded w-1/4"></div>
+            <div className="h-8 w-8 bg-slate-200 rounded-xl"></div>
+        </div>
     </div>
 );
 
 // --- REUSABLE BADGE ---
 const Badge = ({ icon, text, color }) => {
     const colors = {
-        blue: "bg-blue-50/80 text-blue-700 border-blue-200/50",
-        emerald: "bg-emerald-50/80 text-[#069669] border-emerald-200/50",
-        slate: "bg-slate-50/80 text-slate-600 border-slate-200/50",
+        blue: "bg-blue-50 text-blue-600 border-blue-100",
+        emerald: "bg-emerald-50 text-emerald-600 border-emerald-100",
+        slate: "bg-slate-50 text-slate-600 border-slate-100",
     };
     return (
-        <div className={`flex items-center gap-1.5 px-2.5 md:px-4 py-1 md:py-2 rounded-lg md:rounded-2xl border text-[8px] md:text-[9px] font-black tracking-wider backdrop-blur-md shadow-sm whitespace-nowrap ${colors[color] || colors.slate}`}>
+        <div className={`flex items-center gap-1 px-2.5 py-1 rounded-xl border text-[10px] font-bold tracking-wide backdrop-blur-md shadow-sm whitespace-nowrap ${colors[color] || colors.slate}`}>
             <span className="shrink-0">{icon}</span>
             <span className="uppercase">{text}</span>
         </div>
@@ -173,56 +177,86 @@ export default function AllMedicinesPage() {
 
                     {/* HORIZONTAL LIST */}
                     <div className="relative -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
-                        <div className="flex gap-4 md:gap-8 overflow-x-auto pb-8 pt-2 no-scrollbar mask-edge">
+                        <div className="flex gap-6 overflow-x-auto pb-8 pt-2 no-scrollbar mask-edge">
                             {loadingPharmacies ? (
                                 Array(4).fill(0).map((_, i) => <PharmacyCardSkeleton key={i} />)
                             ) : (
-                                pharmacies.map((pharmacy) => (
-                                    <div
-                                        key={pharmacy._id}
-                                        onClick={() => router.push(`/buymedicine/singlepharmacydetail/${pharmacy._id}`)}
-                                        className="group flex-shrink-0 cursor-pointer w-[260px] sm:w-[320px] md:w-[380px] bg-white rounded-2xl md:rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-emerald-500/10 hover:-translate-y-1.5 transition-all duration-300 p-5 md:p-8 flex flex-col justify-between h-[210px] md:h-[260px] relative overflow-hidden"
-                                    >
-                                        <div className="absolute -top-10 -right-10 w-24 h-24 bg-emerald-50 rounded-full group-hover:scale-150 transition-transform duration-700"></div>
+                                pharmacies.map((pharmacy) => {
+                                    // Extract the thumbnail target safely from profileImage or the document array
+                                    const rawImgPath = pharmacy.profileImage || (pharmacy.documents?.pharmacyImages?.[0]);
+                                    const dynamicImgUrl = getImageUrl(rawImgPath);
 
-                                        <div className="relative z-10">
-                                            <div className="flex justify-between items-start gap-4">
-                                                <div className="min-w-0">
-                                                    <h3 className="font-black text-base md:text-xl text-slate-800 group-hover:text-[#08B36A] truncate transition-colors uppercase tracking-tight">
+                                    return (
+                                        <div
+                                            key={pharmacy._id}
+                                            onClick={() => router.push(`/buymedicine/singlepharmacydetail/${pharmacy._id}`)}
+                                            className="group flex-shrink-0 cursor-pointer w-[280px] sm:w-[320px] md:w-[360px] bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-emerald-500/10 hover:-translate-y-2 transition-all duration-300 p-4 flex flex-col justify-between h-[350px] relative overflow-hidden"
+                                        >
+                                            <div>
+                                                {/* PREMIUM VISUAL THUMBNAIL */}
+                                                <div className="relative w-full h-44 bg-slate-100 rounded-2xl overflow-hidden mb-4 shadow-inner">
+                                                    {dynamicImgUrl ? (
+                                                        <img
+                                                            src={dynamicImgUrl}
+                                                            alt={pharmacy.name}
+                                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                            onError={(e) => {
+                                                                // Fallback if image fails to render
+                                                                e.target.onerror = null;
+                                                                e.target.style.display = 'none';
+                                                                e.target.parentNode.classList.add('flex', 'items-center', 'justify-center');
+                                                                e.target.parentNode.innerHTML = `<div class="text-slate-300"><svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 576 512" height="40" width="40" xmlns="http://www.w3.org/2000/svg"><path d="M528 0H48C21.5 0 0 21.5 0 48v320c0 26.5 21.5 48 48 48h192l-16 48h-48c-8.8 0-16 7.2-16 16s7.2 16 16 16h224c8.8 0 16-7.2 16-16s-7.2-16-16-16h-48l-16-48h192c26.5 0 48-21.5 48-48V48c0-26.5-21.5-48-48-48zm-16 352H64V64h448v288z"></path></svg></div>`;
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 text-slate-300">
+                                                            <FaStore size={40} />
+                                                        </div>
+                                                    )}
+
+                                                    {/* FLOATING RATING BADGE */}
+                                                    <div className="absolute top-3 right-3 flex items-center gap-1 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-xl text-amber-600 border border-white/20 shadow-sm">
+                                                        <FaStar size={10} className="fill-amber-400" />
+                                                        <span className="text-[11px] font-black">{pharmacy.rating || "0.0"}</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* CARD BODY CONTENT */}
+                                                <div className="px-1">
+                                                    <h3 className="font-black text-lg text-slate-800 group-hover:text-[#08B36A] truncate transition-colors uppercase tracking-tight">
                                                         {pharmacy.name}
                                                     </h3>
+                                                    
                                                     <div className="flex items-center gap-1.5 text-slate-400 mt-1">
-                                                        <FaLocationArrow size={8} className="text-emerald-500" />
-                                                        <span className="text-[9px] md:text-[11px] font-black uppercase truncate tracking-tighter">
+                                                        <FaLocationArrow size={9} className="text-emerald-500 shrink-0" />
+                                                        <span className="text-[11px] font-bold uppercase truncate tracking-tight">
                                                             {pharmacy.city} {pharmacy.distance && pharmacy.distance !== "0" ? `• ${pharmacy.distance} KM` : ""}
                                                         </span>
                                                     </div>
-                                                </div>
-                                                <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg text-amber-600 border border-amber-100 shrink-0">
-                                                    <FaStar size={10} className="fill-amber-400" />
-                                                    <span className="text-[10px] md:text-xs font-black">{pharmacy.rating || "0.0"}</span>
+
+                                                    {/* TAG FLAGS CONTAINER */}
+                                                    <div className="flex flex-wrap gap-2 mt-4">
+                                                        {pharmacy.isHomeDeliveryAvailable && <Badge icon={<FaTruck size={10} />} text="Delivery" color="emerald" />}
+                                                        {pharmacy.is24x7 && <Badge icon={<FaHistory size={10} />} text="24/7" color="blue" />}
+                                                    </div>
                                                 </div>
                                             </div>
 
-                                            <div className="flex flex-wrap gap-2 mt-5 md:mt-8">
-                                                {pharmacy.isHomeDeliveryAvailable && <Badge icon={<FaTruck size={10} />} text="Delivery" color="emerald" />}
-                                                {pharmacy.is24x7 && <Badge icon={<FaHistory size={10} />} text="24/7" color="blue" />}
+                                            {/* FOOTER METRICS */}
+                                            <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-100 px-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`flex h-2 w-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] ${pharmacy.is24x7 ? 'bg-emerald-500' : 'bg-emerald-400'}`}></span>
+                                                    <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                                                        {pharmacy.is24x7 ? "Always Open" : "Open Now"}
+                                                    </span>
+                                                </div>
+                                                <div className="w-9 h-9 rounded-xl bg-slate-50 text-slate-400 group-hover:bg-[#08B36A] group-hover:text-white flex items-center justify-center transition-all duration-300 shadow-sm">
+                                                    <FaChevronRight size={11} />
+                                                </div>
                                             </div>
                                         </div>
-
-                                        <div className="relative z-10 flex items-center justify-between pt-4 border-t border-slate-50">
-                                            <div className="flex items-center gap-2">
-                                                <span className="flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
-                                                <span className="text-[9px] md:text-[11px] font-black text-slate-500 uppercase tracking-widest">
-                                                    {pharmacy.is24x7 ? "Always Open" : "Open Now"}
-                                                </span>
-                                            </div>
-                                            <div className="w-8 h-8 md:w-11 md:h-11 rounded-xl bg-slate-50 text-slate-400 group-hover:bg-[#08B36A] group-hover:text-white flex items-center justify-center transition-all duration-300">
-                                                <FaChevronRight size={10} className="md:size-3" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                             {!loadingPharmacies && pharmacies.length === 0 && (
                                 <div className="w-full py-12 bg-white/50 rounded-3xl border-2 border-dashed border-slate-200 text-center flex flex-col items-center justify-center">

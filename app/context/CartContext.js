@@ -87,7 +87,8 @@ export const CartProvider = ({ children }) => {
                 }
             }
         } catch (error) {
-            alert(error.response?.data?.message || "Error adding item.");
+            console.log(error)
+            // alert(error.response?.data?.message || "Error adding item.");
         }
     };
 
