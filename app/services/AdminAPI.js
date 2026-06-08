@@ -18,6 +18,24 @@ api.interceptors.request.use((config) => {
 });
 
 const AdminAPI = {
+
+    adminStatDashboard: async () => {
+        const response = await api.get("/admin/dashboard/order-stats");
+        return response.data;
+    },
+
+    getLiveOrders: async (page = 1, limit=25) => {
+        const response = await api.get("/admin/dashboard/live-feed", {
+            params: { page, limit },
+        });
+        return response.data;
+    },
+
+    getOrderDetails: async (orderId) => {
+        const response = await api.get(`/admin/dashboard/order-details/${orderId}`);
+        return response.data;
+    },
+
     //Add single tests and test packages in Admin
     addSingleTest: async (testData) => {
         const response = await api.post("/admin/add-test", testData);

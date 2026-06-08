@@ -103,6 +103,11 @@ export default function Sidebar() {
                     <span>Dashboard</span>
                 </Link>
 
+                <Link href="/admind/orderdashboard" className={`menu-item ${isActive("/admind/orderdashboard") ? "active" : ""}`}>
+                    <FaRegCalendarAlt className="icon" />
+                    <span>Order Dashboard</span>
+                </Link>
+
                 {/* Admin Earning */}
                 <Link href="/admind/earning" className={`menu-item ${isActive("/admind/earning") ? "active" : ""}`}>
                     <FaMoneyBillWave className="icon" />
