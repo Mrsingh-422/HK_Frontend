@@ -483,6 +483,75 @@ const AdminAPI = {
         return response.data;
     },
 
+    //Api for manage orders by vendors 
+    getAllApprovedLabs: async (page = 1, limit = 25) => {
+        const response = await api.get("admin/lab/approved-list", {
+            params: { page, limit }
+        });
+        return response.data;
+    },
+
+    getParticularLabOrders: async (labId, page = 1, limit = 25) => {
+        const response = await api.get(`/admin/lab/bookings/`, {
+            params: { labId, page, limit }
+        });
+        return response.data;
+    },
+
+    getAllPharmaciesInAdmin: async (page = 1, limit = 25) => {
+        const response = await api.get("/admin/pharmacy/approved-list", {
+            params: { page, limit }
+        });
+        return response.data;
+    },
+
+    getParticularPharmacyOrders: async (pharmacyId, page = 1, limit = 25) => {
+        const response = await api.get(`/admin/pharmacy/bookings/`, {
+            params: { pharmacyId, page, limit }
+        });
+        return response.data;
+    },
+
+    getNurseProvidersInAdmin: async (page = 1, limit = 25) => {
+        const response = await api.get("/admin/nurse/approved-list", {
+            params: { page, limit }
+        }); return response.data;
+    },
+
+    getParticularNurseOrders: async (nurseId, page = 1, limit = 25) => {
+        const response = await api.get(`/admin/nurse/bookings/`, {
+            params: { nurseId, page, limit }
+        });
+        return response.data;
+    },
+
+    getHospitalsInAdmin: async (page = 1, limit = 25) => {
+        const response = await api.get("/admin/hospital/approved-list", {
+            params: { page, limit }
+        }); return response.data;
+    },
+
+    getParticularHospitalOrders: async (hospitalId, page = 1, limit = 25) => {
+        const response = await api.get(`/admin/hospital/appointments/`, {
+            params: { hospitalId, page, limit }
+        });
+        return response.data;
+    },
+
+    getAmbulancesInAdmin: async (page = 1, limit = 25) => {
+        const response = await api.get("/admin/ambulance/approved-list", {
+            params: { page, limit }
+        }); return response.data;
+    },
+
+    getParticularAmbulanceOrders: async (ambulanceId, page = 1, limit = 25) => {
+        const response = await api.get(`/admin/ambulance/bookings/`, {
+            params: { ambulanceId, page, limit }
+        });
+        return response.data;
+    },
+
+
 };
 
 export default AdminAPI;

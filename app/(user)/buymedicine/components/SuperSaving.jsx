@@ -11,15 +11,15 @@ function SuperSaving() {
     const router = useRouter();
 
     const dummyImages = [
-        "https://images.unsplash.com/photo-1512069772995-ec65ed45afd6?q=80&w=500&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1559599141-381d7c016b2e?q=80&w=500&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1471864190281-ad5f9f33d6c6?q=80&w=500&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=500&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1626225453262-216b39ee9142?q=80&w=500&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1550573105-05867a0da7bd?q=80&w=500&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1616671285410-0909062323cc?q=80&w=500&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1547489432-cf93fa6c71ee?q=80&w=500&auto=format&fit=crop"
-    ];
+    "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?q=80&w=500&auto=format&fit=crop", // Medicine bottles
+    "https://images.unsplash.com/photo-1580281657527-47f249e8f4df?q=80&w=500&auto=format&fit=crop", // Prescription medicine
+    "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?q=80&w=500&auto=format&fit=crop", // Pharmacy shelf
+    "https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=500&auto=format&fit=crop", // Medicines
+    "https://images.unsplash.com/photo-1585435557343-3b092031a831?q=80&w=500&auto=format&fit=crop", // Tablets
+    "https://images.unsplash.com/photo-1607619056574-7b8d3ee536b2?q=80&w=500&auto=format&fit=crop", // Capsules
+    "https://images.unsplash.com/photo-1628771065518-0d82f1938462?q=80&w=500&auto=format&fit=crop", // Medical products
+    "https://images.unsplash.com/photo-1580281657527-47f249e8f4df?q=80&w=500&auto=format&fit=crop", // Prescription medicine
+];
 
     useEffect(() => {
         const fetchProducts = async () => {

@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -18,6 +18,7 @@ export default function AmbulanceBookingPage() {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const [coords, setCoords] = useState({ lat: 30.6, lng: 76.7 }); // Lifted state to fix payload crash
 
   // Dynamic Data States
   const [hospitals, setHospitals] = useState([]);
@@ -45,14 +46,15 @@ export default function AmbulanceBookingPage() {
     const init = async () => {
       try {
         const storedCoordsString = localStorage.getItem('userCoords');
-        const coords = storedCoordsString ? JSON.parse(storedCoordsString) : { lat: 30.6, lng: 76.7 };
+        const userCoords = storedCoordsString ? JSON.parse(storedCoordsString) : { lat: 30.6, lng: 76.7 };
+        setCoords(userCoords);
 
         // 1. Fetch exact address from coordinates for display
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}`);
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userCoords.lat}&lon=${userCoords.lng}`);
         const addrData = await res.json();
 
         // 2. Fetch Hospitals List
-        const hospitalRes = await UserAPI.getHospitalsList(coords);
+        const hospitalRes = await UserAPI.getHospitalsList(userCoords);
         if (hospitalRes.success) {
           setHospitals(hospitalRes.data);
         }
@@ -64,7 +66,7 @@ export default function AmbulanceBookingPage() {
         }
 
         // 4. Fetch specific ambulance details
-        const ambRes = await UserAPI.getNearestAmbulances(coords);
+        const ambRes = await UserAPI.getNearestAmbulances(userCoords);
         if (ambRes.success) {
           const selected = ambRes.data.find(a => a._id === id);
           setAmbulance(selected);
@@ -93,9 +95,9 @@ export default function AmbulanceBookingPage() {
   }, [id]);
 
   // --- Calculations ---
-  const currentSubtotal = ambulance ? (ambulance.pricing?.fixedPrice || 0) + 
-                          (formData.supportStaff.doctor ? (ambulance.supportStaff?.doctor?.price || 500) : 0) + 
-                          (formData.supportStaff.nurse ? (ambulance.supportStaff?.nurse?.price || 200) : 0) : 0;
+  const currentSubtotal = ambulance ? (ambulance.pricing?.fixedPrice || 0) +
+    (formData.supportStaff.doctor ? (ambulance.supportStaff?.doctor?.price || 500) : 0) +
+    (formData.supportStaff.nurse ? (ambulance.supportStaff?.nurse?.price || 200) : 0) : 0;
 
   let discountAmount = 0;
   if (appliedCoupon) {
@@ -160,14 +162,21 @@ export default function AmbulanceBookingPage() {
       if (formData.supportStaff.doctor) staffArr.push("Doctor");
       const staffTypeVal = staffArr.length > 0 ? staffArr.join(", ") : "None";
 
-      // 2. Checkout API Call
+      // 2. Checkout API Call (Using fixed state coordinates)
       const checkoutPayload = {
         ambulanceId: id,
         serviceType: "Medical Ambulance",
         staffType: staffTypeVal,
-        couponCode: couponCode.trim()
+        couponCode: couponCode.trim(),
+        triageLevel: formData.priority,
+        pickupLocation: {
+          address: formData.pickupLocation,
+          lat: coords.lat,
+          lng: coords.lng,
+        }
       };
 
+      console.log("Checkout Payload:", checkoutPayload);
       const checkoutRes = await UserAPI.checkOutAmbulance(checkoutPayload);
       if (!checkoutRes.success) {
         alert(checkoutRes.message || "Pricing calculation failed");
@@ -498,7 +507,7 @@ export default function AmbulanceBookingPage() {
                   {discountAmount > 0 && <span className="text-sm font-bold text-slate-400 line-through">₹{currentSubtotal}</span>}
                 </div>
               </div>
-              <button 
+              <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
                 className="w-full md:w-auto bg-[#08B36A] hover:bg-emerald-600 disabled:bg-slate-300 text-white px-12 py-5 rounded-2xl font-black text-lg shadow-lg shadow-emerald-200 transition-all active:scale-95"

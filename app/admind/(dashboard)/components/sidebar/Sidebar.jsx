@@ -150,7 +150,7 @@ export default function Sidebar() {
                 )}
 
                 {/* Manage Orders */}
-                <div className={`menu-item dropdown ${isParentActive("/admind/manageorders") ? "active" : ""}`} onClick={() => toggleMenu("manageorders")}>
+                {/* <div className={`menu-item dropdown ${isParentActive("/admind/manageorders") ? "active" : ""}`} onClick={() => toggleMenu("manageorders")}>
                     <FaClipboardList className="icon" />
                     <span>Manage Orders</span>
                     {openMenu === "manageorders" ? <FaChevronDown className="arrow rotate" /> : <FaChevronRight className="arrow" />}
@@ -165,7 +165,7 @@ export default function Sidebar() {
                         <Link href="/admind/manageorders/nurse" className={`submenu-link ${isActive("/admind/manageorders/nurse") ? "sub-active" : ""}`}>Nurse Orders</Link>
                         <Link href="/admind/manageorders/free-ambulance" className={`submenu-link ${isActive("/admind/manageorders/free-ambulance") ? "sub-active" : ""}`}>Free Ambulance Orders</Link>
                     </div>
-                )}
+                )} */}
 
                 {/* Manage Packages */}
                 <div className={`menu-item dropdown ${isParentActive("/admind/managepackages") ? "active" : ""}`} onClick={() => toggleMenu("managepackages")}>
@@ -240,6 +240,11 @@ export default function Sidebar() {
                 <Link href="/admind/managedoctors" className={`menu-item ${isActive("/admind/managedoctors") ? "active" : ""}`}>
                     <FaRegCalendarAlt className="icon" />
                     <span>Manage Doctors</span>
+                </Link>
+
+                <Link href="/admind/manageordersbyvendors" className={`menu-item ${isActive("/admind/manageordersbyvendors") ? "active" : ""}`}>
+                    <FaRegCalendarAlt className="icon" />
+                    <span>Manage Vendor Orders</span>
                 </Link>
 
                 {/* App Banners */}
