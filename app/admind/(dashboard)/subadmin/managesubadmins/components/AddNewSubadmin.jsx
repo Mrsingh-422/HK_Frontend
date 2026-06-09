@@ -1,293 +1,215 @@
 "use client";
-
+ 
 import React, { useState, useEffect } from "react";
 import { useUserContext } from "@/app/context/UserContext";
-
-function AddNewSubadmin() {
+import DiamondAPI from "@/app/services/DiamondAPI"; // API import karein
+import { toast, Toaster } from "react-hot-toast";
+ 
+function AddNewSubadmin({ onSuccess }) { // onSuccess callback add kiya hai list refresh ke liye
     const {
-        username,
         getAllCountries,
         getStatesByCountry,
-        getCitiesByState
+        getCitiesByState,
+        loading: locationLoading
     } = useUserContext();
-
+ 
     const [formData, setFormData] = useState({
         name: "",
         email: "",
         password: "",
         phone: "",
         address: "",
-        role: "",
+        roleTypeId: "", // Role Template ki ID store karne ke liye
         country: "",
         state: "",
         city: "",
-        image: null,
     });
-
-    const [preview, setPreview] = useState(null);
-    const [roles, setRoles] = useState(["Manager", "Editor", "Testing", "Support"]);
-
+ 
+    const [submitting, setSubmitting] = useState(false);
+    const [dbRoles, setDbRoles] = useState([]); // Database wale roles
+ 
     const [countries, setCountries] = useState([]);
     const [states, setStates] = useState([]);
     const [cities, setCities] = useState([]);
-
-    // Fetch Countries on Mount
+ 
+    // --- 1. Real Roles Fetch Karein ---
     useEffect(() => {
-        const fetchCountries = async () => {
+        const loadInitialData = async () => {
             try {
-                const data = await getAllCountries();
-                setCountries(data || []);
+                const [countryData, rolesRes] = await Promise.all([
+                    getAllCountries(),
+                    DiamondAPI.getRolesList() // Pehle se bane roles templates
+                ]);
+                setCountries(countryData || []);
+                if (rolesRes.success) setDbRoles(rolesRes.data);
             } catch (error) {
-                console.log(error);
+                console.log("Load Error:", error);
             }
         };
-        fetchCountries();
+        loadInitialData();
     }, []);
-
+ 
     // Fetch States when Country changes
     useEffect(() => {
         if (!formData.country) return;
-
         const fetchStates = async () => {
-            try {
-                const data = await getStatesByCountry(formData.country);
-                setStates(data || []);
-            } catch (error) {
-                console.log(error);
-            }
+            const data = await getStatesByCountry(formData.country);
+            setStates(data || []);
         };
-
         fetchStates();
     }, [formData.country]);
-
+ 
     // Fetch Cities when State changes
     useEffect(() => {
         if (!formData.state) return;
-
         const fetchCities = async () => {
-            try {
-                const data = await getCitiesByState(formData.state);
-                setCities(data || []);
-            } catch (error) {
-                console.log(error);
-            }
+            const data = await getCitiesByState(formData.state);
+            setCities(data || []);
         };
-
         fetchCities();
     }, [formData.state]);
-
+ 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
-
-    const handleImage = (e) => {
-        const file = e.target.files[0];
-        setFormData({ ...formData, image: file });
-        setPreview(URL.createObjectURL(file));
-    };
-
-    const handleSubmit = (e) => {
+ 
+    // --- 2. ASLI SUBMIT LOGIC ---
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        console.log(formData);
-        alert("Subadmin Added Successfully!");
+        setSubmitting(true);
+ 
+        try {
+            // Find Names for ID (Backend location names maangta hai aksar)
+            const countryName = countries.find(c => c.id == formData.country)?.name;
+            const stateName = states.find(s => s.id == formData.state)?.name;
+            const cityName = cities.find(c => c.id == formData.city)?.name;
+ 
+            const payload = {
+                name: formData.name,
+                email: formData.email,
+                password: formData.password,
+                phone: formData.phone,
+                roleTypeId: formData.roleTypeId, // Role ID bhej rahe hain
+                locationAccess: {
+                    country: countryName,
+                    state: stateName,
+                    city: cityName
+                }
+            };
+ 
+            const res = await DiamondAPI.createSubAdmin(payload);
+            if (res.success) {
+                toast.success("Sub-Admin Deployed Successfully!");
+                if (onSuccess) onSuccess(); // List wapas dikhao aur refresh karo
+            }
+        } catch (error) {
+            toast.error(error.message || "Failed to create Sub-admin");
+        } finally {
+            setSubmitting(false);
+        }
     };
-
+ 
     return (
-        <div className="min-h-screen bg-gray-100 flex justify-center items-start py-10">
-            <div className="bg-white w-full max-w-4xl rounded-2xl shadow-lg p-8">
-
-                <h2 className="text-2xl font-semibold text-gray-700 mb-6">
-                    Add New Subadmin {username}
-                </h2>
-
-                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
+        <div className="min-h-screen bg-gray-50 flex justify-center items-start py-6">
+            <Toaster position="top-right" />
+            <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-xl shadow-black/5 p-10 border border-gray-100">
+ 
+                <div className="mb-8">
+                    <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">
+                        Deploy New Administrator
+                    </h2>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Assign system access and regional authority</p>
+                </div>
+ 
+                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+ 
                     {/* Name */}
-                    <div>
-                        <label className="text-sm text-gray-600">Full Name</label>
-                        <input
-                            type="text"
-                            name="name"
-                            required
-                            placeholder="Enter full name"
-                            onChange={handleChange}
-                            className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                        />
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Full Name</label>
+                        <input type="text" name="name" required placeholder="John Doe" onChange={handleChange}
+                            className="w-full p-4 bg-gray-50 border-none rounded-2xl outline-none focus:ring-2 ring-emerald-500/20 font-bold text-sm" />
                     </div>
-
+ 
                     {/* Email */}
-                    <div>
-                        <label className="text-sm text-gray-600">Email</label>
-                        <input
-                            type="email"
-                            name="email"
-                            required
-                            placeholder="Enter email address"
-                            onChange={handleChange}
-                            className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                        />
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Official Email</label>
+                        <input type="email" name="email" required placeholder="admin@healthcare.com" onChange={handleChange}
+                            className="w-full p-4 bg-gray-50 border-none rounded-2xl outline-none focus:ring-2 ring-emerald-500/20 font-bold text-sm" />
                     </div>
-
+ 
                     {/* Password */}
-                    <div>
-                        <label className="text-sm text-gray-600">Password</label>
-                        <input
-                            type="password"
-                            name="password"
-                            required
-                            placeholder="Enter password"
-                            onChange={handleChange}
-                            className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                        />
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Security Password</label>
+                        <input type="password" name="password" required placeholder="••••••••" onChange={handleChange}
+                            className="w-full p-4 bg-gray-50 border-none rounded-2xl outline-none focus:ring-2 ring-emerald-500/20 font-bold text-sm" />
                     </div>
-
+ 
                     {/* Phone */}
-                    <div>
-                        <label className="text-sm text-gray-600">Phone</label>
-                        <input
-                            type="text"
-                            name="phone"
-                            required
-                            placeholder="Enter phone number"
-                            onChange={handleChange}
-                            className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                        />
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Contact Number</label>
+                        <input type="text" name="phone" required placeholder="9876543210" onChange={handleChange}
+                            className="w-full p-4 bg-gray-50 border-none rounded-2xl outline-none focus:ring-2 ring-emerald-500/20 font-bold text-sm" />
                     </div>
-
-                    {/* Role */}
-                    <div>
-                        <label className="text-sm text-gray-600">Assigned Role</label>
-                        <select
-                            name="role"
-                            required
-                            onChange={handleChange}
-                            className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                        >
-                            <option value="">Select Role</option>
-                            {roles.map((role) => (
-                                <option key={role} value={role}>
-                                    {role}
-                                </option>
+ 
+                    {/* Role Template Dropdown */}
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Authority Role</label>
+                        <select name="roleTypeId" required value={formData.roleTypeId} onChange={handleChange}
+                            className="w-full p-4 bg-gray-50 border-none rounded-2xl outline-none focus:ring-2 ring-emerald-500/20 font-bold text-sm cursor-pointer">
+                            <option value="">Select Permission Level</option>
+                            {dbRoles.map((role) => (
+                                <option key={role._id} value={role._id}> {role.name} </option>
                             ))}
                         </select>
                     </div>
-
+ 
                     {/* Country */}
-                    <div>
-                        <label className="text-sm text-gray-600">Country</label>
-                        <select
-                            name="country"
-                            value={formData.country}
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Region (Country)</label>
+                        <select name="country" value={formData.country} required className="w-full p-4 bg-gray-50 border-none rounded-2xl outline-none focus:ring-2 ring-emerald-500/20 font-bold text-sm"
                             onChange={(e) => {
-                                setFormData({
-                                    ...formData,
-                                    country: e.target.value,
-                                    state: "",
-                                    city: "",
-                                });
-                                setStates([]);
-                                setCities([]);
-                            }}
-                            required
-                            className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                        >
+                                setFormData({ ...formData, country: e.target.value, state: "", city: "" });
+                                setStates([]); setCities([]);
+                            }}>
                             <option value="">Select Country</option>
-                            {countries.map((country) => (
-                                <option key={country.id} value={country.id}>
-                                    {country.name}
-                                </option>
-                            ))}
+                            {countries.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                     </div>
-
+ 
                     {/* State */}
-                    <div>
-                        <label className="text-sm text-gray-600">State</label>
-                        <select
-                            name="state"
-                            value={formData.state}
-                            onChange={(e) =>
-                                setFormData({ ...formData, state: e.target.value, city: "" })
-                            }
-                            required
-                            disabled={!formData.country}
-                            className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                        >
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">State / Province</label>
+                        <select name="state" value={formData.state} required disabled={!formData.country} className="w-full p-4 bg-gray-50 border-none rounded-2xl outline-none focus:ring-2 ring-emerald-500/20 font-bold text-sm disabled:opacity-50"
+                            onChange={(e) => setFormData({ ...formData, state: e.target.value, city: "" })}>
                             <option value="">Select State</option>
-                            {states.map((state) => (
-                                <option key={state.id} value={state.id}>
-                                    {state.name}
-                                </option>
-                            ))}
+                            {states.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                     </div>
-
+ 
                     {/* City */}
-                    <div>
-                        <label className="text-sm text-gray-600">City</label>
-                        <select
-                            name="city"
-                            value={formData.city}
-                            onChange={handleChange}
-                            required
-                            disabled={!formData.state}
-                            className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                        >
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Assigned City</label>
+                        <select name="city" value={formData.city} required disabled={!formData.state} onChange={handleChange}
+                            className="w-full p-4 bg-gray-50 border-none rounded-2xl outline-none focus:ring-2 ring-emerald-500/20 font-bold text-sm disabled:opacity-50">
                             <option value="">Select City</option>
-                            {cities.map((city) => (
-                                <option key={city.id} value={city.id}>
-                                    {city.name}
-                                </option>
-                            ))}
+                            {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                     </div>
-
-                    {/* Address */}
-                    <div>
-                        <label className="text-sm text-gray-600">Address</label>
-                        <input
-                            type="text"
-                            name="address"
-                            required
-                            placeholder="Enter address"
-                            onChange={handleChange}
-                            className="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-400"
-                        />
-                    </div>
-
-                    {/* Image Upload */}
-                    <div className="md:col-span-2">
-                        <label className="text-sm text-gray-600">Upload Image</label>
-                        <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImage}
-                            className="w-full mt-1 p-2 border rounded-lg"
-                        />
-
-                        {preview && (
-                            <img
-                                src={preview}
-                                alt="Preview"
-                                className="mt-4 w-32 h-32 object-cover rounded-lg border"
-                            />
-                        )}
-                    </div>
-
+ 
                     {/* Submit Button */}
-                    <div className="md:col-span-2">
-                        <button
-                            type="submit"
-                            className="w-full bg-[#08B36A] hover:bg-[#08b369d6] text-white py-3 rounded-lg shadow-md transition"
+                    <div className="md:col-span-2 pt-4">
+                        <button type="submit" disabled={submitting}
+                            className="w-full bg-[#08B36A] hover:bg-[#069356] text-white py-5 rounded-2xl shadow-xl shadow-emerald-100 transition-all font-black uppercase text-xs tracking-[0.2em] active:scale-95 disabled:opacity-50"
                         >
-                            Add Subadmin
+                            {submitting ? "Processing Deployment..." : "Confirm & Create Admin"}
                         </button>
                     </div>
-
+ 
                 </form>
             </div>
         </div>
     );
 }
-
+ 
 export default AddNewSubadmin;
+ 

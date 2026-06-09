@@ -1,163 +1,128 @@
 "use client";
-
+ 
 import React, { useState, useRef, useEffect } from "react";
-import {
-    FaBell,
-    FaUser,
-    FaUserEdit,
-    FaInfoCircle,
-    FaKey,
-    FaSignOutAlt
-} from "react-icons/fa";
-// Import the new Menu Icon
+import { FaUser, FaUserEdit, FaSignOutAlt } from "react-icons/fa";
 import { HiMenuAlt2 } from "react-icons/hi";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { useGlobalContext } from "@/app/context/GlobalContext";
 import { useAuth } from "@/app/context/AuthContext";
-import { useRouter } from "next/navigation";
-
+import { useGlobalContext } from "@/app/context/GlobalContext";
+import DiamondAPI from "@/app/services/DiamondAPI";
+import { Toaster } from "react-hot-toast";
+ 
 const DashboardTopNavbar = ({ heading }) => {
     const [openProfile, setOpenProfile] = useState(false);
-    const [openNotifications, setOpenNotifications] = useState(false);
+    const [adminData, setAdminData] = useState(null);
     const router = useRouter();
-    const themeColor = "#08B36A";
-
+    const pathname = usePathname();
     const { logout } = useAuth();
+    const { toggleSidebar } = useGlobalContext();
     const profileRef = useRef(null);
-    const notificationRef = useRef(null);
-    const { user, toggleSidebar } = useGlobalContext();
-
-    const notifications = [
-        { id: 1, message: "A new appointment has been successfully booked for tomorrow at 10:30 AM." },
-        { id: 2, message: "A new user has registered and is awaiting profile verification." },
-        { id: 3, message: "Warning: Stock level for Paracetamol 500mg has dropped below threshold." },
-    ];
-
-    useEffect(() => {
-        function handleClickOutside(event) {
-            if (profileRef.current && !profileRef.current.contains(event.target)) setOpenProfile(false);
-            if (notificationRef.current && !notificationRef.current.contains(event.target)) setOpenNotifications(false);
+    const themeColor = "#08B36A";
+ 
+    // --- 🌟 FETCH PROFILE LOGIC (FIXED) 🌟 ---
+    const fetchProfile = async () => {
+        try {
+            // 1. LocalStorage se login user ki info nikaalo
+            const storedAdmin = JSON.parse(localStorage.getItem('admin') || '{}');
+            const loginId = storedAdmin.id || storedAdmin._id;
+ 
+            if (!loginId) return;
+ 
+            const res = await DiamondAPI.getAdminProfile();
+            if (res.success && res.data.length > 0) {
+               
+                // 2. CRITICAL FIX: Puri list mein se login waale bande ko dhoondo
+                // Sirf res.data[0] mat lo, kyunki Superadmin ko sabki list milti hai
+                const currentUser = res.data.find(user => user._id === loginId);
+               
+                if (currentUser) {
+                    setAdminData(currentUser);
+                } else {
+                    // Fallback: Agar filter na mile toh pehla wala hi sahi (subadmin ke liye)
+                    setAdminData(res.data[0]);
+                }
+            }
+        } catch (err) {
+            console.error("Navbar Sync Error", err);
         }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
+    };
+ 
+    // Jab bhi page badle, data re-fetch karo
+    useEffect(() => {
+        fetchProfile();
+    }, [pathname]);
+ 
+    const handleLogout = () => {
+        setAdminData(null);
+        logout();
+        router.replace('/admin/login');
+    };
+ 
     return (
-        <nav className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-md border-b border-gray-100 px-6 py-3">
-            <div className="flex items-center justify-between">
-
-                {/* LEFT SECTION */}
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={toggleSidebar}
-                        className="group p-2 rounded-lg hover:bg-gray-100 transition-all text-gray-500"
-                        title="Toggle Sidebar"
-                    >
-                        {/* Updated Icon: HiMenuAlt2 */}
-                        <HiMenuAlt2
-                            size={24}
-                            className="group-hover:scale-110 transition-transform"
-                            style={{ color: 'currentColor' }} // Inherits gray, but we can target hover below
-                        />
+        <nav className="sticky top-0 z-40 w-full bg-white/90 backdrop-blur-md border-b border-gray-100 px-8 py-4">
+            <Toaster position="top-right" />
+           
+            <div className="flex items-center justify-between relative">
+               
+                {/* LEFT */}
+                <div className="flex items-center gap-4 min-w-[200px]">
+                    <button onClick={toggleSidebar} className="p-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 transition-all text-gray-500 border border-gray-100">
+                        <HiMenuAlt2 size={22} />
                     </button>
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-800 leading-tight">{heading}</h2>
-                        <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Dashboard</span>
-                            <span className="text-gray-300 text-xs">/</span>
-                            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: themeColor }}>{heading}</span>
-                        </div>
+                    <div className="hidden lg:block">
+                        <h2 className="text-lg font-black text-gray-800 leading-none">{heading}</h2>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] mt-1">System / {heading}</p>
                     </div>
                 </div>
-
-                {/* RIGHT SECTION */}
-                <div className="flex items-center gap-3">
-
-                    <p className="hidden md:block text-sm font-medium text-gray-500 mr-4">
-                        Welcome, <span className="font-bold" style={{ color: themeColor }}>{user || "Admin"}</span>
-                    </p>
-
-                    {/* NOTIFICATIONS */}
-                    <div className="relative" ref={notificationRef}>
-                        <button
-                            onClick={() => { setOpenNotifications(!openNotifications); setOpenProfile(false); }}
-                            className="p-2.5 rounded-full bg-gray-50 text-gray-600 hover:bg-gray-100 transition-all relative group"
-                        >
-                            <FaBell size={18} className="group-hover:rotate-12 transition-transform" />
-                            {notifications.length > 0 && (
-                                <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 border-2 border-white rounded-full"></span>
-                            )}
-                        </button>
-
-                        {openNotifications && (
-                            <div className="absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                                <div className="px-4 py-3 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
-                                    <h4 className="font-bold text-gray-800 text-sm">Notifications</h4>
-                                    <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter">New Alerts</span>
-                                </div>
-                                <div className="max-h-80 overflow-y-auto">
-                                    {notifications.map((item) => (
-                                        <div key={item.id} className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0 transition-colors">
-                                            <p className="text-xs text-gray-600 leading-relaxed font-medium">{item.message}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                                <Link href="/admin" className="block text-center py-3 text-xs font-bold hover:bg-gray-50 uppercase tracking-wider" style={{ color: themeColor }}>
-                                    View All Notifications
-                                </Link>
-                            </div>
-                        )}
+ 
+                {/* CENTER: Identity based on filtered data */}
+                <div className="absolute left-1/2 -translate-x-1/2 text-center flex flex-col items-center">
+                    <h3 className="text-base font-black text-gray-800 tracking-tight leading-none uppercase">
+                        {adminData?.name || "Syncing Profile..."}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: themeColor }}></span>
+                        <p className="text-[10px] font-black uppercase tracking-[0.25em]" style={{ color: themeColor }}>
+                            {/* Role logic */}
+                            {adminData?.role === 'superadmin' ? 'Super Admin' : (adminData?.roleType?.name || 'Sub Admin')}
+                        </p>
                     </div>
-
-                    {/* PROFILE */}
-                    <div className="relative" ref={profileRef}>
+                </div>
+ 
+                {/* RIGHT */}
+                <div className="flex items-center gap-4 min-w-[200px] justify-end" ref={profileRef}>
+                    <div className="relative">
                         <button
-                            onClick={() => { setOpenProfile(!openProfile); setOpenNotifications(false); }}
-                            className="flex items-center gap-2 p-1 pr-3 rounded-full bg-gray-50 hover:bg-gray-100 transition-all border border-gray-100 shadow-sm"
+                            onClick={() => setOpenProfile(!openProfile)}
+                            className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-slate-900 text-white shadow-lg hover:scale-105 transition-all"
                         >
-                            <div
-                                className="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-sm"
-                                style={{ backgroundColor: themeColor }}
-                            >
-                                <FaUser size={13} />
+                            <div className="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black" style={{ backgroundColor: themeColor }}>
+                                {adminData?.name?.charAt(0).toUpperCase() || 'A'}
                             </div>
-                            <span className="text-xs font-bold text-gray-700 hidden sm:block uppercase tracking-tight">Account</span>
+                            <span className="text-[11px] font-black uppercase tracking-widest hidden sm:block">Account</span>
                         </button>
-
+ 
                         {openProfile && (
-                            <div className="absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-xl border border-gray-100 py-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                <div className="px-4 py-2 border-b border-gray-50 mb-2 bg-gray-50/30">
-                                    <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest italic">Management</p>
+                            <div className="absolute right-0 mt-4 w-64 bg-white rounded-[1.5rem] shadow-2xl border border-gray-100 py-3 animate-in fade-in zoom-in duration-200">
+                                <div className="px-6 py-3 border-b border-gray-50 mb-2">
+                                    <p className="text-xs font-black text-gray-800 truncate">{adminData?.email}</p>
+                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Role: {adminData?.role}</p>
                                 </div>
-
-                                <ProfileItem href="/admin" icon={<FaUserEdit />} label="Edit Profile" />
-                                <ProfileItem href="/admin" icon={<FaInfoCircle />} label="Support Center" />
-                                <ProfileItem href="/admin" icon={<FaKey />} label="Security Settings" />
-
-                                <div className="my-2 border-t border-gray-50"></div>
-
-                                <button
-                                    onClick={() => { logout(); router.push('/admin/login'); }}
-                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-red-500 hover:bg-red-50 transition-colors font-bold uppercase tracking-wider"
-                                >
-                                    <FaSignOutAlt />
-                                    <span>Sign Out</span>
+                                <Link href="/admind/profile" onClick={() => setOpenProfile(false)} className="w-full flex items-center gap-3 px-6 py-3 text-[11px] text-gray-600 hover:bg-gray-50 font-black uppercase tracking-widest transition-all">
+                                    <FaUserEdit className="text-[#08B36A] text-sm" /> Edit My Profile
+                                </Link>
+                                <button onClick={handleLogout} className="w-full flex items-center gap-3 px-6 py-3 text-[11px] text-red-500 hover:bg-red-50 font-black uppercase tracking-widest transition-all">
+                                    <FaSignOutAlt className="text-sm" /> Sign Out
                                 </button>
                             </div>
                         )}
                     </div>
-
                 </div>
             </div>
         </nav>
     );
 };
-
-const ProfileItem = ({ href, icon, label }) => (
-    <Link href={href} className="flex items-center gap-3 px-4 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors font-bold uppercase tracking-tight">
-        <span className="text-gray-400 text-sm">{icon}</span>
-        {label}
-    </Link>
-);
-
+ 
 export default DashboardTopNavbar;
+ 
