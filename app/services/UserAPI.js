@@ -30,6 +30,15 @@ authApi.interceptors.request.use((config) => {
 });
 
 const UserAPI = {
+
+    createOrder: async (amount) => {
+        const response = await authApi.post(`/orders`, { amount });
+        return response.data;
+    },
+    verifyPayment: async (paymentData) => {
+        const response = await authApi.post(`/verify`, paymentData);
+        return response.data;
+    },
     // ==========================================
     // PUBLIC METHODS (No Token Needed)
     // ==========================================

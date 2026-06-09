@@ -7,6 +7,8 @@ import {
   Stethoscope, Activity, AlertCircle, Map, Phone, Mail, Truck, Ticket
 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
+// --- RAZORPAY STEP 1: Import Script ---
+import Script from 'next/script';
 import UserAPI from "@/app/services/UserAPI";
 
 export default function AmbulanceBookingPage() {
@@ -148,6 +150,7 @@ export default function AmbulanceBookingPage() {
     setCouponError("");
   };
 
+  // --- RAZORPAY STEP 2: Update handleSubmit to include Payment ---
   const handleSubmit = async () => {
     if (!formData.hospital) {
       alert("Please select a hospital.");
@@ -185,8 +188,62 @@ export default function AmbulanceBookingPage() {
       }
 
       const pricingData = checkoutRes.data;
+      // alert(pricingData.total);
 
-      // 3. Prepare Final Booking Data
+      // 3. Initiate Razorpay Order Creation
+      const order = await UserAPI.createOrder(pricingData.total);
+      
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: order.currency,
+        name: "HK Healthcare",
+        description: `Ambulance Booking - ${ambulance.name}`,
+        order_id: order.id,
+        handler: async function (response) {
+          // 4. Verify Payment on Backend
+          const verifyData = {
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+          };
+
+          const verifyRes = await UserAPI.verifyPayment(verifyData);
+
+          if (verifyRes.success || verifyRes.status === 'ok') {
+            // 5. If verified, proceed to Final Booking
+            await processFinalBooking(pricingData, staffTypeVal, response.razorpay_payment_id);
+          } else {
+            alert("Payment verification failed. Please contact support.");
+            setIsSubmitting(false);
+          }
+        },
+        prefill: {
+          name: "User",
+          email: "user@example.com",
+          contact: "9999999999",
+        },
+        theme: { color: "#08B36A" },
+        modal: {
+          ondismiss: function() {
+            setIsSubmitting(false);
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
+    } catch (err) {
+      console.error("Submission Error:", err);
+      alert("An error occurred during booking.");
+      setIsSubmitting(false);
+    }
+  };
+
+  // Helper function to handle the actual database write after payment
+  const processFinalBooking = async (pricingData, staffTypeVal, paymentId) => {
+    try {
       const data = new FormData();
       data.append("ambulanceId", id);
       data.append("hospitalId", formData.hospital);
@@ -195,8 +252,8 @@ export default function AmbulanceBookingPage() {
       data.append("staffType", staffTypeVal);
       data.append("couponCode", couponCode.trim());
       data.append("triageLevel", formData.priority);
+      data.append("paymentId", paymentId); // Added payment reference
 
-      // Determine patient details
       const member = familyMembers.find(m => m._id === formData.relation);
       data.append("patientDetails", JSON.stringify({
         name: formData.relation === "self" ? "User" : (member?.memberName || "Patient"),
@@ -218,7 +275,6 @@ export default function AmbulanceBookingPage() {
         discountValue: pricingData.discount || 0
       }));
 
-      // 4. Final Booking
       const res = await UserAPI.bookAmbulance(data);
       if (res.success) {
         alert("Booking Confirmed!");
@@ -226,10 +282,9 @@ export default function AmbulanceBookingPage() {
       } else {
         alert(res.message || "Booking Failed");
       }
-
     } catch (err) {
-      console.error("Submission Error:", err);
-      alert("An error occurred during booking.");
+      console.error("Finalize Booking Error:", err);
+      alert("Payment successful but booking failed. Please contact admin.");
     } finally {
       setIsSubmitting(false);
     }
@@ -239,6 +294,9 @@ export default function AmbulanceBookingPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans pb-20">
+      {/* --- RAZORPAY STEP 3: Load the SDK --- */}
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
+
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
@@ -512,7 +570,7 @@ export default function AmbulanceBookingPage() {
                 disabled={isSubmitting}
                 className="w-full md:w-auto bg-[#08B36A] hover:bg-emerald-600 disabled:bg-slate-300 text-white px-12 py-5 rounded-2xl font-black text-lg shadow-lg shadow-emerald-200 transition-all active:scale-95"
               >
-                {isSubmitting ? "Processing..." : "Confirm Dispatch"}
+                {isSubmitting ? "Processing Payment..." : "Confirm Dispatch"}
               </button>
             </div>
           </div>
