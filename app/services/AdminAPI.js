@@ -24,9 +24,20 @@ const AdminAPI = {
         return response.data;
     },
 
-    getLiveOrders: async (page = 1, limit=25) => {
+    adminProviderStats: async () => {
+        const response = await api.get("/admin/dashboard/stats");
+        return response.data;
+    },
+
+    getLiveOrders: async (page = 1, limit = 25, timeRange, vendor, searchQuery) => {
         const response = await api.get("/admin/dashboard/live-feed", {
-            params: { page, limit },
+            params: {
+                page,
+                limit,
+                timeRange, // '6h', '12h', '24h', '7d', '30d'
+                vendor,    // 'lab', 'pharmacy', etc.
+                search: searchQuery // The search string for Order IDs
+            },
         });
         return response.data;
     },
