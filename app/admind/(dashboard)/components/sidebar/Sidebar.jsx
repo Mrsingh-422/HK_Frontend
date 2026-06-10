@@ -135,7 +135,7 @@ export default function Sidebar() {
                 </div>
                 {openMenu === "users" && (
                     <div className="submenu fade-in">
-                        <Link href="/admind/users/manageusers" className={`submenu-link ${isActive("/admind/users/manageusers") ? "sub-active" : ""}`}>Manage Users</Link>
+                        <Link href="/admind/users" className={`submenu-link ${isActive("/admind/users") ? "sub-active" : ""}`}>Manage Users</Link>
                     </div>
                 )}
 
