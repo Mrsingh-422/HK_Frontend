@@ -60,12 +60,12 @@ export default function OrderDashboard() {
     const fetchOrders = useCallback(async (page) => {
         try {
             setTableLoading(true);
-            
+
             // Passing Filters as query params. If 'all', we send undefined.
             const res = await AdminAPI.getLiveOrders(
-                page, 
-                limit, 
-                timeRange === 'all' ? undefined : timeRange, 
+                page,
+                limit,
+                timeRange === 'all' ? undefined : timeRange,
                 selectedVendor === 'all' ? undefined : selectedVendor,
                 searchQuery
             );
@@ -92,6 +92,14 @@ export default function OrderDashboard() {
             setDetailsLoading(false);
         }
     };
+
+    // setInterval(() => {
+    //     fetchStats();
+    //     fetchOrders(currentPage);
+    //     setSearchQuery('');
+    //     setTimeRange('all');
+    //     setSelectedVendor('all');
+    // }, 5000);
 
     // Refetch when page or filters change
     useEffect(() => {
@@ -134,13 +142,13 @@ export default function OrderDashboard() {
                             <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Provider Analytics</h2>
                             <p className="text-xs text-slate-400 font-bold mt-1">Snapshot of system-wide performance</p>
                         </div>
-                        
+
                         {/* --- DROPDOWN FILTERS --- */}
                         <div className="flex flex-wrap items-center gap-3">
                             <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-2 rounded-xl shadow-sm">
                                 <Calendar size={14} className="text-slate-400" />
-                                <select 
-                                    value={timeRange} 
+                                <select
+                                    value={timeRange}
                                     onChange={(e) => { setTimeRange(e.target.value); setCurrentPage(1); }}
                                     className="text-[10px] font-black uppercase tracking-widest bg-transparent outline-none cursor-pointer text-slate-600"
                                 >
@@ -155,8 +163,8 @@ export default function OrderDashboard() {
 
                             <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-2 rounded-xl shadow-sm">
                                 <Filter size={14} className="text-slate-400" />
-                                <select 
-                                    value={selectedVendor} 
+                                <select
+                                    value={selectedVendor}
                                     onChange={(e) => { setSelectedVendor(e.target.value); setCurrentPage(1); }}
                                     className="text-[10px] font-black uppercase tracking-widest bg-transparent outline-none cursor-pointer text-slate-600"
                                 >
