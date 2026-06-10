@@ -15,6 +15,8 @@ export default function DoctorProfilePage() {
   const [fetching, setFetching] = useState(true);
   const [previewImage, setPreviewImage] = useState(null);
   const [travelCharges, setTravelCharges] = useState(0); // Added state for travel expenses
+  const [qualificationsList, setQualificationsList] = useState([]); // State for qualifications dropdown
+  const [specialitiesList, setSpecialitiesList] = useState([]); // State for specialities dropdown
   const fileInputRef = useRef(null);
 
   const [profileData, setProfileData] = useState({
@@ -23,7 +25,7 @@ export default function DoctorProfilePage() {
     phone: '',
     about: '',
     experienceYears: '',
-    qualification: '',
+    qualification: [], // Initialized as an array for managing tags
     speciality: '',
     licenseNumber: '',
     councilNumber: '',
@@ -57,23 +59,67 @@ export default function DoctorProfilePage() {
     try {
       setFetching(true);
       
-      // Fetch Profile and Visit Charges concurrently
-      const [profileRes, chargesRes] = await Promise.all([
+      // Fetch Profile, Visit Charges, Qualifications, and Specializations concurrently
+      const [profileRes, chargesRes, qualificationsRes, specialitiesRes] = await Promise.all([
         DoctorAPI.getProfile(),
-        DoctorAPI.getMyVisitCharges()
+        DoctorAPI.getMyVisitCharges(),
+        DoctorAPI.getQualifications().catch(err => {
+          console.error("Qualifications load error:", err);
+          return null;
+        }),
+        DoctorAPI.getSpecializations().catch(err => {
+          console.error("Specializations load error:", err);
+          return null;
+        })
       ]);
+      
+      // Handle Qualifications dropdown list mapping
+      if (qualificationsRes && qualificationsRes.success && Array.isArray(qualificationsRes.data)) {
+        const quals = qualificationsRes.data.map(item => {
+          if (typeof item === 'object' && item !== null) {
+            return item.name || item.title || '';
+          }
+          return item;
+        }).filter(Boolean);
+        setQualificationsList(quals);
+      } else if (qualificationsRes && Array.isArray(qualificationsRes)) {
+        setQualificationsList(qualificationsRes);
+      }
+
+      // Handle Specialities dropdown list mapping
+      if (specialitiesRes && specialitiesRes.success && Array.isArray(specialitiesRes.data)) {
+        const specs = specialitiesRes.data.map(item => {
+          if (typeof item === 'object' && item !== null) {
+            return item.name || item.title || '';
+          }
+          return item;
+        }).filter(Boolean);
+        setSpecialitiesList(specs);
+      } else if (specialitiesRes && Array.isArray(specialitiesRes)) {
+        setSpecialitiesList(specialitiesRes);
+      }
       
       // Handle Profile Data
       if (profileRes && profileRes.success && profileRes.data) {
         const d = profileRes.data;
         
+        // Safely parse the incoming qualification field (handles strings, commas, or arrays)
+        let parsedQualifications = [];
+        if (d.qualification) {
+          if (Array.isArray(d.qualification)) {
+            parsedQualifications = d.qualification;
+          } else {
+            parsedQualifications = d.qualification.split(',').map(q => q.trim()).filter(Boolean);
+          }
+        }
+
         setProfileData({
           name: d.name || '',
           email: d.email || '',
           phone: d.phone || '',
           about: d.about || '',
           experienceYears: d.experienceYears || 0,
-          qualification: d.qualification || '',
+          qualification: parsedQualifications,
           speciality: d.speciality || '',
           licenseNumber: d.licenseNumber || '',
           councilNumber: d.councilNumber || '',
@@ -192,6 +238,33 @@ export default function DoctorProfilePage() {
     }
   };
 
+  const toggleDutyStatus = async () => {
+    const nextStatus = profileData.dutyStatus === 'On Duty' ? 'Off Duty' : 'On Duty';
+    try {
+      const formData = new FormData();
+      formData.append('dutyStatus', nextStatus);
+      
+      const res = await DoctorAPI.updateProfile(formData);
+      if (res) {
+        toast.success(`Duty status changed to ${nextStatus}`);
+        setProfileData(prev => ({ ...prev, dutyStatus: nextStatus }));
+      }
+    } catch (error) {
+      console.error("Duty status update error:", error);
+      try {
+        const resSettings = await DoctorAPI.updateSettings({ dutyStatus: nextStatus });
+        if (resSettings) {
+          toast.success(`Duty status changed to ${nextStatus}`);
+          setProfileData(prev => ({ ...prev, dutyStatus: nextStatus }));
+          return;
+        }
+      } catch (innerError) {
+        console.error("Duty status fallback error:", innerError);
+      }
+      toast.error("Failed to update duty status");
+    }
+  };
+
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -265,7 +338,10 @@ export default function DoctorProfilePage() {
             profileData.treatedConditions.forEach((item, index) => {
                 formData.append(`treatedConditions[${index}]`, item);
             });
-        } else if (key !== 'profileImage' && key !== 'profileStatus' && key !== 'dutyStatus') {
+        } else if (key === 'qualification') {
+            // Converts array back to a comma-separated string format for backend column compatibility
+            formData.append('qualification', profileData.qualification.join(', '));
+        } else if (key !== 'profileImage' && key !== 'profileStatus') {
             formData.append(key, profileData[key]);
         }
       });
@@ -299,13 +375,23 @@ export default function DoctorProfilePage() {
             <FaUserMd size={32}/>
         </div>
         <h1 className="text-4xl font-black text-[#1e3a8a] tracking-tighter uppercase leading-none">Doctor Profile</h1>
-        <div className="flex gap-3 mt-3">
+        <div className="flex gap-3 mt-3 items-center">
             <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm ${profileData.profileStatus === 'Approved' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>
                 {profileData.profileStatus}
             </span>
-            <span className="px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm bg-blue-100 text-blue-600">
-                {profileData.dutyStatus}
-            </span>
+            <button
+                type="button"
+                onClick={toggleDutyStatus}
+                className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm transition-all duration-200 flex items-center gap-1.5 active:scale-95 ${
+                    profileData.dutyStatus === 'On Duty' 
+                    ? 'bg-green-100 text-green-600 hover:bg-green-200' 
+                    : 'bg-red-100 text-red-600 hover:bg-red-200'
+                }`}
+                title="Click to toggle Duty Status"
+            >
+                <span className={`w-1.5 h-1.5 rounded-full ${profileData.dutyStatus === 'On Duty' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                {profileData.dutyStatus || 'Off Duty'}
+            </button>
         </div>
       </div>
 
@@ -408,15 +494,80 @@ export default function DoctorProfilePage() {
                     <div className="p-2 bg-orange-50 text-orange-600 rounded-xl"><FaGraduationCap/></div>
                     <h2 className="text-xl font-black text-[#1e3a8a] uppercase tracking-tighter">Professional Details</h2>
                 </div>
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                    {/* Dropdown Select Field for Qualification */}
                     <div className="space-y-2">
                         <label className="label-style">Qualification</label>
-                        <input name="qualification" value={profileData.qualification} onChange={handleTextChange} placeholder="MBBS, MD" className="input-style" />
+                        <div className="relative">
+                            <select 
+                                name="qualification" 
+                                value="" 
+                                onChange={(e) => {
+                                    const selectedVal = e.target.value;
+                                    if (selectedVal && !profileData.qualification.includes(selectedVal)) {
+                                        setProfileData(prev => ({
+                                            ...prev,
+                                            qualification: [...(Array.isArray(prev.qualification) ? prev.qualification : []), selectedVal]
+                                        }));
+                                    }
+                                }} 
+                                className="input-style appearance-none bg-white pr-10"
+                            >
+                                <option value="">Select Qualification</option>
+                                {qualificationsList.map((qual, idx) => (
+                                    <option key={idx} value={qual}>{qual}</option>
+                                ))}
+                            </select>
+                            <FaChevronDown className="absolute right-4 top-5 text-gray-400 pointer-events-none" />
+                        </div>
                     </div>
+
+                    {/* Dropdown Select Field for Speciality */}
                     <div className="space-y-2">
                         <label className="label-style">Speciality</label>
-                        <input name="speciality" value={profileData.speciality} onChange={handleTextChange} placeholder="Orthopedic" className="input-style" />
+                        <div className="relative">
+                            <select 
+                                name="speciality" 
+                                value={profileData.speciality} 
+                                onChange={handleTextChange} 
+                                className="input-style appearance-none bg-white pr-10"
+                            >
+                                <option value="">Select Speciality</option>
+                                {specialitiesList.map((spec, idx) => (
+                                    <option key={idx} value={spec}>{spec}</option>
+                                ))}
+                            </select>
+                            <FaChevronDown className="absolute right-4 top-5 text-gray-400 pointer-events-none" />
+                        </div>
                     </div>
+
+                    {/* Selected Qualifications Field (Removable Tags Container) */}
+                    {Array.isArray(profileData.qualification) && profileData.qualification.length > 0 && (
+                        <div className="md:col-span-2 space-y-2">
+                            <label className="label-style">Selected Qualifications</label>
+                            <div className="flex flex-wrap gap-2">
+                                {profileData.qualification.map((qual, idx) => (
+                                    <div key={idx} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-xl font-bold text-xs border border-blue-100">
+                                        {qual} 
+                                        <button 
+                                            type="button" 
+                                            onClick={() => {
+                                                setProfileData(prev => ({
+                                                    ...prev,
+                                                    qualification: prev.qualification.filter(item => item !== qual)
+                                                }));
+                                            }} 
+                                            className="text-red-400 hover:text-red-600 transition-colors"
+                                        >
+                                            <FaTrash size={10}/>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="space-y-2">
                         <label className="label-style">License Number</label>
                         <div className="relative">
@@ -424,6 +575,7 @@ export default function DoctorProfilePage() {
                             <input name="licenseNumber" value={profileData.licenseNumber} onChange={handleTextChange} className="input-style" />
                         </div>
                     </div>
+
                     <div className="space-y-2">
                         <label className="label-style">Default Slot (Mins)</label>
                         <div className="relative">

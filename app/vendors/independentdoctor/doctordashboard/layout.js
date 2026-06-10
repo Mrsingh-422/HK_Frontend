@@ -1,23 +1,25 @@
-'use client'
+"use client";
+
 import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
     FaBars, FaUserCircle, FaSignOutAlt, FaChevronDown, 
     FaCalendarCheck, FaHistory, FaWallet, FaChartLine, 
-    FaClock, FaTicketAlt, FaFileAlt, FaComments,
-    FaAmbulance, FaHospital, FaNotesMedical, FaMedkit, 
-    FaBriefcaseMedical, FaPrescription, FaCog, FaUser, FaTag
+    FaClock, FaTicketAlt, FaCog, FaUser, FaTag, FaPrescription
 } from "react-icons/fa";
 import { MdMenuOpen, MdMenu } from "react-icons/md";
+import DoctorAPI from '@/app/services/DoctorAPI';
 
 // ==========================================
 // 🌟 1. DOCTOR TOPBAR COMPONENT 🌟
 // ==========================================
 const DoctorTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [profile, setProfile] = useState(null);
     const dropdownRef = useRef(null);
+    const router = useRouter();
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -29,9 +31,39 @@ const DoctorTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // Fetch profile data on mount
+    useEffect(() => {
+        const fetchProfileData = async () => {
+            try {
+                const res = await DoctorAPI.getProfile();
+                if (res.success) {
+                    setProfile(res.data);
+                }
+            } catch (error) {
+                console.error("Error retrieving profile data:", error);
+            }
+        };
+        fetchProfileData();
+    }, []);
+
+    const handleLogout = () => {
+        localStorage.removeItem('doctorToken');
+        localStorage.removeItem('doctorProvider');
+        localStorage.removeItem('token');
+        setIsDropdownOpen(false);
+        router.push('/');
+    };
+
     const profileMenuItems = [
         { name: 'My Profile', href: '/vendors/independentdoctor/doctordashboard/profile', icon: FaUserCircle },
     ];
+
+    // Format Doctor Name gracefully
+    const formatDoctorName = (name) => {
+        if (!name) return "Doctor";
+        const cleanName = name.trim();
+        return cleanName.toLowerCase().startsWith("dr") ? cleanName : `Dr. ${cleanName}`;
+    };
 
     return (
         <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-8 flex-shrink-0 z-40 transition-all duration-300">
@@ -59,9 +91,23 @@ const DoctorTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) => {
                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                         className="flex items-center gap-2 hover:bg-gray-50 p-1.5 pr-2 rounded-xl transition-all text-left border border-transparent hover:border-gray-200"
                     >
-                        <FaUserCircle size={32} className="text-[#08B36A]" />
+                        {/* Dynamic Profile Picture with Fallback Icon */}
+                        {profile?.profilePic ? (
+                            <div className="relative w-8 h-8 rounded-full overflow-hidden border border-[#08B36A]">
+                                <img 
+                                    src={profile.profilePic} 
+                                    alt="Doctor Profile" 
+                                    className="w-full h-full object-cover"
+                                />
+                            </div>
+                        ) : (
+                            <FaUserCircle size={32} className="text-[#08B36A]" />
+                        )}
+                        
                         <div className="hidden md:block">
-                            <p className="text-sm font-bold text-gray-700 leading-tight">Dr. Abhi</p>
+                            <p className="text-sm font-bold text-gray-700 leading-tight">
+                                {profile ? formatDoctorName(profile.name) : "Dr. Abhi"}
+                            </p>
                             <p className="text-xs font-medium text-gray-500">Independent Doctor</p>
                         </div>
                         <FaChevronDown 
@@ -87,7 +133,7 @@ const DoctorTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) => {
                             ))}
                             <div className="my-1 border-t border-gray-100"></div>
                             <button 
-                                onClick={() => alert("Logged out successfully!")}
+                                onClick={handleLogout}
                                 className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-semibold text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors"
                             >
                                 <FaSignOutAlt className="text-lg opacity-80" />
@@ -109,15 +155,13 @@ export default function IndependentDoctorLayout({ children }) {
     const [isCollapsed, setIsCollapsed] = useState(false);   
     const pathname = usePathname();
 
-    // Checked and updated menu items for better visual distinction
     const menuItems = [
         { name: 'Dashboard', href: '/vendors/independentdoctor/doctordashboard', icon: FaChartLine },
-        { name: 'My Profile', href: '/vendors/independentdoctor/doctordashboard/profile', icon: FaUser },
         { name: 'Appointments', href: '/vendors/independentdoctor/doctordashboard/appointments', icon: FaCalendarCheck },
         { name: 'Availability', href: '/vendors/independentdoctor/doctordashboard/availability', icon: FaClock },
-        { name: 'Coupons', href: '/vendors/independentdoctor/doctordashboard/coupons', icon: FaTicketAlt }, // Changed to Ticket icon
+        { name: 'Coupons', href: '/vendors/independentdoctor/doctordashboard/coupons', icon: FaTicketAlt },
         { name: 'Visit Charges', href: '/vendors/independentdoctor/doctordashboard/visitcharges', icon: FaTag },
-        { name: 'Prescription', href: '/vendors/independentdoctor/doctordashboard/prescriptions', icon: FaPrescription }, // Changed to Prescription icon
+        { name: 'Prescription', href: '/vendors/independentdoctor/doctordashboard/prescriptions', icon: FaPrescription },
         { name: 'Patient History', href: '/vendors/independentdoctor/doctordashboard/patienthistory', icon: FaHistory },
         { name: 'Wallet & Earnings', href: '/vendors/independentdoctor/doctordashboard/wallet', icon: FaWallet },
         { name: 'Settings', href: '/vendors/independentdoctor/doctordashboard/settings', icon: FaCog },
@@ -126,7 +170,7 @@ export default function IndependentDoctorLayout({ children }) {
     return (
         <div className="h-screen w-full bg-gray-50 flex overflow-hidden">
             
-            {/* --- SIDEBAR (Matching Reference Style: White background) --- */}
+            {/* --- SIDEBAR --- */}
             <aside className={`
                 fixed inset-y-0 left-0 z-50 bg-white border-r border-gray-200 flex flex-col h-full
                 transition-all duration-300 ease-in-out
@@ -147,7 +191,7 @@ export default function IndependentDoctorLayout({ children }) {
                     </Link>
                 </div>
 
-                {/* Navigation Links (Matching Reference: Green active state) */}
+                {/* Navigation Links */}
                 <nav className="flex-1 px-3 py-6 space-y-1.5 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
                     {menuItems.map((item) => {
                         const isActive = pathname === item.href;

@@ -165,8 +165,29 @@ const DoctorAPI = {
         return response.data;
     },
 
-    getPatientBookings: async (status = '') => {
-        const url = status ? `/doctor/appointments/patient-bookings?status=${status}` : '/doctor/appointments/patient-bookings';
+    getPatientBookings: async (params = {}) => {
+        let url = '/doctor/appointments/patient-bookings';
+
+        // Handles legacy string input and new object queries gracefully
+        if (typeof params === 'string') {
+            if (params) {
+                url += `?status=${encodeURIComponent(params)}`;
+            }
+        } else if (params && typeof params === 'object') {
+            const query = new URLSearchParams();
+            if (params.status) {
+                query.append('status', params.status);
+            }
+            if (params.consultationType) {
+                query.append('consultationType', params.consultationType);
+            }
+
+            const queryString = query.toString();
+            if (queryString) {
+                url += `?${queryString}`;
+            }
+        }
+
         const response = await doctorApi.get(url);
         return response.data;
     },
@@ -242,7 +263,27 @@ const DoctorAPI = {
     getPatientHistoryDetails: async (id) => {
         const response = await doctorApi.get(`/doctor/appointments/patient-history/${id}`);
         return response.data;
-    }
+    },
+
+    // Fetch qualifications list for dropdown population
+    getQualifications: async () => {
+        const response = await doctorApi.get('/admin/doctor-data/qualifications');
+        return response.data;
+    },
+
+    // Fetch specializations list for dropdown population
+    getSpecializations: async () => {
+        const response = await doctorApi.get('/admin/doctor-data/specializations');
+        return response.data;
+    },
+    getDashboardSummary: async () => {
+        try {
+            const response = await doctorApi.get('/doctor/appointments/dashboard/summary');
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error.response?.data?.message || "Failed to fetch dashboard summary");
+        }
+    },
 };
 
 export default DoctorAPI;
