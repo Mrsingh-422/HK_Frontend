@@ -3,8 +3,10 @@ import React, { useEffect, useState, useRef } from 'react';
 import UserAPI from '@/app/services/UserAPI';
 import IncomingCallModal from './IncomingCallModal';
 import VideoCallModal from './VideoCallModal';
+import { useAuth } from '@/app/context/AuthContext';
 
 export default function CallListener() {
+    const { user } = useAuth();
     const [incomingCall, setIncomingCall] = useState(null);
     const [isCallActive, setIsCallActive] = useState(false);
     const audioRef = useRef(null);
@@ -14,7 +16,7 @@ export default function CallListener() {
             audioRef.current = new Audio('/sounds/ringtone.mp3');
             audioRef.current.loop = true;
         }
-        audioRef.current.play().catch(() => console.log("Audio blocked"));
+        audioRef.current.play().catch(() => console.log("Audio blocked by browser"));
     };
 
     const stopRingtone = () => {
@@ -24,29 +26,28 @@ export default function CallListener() {
         }
     };
 
-
     useEffect(() => {
-        // --- NEW: LISTEN FOR INSTANT FCM EVENT ---
+        if (!user) return;
+
+        // 1. Listen for Instant FCM Event
         const handleFcmCall = (event) => {
             const callData = event.detail;
-            console.log("Instant UI Trigger via FCM:", callData);
-            if (!isCallActive) {
-                // Map FCM data to the format your Modal expects
+            if (!isCallActive && !incomingCall) {
                 setIncomingCall({
                     callId: callData.callId,
                     callerName: callData.callerName,
-                    doctorProfileImage: "/default-doctor.png", // Fallback
-                    speciality: "Doctor"
+                    doctorProfileImage: callData.doctorProfileImage || "/default-doctor.png",
+                    speciality: callData.speciality || "Doctor"
                 });
                 playRingtone();
             }
         };
 
         window.addEventListener("fcm-incoming-call", handleFcmCall);
-        // ------------------------------------------
 
+        // 2. Polling Backup
         const checkCall = async () => {
-            if (isCallActive) return;
+            if (isCallActive) return; // Don't poll if already in a call
             try {
                 const res = await UserAPI.getVideoCallNotification();
                 if (res && res.success && res.hasActiveCall) {
@@ -55,7 +56,8 @@ export default function CallListener() {
                         playRingtone();
                     }
                 } else {
-                    if (incomingCall) {
+                    // If API says no call, but we are showing ringing, stop it
+                    if (incomingCall && !isCallActive) {
                         stopRingtone();
                         setIncomingCall(null);
                     }
@@ -66,47 +68,49 @@ export default function CallListener() {
         };
 
         const interval = setInterval(checkCall, 5000);
-
+        
         return () => {
             clearInterval(interval);
             window.removeEventListener("fcm-incoming-call", handleFcmCall);
             stopRingtone();
         };
-    }, [incomingCall, isCallActive]);
+    }, [user, incomingCall, isCallActive]);
 
     const handleAccept = async () => {
-        stopRingtone(); // Stop the ringing sound
-
+        stopRingtone();
         try {
-            // 1. (Optional but recommended) Tell backend the call is accepted
-            // This stops the doctor's "Ringing..." state and starts their timer
+            // Tell backend we accepted (Optional but recommended)
             await UserAPI.respondToVideoCall({
                 callId: incomingCall.callId,
                 status: 'accepted'
             });
-
-            // 2. Switch to Video UI
-            setIsCallActive(true);
-
-            console.log("✅ Call Accepted. Starting WebRTC handshake...");
+            
+            // TRIGGER THE VIDEO SCREEN
+            setIsCallActive(true); 
         } catch (error) {
-            console.error("Error accepting call:", error);
+            console.error("Accept Error:", error);
+            setIsCallActive(true); // Still try to open video even if API fails
         }
     };
 
     const handleReject = async () => {
         stopRingtone();
-        if (incomingCall) {
-            await UserAPI.respondToVideoCall({
-                callId: incomingCall.callId,
-                status: 'rejected'
-            });
+        try {
+            if (incomingCall) {
+                await UserAPI.respondToVideoCall({
+                    callId: incomingCall.callId,
+                    status: 'rejected'
+                });
+            }
+        } finally {
+            setIncomingCall(null);
+            setIsCallActive(false);
         }
-        setIncomingCall(null);
     };
 
     return (
         <>
+            {/* RINGING PHASE */}
             {incomingCall && !isCallActive && (
                 <IncomingCallModal
                     callData={incomingCall}
@@ -115,11 +119,12 @@ export default function CallListener() {
                 />
             )}
 
-            {isCallActive && incomingCall && (
+            {/* VIDEO CALL PHASE */}
+            {incomingCall && isCallActive && (
                 <VideoCallModal
                     callId={incomingCall.callId}
                     callerName={incomingCall.callerName}
-                    role="receiver"
+                    role="receiver" // Crucial for Patient side
                     onClose={() => {
                         setIsCallActive(false);
                         setIncomingCall(null);

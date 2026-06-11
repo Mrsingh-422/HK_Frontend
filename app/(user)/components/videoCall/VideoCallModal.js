@@ -20,6 +20,7 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
     const remoteVideoRef = useRef();
     const pc = useRef(null);
     const isEnding = useRef(false); 
+    const localStreamRef = useRef(null); // Ref to access stream in cleanup reliably
 
     useEffect(() => {
         let isMounted = true;
@@ -36,20 +37,27 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
                     stream.getTracks().forEach(t => t.stop());
                     return;
                 }
+                
                 setLocalStream(stream);
+                localStreamRef.current = stream;
                 if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
                 // 3. Add tracks to Peer Connection
-                stream.getTracks().forEach((track) => pc.current.addTrack(track, stream));
+                stream.getTracks().forEach((track) => {
+                    if (pc.current && pc.current.signalingState !== 'closed') {
+                        pc.current.addTrack(track, stream);
+                    }
+                });
 
                 // 4. Setup Remote Stream
                 const remote = new MediaStream();
                 pc.current.ontrack = (event) => {
+                    console.log("Remote track received");
                     event.streams[0].getTracks().forEach((track) => remote.addTrack(track));
                     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remote;
 
-                    // Call officially starts when we receive remote video/audio
-                    if (!callStartedAt) setCallStartedAt(Date.now());
+                    // Functional update to avoid stale closures
+                    setCallStartedAt(prev => prev || Date.now());
                 };
 
                 // 5. Firestore Signaling Refs
@@ -90,7 +98,7 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
                     unsubscribes.push(onSnapshot(answerCandidates, (snapshot) => {
                         snapshot.docChanges().forEach((change) => {
                             if (change.type === 'added' && pc.current?.remoteDescription) {
-                                pc.current.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+                                pc.current.addIceCandidate(new RTCIceCandidate(change.doc.data())).catch(e => console.error(e));
                             }
                         });
                     }));
@@ -99,7 +107,7 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
                     // PATIENT LOGIC (Answer)
                     const callSnapshot = await getDoc(callDoc);
                     if (!callSnapshot.exists()) {
-                        toast.error("Call no longer active");
+                        toast.error("Call session not found");
                         return onClose();
                     }
 
@@ -124,14 +132,14 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
                     unsubscribes.push(onSnapshot(offerCandidates, (snapshot) => {
                         snapshot.docChanges().forEach((change) => {
                             if (change.type === 'added' && pc.current?.remoteDescription) {
-                                pc.current.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+                                pc.current.addIceCandidate(new RTCIceCandidate(change.doc.data())).catch(e => console.error(e));
                             }
                         });
                     }));
                 }
             } catch (err) {
                 console.error("WebRTC Setup Error:", err);
-                toast.error("Could not access camera/microphone");
+                toast.error("Camera/Microphone access denied or error occurred");
                 onClose();
             }
         };
@@ -141,13 +149,18 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
         return () => {
             isMounted = false;
             unsubscribes.forEach(unsub => unsub());
-            if (pc.current) pc.current.close();
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(t => t.stop());
+            }
+            if (pc.current) {
+                pc.current.close();
+            }
         };
     }, [callId, role]);
 
     const handleCloseUI = () => {
-        if (localStream) {
-            localStream.getTracks().forEach(t => t.stop());
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(t => t.stop());
         }
         onClose();
     };
