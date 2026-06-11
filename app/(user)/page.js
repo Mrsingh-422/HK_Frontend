@@ -35,7 +35,7 @@ export default function Home() {
       {/* <OurIntroduction /> */}
       <NewArrivals />
       <MedicineComponent />
-      <AppointmentComponent />
+      {/* <AppointmentComponent /> */}
       <SomeProducts />
       <PersonalCare />
       <LabTests />

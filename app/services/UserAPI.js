@@ -796,7 +796,20 @@ const UserAPI = {
         return response.data;
     },
 
+    updateFCMtoken: async (fcmToken) => {
+        const response = await authApi.patch('/user/doctor/video-call/update-fcm', fcmToken)
+        return response.data;
+    },
 
+    getVideoCallNotification: async () => {
+        const response = await authApi.get('/user/doctor/video-call/active');
+        return response.data
+    },
+    respondToVideoCall: async (data) => {
+        const response = await authApi.post('/doctor/video-call/respond', data);
+        return response.data;
+    },
+    
 
 };
 

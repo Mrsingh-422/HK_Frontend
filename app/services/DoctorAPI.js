@@ -284,6 +284,30 @@ const DoctorAPI = {
             return Promise.reject(error.response?.data?.message || "Failed to fetch dashboard summary");
         }
     },
-};
 
-export default DoctorAPI;
+    initiateVideoCall: async (callData) => {
+        try {
+            console.log(callData);
+            const response = await doctorApi.post('/doctor/video-call/initiate', callData,)
+            return response.data; // Success response return karega    } catch (error) {
+        }
+        catch (error) {
+            console.error("API Error in initiateVideoCall:", error);
+            return Promise.reject(error.response?.data?.message || "Something went wrong")
+        }
+    },
+
+    endVideoCall: async (callData) => {
+        try {
+            const response = await doctorApi.post('/doctor/video-call/end', callData);
+            return response.data;
+        } catch (error) {
+            console.error("API Error in endVideoCall:", error);
+            return Promise
+        }
+    },
+
+
+    }
+
+    export default DoctorAPI;
