@@ -16,7 +16,26 @@ export default function CallListener() {
             audioRef.current = new Audio('/sounds/ringtone.mp3');
             audioRef.current.loop = true;
         }
-        audioRef.current.play().catch(() => console.log("Audio blocked by browser"));
+
+        // play() returns a promise
+        const playPromise = audioRef.current.play();
+
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                // Auto-play was prevented
+                console.warn("🔊 Ringtone blocked by browser. User must interact with the page first.");
+
+                // Optional: Show a small toast to the user
+                toast("In-app audio is muted. Click anywhere to enable sound.", { icon: '🔇' });
+
+                // We can try to play again as soon as the user clicks anywhere on the body
+                const unlockAudio = () => {
+                    audioRef.current.play();
+                    window.removeEventListener('click', unlockAudio);
+                };
+                window.addEventListener('click', unlockAudio);
+            });
+        }
     };
 
     const stopRingtone = () => {
@@ -36,7 +55,7 @@ export default function CallListener() {
                 setIncomingCall({
                     callId: callData.callId,
                     callerName: callData.callerName,
-                    doctorProfileImage: callData.doctorProfileImage || "/default-doctor.png",
+                    doctorProfileImage: callData.doctorProfileImage || "https://static.vecteezy.com/system/resources/thumbnails/026/375/249/small/ai-generative-portrait-of-confident-male-doctor-in-white-coat-and-stethoscope-standing-with-arms-crossed-and-looking-at-camera-photo.jpg",
                     speciality: callData.speciality || "Doctor"
                 });
                 playRingtone();
@@ -67,8 +86,8 @@ export default function CallListener() {
             }
         };
 
-        const interval = setInterval(checkCall, 5000);
-        
+        const interval = setInterval(checkCall, 15000);
+
         return () => {
             clearInterval(interval);
             window.removeEventListener("fcm-incoming-call", handleFcmCall);
@@ -84,9 +103,9 @@ export default function CallListener() {
                 callId: incomingCall.callId,
                 status: 'accepted'
             });
-            
+
             // TRIGGER THE VIDEO SCREEN
-            setIsCallActive(true); 
+            setIsCallActive(true);
         } catch (error) {
             console.error("Accept Error:", error);
             setIsCallActive(true); // Still try to open video even if API fails
