@@ -21,7 +21,7 @@ import { io } from 'socket.io-client';
 import VideoCallModal from '../../../../(user)/components/videoCall/VideoCallModal';
 
 // Set the socket URL to match your server configuration (e.g., http://192.168.1.26:5002)
-const SOCKET_URL = "http://192.168.1.26:5002"; 
+const SOCKET_URL = process.env.NEXT_PUBLIC_BACKEND_URL; 
 
 function Page() {
   const [appointments, setAppointments] = useState([]);
@@ -197,7 +197,7 @@ function Page() {
 
     const payload = {
       appointmentId: selectedAppointment.appointmentId,
-      senderId: selectedAppointment.doctorId || "65d3cc4e80f1a612c0335790",
+      senderId: selectedAppointment.doctorId,
       senderType: "Doctor",
       text: newMessageText.trim()
     };
