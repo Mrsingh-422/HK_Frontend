@@ -96,7 +96,7 @@ function Page() {
     socketRef.current.emit('join_room', { appointmentId });
 
     return () => {
-      // You can add leave room logic here if your backend processes it
+      // Leave room cleanup if necessary
     };
   }, [isChatModalOpen, selectedAppointment]);
 
@@ -196,13 +196,12 @@ function Page() {
     }
 
     const payload = {
-      appointmentId: selectedAppointment.appointmentId, // Matches schema
-      senderId: selectedAppointment.doctorId || "65d3cc4e80f1a612c0335790", // Your doctor's active ID
-      senderType: "Doctor", // Identifies message source to DB
-      text: newMessageText.trim() // Matches database model expectations
+      appointmentId: selectedAppointment.appointmentId,
+      senderId: selectedAppointment.doctorId || "65d3cc4e80f1a612c0335790",
+      senderType: "Doctor",
+      text: newMessageText.trim()
     };
 
-    // Emit to your socket endpoint (which handles persistence inside backend save routines)
     socketRef.current.emit('send_message', payload);
     setNewMessageText('');
   };
@@ -393,46 +392,59 @@ function Page() {
         )}
       </div>
 
-      {/* CHAT MODAL */}
+      {/* CHAT MODAL - Fixed Screen Containment & Elastic Layout */}
       {isChatModalOpen && selectedAppointment && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[120] p-4 backdrop-blur-md">
-          <div className="bg-white rounded-[3rem] w-full max-w-lg h-[80vh] flex flex-col overflow-hidden relative shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-[120] p-0 md:p-4 backdrop-blur-sm">
+          {/* Main Card Container */}
+          <div className="bg-white w-full h-full md:h-[650px] md:max-h-[85vh] md:max-w-xl flex flex-col overflow-hidden relative md:rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
             
-            {/* Modal Header */}
-            <div className="p-6 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
+            {/* Modal Header (Fixed height) */}
+            <div className="p-5 border-b border-gray-100 bg-gray-50/70 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-3">
-                <img 
-                  src={selectedAppointment.userAccount?.profilePic ? `http://192.168.1.26:5002${selectedAppointment.userAccount.profilePic}` : '/default-avatar.png'} 
-                  alt={selectedAppointment.patientName} 
-                  className="w-10 h-10 rounded-xl object-cover bg-gray-100"
-                />
+                <div className="relative">
+                  <img 
+                    src={selectedAppointment.userAccount?.profilePic ? `http://192.168.1.26:5002${selectedAppointment.userAccount.profilePic}` : '/default-avatar.png'} 
+                    alt={selectedAppointment.patientName} 
+                    className="w-11 h-11 rounded-2xl object-cover bg-gray-100 border border-white shadow-sm"
+                  />
+                  {selectedAppointment.isCallActionEnabled && (
+                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-[#08B36A] border-2 border-white rounded-full"></span>
+                  )}
+                </div>
                 <div>
                   <h2 className="text-base font-black text-gray-900 tracking-tight uppercase">
                     {selectedAppointment.patientName}
                   </h2>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                    ID: {selectedAppointment.bookingId}
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                    Booking ID: {selectedAppointment.bookingId}
                   </p>
                 </div>
               </div>
               <button 
                 onClick={() => setIsChatModalOpen(false)} 
-                className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-400 hover:text-red-500 transition-all"
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm border border-gray-50 text-gray-400 hover:text-red-500 hover:scale-105 active:scale-95 transition-all"
               >
                 <IoCloseOutline size={24} />
               </button>
             </div>
 
-            {/* Chat Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/50">
+            {/* Chat Body (Scrollable with min-h-0 setting preventing card blowouts) */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#f8fafc] min-h-0 [&::-webkit-scrollbar]:hidden">
+              <div className="flex justify-center mb-2">
+                <span className="bg-amber-50 border border-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-sm text-center">
+                  Encrypted Clinical Communication Channel
+                </span>
+              </div>
+
               {chatLoading ? (
-                <div className="flex flex-col items-center justify-center h-full">
-                  <FaSpinner className="animate-spin text-[#08B36A] mb-2" size={24} />
-                  <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Loading History...</p>
+                <div className="flex flex-col items-center justify-center h-full gap-2">
+                  <FaSpinner className="animate-spin text-[#08B36A]" size={26} />
+                  <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Loading history...</p>
                 </div>
               ) : chatMessages.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-center">
-                  <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">No previous messages. Start the chat below!</p>
+                <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                  <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">No previous messages.</p>
+                  <p className="text-gray-300 text-[10px] font-medium mt-1">Send a message below to start coordinating care.</p>
                 </div>
               ) : (
                 chatMessages.map((msg) => {
@@ -440,16 +452,17 @@ function Page() {
                   return (
                     <div 
                       key={msg._id || msg.id} 
-                      className={`flex ${isDoctor ? 'justify-end' : 'justify-start'}`}
+                      className={`flex ${isDoctor ? 'justify-end' : 'justify-start'} animate-in fade-in-50 duration-200`}
                     >
-                      <div className={`max-w-[75%] rounded-[1.5rem] px-4 py-3 shadow-sm ${
+                      <div className={`max-w-[80%] rounded-[1.5rem] px-4 py-3 shadow-sm ${
                         isDoctor 
-                          ? 'bg-[#08B36A] text-white rounded-tr-none' 
-                          : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'
+                          ? 'bg-[#08B36A] text-white rounded-br-none shadow-green-100/50' 
+                          : 'bg-white text-gray-800 rounded-bl-none border border-gray-100'
                       }`}>
-                        {/* Swapped msg.message for msg.text to align with user side */}
-                        <p className="text-sm font-semibold leading-relaxed break-words">{msg.text}</p>
-                        <p className={`text-[9px] mt-1 text-right ${isDoctor ? 'text-green-100' : 'text-gray-400'} font-bold`}>
+                        <p className="text-sm font-medium leading-relaxed break-words">{msg.text}</p>
+                        <p className={`text-[9px] mt-1.5 text-right font-black uppercase tracking-wider ${
+                          isDoctor ? 'text-green-100' : 'text-gray-400'
+                        }`}>
                           {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
@@ -460,22 +473,26 @@ function Page() {
               <div ref={chatEndRef} />
             </div>
 
-            {/* Chat Input Footer */}
-            <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-100 flex gap-3">
-              <input
-                type="text"
-                placeholder="Type your message here..."
-                value={newMessageText}
-                onChange={(e) => setNewMessageText(e.target.value)}
-                className="flex-1 px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl font-semibold text-sm text-gray-700 focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] outline-none transition-all"
-              />
-              <button
-                type="submit"
-                className="px-5 bg-[#08B36A] hover:bg-green-600 text-white rounded-2xl flex items-center justify-center transition-all active:scale-95 shadow-lg shadow-green-100"
-              >
-                <FaPaperPlane size={14} />
-              </button>
-            </form>
+            {/* Chat Input Footer (Fixed height) */}
+            <div className="p-4 bg-white border-t border-gray-100 shrink-0">
+              <form onSubmit={handleSendMessage} className="flex gap-3 items-center">
+                <input
+                  type="text"
+                  placeholder={selectedAppointment.status !== "In-Progress" ? "This consultation session is inactive." : "Type your coordination message..."}
+                  disabled={selectedAppointment.status !== "In-Progress"}
+                  value={newMessageText}
+                  onChange={(e) => setNewMessageText(e.target.value)}
+                  className="flex-1 px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm text-gray-700 outline-none focus:bg-white focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] transition-all disabled:bg-gray-100 disabled:cursor-not-allowed shadow-inner"
+                />
+                <button
+                  type="submit"
+                  disabled={!newMessageText.trim() || selectedAppointment.status !== "In-Progress"}
+                  className="w-12 h-12 shrink-0 bg-[#08B36A] text-white rounded-2xl flex items-center justify-center transition-all hover:bg-green-600 hover:scale-105 active:scale-95 disabled:bg-gray-100 disabled:text-gray-300 disabled:scale-100 shadow-lg shadow-green-100"
+                >
+                  <FaPaperPlane size={14} />
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}
