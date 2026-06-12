@@ -64,7 +64,7 @@ export default function ChatPage() {
 
   // 2. Setup Socket Connection & Global Event Listeners
   useEffect(() => {
-    const socketUrl = "http://192.168.1.26:5002"; // Or "http://192.168.1.26:5002"
+    const socketUrl = process.env.NEXT_PUBLIC_BACKEND_URL ; // Or "http://192.168.1.26:5002"
     const socket = io(socketUrl, {
       // Remove transports: ["websocket"] to let it use both polling and websocket
       transports: ["polling", "websocket"],
