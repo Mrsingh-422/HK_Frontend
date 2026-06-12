@@ -21,7 +21,7 @@ import { io } from 'socket.io-client';
 import VideoCallModal from '../../../../(user)/components/videoCall/VideoCallModal';
 
 // Set the socket URL to match your server configuration
-const SOCKET_URL = "http://192.168.1.26:5002";
+const SOCKET_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 function Page() {
     const [appointments, setAppointments] = useState([]);
