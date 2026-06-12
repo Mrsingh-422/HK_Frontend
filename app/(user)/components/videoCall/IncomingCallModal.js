@@ -8,9 +8,9 @@ export default function IncomingCallModal({ callData, onAccept, onReject }) {
                 <div className="relative w-28 h-28 mx-auto mb-8">
                     <div className="w-full h-full bg-green-50 rounded-full flex items-center justify-center border-4 border-white shadow-lg overflow-hidden">
                         {callData?.doctorProfileImage ? (
-                            <img 
-                                src={callData.doctorProfileImage} 
-                                alt="Doctor" 
+                            <img
+                                src={callData.doctorProfileImage}
+                                alt="Doctor"
                                 className="w-full h-full object-cover"
                             />
                         ) : (
@@ -25,14 +25,14 @@ export default function IncomingCallModal({ callData, onAccept, onReject }) {
                 </p>
 
                 <div className="flex justify-center gap-8 mt-12">
-                    <button 
+                    <button
                         onClick={onReject}
                         className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-xl"
                     >
                         <FaPhoneSlash size={28} />
                     </button>
 
-                    <button 
+                    <button
                         onClick={onAccept} // THIS TRIGGERS handleAccept in CallListener
                         className="w-20 h-20 bg-[#08B36A] text-white rounded-full flex items-center justify-center hover:bg-green-600 transition-all shadow-2xl animate-pulse"
                     >
