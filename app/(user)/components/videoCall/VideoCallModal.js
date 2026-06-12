@@ -20,7 +20,7 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
     const remoteVideoRef = useRef();
     const pc = useRef(null);
     const isEnding = useRef(false); 
-    const localStreamRef = useRef(null); // Ref to access stream in cleanup reliably
+    const localStreamRef = useRef(null);
 
     useEffect(() => {
         let isMounted = true;
@@ -42,22 +42,26 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
                 localStreamRef.current = stream;
                 if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
-                // 3. Add tracks to Peer Connection
+                // 3. Add tracks to Peer Connection BEFORE creating offer/answer
                 stream.getTracks().forEach((track) => {
-                    if (pc.current && pc.current.signalingState !== 'closed') {
-                        pc.current.addTrack(track, stream);
-                    }
+                    pc.current.addTrack(track, stream);
                 });
 
-                // 4. Setup Remote Stream
-                const remote = new MediaStream();
+                // 4. Setup Remote Stream Handling
                 pc.current.ontrack = (event) => {
-                    console.log("Remote track received");
-                    event.streams[0].getTracks().forEach((track) => remote.addTrack(track));
-                    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remote;
+                    console.log("📡 Remote track received:", event.streams[0]);
+                    if (remoteVideoRef.current && event.streams[0]) {
+                        remoteVideoRef.current.srcObject = event.streams[0];
+                        setCallStartedAt(prev => prev || Date.now());
+                    }
+                };
 
-                    // Functional update to avoid stale closures
-                    setCallStartedAt(prev => prev || Date.now());
+                // Debug connection state
+                pc.current.oniceconnectionstatechange = () => {
+                    console.log("Connection State:", pc.current.iceConnectionState);
+                    if (pc.current.iceConnectionState === 'disconnected') {
+                        handleCloseUI();
+                    }
                 };
 
                 // 5. Firestore Signaling Refs
@@ -74,7 +78,7 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
                 };
 
                 if (role === 'caller') {
-                    // DOCTOR LOGIC (Offer)
+                    // --- DOCTOR LOGIC ---
                     const offerDescription = await pc.current.createOffer();
                     await pc.current.setLocalDescription(offerDescription);
                     
@@ -85,11 +89,12 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
                         createdAt: Date.now()
                     });
 
-                    // Listen for Patient's Answer
+                    // Listen for Answer
                     unsubscribes.push(onSnapshot(callDoc, (snapshot) => {
                         const data = snapshot.data();
                         if (pc.current && !pc.current.currentRemoteDescription && data?.answer) {
-                            pc.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+                            const answerDesc = new RTCSessionDescription(data.answer);
+                            pc.current.setRemoteDescription(answerDesc);
                         }
                         if (data?.status === 'completed') handleCloseUI();
                     }));
@@ -98,22 +103,22 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
                     unsubscribes.push(onSnapshot(answerCandidates, (snapshot) => {
                         snapshot.docChanges().forEach((change) => {
                             if (change.type === 'added' && pc.current?.remoteDescription) {
-                                pc.current.addIceCandidate(new RTCIceCandidate(change.doc.data())).catch(e => console.error(e));
+                                pc.current.addIceCandidate(new RTCIceCandidate(change.doc.data()));
                             }
                         });
                     }));
 
                 } else {
-                    // PATIENT LOGIC (Answer)
+                    // --- PATIENT LOGIC ---
                     const callSnapshot = await getDoc(callDoc);
-                    if (!callSnapshot.exists()) {
-                        toast.error("Call session not found");
-                        return onClose();
-                    }
+                    if (!callSnapshot.exists()) return onClose();
 
                     const callData = callSnapshot.data();
+                    
+                    // Set Remote Offer
                     await pc.current.setRemoteDescription(new RTCSessionDescription(callData.offer));
 
+                    // Create Answer
                     const answerDescription = await pc.current.createAnswer();
                     await pc.current.setLocalDescription(answerDescription);
 
@@ -132,14 +137,13 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
                     unsubscribes.push(onSnapshot(offerCandidates, (snapshot) => {
                         snapshot.docChanges().forEach((change) => {
                             if (change.type === 'added' && pc.current?.remoteDescription) {
-                                pc.current.addIceCandidate(new RTCIceCandidate(change.doc.data())).catch(e => console.error(e));
+                                pc.current.addIceCandidate(new RTCIceCandidate(change.doc.data()));
                             }
                         });
                     }));
                 }
             } catch (err) {
-                console.error("WebRTC Setup Error:", err);
-                toast.error("Camera/Microphone access denied or error occurred");
+                console.error("WebRTC Error:", err);
                 onClose();
             }
         };
@@ -149,73 +153,58 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
         return () => {
             isMounted = false;
             unsubscribes.forEach(unsub => unsub());
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(t => t.stop());
-            }
-            if (pc.current) {
-                pc.current.close();
-            }
+            if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
+            if (pc.current) pc.current.close();
         };
     }, [callId, role]);
 
     const handleCloseUI = () => {
-        if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(t => t.stop());
-        }
+        if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
         onClose();
     };
 
     const handleHangupClick = async () => {
         if (isEnding.current) return;
         isEnding.current = true;
-
         try {
-            const endTime = Date.now();
-            const duration = callStartedAt ? Math.floor((endTime - callStartedAt) / 1000) : 0;
-
-            // 1. Notify Backend
-            await DoctorAPI.endVideoCall({
-                callId: callId,
-                totalDurationInSeconds: duration
-            });
-
-            // 2. Notify Firestore (so other side closes)
-            const callDoc = doc(db, 'calls', callId);
-            await updateDoc(callDoc, { status: 'completed' });
-
-            toast.success("Call ended");
+            const duration = callStartedAt ? Math.floor((Date.now() - callStartedAt) / 1000) : 0;
+            await DoctorAPI.endVideoCall({ callId, totalDurationInSeconds: duration });
+            await updateDoc(doc(db, 'calls', callId), { status: 'completed' });
         } catch (error) {
-            console.error("Error ending call:", error);
+            console.error(error);
         } finally {
             handleCloseUI();
         }
     };
 
     const toggleMic = () => {
-        if (!localStream) return;
-        const audioTrack = localStream.getAudioTracks()[0];
-        if (audioTrack) {
-            audioTrack.enabled = !audioTrack.enabled;
-            setIsMuted(!audioTrack.enabled);
+        const track = localStream?.getAudioTracks()[0];
+        if (track) {
+            track.enabled = !track.enabled;
+            setIsMuted(!track.enabled);
         }
     };
 
     const toggleVideo = () => {
-        if (!localStream) return;
-        const videoTrack = localStream.getVideoTracks()[0];
-        if (videoTrack) {
-            videoTrack.enabled = !videoTrack.enabled;
-            setIsVideoOff(!videoTrack.enabled);
+        const track = localStream?.getVideoTracks()[0];
+        if (track) {
+            track.enabled = !track.enabled;
+            setIsVideoOff(!track.enabled);
         }
     };
 
     return (
-        <div className="fixed inset-0 bg-slate-950 z-[999] flex flex-col overflow-hidden">
-            <div className="relative flex-1 flex items-center justify-center bg-gray-900">
-                {/* Remote Video */}
-                <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-contain" />
+        <div className="fixed inset-0 bg-black z-[999] flex flex-col overflow-hidden">
+            <div className="relative flex-1 flex items-center justify-center bg-slate-900">
+                {/* REMOTE VIDEO (The other person) */}
+                <video 
+                    ref={remoteVideoRef} 
+                    autoPlay 
+                    playsInline 
+                    className="w-full h-full object-contain" 
+                />
 
-                {/* Local Video (Floating) */}
+                {/* LOCAL VIDEO (Self) */}
                 <div className="absolute top-6 right-6 w-32 md:w-56 aspect-[3/4] rounded-3xl overflow-hidden border-2 border-white/20 shadow-2xl z-20 bg-black">
                     <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
                     {isVideoOff && (
@@ -225,34 +214,22 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
                     )}
                 </div>
 
-                {/* Info Overlay */}
                 <div className="absolute top-8 left-1/2 -translate-x-1/2 px-6 py-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
                     <p className="text-white text-[10px] font-black uppercase tracking-[0.3em]">
-                        {role === 'caller' ? 'Calling Patient...' : `In Call with ${callerName}`}
+                        {role === 'caller' ? 'Calling...' : `Live: ${callerName}`}
                     </p>
                 </div>
             </div>
 
-            {/* Control Bar */}
-            <div className="h-32 bg-slate-900/50 backdrop-blur-xl border-t border-white/5 flex items-center justify-center gap-6 px-4">
-                <button 
-                    onClick={toggleMic} 
-                    className={`p-5 rounded-full transition-all ${isMuted ? 'bg-red-500 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                >
+            {/* Controls */}
+            <div className="h-32 bg-slate-900 flex items-center justify-center gap-6">
+                <button onClick={toggleMic} className={`p-5 rounded-full ${isMuted ? 'bg-red-500' : 'bg-white/10 text-white'}`}>
                     {isMuted ? <FaMicrophoneSlash size={20} /> : <FaMicrophone size={20} />}
                 </button>
-
-                <button 
-                    onClick={handleHangupClick} 
-                    className="p-6 rounded-full bg-red-500 text-white hover:scale-110 transition-all shadow-xl shadow-red-500/20"
-                >
+                <button onClick={handleHangupClick} className="p-6 rounded-full bg-red-500 text-white shadow-xl">
                     <FaPhoneSlash size={28} />
                 </button>
-
-                <button 
-                    onClick={toggleVideo} 
-                    className={`p-5 rounded-full transition-all ${isVideoOff ? 'bg-red-500 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                >
+                <button onClick={toggleVideo} className={`p-5 rounded-full ${isVideoOff ? 'bg-red-500' : 'bg-white/10 text-white'}`}>
                     {isVideoOff ? <FaVideoSlash size={20} /> : <FaVideo size={20} />}
                 </button>
             </div>

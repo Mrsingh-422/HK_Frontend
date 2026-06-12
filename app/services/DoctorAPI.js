@@ -307,7 +307,19 @@ const DoctorAPI = {
         }
     },
 
+    getVideoCallAppointments: async () => {
+        try {
+            const response = await doctorApi.get('/doctor/appointments/video-consults');
+            return response.data;
+        } catch (error) {
+            console.error("API Error in getVideoCallAppointments:", error);
+            return Promise.reject(error.response?.data?.message || "Failed to fetch video call appointments");
+        }
+    },
 
-    }
 
-    export default DoctorAPI;
+
+
+}
+
+export default DoctorAPI;
