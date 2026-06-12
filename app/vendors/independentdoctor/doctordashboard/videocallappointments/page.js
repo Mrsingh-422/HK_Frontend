@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   FaCalendarAlt, 
   FaClock, 
@@ -8,15 +8,20 @@ import {
   FaPhoneAlt, 
   FaComment, 
   FaSpinner, 
-  FaUser, 
   FaStethoscope, 
-  FaWallet 
+  FaWallet,
+  FaPaperPlane
 } from 'react-icons/fa';
+import { IoCloseOutline } from "react-icons/io5";
 import DoctorAPI from '@/app/services/DoctorAPI';
 import { toast, Toaster } from 'react-hot-toast';
+import { io } from 'socket.io-client';
 
 // Adjust this import path to match your actual folder structure
 import VideoCallModal from '../../../../(user)/components/videoCall/VideoCallModal';
+
+// Set the socket URL to match your server configuration (e.g., http://192.168.1.26:5002)
+const SOCKET_URL = "http://192.168.1.26:5002"; 
 
 function Page() {
   const [appointments, setAppointments] = useState([]);
@@ -30,9 +35,81 @@ function Page() {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
 
+  // Chat Modal States
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [newMessageText, setNewMessageText] = useState('');
+  
+  // Refs
+  const chatEndRef = useRef(null);
+  const socketRef = useRef(null);
+  const selectedAppointmentRef = useRef(null);
+
+  // Sync ref with selected appointment state for use within callbacks
+  useEffect(() => {
+    selectedAppointmentRef.current = selectedAppointment;
+  }, [selectedAppointment]);
+
+  // 1. Initialize socket.io connection on mount
+  useEffect(() => {
+    socketRef.current = io(SOCKET_URL, {
+      transports: ["polling", "websocket"],
+    });
+
+    socketRef.current.on("connect", () => {
+      console.log("Doctor connected to Chat Socket Server");
+    });
+
+    // Listen for incoming messages in real-time
+    socketRef.current.on('receive_message', (incomingMsg) => {
+      // Append the message only if it belongs to the active appointment chat window
+      if (selectedAppointmentRef.current?.appointmentId === incomingMsg.appointmentId) {
+        setChatMessages((prev) => {
+          const exists = prev.some(msg => (msg._id || msg.id) === (incomingMsg._id || incomingMsg.id));
+          if (exists) return prev;
+          return [...prev, incomingMsg];
+        });
+      }
+    });
+
+    socketRef.current.on('error_response', (err) => {
+      if (err && err.message) {
+        toast.error(err.message);
+      }
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  // 2. Room Join and Leave handling matching your server's schema
+  useEffect(() => {
+    if (!socketRef.current || !selectedAppointment || !isChatModalOpen) return;
+
+    const appointmentId = selectedAppointment.appointmentId;
+    
+    // Join room using the 'appointmentId' key, identical to user side
+    socketRef.current.emit('join_room', { appointmentId });
+
+    return () => {
+      // You can add leave room logic here if your backend processes it
+    };
+  }, [isChatModalOpen, selectedAppointment]);
+
   useEffect(() => {
     fetchAppointments();
   }, []);
+
+  // Auto-scroll to latest message
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, isChatModalOpen]);
 
   const fetchAppointments = async () => {
     try {
@@ -54,7 +131,7 @@ function Page() {
   };
 
   const handleStartCall = async (e, appointment, type) => {
-    e.stopPropagation(); // Prevent row click events
+    e.stopPropagation();
     try {
       setSubmitting(true);
       setCallType(type);
@@ -63,7 +140,7 @@ function Page() {
       const payload = {
         appointmentId: appointment.appointmentId,
         callId: appointment.appointmentId,
-        callType: type, // 'video' or 'audio'
+        callType: type,
         callerName: "Doctor",
         receiverId: appointment.userAccount?._id || appointment.appointmentId, 
       };
@@ -85,10 +162,49 @@ function Page() {
     }
   };
 
-  const handleMessage = (e, appointment) => {
-    e.stopPropagation(); // Prevent row click events
-    toast.success(`Opening secure message chat with ${appointment.patientName}`);
-    // Implement messaging window/navigation logic here as needed
+  // Open Chat Modal & Fetch previous messages from Database API
+  const handleOpenChat = async (e, appointment) => {
+    e.stopPropagation();
+    setSelectedAppointment(appointment);
+    setIsChatModalOpen(true);
+    setChatLoading(true);
+    setChatMessages([]);
+
+    try {
+      const res = await DoctorAPI.getDoctorChatHistory(appointment.appointmentId);
+      if (res && res.success) {
+        setChatMessages(res.data || []);
+      } else {
+        toast.error("Could not fetch chat history.");
+      }
+    } catch (error) {
+      console.error("Error fetching chat history:", error);
+      toast.error("Failed to load conversation history.");
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  // Emit message using the keys expected by the database schema
+  const handleSendMessage = (e) => {
+    e.preventDefault();
+    if (!newMessageText.trim() || !selectedAppointment || !socketRef.current) return;
+
+    if (selectedAppointment.status !== "In-Progress") {
+      toast.error("This appointment session is not currently active.");
+      return;
+    }
+
+    const payload = {
+      appointmentId: selectedAppointment.appointmentId, // Matches schema
+      senderId: selectedAppointment.doctorId || "65d3cc4e80f1a612c0335790", // Your doctor's active ID
+      senderType: "Doctor", // Identifies message source to DB
+      text: newMessageText.trim() // Matches database model expectations
+    };
+
+    // Emit to your socket endpoint (which handles persistence inside backend save routines)
+    socketRef.current.emit('send_message', payload);
+    setNewMessageText('');
   };
 
   const formatDate = (dateStr) => {
@@ -166,11 +282,11 @@ function Page() {
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-4">
                           <img 
-                            src={appt.userAccount?.profilePic} 
+                            src={appt.userAccount?.profilePic ? `http://192.168.1.26:5002${appt.userAccount.profilePic}` : '/default-avatar.png'} 
                             alt={appt.patientName} 
                             className="w-12 h-12 rounded-2xl object-cover bg-gray-100 border border-gray-100"
                             onError={(e) => {
-                              e.target.src = 'https://static.vecteezy.com/system/resources/previews/005/544/718/non_2x/profile-icon-design-free-vector.jpg';
+                              e.target.src = '/default-avatar.png';
                             }}
                           />
                           <div>
@@ -254,7 +370,7 @@ function Page() {
                               {/* Messaging Trigger */}
                               <button
                                 disabled={submitting}
-                                onClick={(e) => handleMessage(e, appt)}
+                                onClick={(e) => handleOpenChat(e, appt)}
                                 title="Send Message"
                                 className="p-3.5 rounded-2xl text-purple-600 bg-purple-50 hover:bg-purple-100 transition-all active:scale-90 hover:scale-105"
                               >
@@ -277,13 +393,100 @@ function Page() {
         )}
       </div>
 
+      {/* CHAT MODAL */}
+      {isChatModalOpen && selectedAppointment && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[120] p-4 backdrop-blur-md">
+          <div className="bg-white rounded-[3rem] w-full max-w-lg h-[80vh] flex flex-col overflow-hidden relative shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+            
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <img 
+                  src={selectedAppointment.userAccount?.profilePic ? `http://192.168.1.26:5002${selectedAppointment.userAccount.profilePic}` : '/default-avatar.png'} 
+                  alt={selectedAppointment.patientName} 
+                  className="w-10 h-10 rounded-xl object-cover bg-gray-100"
+                />
+                <div>
+                  <h2 className="text-base font-black text-gray-900 tracking-tight uppercase">
+                    {selectedAppointment.patientName}
+                  </h2>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    ID: {selectedAppointment.bookingId}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsChatModalOpen(false)} 
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-400 hover:text-red-500 transition-all"
+              >
+                <IoCloseOutline size={24} />
+              </button>
+            </div>
+
+            {/* Chat Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/50">
+              {chatLoading ? (
+                <div className="flex flex-col items-center justify-center h-full">
+                  <FaSpinner className="animate-spin text-[#08B36A] mb-2" size={24} />
+                  <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Loading History...</p>
+                </div>
+              ) : chatMessages.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-center">
+                  <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">No previous messages. Start the chat below!</p>
+                </div>
+              ) : (
+                chatMessages.map((msg) => {
+                  const isDoctor = msg.senderType === 'Doctor';
+                  return (
+                    <div 
+                      key={msg._id || msg.id} 
+                      className={`flex ${isDoctor ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[75%] rounded-[1.5rem] px-4 py-3 shadow-sm ${
+                        isDoctor 
+                          ? 'bg-[#08B36A] text-white rounded-tr-none' 
+                          : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'
+                      }`}>
+                        {/* Swapped msg.message for msg.text to align with user side */}
+                        <p className="text-sm font-semibold leading-relaxed break-words">{msg.text}</p>
+                        <p className={`text-[9px] mt-1 text-right ${isDoctor ? 'text-green-100' : 'text-gray-400'} font-bold`}>
+                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Chat Input Footer */}
+            <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-100 flex gap-3">
+              <input
+                type="text"
+                placeholder="Type your message here..."
+                value={newMessageText}
+                onChange={(e) => setNewMessageText(e.target.value)}
+                className="flex-1 px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl font-semibold text-sm text-gray-700 focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] outline-none transition-all"
+              />
+              <button
+                type="submit"
+                className="px-5 bg-[#08B36A] hover:bg-green-600 text-white rounded-2xl flex items-center justify-center transition-all active:scale-95 shadow-lg shadow-green-100"
+              >
+                <FaPaperPlane size={14} />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Video/Audio Call WebRTC Modal Container */}
       {isVideoModalOpen && (
         <VideoCallModal
           callId={activeCallId}
           callerName="Doctor"
-          role="caller" // Dictates offer production for WebRTC signaling
-          callType={callType} // Custom pass-through of chosen modality
+          role="caller" 
+          callType={callType} 
           onClose={() => {
             setIsVideoModalOpen(false);
             setActiveCallId(null);

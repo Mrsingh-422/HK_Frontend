@@ -1,323 +1,503 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
-import moment from "moment";
-import UserAPI from "@/app/services/UserAPI";
 
-export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect }) {
-    const [mode, setMode] = useState("One day One Time");
-    const [avail, setAvail] = useState(null);
-    const [startDate, setStartDate] = useState(null);
-    const [endDate, setEndDate] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [currentMonth, setCurrentMonth] = useState(moment()); // Track current month for navigation
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  FaCalendarAlt, 
+  FaClock, 
+  FaVideo, 
+  FaPhoneAlt, 
+  FaComment, 
+  FaSpinner, 
+  FaStethoscope, 
+  FaWallet,
+  FaPaperPlane
+} from 'react-icons/fa';
+import { IoCloseOutline } from "react-icons/io5";
+import DoctorAPI from '@/app/services/DoctorAPI';
+import { toast, Toaster } from 'react-hot-toast';
+import { io } from 'socket.io-client';
 
-    // One day One Time selection
-    const [selectedSlot, setSelectedSlot] = useState(null);
+// Adjust this import path to match your actual folder structure
+import VideoCallModal from '../../../../(user)/components/videoCall/VideoCallModal';
 
-    // Hourly selection
-    const [hourlyStartSlot, setHourlyStartSlot] = useState(null);
-    const [hourlyEndSlot, setHourlyEndSlot] = useState(null);
+// Configure your backend socket URL. Fallbacks to production/local defaults.
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000'; 
 
-    // 1. Fetch available slots
-    useEffect(() => {
-        const fetchAvail = async () => {
-            try {
-                setLoading(true);
-                const typeMapping = {
-                    "One day One Time": "One day One Time",
-                    "For Multiple Days": "For Multiple Days",
-                    "Acc. To Per/Hours": "Acc. To Per/Hours"
-                };
-                const apiType = typeMapping[mode];
-                const query = `serviceId=${!isPackage ? itemId : ''}&packageId=${isPackage ? itemId : ''}&isPackage=${isPackage}&type=${apiType}`;
-                
-                const res = await UserAPI.getNurseSlots(nurseId, query);
-                if (res.success) {
-                    setAvail(res); 
-                }
-            } catch (err) {
-                console.error("Failed to fetch slots:", err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        if (nurseId && itemId) fetchAvail();
-    }, [mode, nurseId, itemId, isPackage]);
+function Page() {
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
-    // 2. Calculation Logic
-    useEffect(() => {
-        if (!startDate) return;
+  // Video/Audio Call States
+  const [activeCallId, setActiveCallId] = useState(null);
+  const [callType, setCallType] = useState('video'); // 'video' or 'audio'
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
 
-        let totalSurcharge = 0;
-        let startTime = "";
-        let endTime = "";
-        let calculatedTotalPrice = avail?.serviceBasePrice || 0;
+  // Chat Modal States
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [newMessageText, setNewMessageText] = useState('');
+  
+  // Refs
+  const chatEndRef = useRef(null);
+  const socketRef = useRef(null);
 
-        // Current Date Premium
-        const datePrem = avail?.premiumDates?.find(p => p.date === startDate);
-        const dateExtra = datePrem ? datePrem.extraFee : 0;
+  // Initialize socket.io connection on mount
+  useEffect(() => {
+    socketRef.current = io(SOCKET_URL, {
+      autoConnect: true,
+      transports: ['websocket'], // Optimal configuration for real-time traffic
+    });
 
-        if (mode === "One day One Time") {
-            if (selectedSlot) {
-                totalSurcharge = dateExtra + (selectedSlot.premiumSurcharge || 0);
-                startTime = selectedSlot.time;
-                endTime = moment(selectedSlot.time, "HH:mm").add(1, 'hour').format("HH:mm");
-                calculatedTotalPrice = selectedSlot.totalSlotPrice + dateExtra;
-            }
-        } 
-        else if (mode === "Acc. To Per/Hours") {
-            if (hourlyStartSlot && hourlyEndSlot) {
-                startTime = hourlyStartSlot.time;
-                endTime = hourlyEndSlot.time;
-                const startM = moment(startTime, "HH:mm");
-                const endM = moment(endTime, "HH:mm");
-                const hours = endM.diff(startM, 'hours');
+    socketRef.current.on('connect', () => {
+      console.log('Connected to socket server');
+    });
 
-                // Logic: Only FIRST slot premium is added, middle/end ignored
-                totalSurcharge = dateExtra + (hourlyStartSlot.premiumSurcharge || 0);
-                calculatedTotalPrice = (avail.serviceBasePrice * (hours > 0 ? hours : 1)) + totalSurcharge;
-            }
-        }
-        else if (mode === "For Multiple Days" && startDate && endDate) {
-            let multiDaySurcharge = 0;
-            avail?.premiumDates?.forEach(p => {
-                if (moment(p.date).isBetween(startDate, endDate, 'day', '[]')) {
-                    multiDaySurcharge += p.extraFee;
-                }
-            });
-            const daysCount = moment(endDate).diff(moment(startDate), 'days') + 1;
-            totalSurcharge = multiDaySurcharge;
-            startTime = "09:00"; 
-            endTime = "18:00";
-            calculatedTotalPrice = (avail.serviceBasePrice * daysCount) + multiDaySurcharge;
-        }
+    // Listen for incoming messages in real-time
+    socketRef.current.on('receive_message', (incomingMessage) => {
+      // Append the message if it belongs to the active chat room session
+      setChatMessages((prev) => {
+        // Prevent adding duplicate messages
+        const exists = prev.some(msg => msg._id === incomingMessage._id);
+        if (exists) return prev;
+        return [...prev, incomingMessage];
+      });
+    });
 
-        onSlotSelect({
-            mode,
-            startDate,
-            endDate: endDate || startDate,
-            startTime,
-            endTime,
-            extraFee: totalSurcharge,
-            totalPrice: calculatedTotalPrice,
-            displayTime: mode === "One day One Time" ? selectedSlot?.displayTime : 
-                         mode === "Acc. To Per/Hours" ? (hourlyStartSlot && hourlyEndSlot ? `${hourlyStartSlot.displayTime} - ${hourlyEndSlot.displayTime}` : "") :
-                         "Full Day Service"
-        });
-    }, [startDate, endDate, selectedSlot, hourlyStartSlot, hourlyEndSlot, mode, avail]);
+    socketRef.current.on('connect_error', (err) => {
+      console.error('Socket connection error:', err);
+    });
 
-    // Handle Calendar Clicks - Keeping Multi-Day exactly as original
-    const handleDateClick = (dStr) => {
-        if (mode === "One day One Time" || mode === "Acc. To Per/Hours") {
-            setStartDate(dStr);
-            setEndDate(dStr);
-            setSelectedSlot(null); 
-            setHourlyStartSlot(null);
-            setHourlyEndSlot(null);
-        } else {
-            // MULTI-DAY RANGE LOGIC
-            if (!startDate || (startDate && endDate)) {
-                setStartDate(dStr);
-                setEndDate(null);
-            } else {
-                if (moment(dStr).isBefore(startDate)) {
-                    setStartDate(dStr);
-                    setEndDate(null);
-                } else {
-                    setEndDate(dStr);
-                }
-            }
-        }
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  // Room Join and Leave handling
+  useEffect(() => {
+    if (!socketRef.current || !selectedAppointment || !isChatModalOpen) return;
+
+    const roomId = selectedAppointment.appointmentId;
+    
+    // Join room associated with the appointmentId
+    socketRef.current.emit('join_room', { roomId });
+
+    return () => {
+      // Clean up/leave room when modal closes or selection changes
+      socketRef.current.emit('leave_room', { roomId });
+    };
+  }, [isChatModalOpen, selectedAppointment]);
+
+  useEffect(() => {
+    fetchAppointments();
+  }, []);
+
+  // Auto-scroll to latest message
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, isChatModalOpen]);
+
+  const fetchAppointments = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await DoctorAPI.getVideoCallAppointments();
+      
+      if (response && response.success) {
+        setAppointments(response.data || []);
+      } else {
+        setError("Failed to retrieve valid appointment data.");
+      }
+    } catch (err) {
+      console.error("Fetch Error:", err);
+      setError(err || "An error occurred while fetching appointments.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStartCall = async (e, appointment, type) => {
+    e.stopPropagation();
+    try {
+      setSubmitting(true);
+      setCallType(type);
+      setSelectedAppointment(appointment);
+
+      const payload = {
+        appointmentId: appointment.appointmentId,
+        callId: appointment.appointmentId,
+        callType: type,
+        callerName: "Doctor",
+        receiverId: appointment.userAccount?._id || appointment.appointmentId, 
+      };
+
+      const res = await DoctorAPI.initiateVideoCall(payload);
+
+      if (res && res.success) {
+        toast.success(`Calling patient via ${type}...`);
+        setActiveCallId(res.callData?.callId || appointment.appointmentId);
+        setIsVideoModalOpen(true);
+      } else {
+        toast.error(res?.message || "Patient is offline or unreachable");
+      }
+    } catch (error) {
+      console.error(`Error starting ${type} call:`, error);
+      toast.error(`An error occurred while starting the ${type} call`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Open Chat Modal & Fetch previous messages from Database API
+  const handleOpenChat = async (e, appointment) => {
+    e.stopPropagation();
+    setSelectedAppointment(appointment);
+    setIsChatModalOpen(true);
+    setChatLoading(true);
+    setChatMessages([]);
+
+    try {
+      const res = await DoctorAPI.getDoctorChatHistory(appointment.appointmentId);
+      if (res && res.success) {
+        setChatMessages(res.data || []);
+      } else {
+        toast.error("Could not fetch chat history.");
+      }
+    } catch (error) {
+      console.error("Error fetching chat history:", error);
+      toast.error("Failed to load conversation history.");
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  // Emit message through Socket and execute backup REST submission
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessageText.trim() || !selectedAppointment) return;
+
+    const textToSend = newMessageText;
+    const roomId = selectedAppointment.appointmentId;
+    const temporaryId = Date.now().toString();
+
+    const payload = {
+      _id: temporaryId,
+      roomId: roomId,
+      senderType: 'Doctor',
+      message: textToSend,
+      createdAt: new Date().toISOString()
     };
 
-    const handleHourlySlotClick = (slot) => {
-        if (!hourlyStartSlot || (hourlyStartSlot && hourlyEndSlot)) {
-            setHourlyStartSlot(slot);
-            setHourlyEndSlot(null);
-        } else {
-            if (moment(slot.time, "HH:mm").isBefore(moment(hourlyStartSlot.time, "HH:mm"))) {
-                setHourlyStartSlot(slot);
-                setHourlyEndSlot(null);
-            } else {
-                setHourlyEndSlot(slot);
-            }
-        }
-    };
+    // Optimistically update active UI immediately
+    setChatMessages((prev) => [...prev, payload]);
+    setNewMessageText('');
 
-    // Generate calendar days for current month
-    const calendarDays = useMemo(() => {
-        const startOfMonth = currentMonth.clone().startOf('month');
-        const endOfMonth = currentMonth.clone().endOf('month');
-        const startDate = startOfMonth.clone().startOf('week');
-        const endDate = endOfMonth.clone().endOf('week');
-        
-        const days = [];
-        let day = startDate;
-        
-        while (day.isBefore(endDate)) {
-            days.push(day.clone());
-            day.add(1, 'day');
-        }
-        
-        return days;
-    }, [currentMonth]);
+    try {
+      // 1. Emit to Socket for Real-Time Delivery
+      if (socketRef.current) {
+        socketRef.current.emit('send_message', payload);
+      }
 
-    // Navigation handlers
-    const goToPreviousMonth = () => {
-        setCurrentMonth(currentMonth.clone().subtract(1, 'month'));
-    };
+      // 2. Perform background DB persistent save (fallback handler)
+      if (DoctorAPI.sendDoctorMessage) {
+        await DoctorAPI.sendDoctorMessage(roomId, { message: textToSend });
+      }
+    } catch (error) {
+      console.error("Failed to persist message in DB:", error);
+    }
+  };
 
-    const goToNextMonth = () => {
-        setCurrentMonth(currentMonth.clone().add(1, 'month'));
-    };
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
 
-    const goToCurrentMonth = () => {
-        setCurrentMonth(moment());
-    };
-
+  if (loading) {
     return (
-        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
-            <h3 className="text-lg font-black text-slate-800 mb-6">Select Schedule</h3>
-
-            <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8">
-                {['One day One Time', 'For Multiple Days', 'Acc. To Per/Hours'].map((m) => (
-                    <button
-                        key={m}
-                        onClick={() => { 
-                            setMode(m); setStartDate(null); setEndDate(null); 
-                            setSelectedSlot(null); setHourlyStartSlot(null); setHourlyEndSlot(null); 
-                        }}
-                        className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all ${mode === m ? "bg-white text-teal-600 shadow-sm" : "text-slate-400"}`}
-                    >
-                        {m === 'One day One Time' ? 'Single' : m === 'For Multiple Days' ? 'Multi-Day' : 'Hourly'}
-                    </button>
-                ))}
-            </div>
-
-            {/* Month Navigation */}
-            <div className="flex items-center justify-between mb-6 px-2">
-                <button
-                    onClick={goToPreviousMonth}
-                    className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-all"
-                >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
-                
-                <div className="flex items-center gap-3">
-                    <span className="text-sm font-black text-slate-800">
-                        {currentMonth.format('MMMM YYYY')}
-                    </span>
-                    <button
-                        onClick={goToCurrentMonth}
-                        className="text-[10px] font-black px-3 py-1.5 rounded-full bg-teal-50 text-teal-600 hover:bg-teal-100 transition-all"
-                    >
-                        Today
-                    </button>
-                </div>
-                
-                <button
-                    onClick={goToNextMonth}
-                    className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-all"
-                >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                </button>
-            </div>
-
-            <div className="grid grid-cols-7 gap-2 mb-8">
-                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, idx) => (
-                    <div key={idx} className="text-[10px] font-black text-slate-300 text-center py-2">{d}</div>
-                ))}
-                {calendarDays.map((date) => {
-                    const dStr = date.format('YYYY-MM-DD');
-                    const isCurrentMonth = date.month() === currentMonth.month();
-                    const datePremium = avail?.premiumDates?.find(p => p.date === dStr);
-                    const isSel = dStr === startDate || dStr === endDate;
-                    const inRange = mode === "For Multiple Days" && startDate && endDate && date.isBetween(startDate, endDate, 'day');
-
-                    return (
-                        <button
-                            key={dStr}
-                            disabled={loading || !isCurrentMonth}
-                            onClick={() => handleDateClick(dStr)}
-                            className={`h-14 rounded-2xl flex flex-col items-center justify-center border transition-all ${
-                                !isCurrentMonth ? "opacity-30 cursor-not-allowed" :
-                                isSel ? "bg-teal-500 text-white border-teal-500 shadow-lg shadow-teal-500/20" :
-                                inRange ? "bg-teal-50 border-teal-100 text-teal-700" :
-                                "bg-white border-slate-50 hover:border-slate-200"
-                            }`}
-                        >
-                            <span className="text-xs font-black">{date.date()}</span>
-                            {datePremium && (
-                                <span className={`text-[7px] font-black mt-0.5 ${isSel ? 'text-white/80' : 'text-rose-500'}`}>
-                                    +₹{datePremium.extraFee}
-                                </span>
-                            )}
-                        </button>
-                    );
-                })}
-            </div>
-
-            {mode === "One day One Time" && startDate && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Arrival Time</h4>
-                    <select 
-                        className="w-full p-4 rounded-2xl border-2 border-slate-50 bg-slate-50/50 text-xs font-black text-slate-700 outline-none focus:border-teal-500 transition-all"
-                        value={selectedSlot?.time || ""}
-                        onChange={(e) => setSelectedSlot(avail?.timeSlots?.find(s => s.time === e.target.value))}
-                    >
-                        <option value="">Select Arrival Time</option>
-                        {avail?.timeSlots?.map((slot) => (
-                            <option key={slot.time} value={slot.time}>
-                                {slot.displayTime} (₹{slot.totalSlotPrice})
-                            </option>
-                        ))}
-                    </select>
-                </div>
-            )}
-
-            {mode === "Acc. To Per/Hours" && startDate && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
-                        {!hourlyStartSlot ? "Select Start Time" : !hourlyEndSlot ? "Select End Time" : "Time Range Selected"}
-                    </h4>
-                    <div className="grid grid-cols-3 gap-3">
-                        {avail?.timeSlots?.map((slot) => {
-                            const isStart = hourlyStartSlot?.time === slot.time;
-                            const isEnd = hourlyEndSlot?.time === slot.time;
-                            const inRange = hourlyStartSlot && hourlyEndSlot && 
-                                            moment(slot.time, "HH:mm").isBetween(moment(hourlyStartSlot.time, "HH:mm"), moment(hourlyEndSlot.time, "HH:mm"), null, '[]');
-                            return (
-                                <button
-                                    key={slot.time}
-                                    onClick={() => handleHourlySlotClick(slot)}
-                                    className={`p-4 rounded-[1.5rem] border-2 transition-all flex flex-col items-center gap-1 ${
-                                        isStart || isEnd ? "border-teal-500 bg-teal-500 text-white" :
-                                        inRange ? "border-teal-200 bg-teal-50 text-teal-700" :
-                                        "border-slate-50 bg-slate-50/50 hover:border-slate-200"
-                                    }`}
-                                >
-                                    <span className="text-xs font-black">{slot.displayTime}</span>
-                                    {!inRange && slot.premiumSurcharge > 0 && !isEnd && (
-                                        <span className={`text-[8px] font-black ${isStart ? "text-white/80" : "text-rose-500"}`}>
-                                            +₹{slot.premiumSurcharge}
-                                        </span>
-                                    )}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-
-            {mode === "For Multiple Days" && startDate && !endDate && (
-                <div className="text-center p-4 bg-teal-50 rounded-2xl border border-teal-100 animate-pulse">
-                    <p className="text-xs font-bold text-teal-600 uppercase">Select End Date</p>
-                </div>
-            )}
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
+        <FaSpinner className="animate-spin text-[#08B36A] mb-4" size={30} />
+        <p className="text-gray-400 font-bold uppercase text-xs tracking-widest">Fetching video appointments...</p>
+      </div>
     );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen bg-gray-50 p-4">
+        <div className="bg-white rounded-[2rem] border border-gray-100 p-8 text-center max-w-md shadow-sm">
+          <p className="text-red-500 font-black text-xs uppercase tracking-widest mb-2">Error Occurred</p>
+          <p className="text-gray-500 text-sm mb-4">{error}</p>
+          <button 
+            onClick={fetchAppointments}
+            className="px-6 py-2.5 bg-[#08B36A] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-600 transition-all"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans">
+      <Toaster position="top-right" />
+
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header Block */}
+        <div>
+          <h1 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Video Consultations</h1>
+          <p className="text-sm text-gray-500 font-medium">Manage and connect with your remote patients</p>
+        </div>
+
+        {/* Responsive Table View */}
+        {appointments.length === 0 ? (
+          <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-gray-200">
+            <p className="text-gray-400 font-bold uppercase text-xs tracking-widest">No active video consultations found</p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/50 border-b border-gray-100">
+                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Patient Details</th>
+                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Consultation Reason</th>
+                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Schedule</th>
+                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Payment & Status</th>
+                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 text-center">Consultation Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {appointments.map((appt) => (
+                    <tr 
+                      key={appt.appointmentId} 
+                      className="hover:bg-gray-50/50 transition-colors group"
+                    >
+                      {/* Patient Details Column */}
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-4">
+                          <img 
+                            src={appt.userAccount?.profilePic} 
+                            alt={appt.patientName} 
+                            className="w-12 h-12 rounded-2xl object-cover bg-gray-100 border border-gray-100"
+                          />
+                          <div>
+                            <p className="font-black text-gray-900 text-sm uppercase tracking-tight">
+                              {appt.patientName}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-black uppercase">
+                                {appt.patientGender}
+                              </span>
+                              <span className="text-[10px] text-gray-400 font-bold">
+                                Age: {appt.patientAge}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Consultation Reason Column */}
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-2 mb-1">
+                          <FaStethoscope className="text-blue-500" />
+                          <p className="text-sm font-black text-gray-700 truncate max-w-[200px]">
+                            {appt.reasonForVisit}
+                          </p>
+                        </div>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">
+                          ID: {appt.bookingId}
+                        </p>
+                      </td>
+
+                      {/* Schedule Column */}
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-2 text-gray-800 font-black text-sm">
+                          <FaCalendarAlt className="text-gray-300" size={14} />
+                          {formatDate(appt.appointmentDate)}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-gray-400 font-bold text-xs">
+                          <FaClock size={12} /> {appt.appointmentTime}
+                        </div>
+                      </td>
+
+                      {/* Payment & Status Column */}
+                      <td className="px-8 py-6">
+                        <div className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest mb-1 ${
+                          appt.status === 'In-Progress' ? 'bg-green-50 text-[#08B36A]' : 'bg-yellow-50 text-yellow-600'
+                        }`}>
+                          {appt.status}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-black text-[#08B36A]">₹{appt.totalAmount}</p>
+                          <span className="text-[10px] text-gray-400 font-bold uppercase">(Paid)</span>
+                        </div>
+                      </td>
+
+                      {/* Multi-Call Actions Column */}
+                      <td className="px-8 py-6">
+                        <div className="flex justify-center items-center gap-2">
+                          {appt.isCallActionEnabled ? (
+                            <>
+                              {/* Video Call Trigger */}
+                              <button
+                                disabled={submitting}
+                                onClick={(e) => handleStartCall(e, appt, 'video')}
+                                title="Start Video Call"
+                                className="p-3.5 rounded-2xl text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all active:scale-90 hover:scale-105"
+                              >
+                                <FaVideo size={16} />
+                              </button>
+
+                              {/* Audio Call Trigger */}
+                              <button
+                                disabled={submitting}
+                                onClick={(e) => handleStartCall(e, appt, 'audio')}
+                                title="Start Audio Call"
+                                className="p-3.5 rounded-2xl text-green-600 bg-green-50 hover:bg-green-100 transition-all active:scale-90 hover:scale-105"
+                              >
+                                <FaPhoneAlt size={15} />
+                              </button>
+
+                              {/* Messaging Trigger */}
+                              <button
+                                disabled={submitting}
+                                onClick={(e) => handleOpenChat(e, appt)}
+                                title="Send Message"
+                                className="p-3.5 rounded-2xl text-purple-600 bg-purple-50 hover:bg-purple-100 transition-all active:scale-90 hover:scale-105"
+                              >
+                                <FaComment size={15} />
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest px-4 py-2.5 bg-gray-50 rounded-xl">
+                              Call Disabled
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* CHAT MODAL */}
+      {isChatModalOpen && selectedAppointment && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[120] p-4 backdrop-blur-md">
+          <div className="bg-white rounded-[3rem] w-full max-w-lg h-[80vh] flex flex-col overflow-hidden relative shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+            
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <img 
+                  src={selectedAppointment.userAccount?.profilePic} 
+                  alt={selectedAppointment.patientName} 
+                  className="w-10 h-10 rounded-xl object-cover bg-gray-100"
+                />
+                <div>
+                  <h2 className="text-base font-black text-gray-900 tracking-tight uppercase">
+                    {selectedAppointment.patientName}
+                  </h2>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    ID: {selectedAppointment.bookingId}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsChatModalOpen(false)} 
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-400 hover:text-red-500 transition-all"
+              >
+                <IoCloseOutline size={24} />
+              </button>
+            </div>
+
+            {/* Chat Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/50">
+              {chatLoading ? (
+                <div className="flex flex-col items-center justify-center h-full">
+                  <FaSpinner className="animate-spin text-[#08B36A] mb-2" size={24} />
+                  <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Loading History...</p>
+                </div>
+              ) : chatMessages.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-center">
+                  <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">No previous messages. Start the chat below!</p>
+                </div>
+              ) : (
+                chatMessages.map((msg) => {
+                  const isDoctor = msg.senderType === 'Doctor';
+                  return (
+                    <div 
+                      key={msg._id} 
+                      className={`flex ${isDoctor ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[75%] rounded-[1.5rem] px-4 py-3 shadow-sm ${
+                        isDoctor 
+                          ? 'bg-[#08B36A] text-white rounded-tr-none' 
+                          : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'
+                      }`}>
+                        <p className="text-sm font-semibold leading-relaxed break-words">{msg.message}</p>
+                        <p className={`text-[9px] mt-1 text-right ${isDoctor ? 'text-green-100' : 'text-gray-400'} font-bold`}>
+                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Chat Input Footer */}
+            <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-100 flex gap-3">
+              <input
+                type="text"
+                placeholder="Type your message here..."
+                value={newMessageText}
+                onChange={(e) => setNewMessageText(e.target.value)}
+                className="flex-1 px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl font-semibold text-sm text-gray-700 focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] outline-none transition-all"
+              />
+              <button
+                type="submit"
+                className="px-5 bg-[#08B36A] hover:bg-green-600 text-white rounded-2xl flex items-center justify-center transition-all active:scale-95 shadow-lg shadow-green-100"
+              >
+                <FaPaperPlane size={14} />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Video/Audio Call WebRTC Modal Container */}
+      {isVideoModalOpen && (
+        <VideoCallModal
+          callId={activeCallId}
+          callerName="Doctor"
+          role="caller" // Dictates offer production for WebRTC signaling
+          callType={callType} // Custom pass-through of chosen modality
+          onClose={() => {
+            setIsVideoModalOpen(false);
+            setActiveCallId(null);
+          }}
+        />
+      )}
+    </div>
+  );
 }
+
+export default Page;

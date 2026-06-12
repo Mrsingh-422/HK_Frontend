@@ -317,6 +317,15 @@ const DoctorAPI = {
         }
     },
 
+    getDoctorChatHistory: async (appointmentId) => {
+        try {
+            const response = await doctorApi.get(`/api/chat/doctor/history/${appointmentId}`);
+            return response.data;
+        } catch (error) {
+            console.error("API Error in getDoctorChatHistory:", error);
+        }
+    }
+
 
 
 

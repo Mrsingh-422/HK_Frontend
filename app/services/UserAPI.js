@@ -796,6 +796,19 @@ const UserAPI = {
         return response.data;
     },
 
+    getVideoCallAppointmentsUser: async () => {
+        const response = await authApi.get("/user/doctors/video-consults");
+        return response.data;
+    },
+
+    getUserChatHistory: async (appointmentId) => {
+        const response = await authApi.get(`/api/chat/user/history/${appointmentId}`);
+        return response.data;
+    },
+
+
+
+
     updateFCMtoken: async (fcmToken) => {
         const response = await authApi.patch('/user/doctor/video-call/update-fcm', fcmToken)
         return response.data;
@@ -809,7 +822,7 @@ const UserAPI = {
         const response = await authApi.post('/doctor/video-call/respond', data);
         return response.data;
     },
-    
+
 
 };
 
