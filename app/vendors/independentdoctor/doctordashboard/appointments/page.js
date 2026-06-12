@@ -122,6 +122,7 @@ export default function AppointmentsPage() {
             const payload = {
                 appointmentId: appointment._id,
                 callId: appointment._id, // We send the appointment ID as the initial Room ID
+                callType: "video",
                 callerName: "Dr. " + (appointment.doctorId?.name || "Doctor"),
                 receiverId: appointment.userId?._id, // Ensure this is the patient's ID
             };

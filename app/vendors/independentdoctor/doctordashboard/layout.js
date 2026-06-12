@@ -158,6 +158,7 @@ export default function IndependentDoctorLayout({ children }) {
     const menuItems = [
         { name: 'Dashboard', href: '/vendors/independentdoctor/doctordashboard', icon: FaChartLine },
         { name: 'Appointments', href: '/vendors/independentdoctor/doctordashboard/appointments', icon: FaCalendarCheck },
+        { name: 'Video Appointments', href: '/vendors/independentdoctor/doctordashboard/videocallappointments', icon: FaCalendarCheck },
         { name: 'Availability', href: '/vendors/independentdoctor/doctordashboard/availability', icon: FaClock },
         { name: 'Coupons', href: '/vendors/independentdoctor/doctordashboard/coupons', icon: FaTicketAlt },
         { name: 'Visit Charges', href: '/vendors/independentdoctor/doctordashboard/visitcharges', icon: FaTag },
