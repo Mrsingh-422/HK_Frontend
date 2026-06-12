@@ -6,7 +6,9 @@ import DoctorAPI from '@/app/services/DoctorAPI';
 import { toast } from 'react-hot-toast';
 
 const servers = {
-    iceServers: [{ urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }],
+    iceServers: [
+        { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }
+    ],
     iceCandidatePoolSize: 10,
 };
 
@@ -14,13 +16,13 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
     const [localStream, setLocalStream] = useState(null);
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
-    const [callStartedAt, setCallStartedAt] = useState(null); 
+    const [connState, setConnState] = useState('Initializing...'); // Track connection state
+    const [remoteStreamReceived, setRemoteStreamReceived] = useState(false);
 
     const localVideoRef = useRef();
     const remoteVideoRef = useRef();
     const pc = useRef(null);
-    const isEnding = useRef(false); 
-    const localStreamRef = useRef(null);
+    const isEnding = useRef(false);
 
     useEffect(() => {
         let isMounted = true;
@@ -28,78 +30,67 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
 
         const setupCall = async () => {
             try {
-                // 1. Initialize Peer Connection
+                console.log(`🚀 Starting Call as ${role}...`);
                 pc.current = new RTCPeerConnection(servers);
 
-                // 2. Get Media Stream
+                // 1. Get Media
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                if (!isMounted) {
-                    stream.getTracks().forEach(t => t.stop());
-                    return;
-                }
+                if (!isMounted) return stream.getTracks().forEach(t => t.stop());
                 
                 setLocalStream(stream);
-                localStreamRef.current = stream;
                 if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
-                // 3. Add tracks to Peer Connection BEFORE creating offer/answer
-                stream.getTracks().forEach((track) => {
-                    pc.current.addTrack(track, stream);
-                });
+                // 2. Add Tracks BEFORE creating Offer/Answer
+                stream.getTracks().forEach((track) => pc.current.addTrack(track, stream));
 
-                // 4. Setup Remote Stream Handling
+                // 3. Handle Remote Stream
                 pc.current.ontrack = (event) => {
-                    console.log("📡 Remote track received:", event.streams[0]);
+                    console.log("💎 REMOTE TRACK RECEIVED!");
                     if (remoteVideoRef.current && event.streams[0]) {
                         remoteVideoRef.current.srcObject = event.streams[0];
-                        setCallStartedAt(prev => prev || Date.now());
+                        setRemoteStreamReceived(true);
                     }
                 };
 
-                // Debug connection state
+                // 4. Monitor Connection State
                 pc.current.oniceconnectionstatechange = () => {
-                    console.log("Connection State:", pc.current.iceConnectionState);
-                    if (pc.current.iceConnectionState === 'disconnected') {
-                        handleCloseUI();
-                    }
+                    console.log("📡 Connection State:", pc.current.iceConnectionState);
+                    if (isMounted) setConnState(pc.current.iceConnectionState);
                 };
 
-                // 5. Firestore Signaling Refs
+                // 5. Signaling Setup
                 const callDoc = doc(db, 'calls', callId);
                 const offerCandidates = collection(callDoc, 'offerCandidates');
                 const answerCandidates = collection(callDoc, 'answerCandidates');
 
-                // 6. Handle ICE Candidates
                 pc.current.onicecandidate = (event) => {
                     if (event.candidate && isMounted) {
-                        const candidateCol = role === 'caller' ? offerCandidates : answerCandidates;
-                        addDoc(candidateCol, event.candidate.toJSON());
+                        console.log("🧊 Sending ICE Candidate...");
+                        const col = role === 'caller' ? offerCandidates : answerCandidates;
+                        addDoc(col, event.candidate.toJSON());
                     }
                 };
 
                 if (role === 'caller') {
-                    // --- DOCTOR LOGIC ---
+                    // --- CALLER FLOW ---
                     const offerDescription = await pc.current.createOffer();
                     await pc.current.setLocalDescription(offerDescription);
                     
                     await setDoc(callDoc, {
                         offer: { sdp: offerDescription.sdp, type: offerDescription.type },
                         callerName,
-                        status: 'initiated',
-                        createdAt: Date.now()
+                        status: 'initiated'
                     });
 
-                    // Listen for Answer
                     unsubscribes.push(onSnapshot(callDoc, (snapshot) => {
                         const data = snapshot.data();
                         if (pc.current && !pc.current.currentRemoteDescription && data?.answer) {
-                            const answerDesc = new RTCSessionDescription(data.answer);
-                            pc.current.setRemoteDescription(answerDesc);
+                            console.log("✅ Answer Received!");
+                            pc.current.setRemoteDescription(new RTCSessionDescription(data.answer));
                         }
                         if (data?.status === 'completed') handleCloseUI();
                     }));
 
-                    // Listen for Patient's ICE Candidates
                     unsubscribes.push(onSnapshot(answerCandidates, (snapshot) => {
                         snapshot.docChanges().forEach((change) => {
                             if (change.type === 'added' && pc.current?.remoteDescription) {
@@ -109,16 +100,14 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
                     }));
 
                 } else {
-                    // --- PATIENT LOGIC ---
+                    // --- RECEIVER FLOW ---
+                    console.log("📥 Fetching Offer...");
                     const callSnapshot = await getDoc(callDoc);
                     if (!callSnapshot.exists()) return onClose();
 
                     const callData = callSnapshot.data();
-                    
-                    // Set Remote Offer
                     await pc.current.setRemoteDescription(new RTCSessionDescription(callData.offer));
 
-                    // Create Answer
                     const answerDescription = await pc.current.createAnswer();
                     await pc.current.setLocalDescription(answerDescription);
 
@@ -127,13 +116,10 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
                         status: 'accepted'
                     });
 
-                    // Listen for Doctor ending call
                     unsubscribes.push(onSnapshot(callDoc, (snapshot) => {
-                        const data = snapshot.data();
-                        if (data?.status === 'completed') handleCloseUI();
+                        if (snapshot.data()?.status === 'completed') handleCloseUI();
                     }));
 
-                    // Listen for Doctor's ICE Candidates
                     unsubscribes.push(onSnapshot(offerCandidates, (snapshot) => {
                         snapshot.docChanges().forEach((change) => {
                             if (change.type === 'added' && pc.current?.remoteDescription) {
@@ -143,68 +129,42 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
                     }));
                 }
             } catch (err) {
-                console.error("WebRTC Error:", err);
+                console.error("❌ WebRTC Error:", err);
                 onClose();
             }
         };
 
         setupCall();
-
         return () => {
             isMounted = false;
-            unsubscribes.forEach(unsub => unsub());
-            if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
+            unsubscribes.forEach(u => u());
             if (pc.current) pc.current.close();
         };
     }, [callId, role]);
 
     const handleCloseUI = () => {
-        if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
+        localStream?.getTracks().forEach(t => t.stop());
         onClose();
     };
 
-    const handleHangupClick = async () => {
+    const handleHangup = async () => {
         if (isEnding.current) return;
         isEnding.current = true;
         try {
-            const duration = callStartedAt ? Math.floor((Date.now() - callStartedAt) / 1000) : 0;
-            await DoctorAPI.endVideoCall({ callId, totalDurationInSeconds: duration });
             await updateDoc(doc(db, 'calls', callId), { status: 'completed' });
-        } catch (error) {
-            console.error(error);
+            await DoctorAPI.endVideoCall({ callId, totalDurationInSeconds: 0 });
         } finally {
             handleCloseUI();
         }
     };
 
-    const toggleMic = () => {
-        const track = localStream?.getAudioTracks()[0];
-        if (track) {
-            track.enabled = !track.enabled;
-            setIsMuted(!track.enabled);
-        }
-    };
-
-    const toggleVideo = () => {
-        const track = localStream?.getVideoTracks()[0];
-        if (track) {
-            track.enabled = !track.enabled;
-            setIsVideoOff(!track.enabled);
-        }
-    };
-
     return (
-        <div className="fixed inset-0 bg-black z-[999] flex flex-col overflow-hidden">
-            <div className="relative flex-1 flex items-center justify-center bg-slate-900">
-                {/* REMOTE VIDEO (The other person) */}
-                <video 
-                    ref={remoteVideoRef} 
-                    autoPlay 
-                    playsInline 
-                    className="w-full h-full object-contain" 
-                />
+        <div className="fixed inset-0 bg-slate-950 z-[999] flex flex-col overflow-hidden font-sans">
+            <div className="relative flex-1 flex items-center justify-center bg-gray-900">
+                {/* REMOTE VIDEO */}
+                <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-contain" />
 
-                {/* LOCAL VIDEO (Self) */}
+                {/* LOCAL VIDEO */}
                 <div className="absolute top-6 right-6 w-32 md:w-56 aspect-[3/4] rounded-3xl overflow-hidden border-2 border-white/20 shadow-2xl z-20 bg-black">
                     <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
                     {isVideoOff && (
@@ -214,22 +174,39 @@ export default function VideoCallModal({ callId, onClose, callerName, role = 'ca
                     )}
                 </div>
 
-                <div className="absolute top-8 left-1/2 -translate-x-1/2 px-6 py-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
-                    <p className="text-white text-[10px] font-black uppercase tracking-[0.3em]">
-                        {role === 'caller' ? 'Calling...' : `Live: ${callerName}`}
-                    </p>
-                </div>
+                {/* CONNECTION STATUS BADGE */}
+                {!remoteStreamReceived && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+                        <div className="animate-pulse flex flex-col items-center">
+                            <div className="w-16 h-16 border-4 border-[#08B36A] border-t-transparent rounded-full animate-spin mb-4"></div>
+                            <p className="text-white font-black uppercase tracking-[0.4em] text-xs">
+                                {connState === 'connected' ? 'Starting Stream...' : `Status: ${connState}`}
+                            </p>
+                            <p className="text-white/40 text-[10px] mt-2 uppercase">Waiting for {role === 'caller' ? 'Patient' : 'Doctor'}...</p>
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* Controls */}
-            <div className="h-32 bg-slate-900 flex items-center justify-center gap-6">
-                <button onClick={toggleMic} className={`p-5 rounded-full ${isMuted ? 'bg-red-500' : 'bg-white/10 text-white'}`}>
+            {/* CONTROLS */}
+            <div className="h-32 bg-slate-900/80 backdrop-blur-xl flex items-center justify-center gap-8">
+                <button onClick={() => {
+                    const t = localStream.getAudioTracks()[0];
+                    t.enabled = !t.enabled;
+                    setIsMuted(!t.enabled);
+                }} className={`p-5 rounded-full ${isMuted ? 'bg-red-500' : 'bg-white/10 text-white'}`}>
                     {isMuted ? <FaMicrophoneSlash size={20} /> : <FaMicrophone size={20} />}
                 </button>
-                <button onClick={handleHangupClick} className="p-6 rounded-full bg-red-500 text-white shadow-xl">
-                    <FaPhoneSlash size={28} />
+
+                <button onClick={handleHangup} className="p-6 rounded-full bg-red-500 text-white shadow-2xl hover:scale-110 transition-all">
+                    <FaPhoneSlash size={30} />
                 </button>
-                <button onClick={toggleVideo} className={`p-5 rounded-full ${isVideoOff ? 'bg-red-500' : 'bg-white/10 text-white'}`}>
+
+                <button onClick={() => {
+                    const t = localStream.getVideoTracks()[0];
+                    t.enabled = !t.enabled;
+                    setIsVideoOff(!t.enabled);
+                }} className={`p-5 rounded-full ${isVideoOff ? 'bg-red-500' : 'bg-white/10 text-white'}`}>
                     {isVideoOff ? <FaVideoSlash size={20} /> : <FaVideo size={20} />}
                 </button>
             </div>
