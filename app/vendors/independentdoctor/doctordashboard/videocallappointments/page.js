@@ -55,7 +55,7 @@ function Page() {
     // Retrieve Doctor ID from Token payload
     const getDoctorIdFromToken = () => {
         if (typeof window === 'undefined') return null;
-        const token = localStorage.getItem('token') || localStorage.getItem('doctorToken');
+        const token = localStorage.getItem('doctorToken');
         if (!token) return null;
         try {
             const base64Url = token.split('.')[1];
@@ -75,7 +75,7 @@ function Page() {
     const getDoctorIdFromLocalStorage = () => {
         if (typeof window === 'undefined') return null;
         try {
-            const storedData = localStorage.getItem('doctor') || localStorage.getItem('user');
+            const storedData = localStorage.getItem('doctorToken');
             if (storedData) {
                 const parsed = JSON.parse(storedData);
                 return parsed._id || parsed.id;
@@ -531,8 +531,8 @@ function Page() {
                                             className={`flex ${isDoctor ? 'justify-end' : 'justify-start'} animate-in fade-in-50 duration-200`}
                                         >
                                             <div className={`max-w-[80%] rounded-[1.5rem] px-4 py-3 shadow-sm ${isDoctor
-                                                    ? 'bg-[#08B36A] text-white rounded-tr-none shadow-green-100/50'
-                                                    : 'bg-white text-gray-800 rounded-bl-none border border-gray-100'
+                                                ? 'bg-[#08B36A] text-white rounded-tr-none shadow-green-100/50'
+                                                : 'bg-white text-gray-800 rounded-bl-none border border-gray-100'
                                                 }`}>
                                                 <p className="text-sm font-medium leading-relaxed break-words">{msg.text}</p>
                                                 <p className={`text-[9px] mt-1.5 text-right font-black uppercase tracking-wider ${isDoctor ? 'text-green-100' : 'text-gray-400'

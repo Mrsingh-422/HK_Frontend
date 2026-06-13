@@ -169,9 +169,14 @@ export default function ChatPage() {
       return;
     }
 
+    const user = localStorage.getItem("user");
+    const userId = JSON.parse(user);
+
+
+
     const payload = {
       appointmentId: selectedChatId,
-      senderId: "65d3cc4e80f1a612c0335790", // Replace with your active User's authenticated ID
+      senderId: userId._id, // Replace with your active User's authenticated ID
       senderType: "User",
       text: newMessage.trim()
     };
