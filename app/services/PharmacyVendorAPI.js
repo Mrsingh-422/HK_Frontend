@@ -204,8 +204,74 @@ const PharmacyVendorAPI = {
     unblockSlot: async (slotTime) => {
         const response = await pharmacyVendorApi.patch('/provider/availability/unblock-slot', { slotTime });
         return response.data;
-    }
+    },
+ 
+     // --- PRESCRIPTION REQUESTS ---
+    listPrescriptionRequests: async (status = '') => {
+        const response = await pharmacyVendorApi.get('/provider/pharmacy/orders/prescription-request/list', {
+            params: status ? { status } : {}
+        });
+        return response.data;
+    },
+ 
+    getPrescriptionRequestDetails: async (requestId) => {
+        const response = await pharmacyVendorApi.get(`/provider/pharmacy/orders/prescription-request/details/${requestId}`);
+        return response.data;
+    },
+ 
+    startPrescriptionReview: async (requestId) => {
+        const response = await pharmacyVendorApi.post(`/provider/pharmacy/orders/prescription-request/start-review/${requestId}`);
+        return response.data;
+    },
+ 
+    submitPrescriptionReview: async (requestId, payload) => {
+        const response = await pharmacyVendorApi.post(`/provider/pharmacy/orders/prescription-request/review/${requestId}`, payload);
+        return response.data;
+    },
+ 
+    rejectPrescriptionRequest: async (requestId, reason) => {
+        const response = await pharmacyVendorApi.post(`/provider/pharmacy/orders/prescription-request/reject/${requestId}`, { reason });
+        return response.data;
+    },
+     
+    // ==========================================
+    // --- PHARMACY COMBO OFFERS (BOGO) ---
+    // ==========================================
+    // Step A.3: Get list of campaigns
+    listComboOffers: async () => {
+        const response = await pharmacyVendorApi.get('/provider/pharmacy/combo-offers/my-offers');
+        return response.data;
+    },
+ 
+    // Step A.2: Create with multipart file uploads
+    createComboOffer: async (formData) => {
+        const response = await pharmacyVendorApi.post('/provider/pharmacy/combo-offers', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+ 
+    // Step A.4-B: Update Campaign with optional images
+    updateComboOffer: async (offerId, formData) => {
+        const response = await pharmacyVendorApi.put(`/provider/pharmacy/combo-offers/${offerId}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+ 
+    // Step A.4-A: Active/Pause Switch Status Toggle
+    toggleComboOffer: async (offerId) => {
+        const response = await pharmacyVendorApi.patch(`/provider/pharmacy/combo-offers/${offerId}/toggle`);
+        return response.data;
+    },
+ 
+    // Step A.4-C: Delete Campaign
+    deleteComboOffer: async (offerId) => {
+        const response = await pharmacyVendorApi.delete(`/provider/pharmacy/combo-offers/${offerId}`);
+        return response.data;
+    },
 };
  
 export default PharmacyVendorAPI;
+ 
  

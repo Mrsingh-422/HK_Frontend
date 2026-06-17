@@ -9,6 +9,22 @@ import SlotPicker from "../othercomponents/SlotPicker";
 import ConsumablesPicker from "../othercomponents/ConsumablesPicker";
 import UserAPI from "@/app/services/UserAPI";
 
+// Utility to dynamically load the Razorpay SDK script
+const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+        if (window.Razorpay) {
+            resolve(true);
+            return;
+        }
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+    });
+};
+
 function AppointmentSchedulingContent() {
     const router = useRouter();
     const [bookingData, setBookingData] = useState(null);
@@ -17,6 +33,7 @@ function AppointmentSchedulingContent() {
     const [selectedConsumables, setSelectedConsumables] = useState([]);
     const [availableConsumables, setAvailableConsumables] = useState([]);
     const [consumablesLoading, setConsumablesLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [slotInfo, setSlotInfo] = useState({
         mode: "One day One Time",
         startDate: "",
@@ -24,7 +41,7 @@ function AppointmentSchedulingContent() {
         startTime: "",
         endTime: "",
         extraFee: 0,
-        basePrice: 0, 
+        basePrice: 0,
         displayTime: ""
     });
 
@@ -79,8 +96,18 @@ function AppointmentSchedulingContent() {
 
     const handleFinalBooking = async (summaryData) => {
         try {
+            setIsSubmitting(true);
+
+            // Load Razorpay script dynamically before proceeding
+            const isScriptLoaded = await loadRazorpayScript();
+            if (!isScriptLoaded) {
+                alert("Failed to load Razorpay SDK. Please check your network connection.");
+                setIsSubmitting(false);
+                return;
+            }
+
             const { isExpress, expressCharge, appliedCoupon, discountAmount, finalTotal } = summaryData;
-            
+
             // Use dynamic price from SlotPicker for the specific mode (Single/Multi/Hourly)
             const dynamicBasePrice = slotInfo.basePrice || bookingData.basePrice;
 
@@ -94,7 +121,7 @@ function AppointmentSchedulingContent() {
                     title: bookingData.serviceDetails?.title || "",
                     type: bookingData.serviceDetails?.type || "",
                     duration: bookingData.serviceDetails?.duration || "",
-                    basePrice: dynamicBasePrice, 
+                    basePrice: dynamicBasePrice,
                     procedureIncluded: bookingData.serviceDetails?.procedureIncluded || "",
                     servicesOffered: bookingData.serviceDetails?.servicesOffered || ""
                 },
@@ -120,7 +147,7 @@ function AppointmentSchedulingContent() {
                     endDate: slotInfo.endDate || slotInfo.startDate,
                     startTime: slotInfo.startTime,
                     endTime: slotInfo.endTime || slotInfo.startTime,
-                    duration: slotInfo.mode 
+                    duration: slotInfo.mode
                 },
 
                 priceBreakdown: {
@@ -156,22 +183,79 @@ function AppointmentSchedulingContent() {
                 basePrice: dynamicBasePrice,
                 totalPrice: Math.round(finalTotal),
                 selectedConsumables: selectedConsumables,
-                // UPDATE: correctly setting needConsumable based on selection
-                needConsumable: selectedConsumables.length > 0, 
-                status: "Pending"
+                needConsumable: selectedConsumables.length > 0,
             };
-            const res = await UserAPI.processBooking(finalPayload);
-            if (res?.success) {
-                const res = await UserAPI.nurseFinalBooking(finalPayload);
-                sessionStorage.removeItem("pendingNurseBooking");
-                alert("Booking Created Successfully!");
-                // router.push('/profile/bookings');
+
+            const processRes = await UserAPI.processBooking(finalPayload);
+            if (processRes?.success) {
+                const { key_id, amount, razorpayOrderId, appointmentId } = processRes;
+
+                // Configure SDK options
+                const options = {
+                    key: key_id,
+                    amount: amount,
+                    currency: "INR",
+                    name: "HK Healthcare App",
+                    description: "Nurse Consultation Fee",
+                    order_id: razorpayOrderId,
+                    prefill: {
+                        name: bookingData.patients?.[0]?.name || "Patient Name",
+                        email: "patient@example.com",
+                        contact: selectedAddress?.phone || "9876543210"
+                    },
+                    theme: {
+                        color: "#3399cc"
+                    },
+                    // Handle client outcome tracking
+                    modal: {
+                        ondismiss: function () {
+                            setIsSubmitting(false);
+                        }
+                    },
+                    handler: async function (response) {
+                        try {
+                            setIsSubmitting(true);
+                            const verificationPayload = {
+                                appointmentId: appointmentId,
+                                razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
+                                razorpayPaymentId: response.razorpay_payment_id,
+                                razorpaySignature: response.razorpay_signature
+                            };
+
+                            const verificationRes = await UserAPI.verifyPaymentNurse(verificationPayload);
+
+                            if (verificationRes?.success) {
+                                sessionStorage.removeItem("pendingNurseBooking");
+                                alert(verificationRes.message || "Payment verified successfully. Booking is now Confirmed!");
+                                router.push('/userscreens/previousorders');
+                            } else {
+                                alert(verificationRes?.message || "Signature verification failed. Invalid transaction token.");
+                            }
+                        } catch (verificationError) {
+                            console.error("Payment Verification Error:", verificationError);
+                            alert("Something went wrong during payment verification.");
+                        } finally {
+                            setIsSubmitting(false);
+                        }
+                    }
+                };
+
+                // Open dynamic Razorpay payment window
+                const rzpInstance = new window.Razorpay(options);
+                rzpInstance.on('payment.failed', function (response) {
+                    alert(`Payment failed: ${response.error.description}`);
+                    setIsSubmitting(false);
+                });
+                rzpInstance.open();
+                
             } else {
-                alert(res?.message || "Booking failed");
+                alert(processRes?.message || "Booking validation process failed");
+                setIsSubmitting(false);
             }
         } catch (error) {
             console.error("Booking Error:", error);
             alert("Something went wrong");
+            setIsSubmitting(false);
         }
     };
 
@@ -215,6 +299,7 @@ function AppointmentSchedulingContent() {
                             selectedAddress={selectedAddress}
                             selectedConsumables={selectedConsumables}
                             onProceed={handleFinalBooking}
+                            isSubmitting={isSubmitting}
                         />
                     </div>
                 </div>

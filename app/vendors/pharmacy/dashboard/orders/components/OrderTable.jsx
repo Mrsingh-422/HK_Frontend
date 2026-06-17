@@ -228,7 +228,7 @@ export default function OrderTable({ orders = [], refresh, hideActions = false, 
                             
                             {isImageFocused && selectedOrder.prescriptionImages?.length > 0 && (
                                 <div className="absolute inset-0 z-[50] bg-white flex flex-col p-6 animate-in fade-in zoom-in duration-300">
-                                    {/* ... focus mode header ... */}
+                                    {/* focus mode header */}
                                     <div className="flex items-center justify-between mb-4">
                                         <p className="text-xs font-black text-emerald-600 uppercase tracking-widest">Inspection Mode</p>
                                         <div className="flex gap-2">
@@ -281,30 +281,49 @@ export default function OrderTable({ orders = [], refresh, hideActions = false, 
                                         <div className="bg-blue-50/50 p-6 rounded-[32px] border border-blue-100">
                                             <p className="text-[10px] font-black text-blue-400 uppercase mb-4 flex items-center gap-2"><FaUserInjured /> Patient Information</p>
                                             {selectedOrder.patients?.map((patient, pIdx) => (
-                                                <div key={pIdx} className="space-y-2">
+                                                <div key={pIdx} className="space-y-2 border-b border-blue-100/50 pb-2 last:border-b-0 last:pb-0">
                                                     <p className="font-black text-slate-800 text-sm">{patient.name}</p>
                                                     <div className="flex flex-wrap gap-2">
                                                         <span className="px-2 py-1 bg-white rounded-lg text-[9px] font-bold text-slate-500 border border-slate-100 uppercase">{patient.gender}</span>
                                                         <span className="px-2 py-1 bg-white rounded-lg text-[9px] font-bold text-slate-500 border border-slate-100 uppercase">{patient.age} Years</span>
                                                         <span className="px-2 py-1 bg-white rounded-lg text-[9px] font-bold text-blue-600 border border-blue-100 uppercase">{patient.relation}</span>
                                                     </div>
+                                                    <div className="text-[9px] text-gray-400 font-bold tracking-tight">
+                                                        Patient ID: {patient.patientId || 'N/A'} | System ID: {patient._id || 'N/A'}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
 
+                                        {/* 1.5. Customer Account (Booked By) */}
+                                        {selectedOrder.userId && (
+                                            <div className="bg-slate-50 p-6 rounded-[32px] border border-slate-100">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase mb-4 flex items-center gap-2"><FaUser /> Customer Account Detail</p>
+                                                <div className="text-xs text-slate-700 font-semibold space-y-1">
+                                                    <div>Account Holder: <span className="text-slate-900 font-black">{selectedOrder.userId.name}</span></div>
+                                                    <div>Account Mobile: <span className="text-slate-900 font-black">{selectedOrder.userId.phone}</span></div>
+                                                    <div className="text-[9px] text-slate-400 uppercase mt-2">Account ID: {selectedOrder.userId._id}</div>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* 2. Customer & Shipping Contact */}
                                         <div className="bg-slate-50/50 p-6 rounded-[32px] border border-slate-100">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase mb-4 flex items-center gap-2"><FaUser /> Shipping Address</p>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase mb-4 flex items-center gap-2"><FaTruck /> Delivery Contact & Address</p>
                                             <div className="space-y-3">
                                                 <div>
-                                                    <p className="font-black text-slate-800 text-sm">{selectedOrder.address?.name || selectedOrder.userId?.name}</p>
-                                                    <p className="text-xs font-bold text-emerald-600">{selectedOrder.address?.phone || selectedOrder.userId?.phone}</p>
+                                                    <p className="font-black text-slate-800 text-sm">Recipient: {selectedOrder.address?.name || 'N/A'}</p>
+                                                    <p className="text-xs font-bold text-emerald-600">Phone: {selectedOrder.address?.phone || 'N/A'}</p>
                                                 </div>
                                                 <div className="pt-3 border-t border-slate-200">
-                                                    <p className="text-xs font-bold text-slate-600 leading-relaxed uppercase">
-                                                        <FaMapMarkerAlt className="inline mr-1 text-emerald-400" />
-                                                        {selectedOrder.address?.houseNo}, {selectedOrder.address?.sector ? `Sector ${selectedOrder.address?.sector},` : ''} {selectedOrder.address?.city}, {selectedOrder.address?.state} - {selectedOrder.address?.pincode}
-                                                    </p>
+                                                    <div className="text-xs font-bold text-slate-600 leading-relaxed uppercase space-y-1">
+                                                        <p><FaMapMarkerAlt className="inline mr-1 text-emerald-400" />
+                                                            {selectedOrder.address?.houseNo}, {selectedOrder.address?.sector ? `Sector ${selectedOrder.address?.sector},` : ''} 
+                                                        </p>
+                                                        {selectedOrder.address?.landmark && <p className="text-slate-500 font-semibold italic text-[11px]">Landmark: {selectedOrder.address.landmark}</p>}
+                                                        <p>{selectedOrder.address?.city}, {selectedOrder.address?.state} - {selectedOrder.address?.pincode}</p>
+                                                        <p className="flex items-center gap-1"><FaGlobe className="text-slate-300" size={10} /> {selectedOrder.address?.country || 'India'}</p>
+                                                    </div>
                                                     <span className="inline-block mt-2 px-2 py-0.5 bg-slate-200 text-slate-600 text-[8px] font-black rounded uppercase tracking-widest">{selectedOrder.address?.addressType}</span>
                                                 </div>
                                             </div>
@@ -342,16 +361,21 @@ export default function OrderTable({ orders = [], refresh, hideActions = false, 
                                             <p className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-2"><FaClipboardList /> Order Items ({selectedOrder.items?.length || 0})</p>
                                             <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-2">
                                                 {selectedOrder.items?.map((item, idx) => (
-                                                    <div key={idx} className="flex justify-between items-center p-4 bg-white border border-slate-100 rounded-2xl">
-                                                        <div>
-                                                            <p className="text-xs font-black text-slate-800">{item.name}</p>
-                                                            <div className="flex gap-2 items-center">
-                                                                <p className="text-[10px] font-bold text-slate-400">Qty: {item.quantity}</p>
-                                                                <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-                                                                <p className="text-[10px] font-bold text-emerald-500 uppercase">{item.duration}</p>
+                                                    <div key={idx} className="flex flex-col p-4 bg-white border border-slate-100 rounded-2xl gap-2">
+                                                        <div className="flex justify-between items-start">
+                                                            <div>
+                                                                <p className="text-xs font-black text-slate-800">{item.name}</p>
+                                                                <div className="flex gap-2 items-center mt-1">
+                                                                    <p className="text-[10px] font-bold text-slate-400">Qty: {item.quantity}</p>
+                                                                    <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                                                                    <p className="text-[10px] font-bold text-emerald-500 uppercase">{item.duration}</p>
+                                                                </div>
                                                             </div>
+                                                            <p className="font-black text-slate-700 text-xs">₹{item.price * item.quantity}</p>
                                                         </div>
-                                                        <p className="font-black text-slate-700 text-xs">₹{item.price * item.quantity}</p>
+                                                        <div className="text-[8px] text-slate-400 font-bold tracking-tight border-t pt-1 border-slate-50">
+                                                            Medicine ID: {item.medicineId || 'N/A'} | Doc ID: {item._id || 'N/A'}
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -364,6 +388,18 @@ export default function OrderTable({ orders = [], refresh, hideActions = false, 
                                                 <div className="flex justify-between opacity-90"><span>Item Total</span><span>₹{selectedOrder.billSummary?.itemTotal || 0}</span></div>
                                                 <div className="flex justify-between opacity-90"><span>Delivery Charges</span><span>₹{selectedOrder.billSummary?.deliveryCharge || 0}</span></div>
                                                 {selectedOrder.billSummary?.rapidDeliveryCharge > 0 && <div className="flex justify-between opacity-90"><span>Rapid Charge</span><span>₹{selectedOrder.billSummary?.rapidDeliveryCharge}</span></div>}
+                                                <div className="flex justify-between opacity-90"><span>Slot Surcharge</span><span>₹{selectedOrder.billSummary?.slotCharge || 0}</span></div>
+                                                {selectedOrder.billSummary?.couponDiscount > 0 && (
+                                                    <div className="flex flex-col gap-0.5 pt-1">
+                                                        <div className="flex justify-between text-emerald-200">
+                                                            <span>Coupon Discount</span>
+                                                            <span>- ₹{selectedOrder.billSummary?.couponDiscount}</span>
+                                                        </div>
+                                                        {selectedOrder.billSummary?.couponId && (
+                                                            <div className="text-[8px] text-emerald-100 font-normal tracking-tight">Coupon ID: {selectedOrder.billSummary.couponId}</div>
+                                                        )}
+                                                    </div>
+                                                )}
                                                 <div className="pt-4 border-t border-emerald-500 mt-2 flex justify-between items-center">
                                                     <span className="text-[10px] uppercase font-black tracking-widest">Grand Total</span>
                                                     <span className="text-3xl font-black">₹{selectedOrder.billSummary?.totalAmount || 0}</span>
@@ -385,16 +421,54 @@ export default function OrderTable({ orders = [], refresh, hideActions = false, 
                                                     )}
                                                 </div>
                                                 <div className="flex items-center gap-4">
-                                                    <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100 shadow-sm font-black text-xl">
-                                                        {getInitials(selectedOrder.driverId.name)}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-base font-black text-blue-800">{selectedOrder.driverId.name}</p>
+                                                    {selectedOrder.driverId.profilePic ? (
+                                                        <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-white shadow-sm shrink-0 bg-white">
+                                                            <img src={getImgUrl(selectedOrder.driverId.profilePic)} alt="Driver Profile" className="w-full h-full object-cover" />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100 shadow-sm font-black text-xl shrink-0">
+                                                            {getInitials(selectedOrder.driverId.name)}
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-base font-black text-blue-800 truncate">{selectedOrder.driverId.name}</p>
                                                         <p className="text-[11px] font-bold text-blue-400">{selectedOrder.driverId.phone}</p>
+                                                        <div className="flex items-center gap-1.5 mt-1 text-[9px] font-bold text-gray-500 uppercase">
+                                                            <FaIdCard size={10} className="text-blue-300" /> {selectedOrder.driverId.vehicleNumber}
+                                                        </div>
+                                                        <div className="text-[8px] text-gray-400 mt-1 font-semibold italic">Driver ID: {selectedOrder.driverId._id}</div>
                                                     </div>
                                                 </div>
+                                                {selectedOrder.assignedAt && (
+                                                    <div className="text-[9px] text-gray-400 font-bold uppercase mt-3 pt-2 border-t border-blue-100 flex items-center gap-1">
+                                                        <FaClock size={8} /> Assign Time: {new Date(selectedOrder.assignedAt).toLocaleString()}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
+
+                                        {/* 8. Rejections Log */}
+                                        {selectedOrder.rejectedBy && (
+                                            <div className="p-4 bg-slate-50 rounded-3xl border border-slate-100">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase mb-2 flex items-center gap-1"><FaExclamationTriangle className="text-slate-300" /> Rejection History</p>
+                                                {selectedOrder.rejectedBy.length > 0 ? (
+                                                    <div className="space-y-1 max-h-24 overflow-y-auto">
+                                                        {selectedOrder.rejectedBy.map((item, key) => (
+                                                            <div key={key} className="text-xs text-rose-500 font-bold">• Rejected Log Detail</div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-xs text-slate-400 font-bold italic">No rejection events logged for this order.</p>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* 9. Meta / System Details */}
+                                        <div className="p-6 bg-slate-50 rounded-[32px] border border-slate-100 space-y-2 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                            <p className="text-slate-500 border-b pb-1">System Metadata Logs</p>
+                                            <div>Placed At: <span className="text-slate-700">{new Date(selectedOrder.createdAt).toLocaleString()}</span></div>
+                                            <div>Last Updated: <span className="text-slate-700">{new Date(selectedOrder.updatedAt).toLocaleString()}</span></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

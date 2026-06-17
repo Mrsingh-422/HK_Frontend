@@ -476,5 +476,82 @@ const HospitalAPI = {
     });
     return response.data;
   },
+  // ==========================================
+  // HOSPITAL PANEL HISTORY API
+  // ==========================================
+
+  /**
+   * Fetch Hospital Admission & Consultation History
+   * GET /hospital/panel/history
+   */
+  getHospitalHistory: async (params = {}) => {
+    const response = await hospitalVendorApi.get('/hospital/panel/history', { params });
+    return response.data;
+  },
+  // ==========================================
+  // ADMISSIONS DETAILS & DISCHARGES
+  // ==========================================
+
+  // Optimized lookup via functional pending collection query (To bypass details route failures)
+  getAdmissionDetails: async (id = null) => {
+    const response = await hospitalVendorApi.get(
+      "/hospital/panel/discharges/pending"
+    );
+
+    if (
+      response.data &&
+      response.data.success &&
+      Array.isArray(response.data.data)
+    ) {
+      // Return full list when no ID is provided
+      if (!id) {
+        return {
+          success: true,
+          data: response.data.data,
+          totalRecords: response.data.totalRecords || 0,
+          totalPages: response.data.totalPages || 0,
+          currentPage: response.data.currentPage || 1,
+        };
+      }
+
+      // Return single patient when ID is provided
+      const matchedCase = response.data.data.find(
+        (item) => item._id === id
+      );
+
+      return {
+        success: true,
+        data: matchedCase
+          ? {
+            patient: matchedCase,
+            prescription: matchedCase.prescription || null,
+          }
+          : null,
+      };
+    }
+
+    return {
+      success: false,
+      message: "Admission details not found.",
+    };
+  },
+
+  finalizeDischarge: async (data) => {
+    const response = await hospitalVendorApi.post(
+      "/hospital/panel/discharge/finalize",
+      data
+    );
+    return response.data;
+  },
+
+  finalizeEmergencyDischarge: async (data) => {
+    const response = await hospitalVendorApi.post(
+      "/hospital/panel/discharge/emergency",
+      data
+    );
+    return response.data;
+  },
+
 }
 export default HospitalAPI;
+

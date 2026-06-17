@@ -9,22 +9,6 @@ import {
 } from 'react-icons/fa';
 import UserAPI from "@/app/services/UserAPI";
 
-// Utility to dynamically load the Razorpay SDK script
-const loadRazorpayScript = () => {
-  return new Promise((resolve) => {
-    if (window.Razorpay) {
-      resolve(true);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-};
-
 export default function BookingConfirmation() {
   const router = useRouter();
 
@@ -189,24 +173,16 @@ export default function BookingConfirmation() {
     setCouponError("");
   };
 
-  // FINAL BOOKING AND PAYMENT HANDLER
+  // FINAL BOOKING HANDLER
   const handleFinalBooking = async () => {
     if (!selectedSlot || !selectedMember || !selectedAddress) return;
 
     try {
       setIsSubmitting(true);
 
-      // 1. Load Razorpay script dynamically
-      const isScriptLoaded = await loadRazorpayScript();
-      if (!isScriptLoaded) {
-        alert("Failed to load Razorpay SDK. Please check your network connection.");
-        setIsSubmitting(false);
-        return;
-      }
-
       const dist = Number(bookingData.distance) || 0;
 
-      // Map UI types to Backend Enum types
+      // 1. Map UI types to Backend Enum types
       let mappedType = "Clinic Visit";
       if (bookingData.selectedService === "Virtual Consultation") {
         mappedType = "Video Consult";
@@ -216,7 +192,7 @@ export default function BookingConfirmation() {
 
       const payload = {
         doctorId: bookingData.doctorId,
-        consultationType: mappedType,
+        consultationType: mappedType, // This now correctly handles 'Video Consult'
         appointmentDate: selectedDate,
         timeSlot: selectedSlot.time,
         distance: dist,
@@ -250,86 +226,24 @@ export default function BookingConfirmation() {
         totalAmount: pricing.total
       };
 
-      // 2. Run backend checkout pre-validation summary
       const summaryRes = await UserAPI.doctorCheckoutSummary(payload);
-      if (!summaryRes.success) {
-        alert(summaryRes.message || "Validation failed");
-        setIsSubmitting(false);
-        return;
-      }
 
-      // 3. Initiate booking and retrieve Razorpay order creation details from backend
-      const bookingRes = await UserAPI.bookDoctorAppointment(payload);
-      if (!bookingRes.success) {
-        alert(bookingRes.message || "Failed to initiate booking");
-        setIsSubmitting(false);
-        return;
-      }
-
-      const { key_id, amount, razorpayOrderId, appointmentId } = bookingRes;
-
-      // 4. Setup options for the Razorpay Checkout Modal
-      const options = {
-        key: key_id,
-        amount: amount,
-        currency: "INR",
-        name: "HK Healthcare App",
-        description: "Doctor Consultation Fee",
-        order_id: razorpayOrderId,
-        prefill: {
-          name: selectedMember.memberName || "Patient Name",
-          email: selectedMember.email || "patient@example.com",
-          contact: selectedMember.phone,
-        },
-        theme: {
-          color: "#3399cc"
-        },
-        // Handles close/dismiss events by user
-        modal: {
-          ondismiss: function () {
-            setIsSubmitting(false);
-          }
-        },
-        // Handles payment outcome verification
-        handler: async function (response) {
-          try {
-            setIsSubmitting(true);
-            const verificationPayload = {
-              appointmentId: appointmentId,
-              razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature
-            };
-
-            const verificationRes = await UserAPI.verifyPaymentDoctor(verificationPayload);
-
-            if (verificationRes.success) {
-              localStorage.removeItem('pendingBooking');
-              alert(verificationRes.message || "Payment verified successfully. Booking is now Confirmed!");
-              router.push('/userscreens/doctorappointment');
-            } else {
-              alert(verificationRes.message || "Payment verification failed");
-            }
-          } catch (verificationError) {
-            console.error("Verification Error:", verificationError);
-            alert("An error occurred during payment verification.");
-          } finally {
-            setIsSubmitting(false);
-          }
+      if (summaryRes.success) {
+        const bookingRes = await UserAPI.bookDoctorAppointment(payload);
+        if (bookingRes.success) {
+          localStorage.removeItem('pendingBooking');
+          alert("Appointment Booked Successfully!");
+          router.push('/userscreens/doctorappointment'); // Redirect to your success or list page
+        } else {
+          alert(bookingRes.message || "Booking failed");
         }
-      };
-
-      // 5. Open Razorpay widget
-      const rzpInstance = new window.Razorpay(options);
-      rzpInstance.on('payment.failed', function (response) {
-        alert(`Payment failed: ${response.error.description}`);
-        setIsSubmitting(false);
-      });
-      rzpInstance.open();
-
+      } else {
+        alert(summaryRes.message || "Validation failed");
+      }
     } catch (error) {
       console.error("Booking Error:", error);
       alert("An error occurred. Please try again.");
+    } finally {
       setIsSubmitting(false);
     }
   };

@@ -306,7 +306,7 @@ const ManageDoctors = () => {
           </form>
         </div>
       ) : (
-        /* ---------------- LIST VIEW (GRID) ---------------- */
+        /* ---------------- LIST VIEW (TABLE) ---------------- */
         <div>
           {fetchLoading ? (
             <div className="flex justify-center items-center h-64"><SpinnerIcon className="w-10 h-10 text-blue-500 animate-spin" /></div>
@@ -317,42 +317,98 @@ const ManageDoctors = () => {
               <p className="text-gray-500 mt-2">Add your first doctor to manage appointments and schedules.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-              {doctors.map((doc) => {
-                 const imageUrl = getFullUrl(doc.profileImage) || 'https://via.placeholder.com/150?text=No+Image';
-                 return (
-                  <div key={doc._id} onClick={() => setSelectedDoctor(doc)} className="bg-white border border-gray-200 rounded-3xl shadow-sm hover:shadow-2xl transition-all duration-300 p-6 flex flex-col relative cursor-pointer group transform hover:-translate-y-1">
-                    
-                    {/* Top Badges */}
-                    <div className="flex justify-between items-start mb-6">
-                       <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg border shadow-sm ${doc.dutyStatus === 'On Duty' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
-                         {doc.dutyStatus}
-                       </span>
-                       <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                          <button onClick={(e) => handleEdit(e, doc)} className="bg-gray-50 border border-blue-100 hover:bg-blue-50 text-blue-600 p-2 rounded-full"><EditIcon className="w-4 h-4" /></button>
-                          <button onClick={(e) => handleDelete(e, doc._id)} className="bg-gray-50 border border-red-100 hover:bg-red-50 text-red-600 p-2 rounded-full"><TrashIcon className="w-4 h-4" /></button>
-                       </div>
-                    </div>
+            <div className="bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-emerald-800 text-white text-xs font-semibold tracking-wider uppercase">
+                      <th className="p-4 pl-6">Doctor Details</th>
+                      <th className="p-4">Contact Information</th>
+                      <th className="p-4">Qualification</th>
+                      <th className="p-4">Experience</th>
+                      <th className="p-4 text-center">Duty Status</th>
+                      <th className="p-4 text-center pr-6">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-sm">
+                    {doctors.map((doc) => {
+                      const imageUrl = getFullUrl(doc.profileImage) || 'https://via.placeholder.com/150?text=No+Image';
+                      return (
+                        <tr 
+                          key={doc._id} 
+                          onClick={() => setSelectedDoctor(doc)} 
+                          className="hover:bg-emerald-50/40 transition-colors cursor-pointer group"
+                        >
+                          {/* Profile details */}
+                          <td className="p-4 pl-6">
+                            <div className="flex items-center gap-4">
+                              <img 
+                                src={imageUrl} 
+                                alt="Doctor" 
+                                className="w-12 h-12 rounded-xl object-cover border border-gray-100 shadow-sm" 
+                              />
+                              <div>
+                                <h3 className="font-bold text-gray-900 group-hover:text-emerald-900 transition-colors">
+                                  Dr. {doc.name}
+                                </h3>
+                                <p className="text-emerald-600 font-bold text-xs uppercase tracking-wide mt-0.5">
+                                  {doc.speciality || 'General'}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
 
-                    {/* Profile Info */}
-                    <div className="flex items-center gap-5 mb-6">
-                       <img src={imageUrl} alt="Doctor" className="w-20 h-20 rounded-2xl object-cover border-2 border-gray-100 shadow-sm" />
-                       <div>
-                          <h3 className="text-xl font-black text-gray-800 truncate">Dr. {doc.name}</h3>
-                          <p className="text-blue-600 font-bold text-xs uppercase tracking-wide mt-1">{doc.speciality || 'General'}</p>
-                          <p className="text-gray-500 text-[10px] font-bold mt-1">🩺 Exp: {doc.experienceYears || 0} Yrs</p>
-                       </div>
-                    </div>
+                          {/* Contact Info */}
+                          <td className="p-4">
+                            <p className="text-gray-800 font-semibold">{doc.phone}</p>
+                            <p className="text-xs text-gray-500 truncate max-w-[180px]">{doc.email}</p>
+                          </td>
 
-                    {/* Footer Info Box */}
-                    <div className="mt-auto space-y-2 text-sm text-gray-700 bg-gray-50/80 border border-gray-100 p-4 rounded-2xl font-medium">
-                      <div className="flex justify-between items-center"><span className="text-gray-400 font-bold uppercase text-[10px] tracking-wider">Phone</span> <span className="font-bold text-gray-800">{doc.phone}</span></div>
-                      <div className="flex justify-between items-center"><span className="text-gray-400 font-bold uppercase text-[10px] tracking-wider">Email</span> <span className="font-bold text-gray-800 truncate max-w-[150px]">{doc.email}</span></div>
-                    </div>
+                          {/* Qualification Details */}
+                          <td className="p-4">
+                            <p className="text-gray-850 font-bold">{doc.qualification || 'N/A'}</p>
+                            <p className="text-xs text-gray-400">Lic: {doc.licenseNumber || 'N/A'}</p>
+                          </td>
 
-                  </div>
-                 )
-              })}
+                          {/* Experience Value */}
+                          <td className="p-4 font-bold text-gray-800">
+                            {doc.experienceYears || 0} Yrs
+                          </td>
+
+                          {/* Duty Status Badge */}
+                          <td className="p-4 text-center">
+                            <span className={`inline-block text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg border shadow-sm ${
+                              doc.dutyStatus === 'On Duty' 
+                                ? 'bg-green-50 text-green-700 border-green-200' 
+                                : 'bg-gray-100 text-gray-500 border-gray-200'
+                            }`}>
+                              {doc.dutyStatus || 'Offline'}
+                            </span>
+                          </td>
+
+                          {/* Interactive Row Actions */}
+                          <td className="p-4 text-center pr-6" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex justify-center gap-2">
+                              <button 
+                                onClick={(e) => handleEdit(e, doc)} 
+                                className="bg-gray-50 border border-blue-100 hover:bg-blue-50 text-blue-600 p-2 rounded-full transition-colors"
+                              >
+                                <EditIcon className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={(e) => handleDelete(e, doc._id)} 
+                                className="bg-gray-50 border border-red-100 hover:bg-red-50 text-red-600 p-2 rounded-full transition-colors"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>

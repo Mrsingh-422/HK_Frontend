@@ -8,7 +8,7 @@ import {
     FaHome, FaBoxOpen, FaMotorcycle, FaClipboardList,
     FaMapMarkedAlt, FaPills, FaBullhorn, FaFileAlt,
     FaMoneyBillWave, FaWallet, FaQuestionCircle,
-    FaCalendarAlt, FaMapMarkerAlt 
+    FaCalendarAlt, FaMapMarkerAlt, FaFilePrescription
 } from "react-icons/fa";
 import { MdMenuOpen, MdMenu } from "react-icons/md";
 import PharmacyVendorAPI from '@/app/services/PharmacyVendorAPI';
@@ -130,7 +130,7 @@ const PharmacyTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed, prof
                             <button
                                 onClick={() => { 
                                     localStorage.removeItem('pharmacyToken');
-                                    window.location.href = '/auth/login';
+                                    window.location.href = '/';
                                 }}
                                 className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-semibold text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors"
                             >
@@ -176,12 +176,14 @@ export default function PharmacyVendorLayout({ children }) {
     const menuItems = [
         { name: 'Dashboard', href: '/vendors/pharmacy/dashboard', icon: FaHome },
         { name: 'Orders', href: '/vendors/pharmacy/dashboard/orders', icon: FaBoxOpen },
+        { name: 'Prescriptions Requests', href: '/vendors/pharmacy/dashboard/prescription-requests', icon: FaFilePrescription },
         { name: 'Manage Driver', href: '/vendors/pharmacy/dashboard/manage-driver', icon: FaMotorcycle },
         { name: 'Assign Driver', href: '/vendors/pharmacy/dashboard/assign-driver', icon: FaClipboardList },
         { name: 'Track Driver', href: '/vendors/pharmacy/dashboard/track-driver', icon: FaMapMarkedAlt },
         { name: 'Pharmacy Services', href: '/vendors/pharmacy/dashboard/pharmacy-service', icon: FaPills },
         { name: 'Schedule', href: '/vendors/pharmacy/dashboard/schedule', icon: FaCalendarAlt },
         { name: 'Promotion', href: '/vendors/pharmacy/dashboard/coupon', icon: FaBullhorn },
+        { name: 'Combo Offers', href: '/vendors/pharmacy/dashboard/combo-offers', icon: FaBullhorn },
         { name: 'Manage Documents', href: '/vendors/pharmacy/dashboard/document', icon: FaFileAlt },
         { name: 'Manage Delivery Charges', href: '/vendors/pharmacy/dashboard/delivery-charges', icon: FaMoneyBillWave },
         { name: 'Wallet & Earning', href: '/vendors/pharmacy/dashboard/wallet', icon: FaWallet },

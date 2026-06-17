@@ -675,6 +675,7 @@ const UserAPI = {
         const response = await authApi.post("/user/doctors/checkout-summary", data);
         return response.data
     },
+
     bookDoctorAppointment: async (data) => {
         const response = await authApi.post("/user/doctors/book", data);
         return response.data
@@ -822,6 +823,19 @@ const UserAPI = {
         const response = await authApi.post('/doctor/video-call/respond', data);
         return response.data;
     },
+
+
+    //Payment integration
+    verifyPaymentDoctor: async (paymentData) => {
+        const response = await authApi.post(`/user/doctors/verify-payment`, paymentData);
+        return response.data;
+    },
+
+    verifyPaymentNurse: async (paymentData) => {
+        const response = await authApi.post(`/user/nurse/verify-payment`, paymentData);
+        return response.data;
+    },
+
 
 
 };
