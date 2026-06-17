@@ -12,6 +12,22 @@ import UserAPI from '@/app/services/UserAPI';
 import SlotSelectionModal from './SlotSelectionModal';
 import FamilyMemberModal from './FamilyMemberModal';
 
+// Utility to dynamically load the Razorpay SDK script
+const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+        if (window.Razorpay) {
+            resolve(true);
+            return;
+        }
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+    });
+};
+
 const LabCart = () => {
     const router = useRouter();
     const { cart, updateQuantity, removeItem, loading } = useCart();
@@ -213,9 +229,16 @@ const LabCart = () => {
         } else if (!selectedAppointment) {
             setIsSlotModalOpen(true);
         } else {
-            // HIT checkoutLabCart API
             setIsCheckingOut(true);
             try {
+                // Load Razorpay script dynamically
+                const isScriptLoaded = await loadRazorpayScript();
+                if (!isScriptLoaded) {
+                    toast.error("Failed to load Razorpay SDK. Please check your network connection.");
+                    setIsCheckingOut(false);
+                    return;
+                }
+
                 const payload = {
                     appointmentDate: selectedAppointment.date,
                     appointmentTime: selectedAppointment.slot.time,
@@ -245,17 +268,74 @@ const LabCart = () => {
 
                     isRapid: isFastDelivery,
                     couponCode: appliedCouponName || "",
-                    paymentMethod: "COD"
+                    // paymentMethod: "Online" // Changed from COD to Online
                 };
 
                 const res = await UserAPI.checkoutLabCart(payload);
                 if (res.success) {
-                    toast.success("Order Placed Successfully!");
-                    router.push('/checkout/success');
+                    const { key_id, amount, razorpayOrderId, appointmentId, orderId } = res;
+
+                    // Setup options for Razorpay Checkout Modal
+                    const options = {
+                        key: key_id,
+                        amount: amount,
+                        currency: "INR",
+                        name: "HK Healthcare App",
+                        description: "Lab Test Booking Fee",
+                        order_id: razorpayOrderId,
+                        prefill: {
+                            name: selectedMembers?.[0]?.memberName || "Patient Name",
+                            email: "patient@example.com",
+                            contact: selectedAddress?.phone || "9876543210"
+                        },
+                        theme: {
+                            color: "#059669" // Emerald green to match Lab UI theme
+                        },
+                        modal: {
+                            ondismiss: function () {
+                                setIsCheckingOut(false);
+                            }
+                        },
+                        handler: async function (response) {
+                            try {
+                                setIsCheckingOut(true);
+                                const verificationPayload = {
+                                    appointmentId: appointmentId || orderId, // Accommodates both variable name returns safely
+                                    razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
+                                    razorpayPaymentId: response.razorpay_payment_id,
+                                    razorpaySignature: response.razorpay_signature
+                                };
+
+                                const verificationRes = await UserAPI.verifyPaymentLab(verificationPayload);
+
+                                if (verificationRes?.success) {
+                                    toast.success(verificationRes.message || "Payment verified successfully. Order Confirmed!");
+                                    router.push('/userscreens/previousorders');
+                                } else {
+                                    toast.error(verificationRes?.message || "Payment verification failed.");
+                                }
+                            } catch (verificationError) {
+                                console.error("Payment Verification Error:", verificationError);
+                                toast.error("An error occurred during payment verification.");
+                            } finally {
+                                setIsCheckingOut(false);
+                            }
+                        }
+                    };
+
+                    const rzpInstance = new window.Razorpay(options);
+                    rzpInstance.on('payment.failed', function (response) {
+                        toast.error(`Payment failed: ${response.error.description}`);
+                        setIsCheckingOut(false);
+                    });
+                    rzpInstance.open();
+
+                } else {
+                    toast.error(res?.message || "Checkout initialization failed");
+                    setIsCheckingOut(false);
                 }
             } catch (error) {
                 toast.error(error.response?.data?.message || "Checkout failed");
-            } finally {
                 setIsCheckingOut(false);
             }
         }
@@ -515,7 +595,7 @@ const LabCart = () => {
                             </div>
 
                             <button onClick={handleProceed} disabled={isCheckingOut} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-bold text-sm transition-all shadow-lg flex items-center justify-center gap-2 uppercase">
-                                {isCheckingOut ? <FaSpinner className="animate-spin" /> : selectedMembers.length === 0 ? "Select Patients" : !selectedAppointment ? "Select Time Slot" : "Confirm & Pay COD"} <FaShieldAlt />
+                                {isCheckingOut ? <FaSpinner className="animate-spin" /> : selectedMembers.length === 0 ? "Select Patients" : !selectedAppointment ? "Select Time Slot" : "Confirm & Pay Online"} <FaShieldAlt />
                             </button>
                         </div>
                     </div>

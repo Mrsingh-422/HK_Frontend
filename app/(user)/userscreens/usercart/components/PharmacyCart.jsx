@@ -14,6 +14,22 @@ import PharmacyBillingSummary from './PharmacyBillingSummary';
 import PharmacyDeliverySection from './PharmacyDeliverySection';
 import PharmacySlotModal from './PharmacySlotModal';
 
+// Utility to dynamically load the Razorpay SDK script
+const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+        if (window.Razorpay) {
+            resolve(true);
+            return;
+        }
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+    });
+};
+
 const PharmacyCart = () => {
     const router = useRouter();
     const { pharmacyCart, updatePharmacyCartQuantity, loading, removePharmacyItem, clearFullCart } = useCart();
@@ -146,20 +162,21 @@ const PharmacyCart = () => {
         const discountedAmount = Math.max(0, subtotal - serverDiscount);
         let shippingFee = 0;
         let fastFee = 0;
-        let freeThreshold = 500;
+
+        // Dynamic threshold and pricing configuration based on fetched data
+        const freeThreshold = deliveryChargesConfig?.freeDeliveryThreshold ?? 500;
+        const defaultFixedPrice = deliveryChargesConfig?.fixedPrice ?? 40;
 
         if (deliveryChargesConfig) {
-            freeThreshold = deliveryChargesConfig.freeDeliveryThreshold;
-
             if (deliveryOption === 'fast') {
                 fastFee = deliveryChargesConfig.fastDeliveryExtra || 0;
                 shippingFee = 0;
             } else {
-                shippingFee = subtotal >= freeThreshold ? 0 : (deliveryChargesConfig.fixedPrice || 40);
+                shippingFee = subtotal >= freeThreshold ? 0 : defaultFixedPrice;
                 fastFee = 0;
             }
         } else {
-            shippingFee = subtotal >= 500 ? 0 : 40;
+            shippingFee = subtotal >= freeThreshold ? 0 : defaultFixedPrice;
         }
 
         const currentSlotFee = (deliveryOption === 'slot') ? slotFee : 0;
@@ -189,6 +206,14 @@ const PharmacyCart = () => {
         setIsSubmitting(true);
 
         try {
+            // Load Razorpay script dynamically
+            const isScriptLoaded = await loadRazorpayScript();
+            if (!isScriptLoaded) {
+                toast.error("Failed to load Razorpay SDK. Please check your network connection.");
+                setIsSubmitting(false);
+                return;
+            }
+
             // 1. Prepare Date and Time
             let appDate = new Date().toISOString();
             let appTime = new Date().toLocaleTimeString('en-US', {
@@ -210,8 +235,8 @@ const PharmacyCart = () => {
             formData.append('collectionType', collectionType);
             formData.append('appointmentDate', appDate);
             formData.append('appointmentTime', appTime);
-            formData.append('isRapid', deliveryOption === 'fast');
-            formData.append('paymentMethod', 'COD');
+            formData.append('isRapid', String(deliveryOption === 'fast')); // Cast boolean to string for robust parser compatibility
+            formData.append('paymentMethod', 'Online'); // Changed from COD to Online
 
             // 3. Address Object
             const addressData = {
@@ -228,7 +253,7 @@ const PharmacyCart = () => {
             };
             formData.append('address', JSON.stringify(addressData));
 
-            // 4. Bill Summary
+            // 4. Bill Summary (Now including dynamic 'tax' to ensure alignment with totalAmount)
             const billSummary = {
                 itemTotal: totals.subtotal,
                 deliveryCharge: totals.shippingFee,
@@ -236,6 +261,7 @@ const PharmacyCart = () => {
                 slotCharge: totals.slotFee,
                 couponDiscount: totals.discount,
                 couponId: appliedCouponName || null,
+                tax: totals.tax, // Fixed: Send the calculated tax parameter
                 totalAmount: totals.total
             };
             formData.append('billSummary', JSON.stringify(billSummary));
@@ -259,15 +285,72 @@ const PharmacyCart = () => {
             const res = await UserAPI.placePharmacyOrder(formData);
 
             if (res.success) {
-                toast.success(res.message || "Order Placed Successfully!");
-                await clearFullCart();
-                router.push(`/order-success/pharmacy?id=${res.orderId || res.data?._id || ''}`);
+                const { key_id, amount, razorpayOrderId, appointmentId, orderId } = res;
+
+                // Setup options for Razorpay Checkout Modal
+                const options = {
+                    key: key_id,
+                    amount: amount,
+                    currency: "INR",
+                    name: "HK Healthcare App",
+                    description: "Pharmacy Medicine Order Fee",
+                    order_id: razorpayOrderId,
+                    prefill: {
+                        name: selectedAddress?.name || "Patient Name",
+                        email: "patient@example.com",
+                        contact: selectedAddress?.phone || "9876543210"
+                    },
+                    theme: {
+                        color: "#059669" // Matches the application theme color
+                    },
+                    modal: {
+                        ondismiss: function () {
+                            setIsSubmitting(false);
+                        }
+                    },
+                    handler: async function (response) {
+                        try {
+                            setIsSubmitting(true);
+                            const verificationPayload = {
+                                appointmentId: appointmentId || orderId || res.orderId || res.data?._id,
+                                razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
+                                razorpayPaymentId: response.razorpay_payment_id,
+                                razorpaySignature: response.razorpay_signature
+                            };
+
+                            const verificationRes = await UserAPI.verifyPaymentPharmacy(verificationPayload);
+
+                            if (verificationRes?.success) {
+                                toast.success(verificationRes.message || "Payment verified successfully. Order Confirmed!");
+                                await clearFullCart();
+                                router.push('/userscreens/previousorders');
+                            } else {
+                                toast.error(verificationRes?.message || "Payment verification failed.");
+                            }
+                        } catch (verificationError) {
+                            console.error("Payment Verification Error:", verificationError);
+                            toast.error("An error occurred during payment verification.");
+                        } finally {
+                            setIsSubmitting(false);
+                        }
+                    }
+                };
+
+                const rzpInstance = new window.Razorpay(options);
+                rzpInstance.on('payment.failed', function (response) {
+                    toast.error(`Payment failed: ${response.error.description}`);
+                    setIsSubmitting(false);
+                });
+                rzpInstance.open();
+
+            } else {
+                toast.error(res?.message || "Checkout initialization failed");
+                setIsSubmitting(false);
             }
 
         } catch (error) {
             console.error("Checkout Error:", error);
             toast.error(error.response?.data?.message || "Failed to place order");
-        } finally {
             setIsSubmitting(false);
         }
     };

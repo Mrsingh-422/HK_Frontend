@@ -247,7 +247,7 @@ function AppointmentSchedulingContent() {
                     setIsSubmitting(false);
                 });
                 rzpInstance.open();
-                
+
             } else {
                 alert(processRes?.message || "Booking validation process failed");
                 setIsSubmitting(false);

@@ -525,7 +525,11 @@ const UserAPI = {
         return response.data;
     },
     placePharmacyOrder: async (orderData) => {
-        const response = await authApi.post("/user/pharmacy/place-order", orderData);
+        const response = await authApi.post("/user/pharmacy/place-order", orderData, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
         return response.data;
     },
     bookLabTest: async (bookingData) => {
@@ -835,6 +839,16 @@ const UserAPI = {
         const response = await authApi.post(`/user/nurse/verify-payment`, paymentData);
         return response.data;
     },
+
+    verifyPaymentLab: async (paymentData) => {
+        const response = await authApi.post(`/user/labs/verify-payment`, paymentData);
+        return response.data;
+    },
+
+    verifyPaymentPharmacy: async (paymentData) => {
+        const response = await authApi.post(`/user/pharmacy/verify-payment`, paymentData);
+        return response.data;
+    }
 
 
 
