@@ -100,11 +100,11 @@ function HowToBookAmbulance() {
                             >
                                 <FaPhoneAlt className="text-xs md:text-sm" /> Call 102 / 108
                             </a>
-                            <button
+                            {/* <button
                                 className="flex items-center justify-center gap-3 bg-white/10 text-white border border-white/20 px-6 md:px-10 py-4 md:py-5 rounded-xl md:rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest hover:bg-white/20 transition-all duration-300"
                             >
                                 Live Support
-                            </button>
+                            </button> */}
                         </div>
                     </div>
                 </div>

@@ -76,7 +76,7 @@ function FromHealthHospital() {
               {/* Main Action */}
               <div className="w-full max-w-sm">
                 <button className="w-full group bg-slate-900 text-white font-black px-8 py-5 rounded-2xl transition-all duration-300 shadow-xl shadow-slate-200 flex items-center justify-center gap-4 hover:bg-emerald-600 active:scale-95">
-                  <span className="uppercase tracking-[0.2em] text-xs">Register your Facility</span>
+                  <span className="uppercase tracking-[0.2em] text-xs">Register your Hospital</span>
                   <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
                 </button>
                 <p className="text-center lg:text-right mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">

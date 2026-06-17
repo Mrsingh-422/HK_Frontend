@@ -234,7 +234,7 @@ export default function HospitalDetailPage() {
                                     {/* Hover Detail Button */}
                                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                                         <button className="bg-white text-emerald-600 text-[10px] font-bold px-4 py-2 rounded-full shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-                                            VIEW DETAILS
+                                            Avaliable
                                         </button>
                                     </div>
                                 </div>
@@ -245,7 +245,7 @@ export default function HospitalDetailPage() {
 
                                     {/* Mobile/Default Visible Button */}
                                     <button className="w-full mt-3 py-2 bg-emerald-600 text-white text-[10px] font-bold rounded-xl transition-colors duration-300">
-                                        View Profile
+                                        Avaliable
                                     </button>
                                 </div>
                             </div>

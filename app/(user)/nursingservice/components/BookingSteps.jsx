@@ -8,6 +8,7 @@ import {
   ClipboardCheck, 
   Ambulance 
 } from 'lucide-react';
+import Link from 'next/link';
 
 const steps = [
   {
@@ -111,9 +112,9 @@ function BookingSteps() {
 
         {/* --- COMPACT CTA --- */}
         <div className="mt-16 text-center">
-            <button className="bg-slate-900 text-white px-8 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg hover:bg-emerald-600 transition-all active:scale-95">
+            <Link href="/nursingservice/seeallnurses" className="bg-slate-900 text-white px-8 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg hover:bg-emerald-600 transition-all active:scale-95">
                 Get Started
-            </button>
+            </Link>
         </div>
 
       </div>

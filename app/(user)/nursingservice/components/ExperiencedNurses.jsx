@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import React, { useState, useEffect } from "react";
 import { FaUserNurse, FaChevronRight } from "react-icons/fa";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import Link from "next/link";
 
 // --- FALLBACK STATIC DATA ---
 const STATIC_DATA = {
@@ -75,7 +76,7 @@ function ExperiencedNurses() {
 
                 {/* Action Button */}
                 <div className="mt-8 md:mt-14">
-                    <button
+                    <button 
                         onClick={() => router.push('/nursingservice/seeallnurses')}
                         className="cursor-pointer group bg-[#08B36A] hover:bg-slate-900 text-white font-black px-8 md:px-10 py-3.5 md:py-4 rounded-xl shadow-xl shadow-[#08B36A]/20 transition-all duration-300 active:scale-95 flex items-center justify-center gap-3 mx-auto uppercase tracking-widest text-[12px] md:text-sm w-full sm:w-auto">
                         {data.buttonText}

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { FaCheck, FaArrowRight } from "react-icons/fa";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import Link from "next/link";
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -111,9 +112,9 @@ function OurNursingServices() {
               </div>
 
               <div className="pt-4 flex flex-col sm:flex-row items-center gap-6">
-                <button className="w-full sm:w-auto bg-slate-900 text-white font-black px-8 py-4 rounded-2xl text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-[#08B36A] transition-all active:scale-95 flex items-center justify-center gap-3">
+                <Link href="/nursingservice/seeallnurses" className="w-full sm:w-auto bg-slate-900 text-white font-black px-8 py-4 rounded-2xl text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-[#08B36A] transition-all active:scale-95 flex items-center justify-center gap-3">
                   Learn More <FaArrowRight className="text-[10px]" />
-                </button>
+                </Link>
                 
                 <div className="flex items-center gap-3">
                     <div className="flex -space-x-2">

@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import Link from 'next/link';
 
 function DailyCarePlan() {
   return (
@@ -53,9 +54,9 @@ function DailyCarePlan() {
             </p>
 
             <div className="pt-6 flex flex-col sm:flex-row gap-4">
-                <button className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-xl shadow-slate-200 active:scale-95">
+                <Link href="/nursingservice/seeallnurses" className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-xl shadow-slate-200 active:scale-95">
                     Explore Services
-                </button>
+                </Link>
             </div>
           </div>
 
