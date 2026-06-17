@@ -1,6 +1,9 @@
+import { useGlobalContext } from "@/app/context/GlobalContext";
 import React from "react";
 
 function FromHealthDr() {
+
+    const { openModal, modalType, closeModal } = useGlobalContext();
     return (
         <section className="bg-[#f8fafc] py-12 px-4 overflow-hidden">
             <div className="max-w-7xl mx-auto">
@@ -50,7 +53,9 @@ function FromHealthDr() {
 
                         {/* Far Right Button */}
                         <div className="flex-shrink-0">
-                            <button className="border-2 border-emerald-400 text-emerald-600 font-bold italic px-8 py-3 rounded-xl hover:bg-emerald-500 hover:text-white transition-all duration-300 active:scale-95 shadow-sm">
+                            <button 
+                            onClick={() => openModal("register")}
+                            className="border-2 border-emerald-400 text-emerald-600 font-bold italic px-8 py-3 rounded-xl hover:bg-emerald-500 hover:text-white transition-all duration-300 active:scale-95 shadow-sm">
                                 Let's Begin
                             </button>
                         </div>

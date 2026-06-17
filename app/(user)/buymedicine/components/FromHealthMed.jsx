@@ -1,19 +1,22 @@
+import { useGlobalContext } from "@/app/context/GlobalContext";
 import React from "react";
 
 function FromHealthMed() {
+
+  const { openModal, modalType, closeModal } = useGlobalContext();
   return (
     <section className="bg-[#f8fafc] py-12 px-4 overflow-hidden">
       <div className="max-w-7xl mx-auto">
-        
+
         {/* The Slanted Banner Container */}
         <div className="relative">
-          
+
           {/* Background Slant (White Box) */}
           <div className="absolute inset-0 bg-white shadow-sm md:skew-x-[-10deg] transform origin-center transition-all duration-500"></div>
 
           {/* Content Wrapper (Un-skewed on Desktop) */}
           <div className="relative z-10 md:skew-x-[10deg] flex flex-col lg:flex-row items-center justify-between px-6 py-8 md:px-16 md:py-10 gap-8 lg:gap-4">
-            
+
             {/* Left Content */}
             <div className="flex-1 text-center lg:text-left space-y-2">
               <h2 className="text-2xl md:text-3xl lg:text-4xl font-black italic text-emerald-600 leading-tight">
@@ -29,9 +32,9 @@ function FromHealthMed() {
             <div className="flex-shrink-0 flex flex-col items-center">
               <div className="w-32 h-32 md:w-40 md:h-40 rounded-full flex items-center justify-center">
                 {/* Replace with your actual Kangaroo Logo */}
-                <img 
-                  src="logo.png" 
-                  alt="Health Kangaroo Logo" 
+                <img
+                  src="logo.png"
+                  alt="Health Kangaroo Logo"
                   className="w-full h-full object-contain"
                 />
               </div>
@@ -50,7 +53,9 @@ function FromHealthMed() {
 
             {/* Far Right Button */}
             <div className="flex-shrink-0">
-              <button className="border-2 border-emerald-400 text-emerald-600 font-bold italic px-8 py-3 rounded-xl hover:bg-emerald-500 hover:text-white transition-all duration-300 active:scale-95 shadow-sm">
+              <button
+                onClick={() => openModal("register")}
+                className="border-2 border-emerald-400 text-emerald-600 font-bold italic px-8 py-3 rounded-xl hover:bg-emerald-500 hover:text-white transition-all duration-300 active:scale-95 shadow-sm">
                 Let's Begin
               </button>
             </div>

@@ -8,7 +8,6 @@ import {
 import { IoCloseOutline } from "react-icons/io5";
 import DoctorAPI from '@/app/services/DoctorAPI';
 import { toast, Toaster } from 'react-hot-toast';
-import VideoCallModal from '../../../../(user)/components/videoCall/VideoCallModal';
 
 export default function AppointmentsPage() {
     const [appointments, setAppointments] = useState([]);
@@ -29,8 +28,6 @@ export default function AppointmentsPage() {
     const [rescheduleData, setRescheduleData] = useState({ date: '', time: '', reason: '' });
     const [submitting, setSubmitting] = useState(false);
 
-    const [activeCallId, setActiveCallId] = useState(null);
-    const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -62,8 +59,6 @@ export default function AppointmentsPage() {
             setLoading(false);
         }
     };
-
-
 
     const formatDate = (dateStr) => {
         if (!dateStr) return "";
@@ -110,40 +105,6 @@ export default function AppointmentsPage() {
             }
         } catch (error) {
             toast.error("Failed to reschedule");
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    const handleStartCall = async (appointment) => {
-        try {
-            setSubmitting(true);
-
-            const payload = {
-                appointmentId: appointment._id,
-                callId: appointment._id, // We send the appointment ID as the initial Room ID
-                callType: "video",
-                callerName: "Dr. " + (appointment.doctorId?.name || "Doctor"),
-                receiverId: appointment.userId?._id, // Ensure this is the patient's ID
-            };
-
-            // 1. Call your Node.js API (Initiate Call + Send FCM)
-            const res = await DoctorAPI.initiateVideoCall(payload);
-
-            if (res && res.success) {
-                toast.success("Calling patient...");
-
-                // 2. Use the callId returned by the backend (e.g., room_webrtc_...)
-                setActiveCallId(res.callData.callId);
-
-                // 3. Open the Video UI
-                setIsVideoModalOpen(true);
-            } else {
-                toast.error(res?.message || "Patient is offline or unreachable");
-            }
-        } catch (error) {
-            console.error("Error starting call:", error);
-            toast.error("An error occurred while starting the call");
         } finally {
             setSubmitting(false);
         }
@@ -548,34 +509,11 @@ export default function AppointmentsPage() {
                             >
                                 Close Details
                             </button>
-                            {!isTerminalStatus && (
-                                isOnlineConsultation ? (
-                                    // Inside the View Details Modal Footer
-                                    <button
-                                        disabled={submitting}
-                                        onClick={() => handleStartCall(selectedAppointment)} // Pass the whole object
-                                        className="flex-1 py-4 rounded-2xl bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        {submitting ? <FaSpinner className="animate-spin" /> : <FaVideo />}
-                                        Start Call
-                                    </button>
-                                ) : (
-                                    <button
-                                        onClick={(e) => {
-                                            setIsViewModalOpen(false);
-                                            openRescheduleModal(e, selectedAppointment);
-                                        }}
-                                        className="flex-1 py-4 rounded-2xl bg-[#08B36A] text-white font-black text-[10px] uppercase tracking-widest hover:bg-green-600 shadow-xl shadow-green-100 transition-all"
-                                    >
-                                        Modify Schedule
-                                    </button>
-                                )
-                            )}
+
                         </div>
                     </div>
                 </div>
             )}
-
             {/* RESCHEDULE MODAL */}
             {isRescheduleModalOpen && (
                 <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[120] p-4 backdrop-blur-md">
@@ -645,18 +583,7 @@ export default function AppointmentsPage() {
                     </div>
                 </div>
             )}
-            {/* FIX 4: Place the Modal inside the main return, at the very end */}
-            {isVideoModalOpen && (
-                <VideoCallModal
-                    callId={activeCallId}
-                    callerName={"Dr. " + (selectedAppointment?.doctorId?.name || "Doctor")}
-                    role="caller" // <--- CRITICAL: This tells WebRTC to create an OFFER
-                    onClose={() => {
-                        setIsVideoModalOpen(false);
-                        setActiveCallId(null);
-                    }}
-                />
-            )}
+
         </div>
     )
 }

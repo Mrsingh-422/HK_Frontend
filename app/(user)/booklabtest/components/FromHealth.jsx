@@ -1,9 +1,13 @@
 "use client";
 
+import { useGlobalContext } from "@/app/context/GlobalContext";
 import React from "react";
 import { FaArrowRight, FaMicroscope } from "react-icons/fa";
 
 function FromHealth() {
+
+    const { openModal, modalType, closeModal } = useGlobalContext();
+
     return (
         <section className="bg-slate-50 py-9 px-6 relative overflow-hidden">
             {/* Subtle light geometric background accents */}
@@ -57,7 +61,9 @@ function FromHealth() {
 
                         {/* Right Side: High-End Interactive CTA */}
                         <div className="flex-shrink-0 w-full lg:w-auto flex flex-col items-center lg:items-end gap-4">
-                            <button className="w-full lg:w-auto group flex items-center justify-center gap-4 bg-slate-900 hover:bg-slate-800 text-white px-8 py-4.5 rounded-xl font-semibold text-sm transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0">
+                            <button
+                                onClick={() => openModal("register")}
+                                className="w-full lg:w-auto group flex items-center justify-center gap-4 bg-slate-900 hover:bg-slate-800 text-white px-8 py-4.5 rounded-xl font-semibold text-sm transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0">
                                 Apply for Affiliation
                                 <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
                                     <FaArrowRight className="text-[10px] text-white" />
