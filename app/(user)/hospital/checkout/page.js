@@ -6,11 +6,28 @@ import {
     FaArrowLeft, FaHospital, FaProcedures,
     FaShieldAlt, FaCheck, FaTimes, FaTag, FaReceipt,
     FaUser, FaPhone, FaCalendarDay, FaVenusMars, FaCreditCard,
-    FaMapMarkerAlt, FaGlobe, FaPlus, FaUpload, FaUserMd, FaStethoscope
+    FaMapMarkerAlt, FaGlobe, FaPlus, FaUpload, FaUserMd, FaStethoscope,
+    FaSpinner
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+// Utility to dynamically load the Razorpay SDK script
+const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+        if (window.Razorpay) {
+            resolve(true);
+            return;
+        }
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+    });
+};
 
 export default function CheckoutPage() {
     const router = useRouter();
@@ -52,6 +69,7 @@ export default function CheckoutPage() {
     const [discountAmount, setDiscountAmount] = useState(0);
     const [loadingData, setLoadingData] = useState(true);
     const [couponError, setCouponError] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         const savedData = sessionStorage.getItem("activeBooking");
@@ -209,55 +227,123 @@ export default function CheckoutPage() {
             return;
         }
 
-        const formattedServices = services
-            .filter(s => selectedServiceIds.includes(s._id))
-            .map(s => ({
-                serviceName: s.serviceName,
-                price: s.price
-            }));
-
-        const payload = {
-            hospitalId: booking.hospitalId,
-            doctorId: selectedDoctorId || null,
-            bedId: booking.bedId,
-            bookingType: "Admission",
-            bedBookingType: bedBookingType,
-            triageLevel: "Emergency",
-            startDate: booking.startDate,
-            endDate: booking.endDate,
-            appointmentDate: booking.startDate,
-            appointmentTime: "Admission",
-            patients: [{
-                patientName: patientDetails.fullName,
-                patientAge: calculateAge(patientDetails.dob),
-                gender: patientDetails.gender,
-                relation: selectedMemberId === "self" ? "Self" : "Family Member",
-                isMainUser: true
-            }],
-            specialServices: formattedServices,
-            pricing: {
-                baseFee: booking.totalPrice,
-                visitCharges: 0,
-                extraCharges: 0,
-                discountAmount: discountAmount,
-                subtotal: subtotal,
-                totalPayable: finalTotal
-            },
-            couponId: appliedCoupon ? (appliedCoupon._id || appliedCoupon.id || null) : null,
-            couponCode: appliedCoupon ? appliedCoupon.couponName : null
-        };
+        setIsSubmitting(true);
 
         try {
+            // Load Razorpay script dynamically
+            const isScriptLoaded = await loadRazorpayScript();
+            if (!isScriptLoaded) {
+                alert("Failed to load Razorpay SDK. Please check your network connection.");
+                setIsSubmitting(false);
+                return;
+            }
+
+            const formattedServices = services
+                .filter(s => selectedServiceIds.includes(s._id))
+                .map(s => ({
+                    serviceName: s.serviceName,
+                    price: s.price
+                }));
+
+            const payload = {
+                hospitalId: booking.hospitalId,
+                doctorId: selectedDoctorId || null,
+                bedId: booking.bedId,
+                bookingType: "Admission",
+                bedBookingType: bedBookingType,
+                triageLevel: "Emergency",
+                startDate: booking.startDate,
+                endDate: booking.endDate,
+                appointmentDate: booking.startDate,
+                appointmentTime: "Admission",
+                patients: [{
+                    patientName: patientDetails.fullName,
+                    patientAge: calculateAge(patientDetails.dob),
+                    gender: patientDetails.gender,
+                    relation: selectedMemberId === "self" ? "Self" : "Family Member",
+                    isMainUser: true
+                }],
+                specialServices: formattedServices,
+                pricing: {
+                    baseFee: booking.totalPrice,
+                    visitCharges: 0,
+                    extraCharges: 0,
+                    discountAmount: discountAmount,
+                    subtotal: subtotal,
+                    totalPayable: finalTotal
+                },
+                couponId: appliedCoupon ? (appliedCoupon._id || appliedCoupon.id || null) : null,
+                couponCode: appliedCoupon ? appliedCoupon.couponName : null
+            };
+
             const response = await UserAPI.bookHospitalBed(payload);
             if (response.success) {
-                alert("Booking Confirmed Successfully!");
-                router.push("/userscreens/hospitalappointment");
+                const { key_id, amount, razorpayOrderId, appointmentId, orderId } = response;
+
+                // Setup options for Razorpay Checkout Modal
+                const options = {
+                    key: key_id,
+                    amount: amount,
+                    currency: "INR",
+                    name: "HK Healthcare App",
+                    description: "Hospital Bed Admission Booking",
+                    order_id: razorpayOrderId,
+                    prefill: {
+                        name: patientDetails.fullName || "Patient Name",
+                        email: "patient@example.com",
+                        contact: patientDetails.phoneNumber || "9876543210"
+                    },
+                    theme: {
+                        color: "#10b981" // Match layout emerald styling theme
+                    },
+                    modal: {
+                        ondismiss: function () {
+                            setIsSubmitting(false);
+                        }
+                    },
+                    handler: async function (paymentResponse) {
+                        try {
+                            setIsSubmitting(true);
+                            const verificationPayload = {
+                                appointmentId: appointmentId || orderId || response.appointmentId || response.orderId,
+                                razorpayOrderId: paymentResponse.razorpay_order_id || razorpayOrderId,
+                                razorpayPaymentId: paymentResponse.razorpay_payment_id,
+                                razorpaySignature: paymentResponse.razorpay_signature
+                            };
+
+                            const verificationRes = await UserAPI.verifyPaymentHospital(verificationPayload);
+
+                            if (verificationRes?.success) {
+                                alert(verificationRes.message || "Booking Confirmed Successfully!");
+                                sessionStorage.removeItem("activeBooking");
+                                router.push("/userscreens/hospitalappointment");
+                            } else {
+                                alert(verificationRes?.message || "Signature verification failed. Invalid transaction token.");
+                            }
+                        } catch (verificationError) {
+                            console.error("Payment Verification Error:", verificationError);
+                            alert("Something went wrong during payment verification.");
+                        } finally {
+                            setIsSubmitting(false);
+                        }
+                    }
+                };
+
+                const rzpInstance = new window.Razorpay(options);
+                rzpInstance.on('payment.failed', function (paymentFailResponse) {
+                    alert(`Payment failed: ${paymentFailResponse.error.description}`);
+                    setIsSubmitting(false);
+                });
+                rzpInstance.open();
+
             } else {
                 alert(response.message || "Failed to book bed.");
+                setIsSubmitting(false);
             }
         } catch (error) {
             console.error("Booking Error:", error);
             alert("An error occurred during booking.");
+            setIsSubmitting(false);
         }
     };
 
@@ -514,8 +600,13 @@ export default function CheckoutPage() {
                                     </div>
                                 </div>
                             </div>
-                            <button onClick={handlePayment} className="w-full bg-slate-900 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs md:text-sm uppercase tracking-widest mt-8 flex items-center justify-center gap-3 transition-all duration-300 shadow-xl active:scale-95">
-                                <FaCreditCard /> Confirm Booking
+                            <button
+                                onClick={handlePayment}
+                                disabled={isSubmitting}
+                                className="w-full bg-slate-900 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs md:text-sm uppercase tracking-widest mt-8 flex items-center justify-center gap-3 transition-all duration-300 shadow-xl active:scale-95 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                            >
+                                {isSubmitting ? <FaSpinner className="animate-spin text-white" /> : <FaCreditCard />}
+                                {isSubmitting ? "Processing..." : "Confirm Booking"}
                             </button>
                             <p className="text-[8px] text-center text-slate-400 mt-6 font-bold uppercase tracking-widest">Secure SSL Encrypted Transaction</p>
                         </div>

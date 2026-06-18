@@ -769,9 +769,14 @@ const UserAPI = {
     },
 
     bookAmbulance: async (data) => {
-        const response = await authApi.post("/user/ambulance/confirm-booking", data);
+        const response = await authApi.post("/user/ambulance/confirm-booking", data, {
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
         return response.data;
     },
+
     getAmbulanceDetail: async (ambulanceId) => {
         const response = await publicApi.get(`/user/ambulance/details/${ambulanceId}`
         );
@@ -848,7 +853,17 @@ const UserAPI = {
     verifyPaymentPharmacy: async (paymentData) => {
         const response = await authApi.post(`/user/pharmacy/verify-payment`, paymentData);
         return response.data;
-    }
+    },
+
+    verifyPaymentHospital: async (paymentData) => {
+        const response = await authApi.post(`user/hospital/verify-payment`, paymentData);
+        return response.data;
+    },
+
+    verifyPaymentAmbulance: async (paymentData) => {
+        const response = await authApi.post(`/user/ambulance/verify-payment`, paymentData);
+        return response.data;;
+    },
 
 
 
