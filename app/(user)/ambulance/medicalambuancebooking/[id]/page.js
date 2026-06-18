@@ -150,7 +150,6 @@ export default function AmbulanceBookingPage() {
     setCouponError("");
   };
 
-  // --- RAZORPAY STEP 2: Update handleSubmit to include Payment ---
   const handleSubmit = async () => {
     if (!formData.hospital) {
       alert("Please select a hospital.");
@@ -159,101 +158,31 @@ export default function AmbulanceBookingPage() {
 
     setIsSubmitting(true);
     try {
+      if (!window.Razorpay) {
+        alert("Razorpay SDK is loading. Please try again in a few seconds.");
+        setIsSubmitting(false);
+        return;
+      }
+
       // 1. Prepare Staff Type
       const staffArr = [];
       if (formData.supportStaff.nurse) staffArr.push("Nurse");
       if (formData.supportStaff.doctor) staffArr.push("Doctor");
       const staffTypeVal = staffArr.length > 0 ? staffArr.join(", ") : "None";
 
-      // 2. Checkout API Call (Using fixed state coordinates)
-      const checkoutPayload = {
-        ambulanceId: id,
-        serviceType: "Medical Ambulance",
-        staffType: staffTypeVal,
-        couponCode: couponCode.trim(),
-        triageLevel: formData.priority,
-        pickupLocation: {
-          address: formData.pickupLocation,
-          lat: coords.lat,
-          lng: coords.lng,
-        }
-      };
-
-      console.log("Checkout Payload:", checkoutPayload);
-      const checkoutRes = await UserAPI.checkOutAmbulance(checkoutPayload);
-      if (!checkoutRes.success) {
-        alert(checkoutRes.message || "Pricing calculation failed");
-        setIsSubmitting(false);
-        return;
-      }
-
-      const pricingData = checkoutRes.data;
-      // alert(pricingData.total);
-
-      // 3. Initiate Razorpay Order Creation
-      const order = await UserAPI.createOrder(pricingData.total);
-      
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: order.amount,
-        currency: order.currency,
-        name: "HK Healthcare",
-        description: `Ambulance Booking - ${ambulance.name}`,
-        order_id: order.id,
-        handler: async function (response) {
-          // 4. Verify Payment on Backend
-          const verifyData = {
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
-          };
-
-          const verifyRes = await UserAPI.verifyPayment(verifyData);
-
-          if (verifyRes.success || verifyRes.status === 'ok') {
-            // 5. If verified, proceed to Final Booking
-            await processFinalBooking(pricingData, staffTypeVal, response.razorpay_payment_id);
-          } else {
-            alert("Payment verification failed. Please contact support.");
-            setIsSubmitting(false);
-          }
-        },
-        prefill: {
-          name: "User",
-          email: "user@example.com",
-          contact: "9999999999",
-        },
-        theme: { color: "#08B36A" },
-        modal: {
-          ondismiss: function() {
-            setIsSubmitting(false);
-          }
-        }
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.open();
-
-    } catch (err) {
-      console.error("Submission Error:", err);
-      alert("An error occurred during booking.");
-      setIsSubmitting(false);
-    }
-  };
-
-  // Helper function to handle the actual database write after payment
-  const processFinalBooking = async (pricingData, staffTypeVal, paymentId) => {
-    try {
+      // 2. Build FormData to send to bookAmbulance API directly
       const data = new FormData();
       data.append("ambulanceId", id);
       data.append("hospitalId", formData.hospital);
       data.append("pickupLocation", formData.pickupLocation);
       data.append("serviceType", "Medical Ambulance");
       data.append("staffType", staffTypeVal);
-      data.append("couponCode", couponCode.trim());
-      data.append("triageLevel", formData.priority);
-      data.append("paymentId", paymentId); // Added payment reference
 
+      const activeCouponCode = appliedCoupon ? (appliedCoupon.couponName || couponCode).trim() : "";
+      data.append("couponCode", activeCouponCode);
+      data.append("triageLevel", formData.priority);
+
+      // Fetch patient relation details
       const member = familyMembers.find(m => m._id === formData.relation);
       data.append("patientDetails", JSON.stringify({
         name: formData.relation === "self" ? "User" : (member?.memberName || "Patient"),
@@ -261,31 +190,107 @@ export default function AmbulanceBookingPage() {
         condition: formData.emergencyType || "Emergency",
       }));
 
+      // Calculate and append local pricing details
+      const supportingStaffCharge =
+        (formData.supportStaff.doctor ? (ambulance.supportStaff?.doctor?.price || 500) : 0) +
+        (formData.supportStaff.nurse ? (ambulance.supportStaff?.nurse?.price || 200) : 0);
+
       data.append("pricing", JSON.stringify({
-        ambulanceCharge: pricingData.ambulanceCharge,
-        supportingStaffCharge: pricingData.supportingStaffCharge,
-        subtotal: pricingData.subtotal,
-        discount: pricingData.discount,
-        total: pricingData.total
+        ambulanceCharge: ambulance.pricing?.fixedPrice || 0,
+        supportingStaffCharge: supportingStaffCharge,
+        subtotal: currentSubtotal,
+        discount: discountAmount,
+        total: finalTotalAmount
       }));
 
       data.append("couponDetails", JSON.stringify({
-        couponId: pricingData.couponId || null,
-        couponCode: pricingData.finalCouponCode || couponCode,
-        discountValue: pricingData.discount || 0
+        couponId: appliedCoupon ? (appliedCoupon._id || appliedCoupon.id || null) : null,
+        couponCode: activeCouponCode,
+        discountValue: discountAmount
       }));
 
+      // Append flat pricing fields to support alternative backend parsers
+      data.append("subtotal", currentSubtotal.toString());
+      data.append("discount", discountAmount.toString());
+      data.append("total", finalTotalAmount.toString());
+      data.append("amount", finalTotalAmount.toString());
+      data.append("totalAmount", finalTotalAmount.toString());
+
+      console.log("Form Data Coupon Details:", data.get("couponDetails"));
+      console.log("Form Data Pricing Details:", data.get("pricing"));
+
+      // 3. Initiate booking and retrieve Razorpay credentials
       const res = await UserAPI.bookAmbulance(data);
+
       if (res.success) {
-        alert("Booking Confirmed!");
-        router.push(`/userscreens/ambulanceappointment`);
+        const { key_id, amount, razorpayOrderId, appointmentId, orderId } = res;
+
+        // 4. Configure Razorpay modal options
+        const options = {
+          key: key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+          amount: amount || (finalTotalAmount * 100), // Fallback to calculated total in paise
+          currency: "INR",
+          name: "HK Healthcare",
+          description: `Ambulance Booking - ${ambulance.name}`,
+          order_id: razorpayOrderId,
+          handler: async function (response) {
+            try {
+              setIsSubmitting(true);
+              const verifyData = {
+                appointmentId: appointmentId || orderId || res.appointmentId || res.orderId,
+                razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+                // Traditional fields support
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              };
+
+              // Verify Payment on Backend
+              const verifyRes = await UserAPI.verifyPaymentAmbulance(verifyData);
+
+              if (verifyRes.success || verifyRes.status === 'ok') {
+                alert(verifyRes.message || "Booking Confirmed!");
+                router.push(`/userscreens/ambulanceappointment`);
+              } else {
+                alert(verifyRes.message || "Payment verification failed. Please contact support.");
+              }
+            } catch (verifyErr) {
+              console.error("Verification Error:", verifyErr);
+              alert("Something went wrong during payment verification.");
+            } finally {
+              setIsSubmitting(false);
+            }
+          },
+          prefill: {
+            name: "User",
+            email: "user@example.com",
+            contact: "9999999999",
+          },
+          theme: { color: "#08B36A" },
+          modal: {
+            ondismiss: function () {
+              setIsSubmitting(false);
+            }
+          }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.on('payment.failed', function (paymentFailResponse) {
+          alert(`Payment failed: ${paymentFailResponse.error.description}`);
+          setIsSubmitting(false);
+        });
+        rzp.open();
+
       } else {
-        alert(res.message || "Booking Failed");
+        alert(res.message || "Booking Failed to initiate");
+        setIsSubmitting(false);
       }
+
     } catch (err) {
-      console.error("Finalize Booking Error:", err);
-      alert("Payment successful but booking failed. Please contact admin.");
-    } finally {
+      console.error("Submission Error:", err);
+      alert("An error occurred during booking.");
       setIsSubmitting(false);
     }
   };

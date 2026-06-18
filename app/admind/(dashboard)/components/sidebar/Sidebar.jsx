@@ -411,6 +411,10 @@ export default function Sidebar() {
                     <FaBan className="icon" />
                     <span>Notifications</span>
                 </Link>
+                <Link href="/admind/managebanks" className={`menu-item ${isActive("/admind/managebanks") ? "active" : ""}`}>
+                    <FaBan className="icon" />
+                    <span>Manage Banks</span>
+                </Link>
             </div>
         </div>
     );

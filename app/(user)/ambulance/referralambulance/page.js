@@ -9,6 +9,22 @@ import {
 import { useRouter } from 'next/navigation';
 import UserAPI from "@/app/services/UserAPI";
 
+// Utility to dynamically load the Razorpay SDK script
+const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+        if (window.Razorpay) {
+            resolve(true);
+            return;
+        }
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+    });
+};
+
 export default function ReferralBookingPage() {
   const router = useRouter();
 
@@ -198,6 +214,14 @@ export default function ReferralBookingPage() {
 
     setIsSubmitting(true);
     try {
+      // Load Razorpay script dynamically
+      const isScriptLoaded = await loadRazorpayScript();
+      if (!isScriptLoaded) {
+        alert("Failed to load Razorpay SDK. Please check your network connection.");
+        setIsSubmitting(false);
+        return;
+      }
+
       // 1. Prepare Staff Type
       const staffArr = [];
       if (formData.supportStaff.nurse) staffArr.push("Nurse");
@@ -248,7 +272,7 @@ export default function ReferralBookingPage() {
         referralReason: formData.referralReason
       }));
 
-      // referralCard File (Screen 8)
+      // referralCard File
       if (referralCardFile) {
         data.append("referralCard", referralCardFile);
       }
@@ -262,7 +286,7 @@ export default function ReferralBookingPage() {
         total: pricingData.total
       }));
 
-      // couponDetails object - FIX: Ensure couponId is correctly mapped from checkout response
+      // couponDetails object
       data.append("couponDetails", JSON.stringify({
         couponId: pricingData.couponId || null,
         couponCode: pricingData.finalCouponCode || couponCode,
@@ -272,24 +296,75 @@ export default function ReferralBookingPage() {
       // scheduledAt field for Schema
       data.append("scheduledAt", formData.scheduledDate);
 
-      // Verification log
-      console.log("3. FINAL BOOKING DATA (FORMDATA):");
-      for (let [key, val] of data.entries()) {
-        console.log(`${key}:`, val);
-      }
-
-      // 4. FINAL BOOKING CALL
+      // 4. CALL bookAmbulance to start booking & retrieve Razorpay details
       const res = await UserAPI.bookAmbulance(data);
       if (res.success) {
-        alert("Booking Confirmed!");
-        router.push(`/userscreens/ambulanceappointment`);
+        const { key_id, amount, razorpayOrderId, appointmentId, orderId } = res;
+
+        // Setup options for Razorpay Checkout Modal
+        const options = {
+          key: key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+          amount: amount,
+          currency: "INR",
+          name: "HK Healthcare",
+          description: `Referral Transfer - ${selectedAmbulance.name}`,
+          order_id: razorpayOrderId,
+          handler: async function (response) {
+            try {
+              setIsSubmitting(true);
+              const verifyData = {
+                appointmentId: appointmentId || orderId || res.appointmentId || res.orderId,
+                razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+                // Traditional fields support
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              };
+
+              const verifyRes = await UserAPI.verifyPaymentAmbulance(verifyData);
+
+              if (verifyRes.success || verifyRes.status === 'ok') {
+                alert(verifyRes.message || "Booking Confirmed!");
+                router.push(`/userscreens/ambulanceappointment`);
+              } else {
+                alert(verifyRes.message || "Payment verification failed. Please contact support.");
+              }
+            } catch (verifyErr) {
+              console.error("Verification Error:", verifyErr);
+              alert("Something went wrong during payment verification.");
+            } finally {
+              setIsSubmitting(false);
+            }
+          },
+          prefill: {
+            name: formData.patientName || "Patient Name",
+            email: "patient@example.com",
+            contact: "9999999999",
+          },
+          theme: { color: "#08B36A" },
+          modal: {
+            ondismiss: function() {
+              setIsSubmitting(false);
+            }
+          }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.on('payment.failed', function (paymentFailResponse) {
+          alert(`Payment failed: ${paymentFailResponse.error.description}`);
+          setIsSubmitting(false);
+        });
+        rzp.open();
+
       } else {
-        alert(res.message || "Booking Failed");
+        alert(res.message || "Booking Failed to initiate");
+        setIsSubmitting(false);
       }
     } catch (err) {
       console.error("SUBMIT ERROR:", err);
       alert("An error occurred during booking.");
-    } finally {
       setIsSubmitting(false);
     }
   };

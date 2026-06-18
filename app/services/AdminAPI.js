@@ -580,6 +580,52 @@ const AdminAPI = {
         return response.data;
     },
 
+    // Fetch all pending withdrawal requests across the platform
+    getPendingWithdrawals: async (page = 1, limit = 25) => {
+        const response = await api.get(`/api/admin/wallet/pending-withdrawals`, {
+            params: { page, limit }
+        });
+        return response.data;
+    },
+
+    // Approve a withdrawal request with a UTR reference number
+    approveWithdrawal: async (requestId, transactionReference) => {
+        const response = await api.patch(`/api/admin/wallet/approve-withdrawal/${requestId}`, {
+            transactionReference
+        });
+        return response.data;
+    },
+
+    getAdminAmountStats: async () => {
+        const response = await api.get(`/api/admin/wallet/dashboard-stats`);
+        return response.data;
+    },
+
+
+    // Reject a withdrawal request and provide a reason for reversal
+    rejectWithdrawal: async (requestId, reason) => {
+        const response = await api.patch(`/api/admin/wallet/reject-withdrawal/${requestId}`, {
+            reason
+        });
+        return response.data;
+    },
+
+    // Fetch all unverified bank profiles across the entire platform
+    getPendingBanks: async (page = 1, limit = 25) => {
+        const response = await api.get(`/api/admin/wallet/pending-banks`, {
+            params: { page, limit }
+        });
+        return response.data;
+    },
+
+    // Verify a vendor's bank details using their vendorModel type and ID
+    verifyBank: async (vendorModel, vendorId, isVerified = true) => {
+        const response = await api.patch(`/api/admin/wallet/verify-bank/${vendorModel}/${vendorId}`, {
+            isVerified
+        });
+        return response.data;
+    }
+
 
 };
 
