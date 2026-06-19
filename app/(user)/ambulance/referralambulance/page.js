@@ -9,22 +9,6 @@ import {
 import { useRouter } from 'next/navigation';
 import UserAPI from "@/app/services/UserAPI";
 
-// Utility to dynamically load the Razorpay SDK script
-const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-        if (window.Razorpay) {
-            resolve(true);
-            return;
-        }
-        const script = document.createElement("script");
-        script.src = "https://checkout.razorpay.com/v1/checkout.js";
-        script.async = true;
-        script.onload = () => resolve(true);
-        script.onerror = () => resolve(false);
-        document.body.appendChild(script);
-    });
-};
-
 export default function ReferralBookingPage() {
   const router = useRouter();
 
@@ -205,7 +189,7 @@ export default function ReferralBookingPage() {
     }
   };
 
-  // --- Final Submit Process ---
+  // --- Direct Submit Process (Without Razorpay Payments) ---
   const handleSubmit = async () => {
     if (!selectedAmbulance || !formData.hospitalId || !formData.pickupHospitalId) {
       alert("Please complete hospital and ambulance selections.");
@@ -214,21 +198,13 @@ export default function ReferralBookingPage() {
 
     setIsSubmitting(true);
     try {
-      // Load Razorpay script dynamically
-      const isScriptLoaded = await loadRazorpayScript();
-      if (!isScriptLoaded) {
-        alert("Failed to load Razorpay SDK. Please check your network connection.");
-        setIsSubmitting(false);
-        return;
-      }
-
-      // 1. Prepare Staff Type
+      // 1. Prepare Staff Type Selection
       const staffArr = [];
       if (formData.supportStaff.nurse) staffArr.push("Nurse");
       if (formData.supportStaff.doctor) staffArr.push("Doctor");
       const staffTypeVal = staffArr.length > 0 ? staffArr.join(", ") : "None";
 
-      // 2. CHECKOUT CALL (JSON) - Calculate Fare first
+      // 2. CHECKOUT CALL (JSON) - Calculate Pricing
       const checkoutPayload = {
         ambulanceId: selectedAmbulance._id,
         serviceType: "Referral Ambulance",
@@ -236,23 +212,19 @@ export default function ReferralBookingPage() {
         couponCode: couponCode.trim()
       };
 
-      console.log("1. CALLING CHECKOUT API (JSON):", checkoutPayload);
       const checkoutRes = await UserAPI.checkOutAmbulance(checkoutPayload);
 
       if (!checkoutRes.success) {
-        console.error("CHECKOUT FAILED:", checkoutRes);
         alert(checkoutRes.message || "Pricing calculation failed");
         setIsSubmitting(false);
         return;
       }
 
       const pricingData = checkoutRes.data;
-      console.log("2. CHECKOUT RESPONSE RECEIVED:", pricingData);
 
       // 3. PREPARE FINAL BOOKING (FORM DATA)
       const data = new FormData();
 
-      // Top level fields requested for the API
       data.append("ambulanceId", selectedAmbulance._id);
       data.append("pickupHospitalId", formData.pickupHospitalId);
       data.append("hospitalId", formData.hospitalId);
@@ -264,7 +236,7 @@ export default function ReferralBookingPage() {
       data.append("staffType", staffTypeVal);
       data.append("couponCode", couponCode.trim());
 
-      // patientDetails object - matching the schema structure
+      // patientDetails object matches the expected schema configuration
       data.append("patientDetails", JSON.stringify({
         name: formData.patientName,
         relation: formData.patientRelation,
@@ -272,12 +244,12 @@ export default function ReferralBookingPage() {
         referralReason: formData.referralReason
       }));
 
-      // referralCard File
+      // referralCard File payload
       if (referralCardFile) {
         data.append("referralCard", referralCardFile);
       }
 
-      // pricing object - exactly matching schema structure
+      // pricing object schema structure
       data.append("pricing", JSON.stringify({
         ambulanceCharge: pricingData.ambulanceCharge,
         supportingStaffCharge: pricingData.supportingStaffCharge,
@@ -293,78 +265,21 @@ export default function ReferralBookingPage() {
         discountValue: pricingData.discount || 0
       }));
 
-      // scheduledAt field for Schema
+      // scheduledAt fallback
       data.append("scheduledAt", formData.scheduledDate);
 
-      // 4. CALL bookAmbulance to start booking & retrieve Razorpay details
+      // 4. Directly Execute Booking
       const res = await UserAPI.bookAmbulance(data);
       if (res.success) {
-        const { key_id, amount, razorpayOrderId, appointmentId, orderId } = res;
-
-        // Setup options for Razorpay Checkout Modal
-        const options = {
-          key: key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-          amount: amount,
-          currency: "INR",
-          name: "HK Healthcare",
-          description: `Referral Transfer - ${selectedAmbulance.name}`,
-          order_id: razorpayOrderId,
-          handler: async function (response) {
-            try {
-              setIsSubmitting(true);
-              const verifyData = {
-                appointmentId: appointmentId || orderId || res.appointmentId || res.orderId,
-                razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
-                razorpayPaymentId: response.razorpay_payment_id,
-                razorpaySignature: response.razorpay_signature,
-                // Traditional fields support
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              };
-
-              const verifyRes = await UserAPI.verifyPaymentAmbulance(verifyData);
-
-              if (verifyRes.success || verifyRes.status === 'ok') {
-                alert(verifyRes.message || "Booking Confirmed!");
-                router.push(`/userscreens/ambulanceappointment`);
-              } else {
-                alert(verifyRes.message || "Payment verification failed. Please contact support.");
-              }
-            } catch (verifyErr) {
-              console.error("Verification Error:", verifyErr);
-              alert("Something went wrong during payment verification.");
-            } finally {
-              setIsSubmitting(false);
-            }
-          },
-          prefill: {
-            name: formData.patientName || "Patient Name",
-            email: "patient@example.com",
-            contact: "9999999999",
-          },
-          theme: { color: "#08B36A" },
-          modal: {
-            ondismiss: function() {
-              setIsSubmitting(false);
-            }
-          }
-        };
-
-        const rzp = new window.Razorpay(options);
-        rzp.on('payment.failed', function (paymentFailResponse) {
-          alert(`Payment failed: ${paymentFailResponse.error.description}`);
-          setIsSubmitting(false);
-        });
-        rzp.open();
-
+        alert(res.message || "Referral Transfer Booking Confirmed Successfully!");
+        router.push(`/userscreens/ambulanceappointment`);
       } else {
-        alert(res.message || "Booking Failed to initiate");
-        setIsSubmitting(false);
+        alert(res.message || "An error occurred while placing the booking.");
       }
     } catch (err) {
       console.error("SUBMIT ERROR:", err);
-      alert("An error occurred during booking.");
+      alert("Something went wrong during submission. Verification step bypassed.");
+    } finally {
       setIsSubmitting(false);
     }
   };

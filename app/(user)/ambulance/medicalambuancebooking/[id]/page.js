@@ -7,8 +7,6 @@ import {
   Stethoscope, Activity, AlertCircle, Map, Phone, Mail, Truck, Ticket
 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
-// --- RAZORPAY STEP 1: Import Script ---
-import Script from 'next/script';
 import UserAPI from "@/app/services/UserAPI";
 
 export default function AmbulanceBookingPage() {
@@ -158,12 +156,6 @@ export default function AmbulanceBookingPage() {
 
     setIsSubmitting(true);
     try {
-      if (!window.Razorpay) {
-        alert("Razorpay SDK is loading. Please try again in a few seconds.");
-        setIsSubmitting(false);
-        return;
-      }
-
       // 1. Prepare Staff Type
       const staffArr = [];
       if (formData.supportStaff.nurse) staffArr.push("Nurse");
@@ -219,78 +211,20 @@ export default function AmbulanceBookingPage() {
       console.log("Form Data Coupon Details:", data.get("couponDetails"));
       console.log("Form Data Pricing Details:", data.get("pricing"));
 
-      // 3. Initiate booking and retrieve Razorpay credentials
+      // 3. Initiate direct booking without payment gateway redirections
       const res = await UserAPI.bookAmbulance(data);
 
       if (res.success) {
-        const { key_id, amount, razorpayOrderId, appointmentId, orderId } = res;
-
-        // 4. Configure Razorpay modal options
-        const options = {
-          key: key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-          amount: amount || (finalTotalAmount * 100), // Fallback to calculated total in paise
-          currency: "INR",
-          name: "HK Healthcare",
-          description: `Ambulance Booking - ${ambulance.name}`,
-          order_id: razorpayOrderId,
-          handler: async function (response) {
-            try {
-              setIsSubmitting(true);
-              const verifyData = {
-                appointmentId: appointmentId || orderId || res.appointmentId || res.orderId,
-                razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
-                razorpayPaymentId: response.razorpay_payment_id,
-                razorpaySignature: response.razorpay_signature,
-                // Traditional fields support
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              };
-
-              // Verify Payment on Backend
-              const verifyRes = await UserAPI.verifyPaymentAmbulance(verifyData);
-
-              if (verifyRes.success || verifyRes.status === 'ok') {
-                alert(verifyRes.message || "Booking Confirmed!");
-                router.push(`/userscreens/ambulanceappointment`);
-              } else {
-                alert(verifyRes.message || "Payment verification failed. Please contact support.");
-              }
-            } catch (verifyErr) {
-              console.error("Verification Error:", verifyErr);
-              alert("Something went wrong during payment verification.");
-            } finally {
-              setIsSubmitting(false);
-            }
-          },
-          prefill: {
-            name: "User",
-            email: "user@example.com",
-            contact: "9999999999",
-          },
-          theme: { color: "#08B36A" },
-          modal: {
-            ondismiss: function () {
-              setIsSubmitting(false);
-            }
-          }
-        };
-
-        const rzp = new window.Razorpay(options);
-        rzp.on('payment.failed', function (paymentFailResponse) {
-          alert(`Payment failed: ${paymentFailResponse.error.description}`);
-          setIsSubmitting(false);
-        });
-        rzp.open();
-
+        alert("Booking Confirmed!");
+        router.push(`/userscreens/ambulanceappointment`);
       } else {
         alert(res.message || "Booking Failed to initiate");
-        setIsSubmitting(false);
       }
 
     } catch (err) {
       console.error("Submission Error:", err);
       alert("An error occurred during booking.");
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -299,9 +233,6 @@ export default function AmbulanceBookingPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans pb-20">
-      {/* --- RAZORPAY STEP 3: Load the SDK --- */}
-      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
-
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
@@ -575,7 +506,7 @@ export default function AmbulanceBookingPage() {
                 disabled={isSubmitting}
                 className="w-full md:w-auto bg-[#08B36A] hover:bg-emerald-600 disabled:bg-slate-300 text-white px-12 py-5 rounded-2xl font-black text-lg shadow-lg shadow-emerald-200 transition-all active:scale-95"
               >
-                {isSubmitting ? "Processing Payment..." : "Confirm Dispatch"}
+                {isSubmitting ? "Confirming Dispatch..." : "Confirm Dispatch"}
               </button>
             </div>
           </div>

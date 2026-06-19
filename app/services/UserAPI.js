@@ -846,6 +846,11 @@ const UserAPI = {
         return response.data;
     },
 
+    initiatePaymentAmbulance: async (id) => {
+        const response = await authApi.post(`/user/ambulance/initiate-payment/${id}`);
+        return response.data;
+    },
+
     verifyPaymentAmbulance: async (paymentData) => {
         const response = await authApi.post(`/user/ambulance/verify-payment`, paymentData);
         return response.data;;
