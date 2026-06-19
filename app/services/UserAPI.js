@@ -267,16 +267,11 @@ const UserAPI = {
     },
 
     createPrescriptionRequest: async (formData) => {
-        console.log("Prescription Request FormData being sent:", formData);
-
-        const response = await authApi.post(
-            "/user/pharmacy/prescription-request",
-            formData,
-            {
-                headers: {
-                    "Content-Type": "multipart/form-data",
-                },
-            }
+        const response = await authApi.post("/user/pharmacy/prescription-request", formData, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        }
         );
 
         return response.data;
@@ -854,6 +849,16 @@ const UserAPI = {
     verifyPaymentAmbulance: async (paymentData) => {
         const response = await authApi.post(`/user/ambulance/verify-payment`, paymentData);
         return response.data;;
+    },
+
+    payPrescriptionRequest: async (paymentData) => {
+        const response = await authApi.post(`/user/pharmacy/prescription-request/pay-confirm`, paymentData);
+        return response.data;
+    },
+
+    verifyPaymentPrescriptionPharmacy: async (paymentData) => {
+        const response = await authApi.post(`/user/pharmacy/prescription-request/verify-payment`, paymentData);
+        return response.data;
     },
 
 

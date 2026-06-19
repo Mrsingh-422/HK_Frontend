@@ -136,7 +136,7 @@ export default function PrescriptionFlow() {
 
 
             if (response.success) {
-                // router.push("/userscreens/previousorders"); // Redirect to orders page
+                router.push("/userscreens/previousorders"); // Redirect to orders page
                 
 
                 // Reset flow

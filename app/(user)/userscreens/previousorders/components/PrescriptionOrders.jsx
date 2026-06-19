@@ -9,12 +9,29 @@ import {
 } from 'react-icons/fi';
 import { MdOutlineLocalPharmacy } from 'react-icons/md';
 
+// Utility to dynamically load the Razorpay SDK script
+const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+        if (window.Razorpay) {
+            resolve(true);
+            return;
+        }
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+    });
+};
+
 export default function PrescriptionOrders() {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [pagination, setPagination] = useState({ current: 1, total: 1 });
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [mounted, setMounted] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // 1. Handle Mounting for Portals in Next.js
     useEffect(() => {
@@ -63,21 +80,111 @@ export default function PrescriptionOrders() {
         }
     };
 
+    // --- PAYMENT ACTION HANDLER ---
+    const handleCheckout = async (order) => {
+        setIsSubmitting(true);
+        try {
+            // Load Razorpay script dynamically
+            const isScriptLoaded = await loadRazorpayScript();
+            if (!isScriptLoaded) {
+                alert("Failed to load Razorpay SDK. Please check your network connection.");
+                setIsSubmitting(false);
+                return;
+            }
+
+            // Step 1: Initiate payment to get Razorpay order parameters
+            const res = await UserAPI.payPrescriptionRequest({
+                requestId: order._id, // MongoDB prescription request ID
+                paymentMethod: "Online"
+            });
+
+            if (res && res.success) {
+                const { key_id, amount, razorpayOrderId, appointmentId } = res;
+
+                // Setup options for Razorpay Checkout Modal
+                const options = {
+                    key: key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+                    amount: amount,
+                    currency: "INR",
+                    name: "HK Healthcare App",
+                    description: `Prescription Request #${order.requestId}`,
+                    order_id: razorpayOrderId,
+                    prefill: {
+                        name: "User",
+                        email: "user@example.com",
+                        contact: "9999999999"
+                    },
+                    theme: {
+                        color: "#059669" // Matches application emerald theme
+                    },
+                    modal: {
+                        ondismiss: function () {
+                            setIsSubmitting(false);
+                        }
+                    },
+                    handler: async function (response) {
+                        try {
+                            setIsSubmitting(true);
+
+                            // Step 2: Prepare payload for payment signature verification
+                            const verificationPayload = {
+                                appointmentId: appointmentId || order._id,
+                                razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
+                                razorpayPaymentId: response.razorpay_payment_id,
+                                razorpaySignature: response.razorpay_signature
+                            };
+
+                            const verificationRes = await UserAPI.verifyPaymentPrescriptionPharmacy(verificationPayload);
+
+                            if (verificationRes?.success) {
+                                alert(verificationRes.message || "Prescription payment verified and order placed successfully!");
+                                setSelectedOrder(null); // Close Details Modal
+                                fetchOrders(pagination.current); // Refresh request list history
+                            } else {
+                                alert(verificationRes?.message || "Payment verification failed.");
+                            }
+                        } catch (verificationError) {
+                            console.error("Payment Verification Error:", verificationError);
+                            alert("Something went wrong during payment verification.");
+                        } finally {
+                            setIsSubmitting(false);
+                        }
+                    }
+                };
+
+                const rzpInstance = new window.Razorpay(options);
+                rzpInstance.on('payment.failed', function (response) {
+                    alert(`Payment failed: ${response.error.description}`);
+                    setIsSubmitting(false);
+                });
+                rzpInstance.open();
+
+            } else {
+                alert(res?.message || "Failed to initiate payment. Please try again.");
+                setIsSubmitting(false);
+            }
+        } catch (error) {
+            console.error("Checkout Initialization Error:", error);
+            alert("An error occurred during booking initialization.");
+            setIsSubmitting(false);
+        }
+    };
+
     // --- MODAL COMPONENT ---
-    const ModalPortal = ({ order, onClose }) => {
+    const ModalPortal = ({ order, onClose, onCheckout, isSubmitting }) => {
         if (!mounted) return null;
 
         return createPortal(
             <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6">
                 {/* Backdrop - Covers entire browser window */}
-                <div 
+                <div
                     className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300"
                     onClick={onClose}
                 />
 
                 {/* Modal Card - Perfectly Centered */}
                 <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-[0_30px_70px_-10px_rgba(0,0,0,0.4)] overflow-hidden animate-in zoom-in-95 fade-in duration-300 flex flex-col max-h-[85vh]">
-                    
+
                     {/* Header */}
                     <div className="p-6 md:p-8 pb-4 flex justify-between items-start shrink-0">
                         <div>
@@ -117,9 +224,9 @@ export default function PrescriptionOrders() {
                                         <span>Total Amount</span>
                                         <span>Verified Invoice</span>
                                     </div>
-                                    <div className="text-3xl font-light">₹{order.verifiedBill.totalAmount}</div>
+                                    <div className="text-3xl font-light">₹{order.verifiedBill?.totalAmount}</div>
                                     <div className="mt-4 pt-4 border-t border-white/10 flex justify-between text-[11px] opacity-70">
-                                        <span className="flex items-center gap-1.5"><FiCheckCircle size={14}/> Includes GST</span>
+                                        <span className="flex items-center gap-1.5"><FiCheckCircle size={14} /> Includes GST</span>
                                         <span>{new Date().toLocaleDateString()}</span>
                                     </div>
                                 </div>
@@ -137,8 +244,17 @@ export default function PrescriptionOrders() {
                     {/* Footer */}
                     <div className="p-6 md:p-8 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
                         {order.status === 'Bill Generated' && (
-                            <button className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl text-[11px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20">
-                                <FiCreditCard size={14} /> Checkout
+                            <button
+                                onClick={() => onCheckout(order)}
+                                disabled={isSubmitting}
+                                className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl text-[11px] font-bold uppercase tracking-widest hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+                            >
+                                {isSubmitting ? (
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                    <FiCreditCard size={14} />
+                                )}
+                                {isSubmitting ? "Processing..." : "Checkout"}
                             </button>
                         )}
                         <button onClick={onClose} className="flex-1 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl text-[11px] font-bold uppercase tracking-widest hover:bg-slate-50">
@@ -213,9 +329,11 @@ export default function PrescriptionOrders() {
 
             {/* --- Render Modal using Portal --- */}
             {selectedOrder && (
-                <ModalPortal 
-                    order={selectedOrder} 
-                    onClose={() => setSelectedOrder(null)} 
+                <ModalPortal
+                    order={selectedOrder}
+                    onClose={() => setSelectedOrder(null)}
+                    onCheckout={handleCheckout}
+                    isSubmitting={isSubmitting}
                 />
             )}
 
