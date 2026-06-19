@@ -866,6 +866,9 @@ const UserAPI = {
         return response.data;
     },
 
+    //Rating and Reviews 
+    
+
 
 
 };

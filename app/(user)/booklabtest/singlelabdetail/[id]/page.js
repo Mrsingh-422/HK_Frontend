@@ -12,8 +12,7 @@ import UserAPI from "@/app/services/UserAPI";
 import PackagesList from "../../seealltests/components/PackagesList";
 import SingleTestsList from "../../seealltests/components/SingleTestsList";
 
-// Environment variable for backend URL (e.g., http://localhost:5000)
-const IMAGE_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const IMAGE_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 export default function LabDetailsPage() {
     const { id } = useParams();
@@ -116,7 +115,7 @@ export default function LabDetailsPage() {
                                     {lab.name}
                                 </h1>
                                 <div className="flex items-center gap-1.5 bg-amber-50 text-amber-600 px-3 py-1.5 rounded-xl text-sm font-black border border-amber-100 shadow-sm">
-                                    <FaStar /> {lab.rating || "4.8"}
+                                    <FaStar /> {lab.rating}
                                 </div>
                             </div>
 

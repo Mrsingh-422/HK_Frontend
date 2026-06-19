@@ -50,6 +50,7 @@ export default function AllAmbulancesPage() {
                     }));
                     setAmbulances(dataWithImages);
                 }
+                console.log(ambRes.data)
             } catch (error) {
                 console.error("Error fetching ambulance data:", error);
             } finally {
@@ -194,7 +195,7 @@ export default function AllAmbulancesPage() {
                                 </div>
                                 <div className="absolute bottom-3 right-3 bg-[#08B36A] text-white px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-lg shadow-emerald-900/20">
                                     <FaStar className="text-yellow-300 text-[10px]" />
-                                    <span className="text-[10px] font-black">4.8</span>
+                                    <span className="text-[10px] font-black">{amb.rating || 0}</span>
                                 </div>
                             </div>
 
