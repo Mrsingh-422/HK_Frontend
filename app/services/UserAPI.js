@@ -867,7 +867,12 @@ const UserAPI = {
     },
 
     //Rating and Reviews 
-    
+    addRatingAndReviewLab: async (reviewData) => {
+        const response = await authApi.post('/user/labs/rate', reviewData)
+        return response.data;
+    },
+
+
 
 
 

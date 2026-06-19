@@ -5,9 +5,10 @@ import UserAPI from '../../../../services/UserAPI';
 import {
     FiX, FiActivity, FiLayers, FiHome,
     FiDownload, FiSearch, FiRefreshCw, FiChevronLeft, FiChevronRight,
-    FiUser, FiMapPin, FiClock, FiCreditCard
+    FiUser, FiMapPin, FiClock, FiCreditCard, FiStar, FiCheckCircle
 } from 'react-icons/fi';
-import { MdOutlineScience } from 'react-icons/md';
+import { HiStar } from 'react-icons/hi';
+import { MdOutlineScience, MdOutlineRateReview, MdPayment } from 'react-icons/md';
 
 // --- SUB-COMPONENT: STEPPER ---
 const StatusStepper = ({ status }) => {
@@ -15,7 +16,8 @@ const StatusStepper = ({ status }) => {
         "Confirmed": 0,
         "Phlebotomist Assigned": 1,
         "Sample Collected": 2,
-        "Report Ready": 3
+        "Report Ready": 3,
+        "Completed": 3
     };
     const currentStep = statusMap[status] ?? 1;
     const steps = ["Booked", "Assigned", "Collected", "Completed"];
@@ -42,6 +44,7 @@ function LabOrders() {
     const [orders, setOrders] = useState([]);
     const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0 });
     const [modal, setModal] = useState({ isOpen: false, data: null });
+    const [reviewModal, setReviewModal] = useState({ isOpen: false, data: null });
     const [mounted, setMounted] = useState(false);
 
     // 1. Handle Mounting for Portals (Next.js SSR safety)
@@ -50,15 +53,15 @@ function LabOrders() {
         return () => setMounted(false);
     }, []);
 
-    // 2. Prevent body scroll when modal is open
+    // 2. Prevent body scroll when modals are open
     useEffect(() => {
-        if (modal.isOpen) {
+        if (modal.isOpen || reviewModal.isOpen) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [modal.isOpen]);
+    }, [modal.isOpen, reviewModal.isOpen]);
 
     // Fetch Data
     const loadBookings = useCallback(async (page = 1) => {
@@ -84,10 +87,37 @@ function LabOrders() {
         loadBookings();
     }, [loadBookings]);
 
+    // Submit Review API connection
+    const handleReviewSubmit = async (bookingId, ratingData) => {
+        try {
+            // Setup precise request body for submit review
+            const reviewPayload = {
+                bookingId: bookingId, // MongoDB ObjectId (_id)
+                rating: ratingData.rating,
+                comment: ratingData.comment
+            };
+
+            const res = await UserAPI.addRatingAndReviewLab(reviewPayload);
+            
+            if (res && res.success) {
+                alert(res.message || "Thank you for sharing your diagnostics experience!");
+                setReviewModal({ isOpen: false, data: null });
+                // Re-fetch list to capture updated details
+                loadBookings();
+            } else {
+                alert(res?.message || "Failed to submit review.");
+            }
+        } catch (error) {
+            console.error("Failed to post rating details", error);
+            alert("An error occurred while submitting the review.");
+        }
+    };
+
     // Helpers
     const getItemsCount = (items) => (items?.tests?.length || 0) + (items?.packages?.length || 0);
 
     const getItemsSummary = (items) => {
+        if (!items) return "Diagnostic Booking";
         const tests = items.tests?.map(t => t.name) || [];
         const packages = items.packages?.map(p => p.name) || [];
         const all = [...tests, ...packages];
@@ -95,12 +125,119 @@ function LabOrders() {
     };
 
     const getStatusStyles = (status) => {
-        if (status === 'Report Ready') return 'text-emerald-600 bg-emerald-50';
+        if (status === 'Report Ready' || status === 'Completed') return 'text-emerald-600 bg-emerald-50';
         if (['Cancelled', 'Rejected'].includes(status)) return 'text-rose-500 bg-rose-50';
         return 'text-indigo-600 bg-indigo-50';
     };
 
-    // --- MODAL PORTAL COMPONENT ---
+    // --- MODAL PORTAL COMPONENT: ADD REVIEW & RATINGS ---
+    const LabReviewModal = ({ isOpen, onClose, data }) => {
+        const [rating, setRating] = useState(5);
+        const [comment, setComment] = useState("");
+        const [hoverRating, setHoverRating] = useState(0);
+        const [submitting, setSubmitting] = useState(false);
+
+        if (!mounted || !isOpen || !data) return null;
+
+        const handleSubmit = async (e) => {
+            e.preventDefault();
+            setSubmitting(true);
+            await handleReviewSubmit(data._id, { rating, comment });
+            setSubmitting(false);
+        };
+
+        const getRatingLabel = (val) => {
+            switch (val) {
+                case 1: return "Extremely Disappointed";
+                case 2: return "Needs Improvement";
+                case 3: return "Average Experience";
+                case 4: return "Very Good Quality";
+                case 5: return "Excellent Service!";
+                default: return "Select Rating";
+            }
+        };
+
+        return createPortal(
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6">
+                {/* Backdrop */}
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300" onClick={onClose} />
+
+                {/* Modal Card */}
+                <div className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-[0_30px_80px_-15px_rgba(0,0,0,0.5)] overflow-hidden p-6 md:p-8 animate-in zoom-in-95 fade-in duration-300">
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-2">
+                            <span className="bg-amber-100 text-amber-600 p-2 rounded-xl">
+                                <MdOutlineRateReview size={20} />
+                            </span>
+                            <div>
+                                <h4 className="font-black text-slate-900 text-sm md:text-base uppercase tracking-widest">Rate Booking</h4>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Reviewing {data.labId?.name}</p>
+                            </div>
+                        </div>
+                        <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 hover:border-rose-100 transition-all">
+                            <FiX size={16} />
+                        </button>
+                    </div>
+
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        {/* STAR INTERACTIVE GRID */}
+                        <div className="flex flex-col items-center justify-center gap-2 p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Tap to Rate Stars</span>
+                            <div className="flex gap-2">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                    <button
+                                        type="button"
+                                        key={star}
+                                        onClick={() => setRating(star)}
+                                        onMouseEnter={() => setHoverRating(star)}
+                                        onMouseLeave={() => setHoverRating(0)}
+                                        className="transition-transform active:scale-90 hover:scale-110"
+                                    >
+                                        <HiStar
+                                            size={32}
+                                            className={`${
+                                                star <= (hoverRating || rating)
+                                                    ? "text-amber-400 fill-amber-400"
+                                                    : "text-slate-200"
+                                            } transition-colors duration-150`}
+                                        />
+                                    </button>
+                                ))}
+                            </div>
+                            <span className="text-xs font-bold text-slate-600 mt-1 transition-all duration-300">
+                                {getRatingLabel(hoverRating || rating)}
+                            </span>
+                        </div>
+
+                        {/* TEXT COMMENT */}
+                        <div className="space-y-1.5">
+                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1 block">Comment Feedback</label>
+                            <textarea
+                                value={comment}
+                                onChange={(e) => setComment(e.target.value)}
+                                rows={4}
+                                required
+                                placeholder="Describe the service details, phlebotomist behavior, collection safety, or speed of lab report..."
+                                className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-semibold outline-none ring-1 ring-slate-100 focus:ring-indigo-500 transition-all placeholder:text-slate-400 resize-none"
+                            />
+                        </div>
+
+                        {/* SUBMIT */}
+                        <button
+                            type="submit"
+                            disabled={submitting}
+                            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
+                        >
+                            {submitting ? <FiRefreshCw className="animate-spin" /> : "Submit Feedback"}
+                        </button>
+                    </form>
+                </div>
+            </div>,
+            document.body
+        );
+    };
+
+    // --- MODAL PORTAL COMPONENT: ORDER DETAILS ---
     const LabDetailsModal = ({ data, onClose }) => {
         if (!mounted) return null;
 
@@ -146,25 +283,37 @@ function LabOrders() {
                                     </div>
                                     <div>
                                         <h4 className="font-black text-slate-900 text-lg leading-tight">{data.labId?.name}</h4>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1 mt-1"><FiMapPin size={12} /> {data.labId?.city}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1 mt-1">
+                                            <FiMapPin size={12} /> {data.labId?.city}
+                                        </p>
                                     </div>
                                 </div>
                                 <StatusStepper status={data.status} />
                             </div>
 
                             <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
-                                <p className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest">Slot Details</p>
+                                <p className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest">Slot & Security Details</p>
                                 <div className="space-y-3">
-                                    <div className="flex items-center gap-3 text-xs font-bold text-slate-700">
-                                        <FiClock className="text-indigo-500" size={16} />
-                                        <span>{new Date(data.appointmentDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}</span>
+                                    <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                                        <div className="flex items-center gap-3">
+                                            <FiClock className="text-indigo-500" size={16} />
+                                            <span>{new Date(data.appointmentDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-3 text-xs font-bold text-slate-700">
-                                        <FiActivity className="text-indigo-500" size={16} /> <span>{data.appointmentTime}</span>
+                                    <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                                        <div className="flex items-center gap-3">
+                                            <FiActivity className="text-indigo-500" size={16} />
+                                            <span>{data.appointmentTime}</span>
+                                        </div>
+                                        {data.tracking?.otp && (
+                                            <span className="bg-amber-100 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-md text-[10px] tracking-wider uppercase font-black">
+                                                OTP: {data.tracking.otp}
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-3 text-xs font-bold text-slate-700">
                                         {data.collectionType === "Home Collection" ? <FiHome className="text-emerald-500" size={16} /> : <FiMapPin className="text-blue-500" size={16} />}
-                                        <span>{data.collectionType}</span>
+                                        <span>Collection: {data.collectionType}</span>
                                     </div>
                                 </div>
                             </div>
@@ -205,32 +354,94 @@ function LabOrders() {
                             </div>
                         </div>
 
-                        {/* Bill Summary */}
-                        <div className="bg-slate-900 text-white rounded-[2.5rem] p-8">
-                            <div className="flex items-center gap-2 mb-6">
-                                <FiCreditCard className="text-indigo-400" />
-                                <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Financial Summary</h5>
-                            </div>
-                            <div className="space-y-3 text-xs font-bold border-b border-white/10 pb-6 mb-6">
-                                <div className="flex justify-between text-slate-400"><span>Subtotal</span><span>₹{data.billSummary?.itemTotal}</span></div>
-                                {data.billSummary?.couponDiscount > 0 && <div className="flex justify-between text-rose-400"><span>Coupon Applied</span><span>- ₹{data.billSummary?.couponDiscount}</span></div>}
-                                {data.billSummary?.homeVisitCharge > 0 && <div className="flex justify-between text-slate-400"><span>Home Visit Fee</span><span>₹{data.billSummary?.homeVisitCharge}</span></div>}
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">Net Paid</p>
-                                    <p className="text-3xl font-black">₹{data.billSummary?.totalAmount}</p>
+                        {/* Bill & Payment Details Summary */}
+                        <div className="space-y-4">
+                            <div className="bg-slate-900 text-white rounded-[2.5rem] p-8">
+                                <div className="flex items-center gap-2 mb-6">
+                                    <FiCreditCard className="text-indigo-400" />
+                                    <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Financial Summary</h5>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Status</p>
-                                    <p className="text-xs font-black text-emerald-400 uppercase mt-1">{data.paymentStatus}</p>
+                                <div className="space-y-3 text-xs font-bold border-b border-white/10 pb-6 mb-6">
+                                    <div className="flex justify-between text-slate-400">
+                                        <span>Subtotal</span>
+                                        <span>₹{data.billSummary?.itemTotal}</span>
+                                    </div>
+                                    {data.billSummary?.couponDiscount > 0 && (
+                                        <div className="flex justify-between text-rose-400">
+                                            <span>Coupon Applied</span>
+                                            <span>- ₹{data.billSummary?.couponDiscount}</span>
+                                        </div>
+                                    )}
+                                    {data.billSummary?.homeVisitCharge > 0 && (
+                                        <div className="flex justify-between text-slate-400">
+                                            <span>Home Visit Fee</span>
+                                            <span>₹{data.billSummary?.homeVisitCharge}</span>
+                                        </div>
+                                    )}
+                                    {data.billSummary?.rapidDeliveryCharge > 0 && (
+                                        <div className="flex justify-between text-slate-400">
+                                            <span>Rapid Delivery Charge</span>
+                                            <span>₹{data.billSummary?.rapidDeliveryCharge}</span>
+                                        </div>
+                                    )}
+                                    {data.billSummary?.distanceCharge > 0 && (
+                                        <div className="flex justify-between text-slate-400">
+                                            <span>Distance Fee</span>
+                                            <span>₹{data.billSummary?.distanceCharge}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">Net Paid</p>
+                                        <p className="text-3xl font-black">₹{data.billSummary?.totalAmount}</p>
+                                    </div>
+                                    <div className="text-left sm:text-right">
+                                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Payment Status</p>
+                                        <p className="text-xs font-black text-emerald-400 uppercase mt-1 flex items-center gap-1.5 justify-start sm:justify-end">
+                                            <FiCheckCircle /> {data.paymentStatus}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
+
+                            {/* Transaction Details Receipt */}
+                            {data.paymentDetails && (
+                                <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 text-xs text-slate-600 space-y-2.5">
+                                    <span className="text-[9px] font-black uppercase text-indigo-600 tracking-wider flex items-center gap-1.5 mb-2">
+                                        <MdPayment size={14} /> Settlement Details
+                                    </span>
+                                    <div className="grid grid-cols-2 gap-y-1 bg-white p-4 rounded-xl border border-slate-100/50">
+                                        <span>Payment ID:</span>
+                                        <span className="font-mono text-slate-800 break-all">{data.paymentDetails.razorpayPaymentId || "N/A"}</span>
+                                        
+                                        <span>Order Reference ID:</span>
+                                        <span className="font-mono text-slate-800 break-all">{data.paymentDetails.razorpayOrderId || "N/A"}</span>
+                                        
+                                        <span>Bank / Method:</span>
+                                        <span className="capitalize text-slate-800">{data.paymentDetails.bank || data.paymentDetails.method || data.paymentMethod || "N/A"}</span>
+
+                                        <span>Transaction Date:</span>
+                                        <span className="text-slate-800">{data.paymentDetails.paidAt ? new Date(data.paymentDetails.paidAt).toLocaleString() : "N/A"}</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="p-6 md:p-8 bg-slate-50/50 border-t flex flex-col sm:flex-row gap-3 shrink-0">
+                    <div className="p-6 md:p-8 bg-slate-50/50 border-t flex flex-wrap sm:flex-nowrap gap-3 shrink-0">
+                        {data.status === "Completed" && (
+                            <button 
+                                onClick={() => {
+                                    onClose();
+                                    setReviewModal({ isOpen: true, data: data });
+                                }}
+                                className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-amber-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                            >
+                                <FiStar size={16} /> Add Review & Rating
+                            </button>
+                        )}
                         <button className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
                             <FiDownload size={16} /> Download Receipt
                         </button>
@@ -289,9 +500,10 @@ function LabOrders() {
                                                 <p className="text-xs font-black text-slate-900 leading-none mb-1">#{order.bookingId}</p>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase">{order.labId?.name}</p>
                                             </td>
-                                            <td className="px-8 py-6"><p className="text-sm font-black text-slate-800 truncate mb-1">
-                                                {getItemsSummary(order.items).slice(0, 20)}
-                                            </p>
+                                            <td className="px-8 py-6">
+                                                <p className="text-sm font-black text-slate-800 truncate mb-1">
+                                                    {getItemsSummary(order.items).slice(0, 30)}
+                                                </p>
                                                 <p className="text-[9px] font-bold text-indigo-500 uppercase flex items-center gap-1"><FiLayers /> {getItemsCount(order.items)} Items</p>
                                             </td>
                                             <td className="px-8 py-6">
@@ -303,7 +515,17 @@ function LabOrders() {
                                                 <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${getStatusStyles(order.status)}`}>{order.status}</span>
                                             </td>
                                             <td className="px-8 py-6 text-right">
-                                                <button onClick={() => setModal({ isOpen: true, data: order })} className="px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-slate-200 hover:bg-slate-900 hover:text-white transition-all">View Summary</button>
+                                                <div className="flex gap-2 justify-end items-center">
+                                                    {order.status === "Completed" && (
+                                                        <button 
+                                                            onClick={() => setReviewModal({ isOpen: true, data: order })} 
+                                                            className="px-4 py-2 rounded-xl text-[9px] font-black uppercase bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1 shadow-md shadow-amber-100"
+                                                        >
+                                                            <FiStar /> Rate Service
+                                                        </button>
+                                                    )}
+                                                    <button onClick={() => setModal({ isOpen: true, data: order })} className="px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-slate-200 hover:bg-slate-900 hover:text-white transition-all">View Summary</button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -322,7 +544,22 @@ function LabOrders() {
                                         </div>
                                         <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${getStatusStyles(order.status)}`}>{order.status}</span>
                                     </div>
-                                    <button onClick={() => setModal({ isOpen: true, data: order })} className="w-full bg-white border border-slate-200 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center">View Summary</button>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {order.status === "Completed" && (
+                                            <button 
+                                                onClick={() => setReviewModal({ isOpen: true, data: order })} 
+                                                className="w-full bg-amber-500 hover:bg-amber-600 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center text-white flex items-center justify-center gap-1 shadow-md shadow-amber-100"
+                                            >
+                                                <FiStar /> Rate Service
+                                            </button>
+                                        )}
+                                        <button 
+                                            onClick={() => setModal({ isOpen: true, data: order })} 
+                                            className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center border border-slate-200 bg-white ${order.status !== "Completed" ? "col-span-2" : ""}`}
+                                        >
+                                            View Summary
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -339,11 +576,19 @@ function LabOrders() {
                 </div>
             </div>
 
-            {/* --- Portal Modal --- */}
+            {/* --- Portal Modals --- */}
             {modal.isOpen && modal.data && (
                 <LabDetailsModal
                     data={modal.data}
                     onClose={() => setModal({ isOpen: false, data: null })}
+                />
+            )}
+
+            {reviewModal.isOpen && reviewModal.data && (
+                <LabReviewModal
+                    isOpen={reviewModal.isOpen}
+                    data={reviewModal.data}
+                    onClose={() => setReviewModal({ isOpen: false, data: null })}
                 />
             )}
 

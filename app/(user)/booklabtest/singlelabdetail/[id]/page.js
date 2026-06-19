@@ -6,7 +6,7 @@ import {
     FaArrowLeft, FaStar, FaMapMarkerAlt, FaHome,
     FaBolt, FaPhone, FaEnvelope, FaShieldAlt,
     FaMicroscope, FaCalendarCheck, FaSearch, FaCheckCircle,
-    FaHospital, FaClock
+    FaHospital, FaClock, FaInfoCircle, FaRegImages, FaCommentDots
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 import PackagesList from "../../seealltests/components/PackagesList";
@@ -52,12 +52,20 @@ export default function LabDetailsPage() {
         </div>
     );
 
-    // Image Source Logic for Multer
-    const getLabImage = () => {
-        if (!lab.profileImage) return null;
-        return lab.profileImage.startsWith('http')
-            ? `${IMAGE_BASE_URL}/${lab.profileImage}`
-            : `${IMAGE_BASE_URL}/${lab.profileImage}`;
+    // Dynamic Image URL Construction Logic
+    const getLabImage = (path) => {
+        if (!path) return null;
+        // If it's already an absolute URL, return it directly
+        if (path.startsWith('http://') || path.startsWith('https://')) {
+            return path;
+        }
+        // Remove leading 'public/' if present in the database path
+        const cleanedPath = path.replace(/^public\//, '');
+        // Trim trailing slashes on base URL and leading slashes on cleaned path
+        const base = IMAGE_BASE_URL.replace(/\/+$/, '');
+        const target = cleanedPath.replace(/^\/+/, '');
+
+        return `${base}/${target}`;
     };
 
     return (
@@ -93,7 +101,7 @@ export default function LabDetailsPage() {
                         <div className="w-32 h-32 md:w-44 md:h-44 rounded-[2.5rem] bg-slate-50 flex items-center justify-center overflow-hidden shrink-0 shadow-2xl shadow-slate-200 border-4 border-white ring-1 ring-slate-100">
                             {lab.profileImage ? (
                                 <img
-                                    src={getLabImage()}
+                                    src={getLabImage(lab.profileImage)}
                                     alt={lab.name}
                                     className="w-full h-full object-cover"
                                     onError={(e) => {
@@ -110,13 +118,26 @@ export default function LabDetailsPage() {
                         </div>
 
                         <div className="flex-1">
-                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-4">
+                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-2">
                                 <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight leading-none uppercase">
                                     {lab.name}
                                 </h1>
                                 <div className="flex items-center gap-1.5 bg-amber-50 text-amber-600 px-3 py-1.5 rounded-xl text-sm font-black border border-amber-100 shadow-sm">
-                                    <FaStar /> {lab.rating}
+                                    <FaStar className="text-amber-500" /> {lab.rating || "N/A"}
+                                    {lab.totalReviews !== undefined && (
+                                        <span className="text-xs text-slate-400 font-medium">({lab.totalReviews})</span>
+                                    )}
                                 </div>
+                            </div>
+
+                            {/* Timing Labels and Open Status Badge */}
+                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 mb-5">
+                                <span className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider ${lab.openStatus === "Open Now" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-rose-50 text-rose-600 border border-rose-100"}`}>
+                                    {lab.openStatus || "Closed Now"}
+                                </span>
+                                <span className="text-slate-500 font-bold text-xs flex items-center gap-1.5">
+                                    <FaClock className="text-slate-400" /> {lab.timingLabel || "Opening timings unspecified"}
+                                </span>
                             </div>
 
                             <p className="text-slate-500 text-base max-w-2xl mb-8 font-medium leading-relaxed">
@@ -156,15 +177,70 @@ export default function LabDetailsPage() {
                     />
                     <FeatureCard
                         icon={<FaCalendarCheck />}
-                        title="Availability"
-                        desc="Instant Booking"
+                        title="Next Available Slot"
+                        desc={lab.nextAvailableSlot ? `${lab.nextAvailableSlot.date} at ${lab.nextAvailableSlot.time}` : "Instant Booking"}
                         active={true}
                     />
                 </div>
             </div>
 
+            {/* --- ABOUT & PORTFOLIO GRID --- */}
+            <div className="max-w-7xl mx-auto px-4 md:px-8 pb-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* About Paragraph Card */}
+                <div className="lg:col-span-2 bg-white rounded-[2.5rem] border border-slate-200 p-8 md:p-10 shadow-xs flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center gap-2 mb-4">
+                            <span className="bg-emerald-50 text-emerald-600 p-2 rounded-xl">
+                                <FaInfoCircle size={18} />
+                            </span>
+                            <h2 className="text-lg font-black uppercase text-slate-800 tracking-wider">About Our Laboratory</h2>
+                        </div>
+                        <p className="text-slate-600 text-sm font-medium leading-relaxed whitespace-pre-line mb-6">
+                            {lab.about || "Our laboratory is dedicated to medical accuracy and patient care. We use automated analytical equipment to ensure high reliability across all sample test operations."}
+                        </p>
+                    </div>
+
+                    {/* Insurances Accepted block */}
+                    {lab.acceptedInsurances && lab.acceptedInsurances.length > 0 && (
+                        <div className="bg-slate-50 border border-slate-200 p-4 rounded-3xl mt-4">
+                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Accepted Insurances:</span>
+                            <div className="flex flex-wrap gap-1.5">
+                                {lab.acceptedInsurances.map((ins, idx) => (
+                                    <span key={idx} className="bg-emerald-50 text-emerald-700 text-xs font-extrabold px-3 py-1 rounded-full border border-emerald-100">
+                                        {ins}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Laboratory Gallery Showcase Card */}
+                {lab.gallery && lab.gallery.length > 0 && (
+                    <div className="bg-white rounded-[2.5rem] border border-slate-200 p-8 shadow-xs">
+                        <div className="flex items-center gap-2 mb-6">
+                            <span className="bg-emerald-50 text-emerald-600 p-2 rounded-xl">
+                                <FaRegImages size={18} />
+                            </span>
+                            <h2 className="text-lg font-black uppercase text-slate-800 tracking-wider">Facility Gallery</h2>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            {lab.gallery.map((imgUrl, i) => (
+                                <div key={i} className="aspect-square bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 relative group">
+                                    <img
+                                        src={getLabImage(imgUrl)}
+                                        alt={`Gallery image ${i + 1}`}
+                                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
             {/* --- CATALOG SECTION --- */}
-            <main className="max-w-7xl mx-auto px-2 md:px-8 pb-32">
+            <main className="max-w-7xl mx-auto px-2 md:px-8 pb-12">
                 <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm min-h-[600px]">
                     {/* Catalog Navigation */}
                     <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 px-8 pt-6 gap-6">
@@ -194,6 +270,38 @@ export default function LabDetailsPage() {
                     </div>
                 </div>
             </main>
+
+            {/* --- RECENT REVIEWS SECTION --- */}
+            {lab.recentReviews && lab.recentReviews.length > 0 && (
+                <section className="max-w-7xl mx-auto px-4 md:px-8 pb-32">
+                    <div className="flex items-center gap-2 mb-6">
+                        <span className="bg-emerald-50 text-emerald-600 p-2 rounded-xl">
+                            <FaCommentDots size={18} />
+                        </span>
+                        <h2 className="text-xl font-black uppercase text-slate-800 tracking-wider">Patient Experience Reviews</h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {lab.recentReviews.map((rev) => (
+                            <div key={rev._id} className="bg-white border border-slate-200 p-6 rounded-3xl shadow-xs space-y-4">
+                                <div className="flex justify-between items-start gap-2">
+                                    <div>
+                                        <p className="font-extrabold text-slate-950 text-sm leading-tight">{rev.userName || "Verified Patient"}</p>
+                                        <span className="text-[10px] text-slate-400 font-bold block mt-0.5">
+                                            {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString() : "Recent"}
+                                        </span>
+                                    </div>
+                                    <div className="bg-amber-50 text-amber-600 px-2.5 py-1 rounded-xl text-xs font-black border border-amber-100 flex items-center gap-1">
+                                        <FaStar size={10} /> {rev.rating}
+                                    </div>
+                                </div>
+                                <p className="text-slate-600 text-xs font-medium leading-relaxed italic">
+                                    "{rev.comment}"
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
         </div>
     );
 }
