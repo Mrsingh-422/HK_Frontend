@@ -300,6 +300,17 @@ export default function LabDetailsPage() {
                             </div>
                         ))}
                     </div>
+
+                    {/* VIEW ALL REVIEWS TRIGGER */}
+                    <div className="flex justify-center mt-8">
+                        <button
+                            onClick={() => router.push(`/userscreens/userallreviews?targetType=Lab&targetId=${id}`)}
+                            className="group flex items-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-emerald-200 text-slate-700 hover:text-emerald-600 font-bold text-xs uppercase tracking-wider rounded-2xl shadow-xs transition-all active:scale-95"
+                        >
+                            <FaCommentDots className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                            <span>View All Reviews ({lab.totalReviews || 0})</span>
+                        </button>
+                    </div>
                 </section>
             )}
         </div>
