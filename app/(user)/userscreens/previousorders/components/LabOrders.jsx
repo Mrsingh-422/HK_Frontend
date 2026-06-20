@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom'; // Required for screen centering
+import toast from 'react-hot-toast';
 import UserAPI from '../../../../services/UserAPI';
 import {
     FiX, FiActivity, FiLayers, FiHome,
@@ -78,6 +79,7 @@ function LabOrders() {
             }
         } catch (error) {
             console.error("Failed to fetch bookings:", error);
+            toast.error("Failed to load lab bookings.");
         } finally {
             setLoading(false);
         }
@@ -87,29 +89,37 @@ function LabOrders() {
         loadBookings();
     }, [loadBookings]);
 
-    // Submit Review API connection
-    const handleReviewSubmit = async (bookingId, ratingData) => {
+    // Submit or Update Review API Connection
+    const handleReviewSubmit = async (bookingId, ratingData, isUpdate = false) => {
         try {
-            // Setup precise request body for submit review
-            const reviewPayload = {
-                bookingId: bookingId, // MongoDB ObjectId (_id)
-                rating: ratingData.rating,
-                comment: ratingData.comment
-            };
+            let res;
 
-            const res = await UserAPI.addRatingAndReviewLab(reviewPayload);
+            if (isUpdate) {
+                const updatePayload = {
+                    rating: ratingData.rating,
+                    comment: ratingData.comment
+                };
+                res = await UserAPI.updateReviewLab(bookingId, updatePayload);
+            } else {
+                const reviewPayload = {
+                    bookingId: bookingId, // MongoDB ObjectId (_id)
+                    rating: ratingData.rating,
+                    comment: ratingData.comment
+                };
+                res = await UserAPI.addRatingAndReviewLab(reviewPayload);
+            }
             
             if (res && res.success) {
-                alert(res.message || "Thank you for sharing your diagnostics experience!");
+                toast.success(res.message || "Thank you for sharing your diagnostics experience!");
                 setReviewModal({ isOpen: false, data: null });
                 // Re-fetch list to capture updated details
                 loadBookings();
             } else {
-                alert(res?.message || "Failed to submit review.");
+                toast.error(res?.message || "Failed to submit review.");
             }
         } catch (error) {
             console.error("Failed to post rating details", error);
-            alert("An error occurred while submitting the review.");
+            toast.error("An error occurred while submitting the review.");
         }
     };
 
@@ -130,19 +140,47 @@ function LabOrders() {
         return 'text-indigo-600 bg-indigo-50';
     };
 
-    // --- MODAL PORTAL COMPONENT: ADD REVIEW & RATINGS ---
+    // --- MODAL PORTAL COMPONENT: ADD & UPDATE REVIEW ---
     const LabReviewModal = ({ isOpen, onClose, data }) => {
         const [rating, setRating] = useState(5);
         const [comment, setComment] = useState("");
         const [hoverRating, setHoverRating] = useState(0);
         const [submitting, setSubmitting] = useState(false);
+        const [modalLoading, setModalLoading] = useState(true);
+        const [isEditMode, setIsEditMode] = useState(false);
+
+        // Fetch existing review dynamically when modal opens
+        useEffect(() => {
+            const fetchReviewStatus = async () => {
+                if (!isOpen || !data?._id) return;
+                setModalLoading(true);
+                try {
+                    const res = await UserAPI.getReviewsByOrder(data._id);
+                    if (res && res.success && res.hasReviewed) {
+                        setIsEditMode(true);
+                        setRating(res.data?.rating || 5);
+                        setComment(res.data?.comment || "");
+                    } else {
+                        setIsEditMode(false);
+                        setRating(5);
+                        setComment("");
+                    }
+                } catch (error) {
+                    console.error("Failed to check review status:", error);
+                    setIsEditMode(false);
+                } finally {
+                    setModalLoading(false);
+                }
+            };
+            fetchReviewStatus();
+        }, [isOpen, data]);
 
         if (!mounted || !isOpen || !data) return null;
 
         const handleSubmit = async (e) => {
             e.preventDefault();
             setSubmitting(true);
-            await handleReviewSubmit(data._id, { rating, comment });
+            await handleReviewSubmit(data._id, { rating, comment }, isEditMode);
             setSubmitting(false);
         };
 
@@ -170,7 +208,9 @@ function LabOrders() {
                                 <MdOutlineRateReview size={20} />
                             </span>
                             <div>
-                                <h4 className="font-black text-slate-900 text-sm md:text-base uppercase tracking-widest">Rate Booking</h4>
+                                <h4 className="font-black text-slate-900 text-sm md:text-base uppercase tracking-widest">
+                                    {modalLoading ? "Checking Status..." : isEditMode ? "Edit Review" : "Rate Booking"}
+                                </h4>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase">Reviewing {data.labId?.name}</p>
                             </div>
                         </div>
@@ -179,58 +219,71 @@ function LabOrders() {
                         </button>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        {/* STAR INTERACTIVE GRID */}
-                        <div className="flex flex-col items-center justify-center gap-2 p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Tap to Rate Stars</span>
-                            <div className="flex gap-2">
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                    <button
-                                        type="button"
-                                        key={star}
-                                        onClick={() => setRating(star)}
-                                        onMouseEnter={() => setHoverRating(star)}
-                                        onMouseLeave={() => setHoverRating(0)}
-                                        className="transition-transform active:scale-90 hover:scale-110"
-                                    >
-                                        <HiStar
-                                            size={32}
-                                            className={`${
-                                                star <= (hoverRating || rating)
-                                                    ? "text-amber-400 fill-amber-400"
-                                                    : "text-slate-200"
-                                            } transition-colors duration-150`}
-                                        />
-                                    </button>
-                                ))}
+                    {modalLoading ? (
+                        <div className="flex flex-col items-center justify-center py-12 gap-3">
+                            <FiRefreshCw className="animate-spin text-amber-500" size={24} />
+                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Syncing review status...</span>
+                        </div>
+                    ) : (
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            {/* STAR INTERACTIVE GRID */}
+                            <div className="flex flex-col items-center justify-center gap-2 p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                                <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Tap to Rate Stars</span>
+                                <div className="flex gap-2">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <button
+                                            type="button"
+                                            key={star}
+                                            onClick={() => setRating(star)}
+                                            onMouseEnter={() => setHoverRating(star)}
+                                            onMouseLeave={() => setHoverRating(0)}
+                                            className="transition-transform active:scale-90 hover:scale-110"
+                                        >
+                                            <HiStar
+                                                size={32}
+                                                className={`${
+                                                    star <= (hoverRating || rating)
+                                                        ? "text-amber-400 fill-amber-400"
+                                                        : "text-slate-200"
+                                                } transition-colors duration-150`}
+                                            />
+                                        </button>
+                                    ))}
+                                </div>
+                                <span className="text-xs font-bold text-slate-600 mt-1 transition-all duration-300">
+                                    {getRatingLabel(hoverRating || rating)}
+                                </span>
                             </div>
-                            <span className="text-xs font-bold text-slate-600 mt-1 transition-all duration-300">
-                                {getRatingLabel(hoverRating || rating)}
-                            </span>
-                        </div>
 
-                        {/* TEXT COMMENT */}
-                        <div className="space-y-1.5">
-                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1 block">Comment Feedback</label>
-                            <textarea
-                                value={comment}
-                                onChange={(e) => setComment(e.target.value)}
-                                rows={4}
-                                required
-                                placeholder="Describe the service details, phlebotomist behavior, collection safety, or speed of lab report..."
-                                className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-semibold outline-none ring-1 ring-slate-100 focus:ring-indigo-500 transition-all placeholder:text-slate-400 resize-none"
-                            />
-                        </div>
+                            {/* TEXT COMMENT */}
+                            <div className="space-y-1.5">
+                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1 block">Comment Feedback</label>
+                                <textarea
+                                    value={comment}
+                                    onChange={(e) => setComment(e.target.value)}
+                                    rows={4}
+                                    required
+                                    placeholder="Describe the service details, phlebotomist behavior, collection safety, or speed of lab report..."
+                                    className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-semibold outline-none ring-1 ring-slate-100 focus:ring-indigo-500 transition-all placeholder:text-slate-400 resize-none"
+                                />
+                            </div>
 
-                        {/* SUBMIT */}
-                        <button
-                            type="submit"
-                            disabled={submitting}
-                            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
-                        >
-                            {submitting ? <FiRefreshCw className="animate-spin" /> : "Submit Feedback"}
-                        </button>
-                    </form>
+                            {/* SUBMIT */}
+                            <button
+                                type="submit"
+                                disabled={submitting}
+                                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
+                            >
+                                {submitting ? (
+                                    <FiRefreshCw className="animate-spin" />
+                                ) : isEditMode ? (
+                                    "Update Review"
+                                ) : (
+                                    "Submit Feedback"
+                                )}
+                            </button>
+                        </form>
+                    )}
                 </div>
             </div>,
             document.body
@@ -239,6 +292,29 @@ function LabOrders() {
 
     // --- MODAL PORTAL COMPONENT: ORDER DETAILS ---
     const LabDetailsModal = ({ data, onClose }) => {
+        const [review, setReview] = useState(null);
+        const [reviewLoading, setReviewLoading] = useState(false);
+
+        // Fetch the review status for this specific booking
+        useEffect(() => {
+            const loadReview = async () => {
+                if (data?.status === "Completed" && data?._id) {
+                    setReviewLoading(true);
+                    try {
+                        const res = await UserAPI.getReviewsByOrder(data._id);
+                        if (res && res.success && res.hasReviewed) {
+                            setReview(res.data);
+                        }
+                    } catch (err) {
+                        console.error("Failed to fetch review in details modal:", err);
+                    } finally {
+                        setReviewLoading(false);
+                    }
+                }
+            };
+            loadReview();
+        }, [data]);
+
         if (!mounted) return null;
 
         return createPortal(
@@ -354,6 +430,55 @@ function LabOrders() {
                             </div>
                         </div>
 
+                        {/* Dynamic Review Card (Loaded from Backend) */}
+                        {data.status === "Completed" && (
+                            <div className="space-y-4">
+                                <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Submitted Feedback</h5>
+                                {reviewLoading ? (
+                                    <div className="flex items-center gap-2 bg-slate-50 p-6 rounded-[2rem] border border-slate-100 text-xs font-semibold text-slate-400">
+                                        <FiRefreshCw className="animate-spin text-slate-400" size={14} />
+                                        <span>Syncing your submitted review...</span>
+                                    </div>
+                                ) : review ? (
+                                    <div className="bg-amber-50/50 border border-amber-100/70 p-6 rounded-[2rem] space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[9px] font-black uppercase text-amber-600 tracking-wider flex items-center gap-1.5">
+                                                <MdOutlineRateReview size={14} /> Verified Submission
+                                            </span>
+                                            <div className="flex gap-0.5">
+                                                {[1, 2, 3, 4, 5].map((star) => (
+                                                    <HiStar
+                                                        key={star}
+                                                        size={16}
+                                                        className={star <= review.rating ? "text-amber-400 fill-amber-400" : "text-slate-200"}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <p className="text-xs font-semibold text-slate-700 italic leading-relaxed">
+                                            "{review.comment}"
+                                        </p>
+                                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                                            Last Updated: {new Date(review.updatedAt || review.createdAt).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="bg-slate-50 border border-slate-100 p-6 rounded-[2rem] text-center">
+                                        <p className="text-xs font-bold text-slate-400">No review submitted yet.</p>
+                                        <button 
+                                            onClick={() => {
+                                                onClose();
+                                                setReviewModal({ isOpen: true, data: data });
+                                            }}
+                                            className="mt-2 text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700"
+                                        >
+                                            Add Feedback Now
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Bill & Payment Details Summary */}
                         <div className="space-y-4">
                             <div className="bg-slate-900 text-white rounded-[2.5rem] p-8">
@@ -439,7 +564,7 @@ function LabOrders() {
                                 }}
                                 className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-amber-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
                             >
-                                <FiStar size={16} /> Add Review & Rating
+                                <FiStar size={16} /> {review ? "Edit Review & Rating" : "Add Review & Rating"}
                             </button>
                         )}
                         <button className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all">

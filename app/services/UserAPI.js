@@ -872,6 +872,24 @@ const UserAPI = {
         return response.data;
     },
 
+    getReviewsByOrder: async (orderId) => {
+        const response = await authApi.get(`/user/labs/review/by-order/${orderId}`)
+        return response.data
+    },
+
+    getUniversalReviews: async (targetType, targetId, page = 1) => {
+        // targetType must be one of: "Doctor", "Lab", "Pharmacy", "Nurse", "Hospital", "Ambulance", "Driver"
+        const response = await authApi.get(`user/labs/reviews/${targetType}/${targetId}`, {
+            params: { page }
+        });
+        return response.data;
+    },
+
+    updateReviewLab: async (orderId, reviewData) => {
+        const response = await authApi.put(`/user/labs/review/update-by-order/${orderId}`, reviewData)
+        return response.data
+    }
+
 
 
 
