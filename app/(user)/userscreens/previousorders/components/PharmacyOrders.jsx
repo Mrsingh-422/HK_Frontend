@@ -97,7 +97,7 @@ function PharmacyOrders() {
         try {
             let res;
             if (isUpdate) {
-                res = await UserAPI.updateReviewLab(orderId, {
+                res = await UserAPI.updateReview(orderId, {
                     rating: ratingData.rating,
                     comment: ratingData.comment
                 });

@@ -867,10 +867,6 @@ const UserAPI = {
     },
 
     //Rating and Reviews 
-    addRatingAndReviewLab: async (reviewData) => {
-        const response = await authApi.post('/user/labs/rate', reviewData)
-        return response.data;
-    },
 
     getReviewsByOrder: async (orderId) => {
         const response = await authApi.get(`/user/labs/review/by-order/${orderId}`)
@@ -885,13 +881,38 @@ const UserAPI = {
         return response.data;
     },
 
-    updateReviewLab: async (orderId, reviewData) => {
+    updateReview: async (orderId, reviewData) => {
         const response = await authApi.put(`/user/labs/review/update-by-order/${orderId}`, reviewData)
         return response.data
     },
 
-    addRatingAndReviewPharmacy: async (reviewData) =>{
+    addRatingAndReviewLab: async (reviewData) => {
+        const response = await authApi.post('/user/labs/rate', reviewData)
+        return response.data;
+    },
+
+    addRatingAndReviewPharmacy: async (reviewData) => {
         const response = await authApi.post('/user/pharmacy/rate', reviewData)
+        return response.data;
+    },
+
+    addRatingAndReviewHospital: async (reviewData) => {
+        const response = await authApi.post('/user/hospital/rate', reviewData)
+        return response.data;
+    },
+
+    addRatingAndReviewAmbulance: async (reviewData) => {
+        const response = await authApi.post("/user/ambulance/rate", reviewData)
+        return response.data
+    },
+
+    addRatingAndReviewNurse: async (reviewData) => {
+        const response = await authApi.post("/user/nurse/rate", reviewData)
+        return response.data
+    },
+
+    addRatingAndReviewDoctor: async (reviewData) => {
+        const response = await authApi.post('/user/doctors/rate', reviewData)
         return response.data;
     }
 

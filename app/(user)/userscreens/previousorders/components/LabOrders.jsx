@@ -99,7 +99,7 @@ function LabOrders() {
                     rating: ratingData.rating,
                     comment: ratingData.comment
                 };
-                res = await UserAPI.updateReviewLab(bookingId, updatePayload);
+                res = await UserAPI.updateReview(bookingId, updatePayload);
             } else {
                 const reviewPayload = {
                     bookingId: bookingId, // MongoDB ObjectId (_id)
