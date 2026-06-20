@@ -90,7 +90,7 @@ export default function NurseServiceDetailPage() {
               <div className="flex flex-wrap gap-6 text-slate-600 font-medium">
                 <div className="flex items-center gap-2"><FaMapMarkerAlt className="text-teal-500" /> {nurseData.city}</div>
                 <div className="flex items-center gap-2"><FaBriefcase className="text-teal-500" /> {nurseData.experienceYears} Years Exp.</div>
-                <div className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-bold">★ 4.9 Verified</div>
+                <div className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-bold">★ {nurseData.rating || "5.0"} Verified</div>
               </div>
             </div>
           </div>
@@ -99,14 +99,16 @@ export default function NurseServiceDetailPage() {
 
       <div className="max-w-7xl mx-auto px-6 mt-12">
         {/* Tabs */}
-        <div className="flex bg-slate-100 p-2 rounded-3xl w-fit mb-10">
+        <div className="flex bg-slate-100 p-2 rounded-3xl w-fit mb-10 overflow-x-auto no-scrollbar max-w-full">
           <button onClick={() => setActiveTab("service")} className={`px-8 py-3 rounded-2xl text-sm font-black transition-all ${activeTab === 'service' ? "bg-white text-teal-600 shadow-md" : "text-slate-500"}`}>SERVICES</button>
           <button onClick={() => setActiveTab("package")} className={`px-8 py-3 rounded-2xl text-sm font-black transition-all ${activeTab === 'package' ? "bg-white text-teal-600 shadow-md" : "text-slate-500"}`}>PACKAGES</button>
+          <button onClick={() => setActiveTab("review")} className={`px-8 py-3 rounded-2xl text-sm font-black transition-all ${activeTab === 'review' ? "bg-white text-teal-600 shadow-md" : "text-slate-500"}`}>REVIEWS ({nurseData?.totalReviews || 0})</button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+          {/* Main Content Pane */}
           <div className="lg:col-span-8 space-y-8">
-            {(activeTab === "service" ? (nurseData.services || []) : (nurseData.packages || [])).map((item) => (
+            {activeTab === "service" && (nurseData.services || []).map((item) => (
               <div key={item._id} className="bg-white border border-slate-100 rounded-[2.5rem] p-6 md:p-8 shadow-sm hover:shadow-xl transition-all">
                 <div className="flex flex-col md:flex-row gap-8">
                   <div className="w-full md:w-56 flex-shrink-0">
@@ -114,7 +116,7 @@ export default function NurseServiceDetailPage() {
                   </div>
                   <div className="flex-1">
                     <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-2xl font-black text-slate-900">{item.title || item.packageName}</h3>
+                      <h3 className="text-2xl font-black text-slate-900">{item.title}</h3>
                       <div className="text-right">
                         <p className="text-[10px] font-bold text-slate-400 uppercase">Daily Starts</p>
                         <p className="text-3xl font-black text-teal-600">₹{item.pricing?.oneDay?.final}</p>
@@ -122,16 +124,101 @@ export default function NurseServiceDetailPage() {
                     </div>
                     <p className="text-slate-500 text-sm mb-6 line-clamp-2">{item.description}</p>
                     <div className="grid grid-cols-2 gap-4 mb-6">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-600"><FaClock className="text-teal-500" /> {nurseData.availability?.startTime} - {nurseData.availability?.endTime}</div>
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-600"><FaBoxOpen className="text-teal-500" /> Med Kit Incl.</div>
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-600"><FaClock className="text-teal-500" /> {item.duration || "Per Visit"}</div>
+                      <div className="flex items-center gap-2 text-slate-600 text-xs font-bold">
+                        <span className="bg-teal-50 text-teal-600 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider">
+                          Type: {item.type}
+                        </span>
+                      </div>
                     </div>
                     <button onClick={() => handleProceed(item)} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-teal-600 transition-all">Select & Continue</button>
                   </div>
                 </div>
               </div>
             ))}
+
+            {activeTab === "package" && (nurseData.packages || []).map((item) => (
+              <div key={item._id} className="bg-white border border-slate-100 rounded-[2.5rem] p-6 md:p-8 shadow-sm hover:shadow-xl transition-all">
+                <div className="flex flex-col md:flex-row gap-8">
+                  <div className="w-full md:w-56 flex-shrink-0">
+                    <img src={getImageUrl(item.photos?.[0])} className="w-full h-56 rounded-3xl object-cover" alt="img" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-2xl font-black text-slate-900">{item.packageName}</h3>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Package Price</p>
+                        <p className="text-3xl font-black text-teal-600">₹{item.pricing?.oneDay?.final}</p>
+                      </div>
+                    </div>
+                    <p className="text-slate-500 text-sm mb-6 line-clamp-2">{item.description}</p>
+                    <button onClick={() => handleProceed(item)} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-teal-600 transition-all">Select & Continue</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {activeTab === "review" && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900">Patient Reviews</h2>
+                    <p className="text-xs text-slate-400 font-semibold">Verified feedback submitted by past patients.</p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2 rounded-2xl border border-amber-100 shadow-sm">
+                    <FaStar className="text-amber-400 fill-amber-400" />
+                    <span className="text-sm font-black">{nurseData.rating || "5.0"} / 5.0</span>
+                    <span className="text-slate-400 text-xs font-bold">({nurseData.totalReviews || 0} total)</span>
+                  </div>
+                </div>
+
+                {(!nurseData.recentReviews || nurseData.recentReviews.length === 0) ? (
+                  <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-100">
+                    <FaStar className="text-slate-200 text-3xl mx-auto mb-2" />
+                    <p className="text-slate-500 text-xs font-bold uppercase">No Reviews Yet</p>
+                    <p className="text-slate-400 text-[10px] mt-1">Be the first to review this nursing service provider.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {nurseData.recentReviews.slice(0, 3).map((review) => (
+                      <div key={review._id} className="p-5 rounded-2xl bg-white border border-slate-200/40 space-y-3 shadow-sm hover:shadow-md transition-all duration-300">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center font-black text-xs uppercase">
+                              {review.userName?.charAt(0) || "P"}
+                            </div>
+                            <div>
+                              <p className="text-xs font-black text-slate-700 uppercase">{review.userName || "Anonymous Patient"}</p>
+                              <p className="text-[9px] text-slate-400 font-bold">{review.createdAt ? new Date(review.createdAt).toLocaleDateString() : ""}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 bg-amber-50 text-amber-600 px-2.5 py-1 rounded-xl text-[10px] font-black border border-amber-100/60">
+                            <FaStar className="text-amber-400 fill-amber-400" /> {review.rating}
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-600 font-semibold leading-relaxed pl-11">{review.comment}</p>
+                      </div>
+                    ))}
+
+                    {/* View All Reviews Control */}
+                    {(nurseData.recentReviews.length > 3 || nurseData.totalReviews > 3) && (
+                      <div className="pt-4 flex justify-center">
+                        <button
+                          onClick={() => router.push(`/userscreens/userallreviews?targetId=${nurseData._id}&targetType=Nurse`)}
+                          className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-sm flex items-center gap-2"
+                        >
+                          <span>View All Reviews</span>
+                          <span className="bg-slate-700 text-white text-[9px] px-2 py-0.5 rounded-full">{nurseData.totalReviews || nurseData.recentReviews.length}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
+          {/* Right Sidebar Support Panel */}
           <div className="lg:col-span-4">
             <div className="bg-slate-900 rounded-[3rem] p-8 text-white sticky top-28">
               <h3 className="text-xl font-black mb-6">Support</h3>
