@@ -51,6 +51,7 @@ export default function BookingConfirmation() {
   // Visit Charges and Submission State
   const [visitCharges, setVisitCharges] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Initialize Data
   useEffect(() => {
@@ -305,8 +306,7 @@ export default function BookingConfirmation() {
 
             if (verificationRes.success) {
               localStorage.removeItem('pendingBooking');
-              alert(verificationRes.message || "Payment verified successfully. Booking is now Confirmed!");
-              router.push('/userscreens/doctorappointment');
+              setShowSuccessModal(true);
             } else {
               alert(verificationRes.message || "Payment verification failed");
             }
@@ -588,6 +588,32 @@ export default function BookingConfirmation() {
           </div>
         </div>
       </main>
+
+      {/* Booking Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full border border-slate-100 shadow-2xl text-center space-y-6 animate-in fade-in zoom-in duration-200">
+            <div className="mx-auto w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
+              <FaCheckCircle className="w-10 h-10" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black text-slate-900">Booking Confirmed!</h3>
+              <p className="text-sm font-semibold text-slate-600 leading-relaxed">
+                Your appointment has been successfully booked and payment is confirmed.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setShowSuccessModal(false);
+                router.push('/userscreens/doctorappointment');
+              }}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black text-base shadow-lg shadow-emerald-200 transition-all active:scale-95"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
