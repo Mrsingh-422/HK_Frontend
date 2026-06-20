@@ -888,6 +888,11 @@ const UserAPI = {
     updateReviewLab: async (orderId, reviewData) => {
         const response = await authApi.put(`/user/labs/review/update-by-order/${orderId}`, reviewData)
         return response.data
+    },
+
+    addRatingAndReviewPharmacy: async (reviewData) =>{
+        const response = await authApi.post('/user/pharmacy/rate', reviewData)
+        return response.data;
     }
 
 

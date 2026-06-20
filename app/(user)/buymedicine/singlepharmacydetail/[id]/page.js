@@ -25,7 +25,7 @@ export default function PharmacyDetailsPage() {
 
     const [pharmacy, setPharmacy] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState("medicines"); // "medicines" | "documents"
+    const [activeTab, setActiveTab] = useState("medicines"); // "medicines" | "documents" | "reviews"
 
     useEffect(() => {
         const fetchPharmacyData = async () => {
@@ -160,6 +160,13 @@ export default function PharmacyDetailsPage() {
                             <FaRegFileAlt size={14} />
                             <span>Documents & Records</span>
                         </button>
+                        <button
+                            onClick={() => setActiveTab("reviews")}
+                            className={`flex items-center gap-2 pb-4 text-xs font-black uppercase tracking-wider border-b-2 transition-all px-4 ${activeTab === "reviews" ? "border-[#08B36A] text-[#08B36A]" : "border-transparent text-slate-400 hover:text-slate-600"}`}
+                        >
+                            <FaStar size={14} />
+                            <span>Reviews ({pharmacy.totalReviews || 0})</span>
+                        </button>
                     </div>
 
                     <div className="p-4 sm:p-6 md:p-8">
@@ -208,6 +215,66 @@ export default function PharmacyDetailsPage() {
                                         <DocumentPreviewCard title="Other Certificates" paths={pharmacy.documents?.otherCertificates} icon={<FaRegFileAlt />} />
                                     </div>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* VIEW 3: REVIEWS LISTING */}
+                        {activeTab === "reviews" && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                                    <div>
+                                        <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Customer Reviews</h2>
+                                        <p className="text-xs text-slate-400 font-semibold">Verified ratings and comments submitted by community members.</p>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2 rounded-2xl border border-amber-100 shadow-sm">
+                                        <FaStar className="text-amber-400 fill-amber-400" />
+                                        <span className="text-sm font-black">{pharmacy.rating || "5.0"} / 5.0</span>
+                                        <span className="text-slate-400 text-xs font-bold">({pharmacy.totalReviews || 0} total)</span>
+                                    </div>
+                                </div>
+
+                                {(!pharmacy.recentReviews || pharmacy.recentReviews.length === 0) ? (
+                                    <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <FaStar className="text-slate-200 text-3xl mx-auto mb-2" />
+                                        <p className="text-slate-500 text-xs font-bold uppercase">No Reviews Yet</p>
+                                        <p className="text-slate-400 text-[10px] mt-1">Be the first to leave a review after making a purchase.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {pharmacy.recentReviews.slice(0, 3).map((review) => (
+                                            <div key={review._id} className="p-5 rounded-2xl bg-slate-50/50 border border-slate-200/40 space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-black text-xs uppercase">
+                                                            {review.userName?.charAt(0) || "U"}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-black text-slate-700 uppercase">{review.userName || "Verified User"}</p>
+                                                            <p className="text-[9px] text-slate-400 font-bold">{review.createdAt ? new Date(review.createdAt).toLocaleDateString() : ""}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 bg-amber-50 text-amber-600 px-2.5 py-1 rounded-xl text-[10px] font-black border border-amber-100/60">
+                                                        <FaStar className="text-amber-400 fill-amber-400" /> {review.rating}
+                                                    </div>
+                                                </div>
+                                                <p className="text-xs text-slate-600 font-semibold leading-relaxed pl-11">{review.comment}</p>
+                                            </div>
+                                        ))}
+
+                                        {/* View All Reviews Control */}
+                                        {(pharmacy.recentReviews.length > 3 || pharmacy.totalReviews > 3) && (
+                                            <div className="pt-4 flex justify-center">
+                                                <button
+                                                    onClick={() => router.push(`/userscreen/userallreviews?targetId=${pharmacy._id}&targetType=Pharmacy`)}
+                                                    className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-sm flex items-center gap-2"
+                                                >
+                                                    <span>View All Reviews</span>
+                                                    <span className="bg-slate-700 text-white text-[9px] px-2 py-0.5 rounded-full">{pharmacy.totalReviews || pharmacy.recentReviews.length}</span>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
