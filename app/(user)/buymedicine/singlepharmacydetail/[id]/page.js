@@ -14,7 +14,7 @@ import PharmacyMedicines from "../../seeallmed/components/PharmacyMedicines";
 // Dynamic asset path builder
 const getImageUrl = (imagePath) => {
     if (!imagePath) return null;
-    const BASE_URL = "http://192.168.1.26:5002";
+    const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
     const cleanPath = imagePath.replace(/^public\//, "");
     return `${BASE_URL}/${cleanPath}`;
 };

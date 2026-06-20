@@ -19,6 +19,7 @@ export default function AmbulanceBookingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   const [coords, setCoords] = useState({ lat: 30.6, lng: 76.7 }); // Lifted state to fix payload crash
+  const [showSuccessModal, setShowSuccessModal] = useState(false); // Modal visibility state
 
   // Dynamic Data States
   const [hospitals, setHospitals] = useState([]);
@@ -215,8 +216,7 @@ export default function AmbulanceBookingPage() {
       const res = await UserAPI.bookAmbulance(data);
 
       if (res.success) {
-        alert("Booking Confirmed!");
-        router.push(`/userscreens/ambulanceappointment`);
+        setShowSuccessModal(true);
       } else {
         alert(res.message || "Booking Failed to initiate");
       }
@@ -512,6 +512,32 @@ export default function AmbulanceBookingPage() {
           </div>
         </div>
       </main>
+
+      {/* Booking Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full border border-slate-100 shadow-2xl text-center space-y-6 animate-in fade-in zoom-in duration-200">
+            <div className="mx-auto w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-[#08B36A]">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black text-slate-900">Booking Initiated</h3>
+              <p className="text-sm font-semibold text-slate-600 leading-relaxed">
+                You have to pay after the driver accepts your request, then your booking will be completed.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setShowSuccessModal(false);
+                router.push(`/userscreens/ambulanceappointment`);
+              }}
+              className="w-full bg-[#08B36A] hover:bg-[#079f5e] text-white py-4 rounded-2xl font-black text-base shadow-lg shadow-emerald-200 transition-all active:scale-95"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
