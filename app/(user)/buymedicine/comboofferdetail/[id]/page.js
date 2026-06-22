@@ -168,12 +168,15 @@ export default function ComboOfferDetailPage() {
                 await removePharmacyItem(id);
                 toast.success("BOGO deal removed from cart");
             } else {
-                // Passes exact parameters matching your ProductDetailPage working flow
+                // Passes parameters with specified isComboApplied and dynamic comboOfferId
                 await addPharmacyToCart(
                     vendor.pharmacyId,
                     id,
                     quantity,
-                    "Full Course"
+                    "Full Course",
+                    false,       // forceReplace
+                    true,        // isComboApplied (Explicitly true) [1]
+                    offer?._id   // comboOfferId (Dynamic combo offer _id) [1]
                 );
                 toast.success(`BOGO deal added from ${store?.name}`);
             }
@@ -195,7 +198,9 @@ export default function ComboOfferDetailPage() {
                 id,
                 quantity,
                 "Full Course",
-                true // forceReplace set to true to bypass conflict checks on backend
+                true,        // forceReplace set to true to bypass conflict checks on backend
+                true,        // isComboApplied (Explicitly true) [1]
+                offer?._id   // comboOfferId (Dynamic combo offer _id) [1]
             );
             toast.success(`Cart cleared and BOGO added from ${store?.name}`);
             setShowConflictModal(false);
@@ -305,7 +310,7 @@ export default function ComboOfferDetailPage() {
                                 </div>
                                 <div className="flex justify-between text-slate-400">
                                     <span>Regular Value (At MRP)</span>
-                                    <span className="line-through">₹{totalMRPValue.toFixed(2)}</span>
+                                    <span className="line-through text-slate-500">₹{totalMRPValue.toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between text-slate-400">
                                     <span>Your Combo Price</span>

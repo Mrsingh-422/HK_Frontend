@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaPills, FaSpinner, FaTruck, FaFilePrescription, FaPrescriptionBottleAlt, FaMinus, FaPlus, FaClock, FaCalendarAlt, FaChevronRight, FaCamera, FaTrash, FaCheckCircle, FaStore, FaShieldAlt } from 'react-icons/fa';
+import { FaPills, FaSpinner, FaTruck, FaFilePrescription, FaPrescriptionBottleAlt, FaMinus, FaPlus, FaClock, FaCalendarAlt, FaChevronRight, FaCamera, FaTrash, FaCheckCircle, FaStore, FaShieldAlt, FaGift } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
 import UserAPI from '@/app/services/UserAPI';
@@ -63,6 +63,18 @@ const PharmacyCart = () => {
     const subtotal = useMemo(() => {
         return pharmacyItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     }, [pharmacyItems]);
+
+    const comboSavings = useMemo(() => {
+        return pharmacyCart?.billSummary?.comboSavings || 0;
+    }, [pharmacyCart]);
+
+    // Detect if any cart item has a BOGO combo applied
+    const activeComboItem = useMemo(() => {
+        return pharmacyItems.find(item => item.isComboApplied === true);
+    }, [pharmacyItems]);
+
+    const hasComboApplied = !!activeComboItem;
+    const activeComboOfferId = activeComboItem?.comboOfferId || null;
 
     const needsPrescription = useMemo(() => {
         return pharmacyItems.some(item => item.medicineId?.prescription_required === "YES");
@@ -159,7 +171,7 @@ const PharmacyCart = () => {
     };
 
     const totals = useMemo(() => {
-        const discountedAmount = Math.max(0, subtotal - serverDiscount);
+        const discountedAmount = Math.max(0, subtotal - serverDiscount - comboSavings);
         let shippingFee = 0;
         let fastFee = 0;
 
@@ -185,6 +197,7 @@ const PharmacyCart = () => {
         return {
             subtotal,
             discount: serverDiscount,
+            comboSavings,
             shippingFee,
             fastFee,
             slotFee: currentSlotFee,
@@ -192,7 +205,7 @@ const PharmacyCart = () => {
             freeThreshold,
             total: discountedAmount + shippingFee + fastFee + currentSlotFee + tax
         };
-    }, [subtotal, serverDiscount, slotFee, deliveryOption, deliveryChargesConfig]);
+    }, [subtotal, serverDiscount, comboSavings, slotFee, deliveryOption, deliveryChargesConfig]);
 
     const onConfirmCheckout = async () => {
         if (!selectedAddress) {
@@ -223,7 +236,6 @@ const PharmacyCart = () => {
             });
 
             if (deliveryOption === 'slot' && rawSlotData) {
-                // Convert YYYY-MM-DD to ISO String for consistency with your backend sample
                 appDate = new Date(rawSlotData.date).toISOString();
                 appTime = rawSlotData.time;
             }
@@ -237,6 +249,10 @@ const PharmacyCart = () => {
             formData.append('appointmentTime', appTime);
             formData.append('isRapid', String(deliveryOption === 'fast')); // Cast boolean to string for robust parser compatibility
             formData.append('paymentMethod', 'Online'); // Changed from COD to Online
+
+            // Append Root-level Combo Offers metadata keys directly to FormData
+            formData.append('isComboApplied', String(hasComboApplied));
+            formData.append('comboOfferId', activeComboOfferId || "");
 
             // 3. Address Object
             const addressData = {
@@ -253,7 +269,7 @@ const PharmacyCart = () => {
             };
             formData.append('address', JSON.stringify(addressData));
 
-            // 4. Bill Summary (Now including dynamic 'tax' to ensure alignment with totalAmount)
+            // 4. Bill Summary (Now including dynamic 'tax' and 'comboSavings' to ensure alignment)
             const billSummary = {
                 itemTotal: totals.subtotal,
                 deliveryCharge: totals.shippingFee,
@@ -261,18 +277,21 @@ const PharmacyCart = () => {
                 slotCharge: totals.slotFee,
                 couponDiscount: totals.discount,
                 couponId: appliedCouponName || null,
-                tax: totals.tax, // Fixed: Send the calculated tax parameter
+                tax: totals.tax, 
+                comboSavings: totals.comboSavings,
                 totalAmount: totals.total
             };
             formData.append('billSummary', JSON.stringify(billSummary));
 
-            // 5. Items
+            // 5. Items (Preserving and forwarding BOGO attributes in payload items)
             const itemsToSend = pharmacyItems.map(item => ({
-                medicineId: item.medicineId._id,
+                medicineId: item.medicineId._id || item.medicineId,
                 name: item.name,
                 price: item.price,
                 quantity: item.quantity,
-                duration: "Full Course"
+                duration: "Full Course",
+                isComboApplied: item.isComboApplied || false,
+                comboOfferId: item.comboOfferId || null
             }));
             formData.append('items', JSON.stringify(itemsToSend));
 
@@ -398,6 +417,13 @@ const PharmacyCart = () => {
                                                     <div>
                                                         <h3 className="font-bold text-slate-900 text-md leading-tight">{item.name}</h3>
                                                         <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter mt-1">{item.medicineId?.manufacturers}</p>
+                                                        
+                                                        {/* BOGO Promo badge mapping active metadata keys */}
+                                                        {item.isComboApplied && (
+                                                            <span className="inline-flex items-center gap-1 text-emerald-600 bg-emerald-50 text-[9px] font-black uppercase px-2 py-0.5 rounded border border-emerald-100 mt-1">
+                                                                <FaGift size={8} /> BOGO Deal Applied
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div className="text-right">
                                                         <p className="font-black text-slate-900 text-lg">₹{(item.price * item.quantity).toLocaleString()}</p>

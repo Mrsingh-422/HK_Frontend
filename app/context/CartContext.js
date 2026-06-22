@@ -123,10 +123,9 @@ export const CartProvider = ({ children }) => {
     };
 
     // --- PHARMACY CART METHODS ---
-
-    const addPharmacyToCart = async (pharmacyId, medicineId, quantity = 1, duration = "Full Course", forceReplace = false) => {
+    const addPharmacyToCart = async (pharmacyId, medicineId, quantity = 1, duration = "Full Course", forceReplace = false, isComboApplied = false, comboOfferId = null) => {
         try {
-            const payload = { pharmacyId, medicineId, quantity, duration, forceReplace };
+            const payload = { pharmacyId, medicineId, quantity, duration, forceReplace, isComboApplied, comboOfferId };
             const response = await UserAPI.addPharmacyToCart(payload);
 
             if (response.success) {
@@ -134,7 +133,7 @@ export const CartProvider = ({ children }) => {
             } else if (response.canReplace) {
                 const confirmReplace = window.confirm(response.message || "Clear existing pharmacy items?");
                 if (confirmReplace) {
-                    await addPharmacyToCart(pharmacyId, medicineId, quantity, duration, true);
+                    await addPharmacyToCart(pharmacyId, medicineId, quantity, duration, true, isComboApplied, comboOfferId);
                 }
             }
         } catch (error) {

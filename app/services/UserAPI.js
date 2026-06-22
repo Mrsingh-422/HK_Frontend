@@ -511,6 +511,7 @@ const UserAPI = {
         return response.data;
     },
     placePharmacyOrder: async (orderData) => {
+
         const response = await authApi.post("/user/pharmacy/place-order", orderData, {
             headers: {
                 "Content-Type": "multipart/form-data",
