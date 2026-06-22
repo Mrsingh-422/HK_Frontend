@@ -3,12 +3,14 @@ import React, { useState, useEffect } from "react";
 // React Icons
 import {
   HiOutlineLocationMarker, HiOutlineX, HiOutlineReceiptTax,
-  HiOutlineCalendar, HiOutlineDocumentDownload, HiOutlineClock, HiChevronLeft, HiChevronRight
+  HiOutlineCalendar, HiOutlineDocumentDownload, HiOutlineClock, HiChevronLeft, HiChevronRight, HiStar
 } from "react-icons/hi";
 import { FaUserMd, FaUserAlt, FaWallet, FaBed, FaCalendarAlt, FaStethoscope, FaInfoCircle, FaExclamationTriangle } from "react-icons/fa";
-import { MdVerified, MdOutlineBedroomChild } from "react-icons/md";
+import { MdVerified, MdOutlineBedroomChild, MdOutlineRateReview } from "react-icons/md";
+import { FiRefreshCw } from "react-icons/fi";
 import UserAPI from "@/app/services/UserAPI";
 import { Toaster, toast } from 'react-hot-toast';
+import { createPortal } from "react-dom";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -47,6 +49,11 @@ function MyHospitalAppointments() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [myAppointments, setMyAppointments] = useState([]);
 
+  // Review & Rating Modal States
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [selectedReview, setSelectedReview] = useState(null);
+  const [isReviewLoading, setIsReviewLoading] = useState(false);
+
   // Cancellation Modal States
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
@@ -68,8 +75,12 @@ function MyHospitalAppointments() {
   const [monthlySchedule, setMonthlySchedule] = useState([]);
   const [isScheduleLoading, setIsScheduleLoading] = useState(false);
 
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
     fetchBookings(1);
+    return () => setMounted(false);
   }, []);
 
   useEffect(() => {
@@ -83,6 +94,41 @@ function MyHospitalAppointments() {
       }
     }
   }, [isRescheduling, selectedAppt]);
+
+  // Fetch submitted review dynamically for selected Completed appointment inside detail modal
+  useEffect(() => {
+    const fetchApptReview = async () => {
+      if (selectedAppt?._id && selectedAppt.status === "Completed" && isModalOpen) {
+        setIsReviewLoading(true);
+        try {
+          const res = await UserAPI.getReviewsByOrder(selectedAppt._id);
+          if (res && res.success && res.hasReviewed) {
+            setSelectedReview(res.data);
+          } else {
+            setSelectedReview(null);
+          }
+        } catch (error) {
+          console.error("Failed to fetch review details:", error);
+          setSelectedReview(null);
+        } finally {
+          setIsReviewLoading(false);
+        }
+      } else {
+        setSelectedReview(null);
+      }
+    };
+    fetchApptReview();
+  }, [selectedAppt, isModalOpen]);
+
+  // Prevent body scroll when modals are active
+  useEffect(() => {
+    if (isModalOpen || isReviewModalOpen || isCancelModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isModalOpen, isReviewModalOpen, isCancelModalOpen]);
 
   const handleMonthChange = (nextMonth) => {
     setCurrentMonth(nextMonth);
@@ -130,6 +176,36 @@ function MyHospitalAppointments() {
       setMonthlySchedule([]);
     } finally {
       setIsScheduleLoading(false);
+    }
+  };
+
+  // Submit Rating & Review handler
+  const handleReviewSubmit = async (orderId, ratingData, isUpdate = false) => {
+    try {
+      let res;
+      if (isUpdate) {
+        res = await UserAPI.updateReview(orderId, {
+          rating: ratingData.rating,
+          comment: ratingData.comment
+        });
+      } else {
+        res = await UserAPI.addRatingAndReviewHospital({
+          bookingId: orderId,
+          rating: ratingData.rating,
+          comment: ratingData.comment
+        });
+      }
+
+      if (res && res.success) {
+        toast.success(res.message || "Thank you for your rating & feedback!");
+        setIsReviewModalOpen(false);
+        fetchBookings(pagination.currentPage);
+      } else {
+        toast.error(res?.message || "Failed to submit rating.");
+      }
+    } catch (error) {
+      console.error("Failed to submit review:", error);
+      toast.error("An error occurred while submitting the rating.");
     }
   };
 
@@ -260,6 +336,142 @@ function MyHospitalAppointments() {
     }
   };
 
+  // --- PORTAL COMPONENT: HOSPITAL RATINGS & REVIEW ---
+  const HospitalReviewModal = ({ isOpen, onClose, data }) => {
+    const [rating, setRating] = useState(5);
+    const [comment, setComment] = useState("");
+    const [hoverRating, setHoverRating] = useState(0);
+    const [submitting, setSubmitting] = useState(false);
+    const [modalLoading, setModalLoading] = useState(true);
+    const [isEditMode, setIsEditMode] = useState(false);
+
+    useEffect(() => {
+      const fetchReviewStatus = async () => {
+        if (!isOpen || !data?._id) return;
+        setModalLoading(true);
+        try {
+          const res = await UserAPI.getReviewsByOrder(data._id);
+          if (res && res.success && res.hasReviewed) {
+            setIsEditMode(true);
+            setRating(res.data?.rating || 5);
+            setComment(res.data?.comment || "");
+          } else {
+            setIsEditMode(false);
+            setRating(5);
+            setComment("");
+          }
+        } catch (error) {
+          console.error("Failed to check review details:", error);
+          setIsEditMode(false);
+        } finally {
+          setModalLoading(false);
+        }
+      };
+      fetchReviewStatus();
+    }, [isOpen, data]);
+
+    if (!mounted || !isOpen || !data) return null;
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      setSubmitting(true);
+      await handleReviewSubmit(data._id, { rating, comment }, isEditMode);
+      setSubmitting(false);
+    };
+
+    const getRatingLabel = (val) => {
+      switch (val) {
+        case 1: return "Extremely Disappointed";
+        case 2: return "Needs Improvement";
+        case 3: return "Average Experience";
+        case 4: return "Very Good Quality";
+        case 5: return "Excellent Service!";
+        default: return "Select Rating";
+      }
+    };
+
+    return createPortal(
+      <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6 bg-gray-900/60 backdrop-blur-sm">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300" onClick={onClose} />
+        <div className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-[0_30px_80px_-15px_rgba(0,0,0,0.5)] overflow-hidden p-6 md:p-8 animate-in zoom-in-95 fade-in duration-300">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-2">
+              <span className="bg-amber-100 text-amber-600 p-2 rounded-xl">
+                <MdOutlineRateReview size={20} />
+              </span>
+              <div>
+                <h4 className="font-black text-slate-900 text-sm md:text-base uppercase tracking-widest">
+                  {modalLoading ? "Checking..." : isEditMode ? "Edit Review" : "Rate Booking"}
+                </h4>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Reviewing {data.hospitalId?.name || "Hospital"}</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 hover:border-rose-100 transition-all">
+              <HiOutlineX size={16} />
+            </button>
+          </div>
+
+          {modalLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <FiRefreshCw className="animate-spin text-amber-500" size={24} />
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Syncing status...</span>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="flex flex-col items-center justify-center gap-2 p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Tap to Rate Stars</span>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      type="button"
+                      key={star}
+                      onClick={() => setRating(star)}
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      className="transition-transform active:scale-90 hover:scale-110"
+                    >
+                      <HiStar
+                        className={`w-8 h-8 ${
+                          star <= (hoverRating || rating)
+                            ? "text-amber-400 fill-amber-400"
+                            : "text-slate-200"
+                        } transition-colors duration-150`}
+                      />
+                    </button>
+                  ))}
+                </div>
+                <span className="text-xs font-bold text-slate-600 mt-1 transition-all duration-300">
+                  {getRatingLabel(hoverRating || rating)}
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1 block">Comment Feedback</label>
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  rows={4}
+                  required
+                  placeholder="Describe the medical care, nurse behavior, clinic safety, or response times..."
+                  className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-semibold outline-none ring-1 ring-slate-100 focus:ring-indigo-500 transition-all placeholder:text-slate-400 resize-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                {submitting ? <FiRefreshCw className="animate-spin" /> : isEditMode ? "Update Review" : "Submit Feedback"}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#fcfcfc] py-10 px-4 md:px-8 font-sans">
       <Toaster position="top-center" reverseOrder={false} />
@@ -324,12 +536,22 @@ function MyHospitalAppointments() {
                         <span className="text-xs font-bold text-gray-700">{new Date(appt.appointmentDate).toLocaleDateString()}</span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => { setSelectedAppt(appt); setIsModalOpen(true); }}
-                      className="bg-gray-900 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-[#08b36a] transition-all active:scale-95 shadow-lg shadow-gray-200"
-                    >
-                      Full Details
-                    </button>
+                    <div className="flex gap-2">
+                      {appt.status === "Completed" && (
+                        <button 
+                          onClick={() => { setSelectedAppt(appt); setIsReviewModalOpen(true); }}
+                          className="px-6 py-3 rounded-2xl text-[10px] font-black uppercase bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1.5 shadow-md shadow-amber-100"
+                        >
+                          <HiStar className="fill-white" /> Rate Service
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setSelectedAppt(appt); setIsModalOpen(true); }}
+                        className="bg-gray-900 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-[#08b36a] transition-all active:scale-95 shadow-lg shadow-gray-200"
+                      >
+                        Full Details
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -387,6 +609,53 @@ function MyHospitalAppointments() {
                       <div className="flex items-center gap-3 text-gray-600"><MdVerified size={20} /> <div><p className="text-[9px] uppercase font-black text-gray-400">Triage</p><p className="font-bold text-sm">{selectedAppt.triageLevel || 'N/A'}</p></div></div>
                     </div>
                   </section>
+
+                  {/* Rating & Review Summary (Loaded Dynamically inside Details Modal) */}
+                  {selectedAppt.status === "Completed" && (
+                    <section className="space-y-4">
+                      <div className="flex items-center gap-2 mb-4">
+                        <FaUserMd className="text-[#08b36a]" />
+                        <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Your Rating & Review</h4>
+                      </div>
+                      {isReviewLoading ? (
+                        <div className="flex items-center gap-2 bg-gray-50 p-6 rounded-[2rem] text-xs text-gray-400">
+                          <FiRefreshCw className="animate-spin" />
+                          <span>Syncing review history...</span>
+                        </div>
+                      ) : selectedReview ? (
+                        <div className="bg-amber-50/50 border border-amber-100 p-6 rounded-[2rem] space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-black uppercase text-amber-600 tracking-wider">Submitted Feedback</span>
+                            <div className="flex gap-0.5">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <HiStar
+                                  key={star}
+                                  className={`w-4 h-4 ${star <= selectedReview.rating ? "text-amber-400 fill-amber-400" : "text-gray-200"}`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <p className="text-xs font-bold text-gray-700 italic">"{selectedReview.comment}"</p>
+                          <p className="text-[8px] font-bold text-gray-400 uppercase">
+                            Date: {new Date(selectedReview.updatedAt || selectedReview.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="bg-gray-50 border border-gray-100 p-6 rounded-[2rem] text-center">
+                          <p className="text-xs font-bold text-gray-400">You have not rated this admission yet.</p>
+                          <button
+                            onClick={() => {
+                              setIsModalOpen(false);
+                              setIsReviewModalOpen(true);
+                            }}
+                            className="mt-2 text-[10px] font-black uppercase text-[#08b36a] hover:text-green-600"
+                          >
+                            Add Rating Now
+                          </button>
+                        </div>
+                      )}
+                    </section>
+                  )}
 
                   {selectedAppt.hospitalId && !selectedAppt.status.toLowerCase().includes("cancel") && (
                     <div className="flex flex-col bg-green-50/50 p-6 rounded-3xl border border-green-100 gap-6">
@@ -516,6 +785,24 @@ function MyHospitalAppointments() {
                 </section>
               )}
             </div>
+
+            {/* Modal Footer actions */}
+            <div className="p-6 md:p-8 bg-gray-50 border-t flex gap-3 shrink-0">
+              {selectedAppt.status === "Completed" && (
+                <button 
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setIsReviewModalOpen(true);
+                  }}
+                  className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-amber-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                >
+                  <HiStar className="fill-white" size={16} /> {selectedReview ? "Edit Review & Rating" : "Add Review & Rating"}
+                </button>
+              )}
+              <button className="flex-1 py-4 bg-gray-900 hover:bg-gray-850 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+                Download invoice
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -562,6 +849,15 @@ function MyHospitalAppointments() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* --- RATING & REVIEW PORTAL MODAL --- */}
+      {isReviewModalOpen && selectedAppt && (
+        <HospitalReviewModal
+          isOpen={isReviewModalOpen}
+          onClose={() => setIsReviewModalOpen(false)}
+          data={selectedAppt}
+        />
       )}
     </div>
   );

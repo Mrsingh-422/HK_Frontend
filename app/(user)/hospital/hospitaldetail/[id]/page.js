@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
     FaArrowLeft, FaMapMarkerAlt, FaHospital, FaBed,
     FaUserMd, FaStar, FaBriefcaseMedical, FaPhoneAlt,
-    FaRegEnvelope, FaCheckCircle, FaStethoscope, FaChevronRight
+    FaRegEnvelope, FaCheckCircle, FaStethoscope, FaChevronRight, FaCommentDots, FaAward
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
@@ -74,10 +74,10 @@ export default function HospitalDetailPage() {
         </div>
     );
 
-    const { hospital, wards, doctors, services } = data;
+    const { hospital, wards, doctors, services, recentReviews } = data;
 
     return (
-        <div className="min-h-screen bg-slate-50/50 text-slate-900 pb-32">
+        <div className="min-h-screen bg-slate-50/50 text-slate-900 pb-32 font-sans">
 
             {/* STICKY HEADER */}
             <nav className="sticky top-0 z-[100] bg-white/80 backdrop-blur-md border-b border-slate-200">
@@ -106,9 +106,21 @@ export default function HospitalDetailPage() {
                             <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-bold uppercase tracking-wider mb-6">
                                 <FaHospital className="text-sm" /> Institutional Profile
                             </div>
-                            <h1 className="text-4xl md:text-6xl font-black text-slate-900 mb-6 leading-[1.1] tracking-tight">
-                                {hospital.name}
-                            </h1>
+                            
+                            <div className="flex flex-wrap items-center gap-3 mb-6">
+                                <h1 className="text-4xl md:text-6xl font-black text-slate-900 leading-[1.1] tracking-tight uppercase">
+                                    {hospital.name}
+                                </h1>
+                                {hospital.rating !== undefined && (
+                                    <div className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-600 px-3 py-1.5 rounded-xl text-sm font-black border border-amber-100 shadow-sm shrink-0">
+                                        <FaStar className="text-amber-500" /> {hospital.rating || "5"}
+                                        {hospital.totalReviews !== undefined && (
+                                            <span className="text-xs text-slate-400 font-medium">({hospital.totalReviews})</span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="space-y-4 mb-8">
                                 <div className="flex items-start gap-3 text-slate-600">
                                     <FaMapMarkerAlt className="text-emerald-500 mt-1 shrink-0" />
@@ -121,6 +133,16 @@ export default function HospitalDetailPage() {
                                     <a href={`mailto:${hospital.email}`} className="flex items-center gap-2 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-600 transition-colors px-5 py-3 rounded-2xl border border-slate-100 text-sm font-bold">
                                         <FaRegEnvelope className="text-xs" /> {hospital.email}
                                     </a>
+                                    {hospital.location && (
+                                        <a 
+                                            href={`https://www.google.com/maps/search/?api=1&query=${hospital.location.lat},${hospital.location.lng}`} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors px-5 py-3 rounded-2xl border border-emerald-100 text-sm font-bold"
+                                        >
+                                            <FaMapMarkerAlt className="text-xs" /> Map Coordinates
+                                        </a>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -140,10 +162,10 @@ export default function HospitalDetailPage() {
                 {/* CAPACITY DASHBOARD */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
                     {[
-                        { label: "Total Beds", val: wards.reduce((a, b) => a + b.availableBeds, 0), icon: <FaBed />, color: "text-blue-600", bg: "bg-blue-50" },
-                        { label: "Wards", val: wards.length, icon: <FaHospital />, color: "text-purple-600", bg: "bg-purple-50" },
-                        { label: "Specialists", val: doctors.length, icon: <FaUserMd />, color: "text-emerald-600", bg: "bg-emerald-50" },
-                        { label: "Services", val: services.length, icon: <FaStethoscope />, color: "text-orange-600", bg: "bg-orange-50" }
+                        { label: "Total Beds Available", val: wards.reduce((a, b) => a + b.availableBeds, 0), icon: <FaBed />, color: "text-blue-600", bg: "bg-blue-50" },
+                        { label: "Wards In Action", val: wards.length, icon: <FaHospital />, color: "text-purple-600", bg: "bg-purple-50" },
+                        { label: "Our Specialists", val: doctors.length, icon: <FaUserMd />, color: "text-emerald-600", bg: "bg-emerald-50" },
+                        { label: "Offered Services", val: services.length, icon: <FaStethoscope />, color: "text-orange-600", bg: "bg-orange-50" }
                     ].map((stat, i) => (
                         <div key={i} className="bg-white p-7 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col gap-4">
                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${stat.bg} ${stat.color}`}>
@@ -161,7 +183,7 @@ export default function HospitalDetailPage() {
                 <section className="mb-20">
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10">
                         <div>
-                            <h3 className="text-3xl font-bold text-slate-900">Bed Availability</h3>
+                            <h3 className="text-3xl font-bold text-slate-900 tracking-tight">Bed Availability</h3>
                             <p className="text-slate-500 font-medium">Select a department below to view specific bed locations.</p>
                         </div>
                     </div>
@@ -215,45 +237,70 @@ export default function HospitalDetailPage() {
                     </div>
                 </section>
 
+                {/* SPECIALISTS SECTION */}
                 <section className="mb-20">
-                    <h3 className="text-2xl font-bold text-slate-900 mb-8">Medical Specialists</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                    <h3 className="text-3xl font-black text-slate-900 mb-8 tracking-tight">Our Specialists</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         {doctors.map((doc) => (
-                            <div key={doc._id} className="group bg-white rounded-3xl p-3 border border-slate-100 shadow-sm hover:shadow-xl hover:border-emerald-100 transition-all duration-300">
-                                <div className="relative aspect-[3/4] rounded-2xl overflow-hidden mb-4">
+                            <div key={doc._id} className="group bg-white rounded-[2.5rem] p-6 border border-slate-200 hover:border-emerald-500 hover:shadow-xl transition-all duration-300 flex flex-col sm:flex-row gap-6">
+                                <div className="relative w-28 h-36 rounded-2xl overflow-hidden shrink-0 bg-slate-50 border border-slate-100">
                                     <img
                                         src={getImageUrl(doc.profileImage)}
-                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                         alt={doc.name}
                                     />
-                                    <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-xl flex items-center gap-1 shadow-sm">
+                                    <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-sm">
                                         <FaStar className="text-yellow-400 text-[10px]" />
-                                        <span className="text-[10px] font-bold text-slate-700">{doc.averageRating || '1'}</span>
-                                    </div>
-
-                                    {/* Hover Detail Button */}
-                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                                        <button className="bg-white text-emerald-600 text-[10px] font-bold px-4 py-2 rounded-full shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-                                            Avaliable
-                                        </button>
+                                        <span className="text-[10px] font-bold text-slate-700">{doc.averageRating || '5.0'}</span>
                                     </div>
                                 </div>
 
-                                <div className="px-1 pb-2">
-                                    <h4 className="font-bold text-slate-800 text-sm truncate">Dr. {doc.name}</h4>
-                                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight mt-1">{doc.speciality}</p>
+                                <div className="flex-1 flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                                <h4 className="font-black text-slate-900 text-lg leading-tight">Dr. {doc.name}</h4>
+                                                <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mt-1">{doc.speciality}</p>
+                                            </div>
+                                            {doc.experienceYears > 0 && (
+                                                <span className="bg-slate-100 text-slate-700 text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-md shrink-0">
+                                                    {doc.experienceYears} Yrs Exp
+                                                </span>
+                                            )}
+                                        </div>
 
-                                    {/* Mobile/Default Visible Button */}
-                                    <button className="w-full mt-3 py-2 bg-emerald-600 text-white text-[10px] font-bold rounded-xl transition-colors duration-300">
-                                        Avaliable
-                                    </button>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">{doc.qualification}</p>
+                                        <p className="text-slate-500 text-xs font-semibold mt-2 line-clamp-2 leading-relaxed">
+                                            {doc.about || "Senior specialist dedicated to dynamic therapeutic services and patient wellness."}
+                                        </p>
+                                    </div>
+
+                                    {/* Consultations Modes */}
+                                    <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap gap-1.5">
+                                        {doc.consultationStatus?.online && (
+                                            <span className="bg-blue-50 text-blue-700 text-[9px] font-extrabold px-2.5 py-1 rounded-lg border border-blue-100">
+                                                Online Consult
+                                            </span>
+                                        )}
+                                        {doc.consultationStatus?.clinic && (
+                                            <span className="bg-purple-50 text-purple-700 text-[9px] font-extrabold px-2.5 py-1 rounded-lg border border-purple-100">
+                                                Clinic Consult
+                                            </span>
+                                        )}
+                                        {doc.consultationStatus?.home && (
+                                            <span className="bg-orange-50 text-orange-700 text-[9px] font-extrabold px-2.5 py-1 rounded-lg border border-orange-100">
+                                                Home Care
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         ))}
                     </div>
                 </section>
 
-                <section className="py-12">
+                {/* OFFERED SERVICES SECTION */}
+                <section className="mb-20">
                     <div className="flex items-center justify-between mb-10">
                         <h3 className="text-3xl font-black text-slate-900 tracking-tight">Offered Services</h3>
                         <span className="h-1 flex-1 mx-6 bg-slate-100 rounded-full hidden md:block"></span>
@@ -304,6 +351,64 @@ export default function HospitalDetailPage() {
                         ))}
                     </div>
                 </section>
+
+                {/* TERMS AND CONDITIONS SECTION */}
+                {hospital.termsAndConditions && (
+                    <section className="mb-20">
+                        <div className="bg-white rounded-[2.5rem] border border-slate-200 p-8 md:p-12 shadow-sm">
+                            <h3 className="text-2xl font-black text-slate-900 mb-6 tracking-tight uppercase">Hospital Rules & Policy</h3>
+                            <p className="text-slate-600 text-xs font-semibold leading-relaxed whitespace-pre-line bg-slate-50 p-6 rounded-[2rem] border border-slate-100 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                {hospital.termsAndConditions}
+                            </p>
+                        </div>
+                    </section>
+                )}
+
+                {/* --- RECENT REVIEWS SECTION --- */}
+                {recentReviews && recentReviews.length > 0 && (
+                    <section className="mt-20 border-t border-slate-100 pt-16">
+                        <div className="flex items-center gap-2 mb-10">
+                            <span className="bg-emerald-50 text-emerald-600 p-2.5 rounded-2xl shrink-0">
+                                <FaCommentDots size={18} />
+                            </span>
+                            <h3 className="text-3xl font-black text-slate-900 tracking-tight">Patient Experiences</h3>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {recentReviews.map((rev) => (
+                                <div key={rev._id} className="bg-white border border-slate-200 p-6 rounded-3xl shadow-xs space-y-4">
+                                    <div className="flex justify-between items-start gap-2">
+                                        <div>
+                                            <p className="font-extrabold text-slate-950 text-sm leading-tight">{rev.userName || "Verified Patient"}</p>
+                                            <span className="text-[10px] text-slate-400 font-bold block mt-0.5">
+                                                {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString() : "Recent"}
+                                            </span>
+                                        </div>
+                                        <div className="bg-amber-50 text-amber-600 px-2.5 py-1 rounded-xl text-xs font-black border border-amber-100 flex items-center gap-1">
+                                            <FaStar size={10} /> {rev.rating}
+                                        </div>
+                                    </div>
+                                    <p className="text-slate-600 text-xs font-medium leading-relaxed italic">
+                                        "{rev.comment}"
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* View All Reviews Button */}
+                        {hospital.totalReviews > 3 && (
+                            <div className="flex justify-center mt-10">
+                                <button
+                                    onClick={() => router.push(`/userscreens/userallreviews?targetType=Hospital&targetId=${id}`)}
+                                    className="group flex items-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-emerald-200 text-slate-700 hover:text-emerald-600 font-bold text-xs uppercase tracking-wider rounded-2xl shadow-xs transition-all active:scale-95"
+                                >
+                                    <FaCommentDots className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                                    <span>View All Reviews ({hospital.totalReviews})</span>
+                                </button>
+                            </div>
+                        )}
+                    </section>
+                )}
             </main>
         </div>
     );
