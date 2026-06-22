@@ -914,7 +914,19 @@ const UserAPI = {
     addRatingAndReviewDoctor: async (reviewData) => {
         const response = await authApi.post('/user/doctors/rate', reviewData)
         return response.data;
+    },
+
+    //Combo Offers Pharmacy 
+    getAllComboOffers: async () => {
+        const response = await authApi.get('/user/pharmacy/global-combo-offers')
+        return response.data;
+    },
+
+    getComboOfferDetail: async (offerId) => {
+        const response = await authApi.get(`/user/pharmacy/combo-offers/details/${offerId}`)
+        return response.data;
     }
+
 
 
 

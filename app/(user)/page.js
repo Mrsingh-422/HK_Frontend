@@ -26,6 +26,7 @@ import HospitalsMainPage from "./components/mainPageComponents/HospitalsMainPage
 import NurseSection from "./components/mainPageComponents/NurseSection";
 import FeaturedProducts from "./buymedicine/components/FeaturedProducts";
 import SomeProducts from "./components/mainPageComponents/SomeProducts";
+import ComboOffers from "./components/mainPageComponents/ComboOffers";
 
 export default function Home() {
   return (
@@ -34,6 +35,7 @@ export default function Home() {
       <HeroSection />
       {/* <OurIntroduction /> */}
       <NewArrivals />
+      <ComboOffers />
       <MedicineComponent />
       {/* <AppointmentComponent /> */}
       <SomeProducts />
