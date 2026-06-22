@@ -6,7 +6,7 @@ import {
   FaArrowLeft, FaStar, FaMapMarkerAlt, FaGraduationCap, 
   FaShieldAlt, FaEnvelope, FaPhoneAlt, FaStethoscope, 
   FaArrowRight, FaAward, FaVideo, FaHome, FaHospital,
-  FaRegClock, FaCalendarCheck, FaCheckCircle
+  FaRegClock, FaCalendarCheck, FaCheckCircle, FaCommentDots
 } from 'react-icons/fa';
 import UserAPI from "@/app/services/UserAPI";
 
@@ -166,12 +166,55 @@ export default function PremiumDoctorDetail() {
                 <h4 className="font-bold text-slate-900 mb-2">Qualifications</h4>
                 <p className="text-sm text-slate-500 leading-relaxed">{profile.qualification}</p>
               </div>
+              
               <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100">
                 <FaCalendarCheck className="text-emerald-600 mb-4" size={24} />
-                <h4 className="font-bold text-slate-900 mb-2">Availability</h4>
-                <p className="text-sm text-slate-500 leading-relaxed">Mon - Sat<br/>09:00 AM - 06:00 PM</p>
+                <h4 className="font-bold text-slate-900 mb-4">Availability & Timings</h4>
+                <div className="space-y-2">
+                  {profile.workingHours && profile.workingHours.length > 0 ? (
+                    profile.workingHours.map((wh, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-xs">
+                        <span className="font-extrabold text-slate-500 uppercase tracking-wider">{wh.days}</span>
+                        <span className={`font-bold ${wh.isClosed ? "text-rose-500 bg-rose-50 px-2.5 py-0.5 rounded-md" : "text-slate-700"}`}>
+                          {wh.time}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500 leading-relaxed">Mon - Sat<br/>09:00 AM - 06:00 PM</p>
+                  )}
+                </div>
               </div>
             </section>
+
+            {/* Treated Conditions Section */}
+            {profile.treatedConditions && profile.treatedConditions.length > 0 && (
+              <section>
+                <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-emerald-600 mb-6">Conditions Treated</h3>
+                <div className="flex flex-wrap gap-2">
+                  {profile.treatedConditions.map((cond, i) => (
+                    <span key={i} className="px-4 py-2 bg-emerald-50/50 border border-emerald-100/60 rounded-xl text-xs font-bold text-emerald-800">
+                      {cond}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Competencies Section */}
+            {profile.competencies && profile.competencies.length > 0 && (
+              <section>
+                <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-emerald-600 mb-6">Key Competencies</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {profile.competencies.map((comp, idx) => (
+                    <div key={idx} className="flex items-start gap-3 p-4 bg-white border border-slate-200/60 rounded-2xl shadow-xs">
+                      <FaAward className="text-amber-500 shrink-0 mt-0.5" size={16} />
+                      <p className="text-xs font-bold text-slate-700 leading-tight">{comp}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <section>
                <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-emerald-600 mb-6">Languages</h3>
@@ -241,6 +284,51 @@ export default function PremiumDoctorDetail() {
             </div>
           </div>
         </div>
+
+        {/* --- RECENT REVIEWS SECTION --- */}
+        {doctorData.recentReviews && doctorData.recentReviews.length > 0 && (
+          <div className="pt-16 border-t border-slate-100">
+            <div className="flex items-center gap-2 mb-8">
+              <span className="bg-emerald-50 text-emerald-600 p-2 rounded-xl">
+                <FaCommentDots size={18} />
+              </span>
+              <h2 className="text-xl font-black uppercase text-slate-800 tracking-wider">Patient Experience Reviews</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {doctorData.recentReviews.map((rev) => (
+                <div key={rev._id} className="bg-white border border-slate-200 p-6 rounded-3xl shadow-xs space-y-4">
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <p className="font-extrabold text-slate-950 text-sm leading-tight">{rev.userName || "Verified Patient"}</p>
+                      <span className="text-[10px] text-slate-400 font-bold block mt-0.5">
+                        {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString() : "Recent"}
+                      </span>
+                    </div>
+                    <div className="bg-amber-50 text-amber-600 px-2.5 py-1 rounded-xl text-xs font-black border border-amber-100 flex items-center gap-1">
+                      <FaStar size={10} /> {rev.rating}
+                    </div>
+                  </div>
+                  <p className="text-slate-600 text-xs font-medium leading-relaxed italic">
+                    "{rev.comment}"
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Show view all reviews button only if totalReviews is greater than 3 */}
+            {profile.totalReviews > 3 && (
+              <div className="flex justify-center mt-10">
+                <button
+                  onClick={() => router.push(`/userscreens/userallreviews?targetType=Doctor&targetId=${id}`)}
+                  className="group flex items-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-emerald-200 text-slate-700 hover:text-emerald-600 font-bold text-xs uppercase tracking-wider rounded-2xl shadow-xs transition-all active:scale-95"
+                >
+                  <FaCommentDots className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                  <span>View All Reviews ({profile.totalReviews})</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </main>
     </div>
   );

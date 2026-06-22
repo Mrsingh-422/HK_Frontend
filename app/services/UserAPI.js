@@ -875,7 +875,7 @@ const UserAPI = {
 
     getUniversalReviews: async (targetType, targetId, page = 1) => {
         // targetType must be one of: "Doctor", "Lab", "Pharmacy", "Nurse", "Hospital", "Ambulance", "Driver"
-        const response = await authApi.get(`user/labs/reviews/${targetType}/${targetId}`, {
+        const response = await authApi.get(`/user/labs/reviews/${targetType}/${targetId}`, {
             params: { page }
         });
         return response.data;

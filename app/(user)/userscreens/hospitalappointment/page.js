@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 // React Icons
 import {
-  HiOutlineLocationMarker, HiOutlineX, HiOutlineReceiptTax, 
+  HiOutlineLocationMarker, HiOutlineX, HiOutlineReceiptTax,
   HiOutlineCalendar, HiOutlineDocumentDownload, HiOutlineClock, HiChevronLeft, HiChevronRight
 } from "react-icons/hi";
 import { FaUserMd, FaUserAlt, FaWallet, FaBed, FaCalendarAlt, FaStethoscope, FaInfoCircle, FaExclamationTriangle } from "react-icons/fa";
@@ -10,7 +10,7 @@ import { MdVerified, MdOutlineBedroomChild } from "react-icons/md";
 import UserAPI from "@/app/services/UserAPI";
 import { Toaster, toast } from 'react-hot-toast';
 
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5002";
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 // --- Helper Functions for Date calculations ---
 const getUtcDate = (dateStr) => {
@@ -31,7 +31,7 @@ const getDatesInRange = (startDate, endDate) => {
   const end = new Date(endDate);
   const dates = [];
   let current = new Date(start);
-  
+
   while (current <= end) {
     const y = current.getFullYear();
     const m = current.getMonth();
@@ -46,12 +46,12 @@ function MyHospitalAppointments() {
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [myAppointments, setMyAppointments] = useState([]);
-  
+
   // Cancellation Modal States
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [isCancelling, setIsCancelling] = useState(false);
-  
+
   // Pagination State
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0 });
 
@@ -59,7 +59,7 @@ function MyHospitalAppointments() {
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [rescheduleData, setRescheduleData] = useState({ start: "", end: "" });
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  
+
   // Logic States from API
   const [maxRescheduleLimit, setMaxRescheduleLimit] = useState(0);
   const maxCancellationLimit = 1; // Assuming 1 based on common hospital policies
@@ -94,13 +94,13 @@ function MyHospitalAppointments() {
 
   const fetchBookings = async (page) => {
     try {
-      const response = await UserAPI.getMyHospitalBookings(page); 
+      const response = await UserAPI.getMyHospitalBookings(page);
       if (response.success) {
         setMyAppointments(response.data);
-        setPagination(response.pagination || { 
-            currentPage: page, 
-            totalPages: Math.ceil(response.total / 10), 
-            totalCount: response.total 
+        setPagination(response.pagination || {
+          currentPage: page,
+          totalPages: Math.ceil(response.total / 10),
+          totalCount: response.total
         });
         setMaxRescheduleLimit(response.maxRescheduleLimit || 0);
       }
@@ -159,10 +159,10 @@ function MyHospitalAppointments() {
     }
 
     const payload = {
-        appointmentId: selectedAppt._id,
-        newStartDate: rescheduleData.start,
-        newEndDate: rescheduleData.end,
-        newBedId: selectedAppt.bedId?._id || selectedAppt.bedId,
+      appointmentId: selectedAppt._id,
+      newStartDate: rescheduleData.start,
+      newEndDate: rescheduleData.end,
+      newBedId: selectedAppt.bedId?._id || selectedAppt.bedId,
     };
 
     try {
@@ -253,7 +253,7 @@ function MyHospitalAppointments() {
       case "Admitted": return "bg-purple-100 text-purple-700 border-purple-200";
       case "Confirmed": return "bg-green-100 text-green-700 border-green-200";
       case "Completed": return "bg-blue-100 text-blue-700 border-blue-200";
-      case "Cancelled": 
+      case "Cancelled":
       case "Cancelled-By-User": return "bg-red-100 text-red-700 border-red-200";
       case "Hospital-Pending": return "bg-orange-100 text-orange-700 border-orange-200";
       default: return "bg-gray-100 text-gray-700 border-gray-200";
@@ -339,11 +339,11 @@ function MyHospitalAppointments() {
 
         {/* PAGINATION */}
         {pagination.totalPages > 1 && (
-            <div className="mt-8 flex justify-center items-center gap-4">
-                <button disabled={pagination.currentPage === 1} onClick={() => fetchBookings(pagination.currentPage - 1)} className="p-3 bg-white rounded-xl shadow-sm border"><HiChevronLeft /></button>
-                <span className="font-black text-sm">Page {pagination.currentPage} of {pagination.totalPages}</span>
-                <button disabled={pagination.currentPage === pagination.totalPages} onClick={() => fetchBookings(pagination.currentPage + 1)} className="p-3 bg-white rounded-xl shadow-sm border"><HiChevronRight /></button>
-            </div>
+          <div className="mt-8 flex justify-center items-center gap-4">
+            <button disabled={pagination.currentPage === 1} onClick={() => fetchBookings(pagination.currentPage - 1)} className="p-3 bg-white rounded-xl shadow-sm border"><HiChevronLeft /></button>
+            <span className="font-black text-sm">Page {pagination.currentPage} of {pagination.totalPages}</span>
+            <button disabled={pagination.currentPage === pagination.totalPages} onClick={() => fetchBookings(pagination.currentPage + 1)} className="p-3 bg-white rounded-xl shadow-sm border"><HiChevronRight /></button>
+          </div>
         )}
       </div>
 
@@ -356,94 +356,94 @@ function MyHospitalAppointments() {
                 <h2 className="text-xl font-black uppercase tracking-widest">{selectedAppt.hospitalId?.name || "Home Visit"}</h2>
                 <p className="text-gray-400 text-[10px] font-bold tracking-widest uppercase">Booking ID: {selectedAppt.bookingId}</p>
               </div>
-              <button onClick={() => {setIsModalOpen(false); setIsRescheduling(false); setRescheduleData({ start: "", end: "" });}} className="p-2 hover:bg-white/10 rounded-full"><HiOutlineX size={24} /></button>
+              <button onClick={() => { setIsModalOpen(false); setIsRescheduling(false); setRescheduleData({ start: "", end: "" }); }} className="p-2 hover:bg-white/10 rounded-full"><HiOutlineX size={24} /></button>
             </div>
 
             <div className="p-8 overflow-y-auto space-y-10">
               {!isRescheduling ? (
-                  <>
-                    <section>
-                      <div className="flex items-center gap-2 mb-4"><FaUserAlt className="text-[#08b36a]" /><h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Patient Details</h4></div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {[
-                          { label: "Patient", value: selectedAppt.patients[0]?.patientName },
-                          { label: "Gender", value: selectedAppt.patients[0]?.gender },
-                          { label: "Relation", value: selectedAppt.patients[0]?.relation },
-                          { label: "Age", value: selectedAppt.patients[0]?.patientAge },
-                        ].map((item, i) => (
-                          <div key={i} className="bg-gray-50 p-4 rounded-2xl"><p className="text-[9px] font-black text-gray-300 uppercase mb-1">{item.label}</p><p className="text-[11px] font-bold text-gray-800">{item.value}</p></div>
-                        ))}
-                      </div>
-                    </section>
-                    
-                    <section className="bg-gray-50 p-6 rounded-[32px] border border-gray-100 grid md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3 text-gray-600"><HiOutlineCalendar size={20}/> <div><p className="text-[9px] uppercase font-black text-gray-400">Start Date</p><p className="font-bold text-sm">{new Date(selectedAppt.startDate).toLocaleDateString()}</p></div></div>
-                            <div className="flex items-center gap-3 text-gray-600"><HiOutlineClock size={20}/> <div><p className="text-[9px] uppercase font-black text-gray-400">Time</p><p className="font-bold text-sm">{selectedAppt.appointmentTime}</p></div></div>
-                            {selectedAppt.bedId && <div className="flex items-center gap-3 text-gray-600"><FaBed size={20}/> <div><p className="text-[9px] uppercase font-black text-gray-400">Bed No</p><p className="font-bold text-sm">{selectedAppt.bedId.bedNumber} ({selectedAppt.bedId.wardId?.name})</p></div></div>}
-                        </div>
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3 text-gray-600"><HiOutlineCalendar size={20}/> <div><p className="text-[9px] uppercase font-black text-gray-400">End Date</p><p className="font-bold text-sm">{new Date(selectedAppt.endDate).toLocaleDateString()}</p></div></div>
-                            <div className="flex items-center gap-3 text-gray-600"><MdVerified size={20}/> <div><p className="text-[9px] uppercase font-black text-gray-400">Triage</p><p className="font-bold text-sm">{selectedAppt.triageLevel || 'N/A'}</p></div></div>
-                        </div>
-                    </section>
+                <>
+                  <section>
+                    <div className="flex items-center gap-2 mb-4"><FaUserAlt className="text-[#08b36a]" /><h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Patient Details</h4></div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {[
+                        { label: "Patient", value: selectedAppt.patients[0]?.patientName },
+                        { label: "Gender", value: selectedAppt.patients[0]?.gender },
+                        { label: "Relation", value: selectedAppt.patients[0]?.relation },
+                        { label: "Age", value: selectedAppt.patients[0]?.patientAge },
+                      ].map((item, i) => (
+                        <div key={i} className="bg-gray-50 p-4 rounded-2xl"><p className="text-[9px] font-black text-gray-300 uppercase mb-1">{item.label}</p><p className="text-[11px] font-bold text-gray-800">{item.value}</p></div>
+                      ))}
+                    </div>
+                  </section>
 
-                    {selectedAppt.hospitalId && !selectedAppt.status.toLowerCase().includes("cancel") && (
-                      <div className="flex flex-col bg-green-50/50 p-6 rounded-3xl border border-green-100 gap-6">
-                        <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-[#08b36a] shadow-sm"><MdOutlineBedroomChild size={24} /></div>
-                                <div>
-                                    <p className="text-[10px] font-black text-[#08b36a] uppercase">Booking Type</p>
-                                    <p className="font-bold text-gray-800">{selectedAppt.bookingType}</p>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-[9px] font-black text-gray-400 uppercase">Reschedule Status</p>
-                                <p className={`text-xs font-bold ${selectedAppt.rescheduleCount >= maxRescheduleLimit ? 'text-red-500' : 'text-gray-700'}`}>
-                                    {selectedAppt.rescheduleCount} / {maxRescheduleLimit} Used
-                                </p>
-                            </div>
+                  <section className="bg-gray-50 p-6 rounded-[32px] border border-gray-100 grid md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 text-gray-600"><HiOutlineCalendar size={20} /> <div><p className="text-[9px] uppercase font-black text-gray-400">Start Date</p><p className="font-bold text-sm">{new Date(selectedAppt.startDate).toLocaleDateString()}</p></div></div>
+                      <div className="flex items-center gap-3 text-gray-600"><HiOutlineClock size={20} /> <div><p className="text-[9px] uppercase font-black text-gray-400">Time</p><p className="font-bold text-sm">{selectedAppt.appointmentTime}</p></div></div>
+                      {selectedAppt.bedId && <div className="flex items-center gap-3 text-gray-600"><FaBed size={20} /> <div><p className="text-[9px] uppercase font-black text-gray-400">Bed No</p><p className="font-bold text-sm">{selectedAppt.bedId.bedNumber} ({selectedAppt.bedId.wardId?.name})</p></div></div>}
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 text-gray-600"><HiOutlineCalendar size={20} /> <div><p className="text-[9px] uppercase font-black text-gray-400">End Date</p><p className="font-bold text-sm">{new Date(selectedAppt.endDate).toLocaleDateString()}</p></div></div>
+                      <div className="flex items-center gap-3 text-gray-600"><MdVerified size={20} /> <div><p className="text-[9px] uppercase font-black text-gray-400">Triage</p><p className="font-bold text-sm">{selectedAppt.triageLevel || 'N/A'}</p></div></div>
+                    </div>
+                  </section>
+
+                  {selectedAppt.hospitalId && !selectedAppt.status.toLowerCase().includes("cancel") && (
+                    <div className="flex flex-col bg-green-50/50 p-6 rounded-3xl border border-green-100 gap-6">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-[#08b36a] shadow-sm"><MdOutlineBedroomChild size={24} /></div>
+                          <div>
+                            <p className="text-[10px] font-black text-[#08b36a] uppercase">Booking Type</p>
+                            <p className="font-bold text-gray-800">{selectedAppt.bookingType}</p>
+                          </div>
                         </div>
-
-                        <div className="flex gap-2">
-                           {/* CANCEL BUTTON WITH LIMIT LOGIC */}
-                           {selectedAppt.cancellationCount < maxCancellationLimit ? (
-                             <button 
-                                onClick={() => setIsCancelModalOpen(true)} 
-                                className="flex-1 bg-red-500 text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 transition-all active:scale-95"
-                             >
-                                Cancel Booking
-                             </button>
-                           ) : (
-                             <button 
-                                disabled
-                                className="flex-1 bg-gray-200 text-gray-400 cursor-not-allowed px-6 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2"
-                             >
-                                Limit Reached <FaInfoCircle />
-                             </button>
-                           )}
-
-                           {/* RESCHEDULE BUTTON WITH LIMIT LOGIC */}
-                           {selectedAppt.rescheduleCount < maxRescheduleLimit ? (
-                               <button 
-                                onClick={() => setIsRescheduling(true)} 
-                                className="flex-1 bg-[#08b36a] text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase hover:bg-green-600 transition-all active:scale-95"
-                               >
-                                Reschedule
-                               </button>
-                           ) : (
-                               <button 
-                                disabled
-                                className="flex-1 bg-gray-200 text-gray-400 cursor-not-allowed px-6 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2"
-                               >
-                                Limit Reached <FaInfoCircle />
-                               </button>
-                           )}
+                        <div className="text-right">
+                          <p className="text-[9px] font-black text-gray-400 uppercase">Reschedule Status</p>
+                          <p className={`text-xs font-bold ${selectedAppt.rescheduleCount >= maxRescheduleLimit ? 'text-red-500' : 'text-gray-700'}`}>
+                            {selectedAppt.rescheduleCount} / {maxRescheduleLimit} Used
+                          </p>
                         </div>
                       </div>
-                    )}
-                  </>
+
+                      <div className="flex gap-2">
+                        {/* CANCEL BUTTON WITH LIMIT LOGIC */}
+                        {selectedAppt.cancellationCount < maxCancellationLimit ? (
+                          <button
+                            onClick={() => setIsCancelModalOpen(true)}
+                            className="flex-1 bg-red-500 text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 transition-all active:scale-95"
+                          >
+                            Cancel Booking
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            className="flex-1 bg-gray-200 text-gray-400 cursor-not-allowed px-6 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2"
+                          >
+                            Limit Reached <FaInfoCircle />
+                          </button>
+                        )}
+
+                        {/* RESCHEDULE BUTTON WITH LIMIT LOGIC */}
+                        {selectedAppt.rescheduleCount < maxRescheduleLimit ? (
+                          <button
+                            onClick={() => setIsRescheduling(true)}
+                            className="flex-1 bg-[#08b36a] text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase hover:bg-green-600 transition-all active:scale-95"
+                          >
+                            Reschedule
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            className="flex-1 bg-gray-200 text-gray-400 cursor-not-allowed px-6 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2"
+                          >
+                            Limit Reached <FaInfoCircle />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
               ) : (
                 <section className="space-y-6">
                   <div className="flex justify-between items-center">
@@ -509,10 +509,10 @@ function MyHospitalAppointments() {
 
               {selectedAppt.specialServices?.length > 0 && (
                 <section>
-                    <div className="flex items-center gap-2 mb-4"><FaStethoscope className="text-[#08b36a]" /><h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Special Services</h4></div>
-                    <div className="flex flex-wrap gap-2">
-                        {selectedAppt.specialServices.map((svc) => (<span key={svc._id} className="bg-gray-100 px-4 py-2 rounded-xl text-[10px] font-black text-gray-600 uppercase">{svc.serviceName} (+₹{svc.price})</span>))}
-                    </div>
+                  <div className="flex items-center gap-2 mb-4"><FaStethoscope className="text-[#08b36a]" /><h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Special Services</h4></div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedAppt.specialServices.map((svc) => (<span key={svc._id} className="bg-gray-100 px-4 py-2 rounded-xl text-[10px] font-black text-gray-600 uppercase">{svc.serviceName} (+₹{svc.price})</span>))}
+                  </div>
                 </section>
               )}
             </div>
@@ -532,10 +532,10 @@ function MyHospitalAppointments() {
               <p className="text-gray-400 text-xs font-bold leading-relaxed uppercase tracking-widest">
                 This action cannot be undone. Please provide a reason for cancelling your admission.
               </p>
-              
+
               <div className="w-full mt-6">
                 <label className="block text-[9px] font-black text-gray-400 uppercase text-left mb-2 ml-1">Cancellation Reason</label>
-                <textarea 
+                <textarea
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
                   placeholder="E.g., Medical emergency at home, recovered early..."
@@ -544,14 +544,14 @@ function MyHospitalAppointments() {
               </div>
 
               <div className="flex gap-3 w-full mt-6">
-                <button 
-                  onClick={() => setIsCancelModalOpen(false)} 
+                <button
+                  onClick={() => setIsCancelModalOpen(false)}
                   disabled={isCancelling}
                   className="flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all"
                 >
                   Go Back
                 </button>
-                <button 
+                <button
                   onClick={submitCancellation}
                   disabled={isCancelling}
                   className="flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-200 transition-all flex items-center justify-center"

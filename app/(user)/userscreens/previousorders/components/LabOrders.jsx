@@ -14,27 +14,57 @@ import { MdOutlineScience, MdOutlineRateReview, MdPayment } from 'react-icons/md
 // --- SUB-COMPONENT: STEPPER ---
 const StatusStepper = ({ status }) => {
     const statusMap = {
+        "Prescription Uploaded": 0,
+        "Under Review": 0,
+        "Tests Added": 0,
+        "Pending": 0,
         "Confirmed": 0,
         "Phlebotomist Assigned": 1,
         "Sample Collected": 2,
-        "Report Ready": 3,
-        "Completed": 3
+        "Sample Deposited": 2,
+        "Testing": 3,
+        "Report Generated": 4,
+        "Completed": 4
     };
-    const currentStep = statusMap[status] ?? 1;
-    const steps = ["Booked", "Assigned", "Collected", "Completed"];
+
+    const currentStep = statusMap[status] ?? 0;
+    const steps = ["Booked", "Assigned", "Collected", "Testing", "Completed"];
+    const isCancelled = status === "Cancelled";
 
     return (
         <div className="w-full py-4 md:py-8 px-1 md:px-2">
             <div className="relative flex items-center justify-between">
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-slate-100 -z-10"></div>
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-600 transition-all duration-700 z-10"
-                    style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}></div>
-                {steps.map((step, index) => (
-                    <div key={step} className="flex flex-col items-center gap-1.5 md:gap-2 relative z-20">
-                        <div className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full border-2 transition-all duration-500 ${index <= currentStep ? "bg-indigo-600 border-indigo-100 ring-2 md:ring-4 ring-indigo-50" : "bg-white border-slate-200"}`} />
-                        <span className={`text-[7.5px] md:text-[8px] font-black uppercase tracking-tighter whitespace-nowrap ${index <= currentStep ? "text-slate-900" : "text-slate-400"}`}>{step}</span>
-                    </div>
-                ))}
+                <div 
+                    className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 transition-all duration-700 z-10"
+                    style={{ 
+                        width: isCancelled ? "100%" : `${(currentStep / (steps.length - 1)) * 100}%`,
+                        backgroundColor: isCancelled ? "#f43f5e" : "#4f46e5"
+                    }}
+                ></div>
+                {steps.map((step, index) => {
+                    const isCompletedStep = !isCancelled && index <= currentStep;
+                    return (
+                        <div key={step} className="flex flex-col items-center gap-1.5 md:gap-2 relative z-20">
+                            <div className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full border-2 transition-all duration-500 ${
+                                isCancelled 
+                                    ? "bg-rose-500 border-rose-100 ring-2 md:ring-4 ring-rose-50" 
+                                    : isCompletedStep 
+                                        ? "bg-indigo-600 border-indigo-100 ring-2 md:ring-4 ring-indigo-50" 
+                                        : "bg-white border-slate-200"
+                            }`} />
+                            <span className={`text-[7.5px] md:text-[8px] font-black uppercase tracking-tighter whitespace-nowrap ${
+                                isCancelled 
+                                    ? "text-rose-500" 
+                                    : isCompletedStep 
+                                        ? "text-slate-900" 
+                                        : "text-slate-400"
+                            }`}>
+                                {isCancelled && index === steps.length - 1 ? "Cancelled" : step}
+                            </span>
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );
@@ -135,8 +165,9 @@ function LabOrders() {
     };
 
     const getStatusStyles = (status) => {
-        if (status === 'Report Ready' || status === 'Completed') return 'text-emerald-600 bg-emerald-50';
-        if (['Cancelled', 'Rejected'].includes(status)) return 'text-rose-500 bg-rose-50';
+        if (['Report Generated', 'Completed'].includes(status)) return 'text-emerald-600 bg-emerald-50';
+        if (status === 'Cancelled') return 'text-rose-500 bg-rose-50';
+        if (['Prescription Uploaded', 'Under Review', 'Tests Added', 'Pending'].includes(status)) return 'text-amber-600 bg-amber-50';
         return 'text-indigo-600 bg-indigo-50';
     };
 
@@ -570,7 +601,7 @@ function LabOrders() {
                         <button className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
                             <FiDownload size={16} /> Download Receipt
                         </button>
-                        {data.status === 'Report Ready' && (
+                        {['Report Generated', 'Completed'].includes(data.status) && (
                             <button className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
                                 <MdOutlineScience size={18} /> View Lab Report
                             </button>
