@@ -919,12 +919,12 @@ const UserAPI = {
 
     //Combo Offers Pharmacy 
     getAllComboOffers: async () => {
-        const response = await authApi.get('/user/pharmacy/global-combo-offers')
+        const response = await publicApi.get('/user/pharmacy/global-combo-offers')
         return response.data;
     },
 
     getComboOfferDetail: async (offerId) => {
-        const response = await authApi.get(`/user/pharmacy/combo-offers/details/${offerId}`)
+        const response = await publicApi.get(`/user/pharmacy/combo-offers/details/${offerId}`)
         return response.data;
     }
 
