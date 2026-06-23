@@ -381,7 +381,7 @@ const PharmacyCart = () => {
             <div className="flex flex-col items-center justify-center py-24 text-center">
                 <FaPills className="text-slate-100 text-7xl mb-6" />
                 <h2 className="text-2xl font-black text-slate-800">Pharmacy Cart is Empty</h2>
-                <button onClick={() => router.push('/pharmacy')} className="mt-8 bg-emerald-600 text-white px-10 py-3 rounded-2xl font-black uppercase text-sm">Shop Medicines</button>
+                <button onClick={() => router.push('/buymedicine')} className="mt-8 bg-emerald-600 text-white px-10 py-3 rounded-2xl font-black uppercase text-sm">Shop Medicines</button>
             </div>
         );
     }

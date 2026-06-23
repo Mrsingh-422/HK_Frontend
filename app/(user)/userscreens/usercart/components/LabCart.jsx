@@ -350,7 +350,7 @@ const LabCart = () => {
             <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
                 <FaPrescriptionBottleAlt className="text-slate-100 text-7xl mb-6" />
                 <h2 className="text-2xl font-black text-slate-800">Lab Cart is Empty</h2>
-                <button onClick={() => router.push('/')} className="mt-8 bg-emerald-600 text-white px-10 py-3 rounded-2xl font-black uppercase text-sm tracking-widest">Browse Tests</button>
+                <button onClick={() => router.push('/booklabtest')} className="mt-8 bg-emerald-600 text-white px-10 py-3 rounded-2xl font-black uppercase text-sm tracking-widest">Browse Tests</button>
             </div>
         );
     }
