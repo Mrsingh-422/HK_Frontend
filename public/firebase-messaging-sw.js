@@ -31,24 +31,6 @@ messaging.onBackgroundMessage((payload) => {
     self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// self.addEventListener('notificationclick', (event) => {
-//     event.notification.close();
-
-//     // Redirect to your home page
-//     const targetUrl = '/';
-
-//     event.waitUntil(
-//         clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-//             for (let i = 0; i < windowClients.length; i++) {
-//                 const client = windowClients[i];
-//                 if (client.url === targetUrl && 'focus' in client) {
-//                     return client.focus();
-//                 }
-//             }
-//             if (clients.openWindow) return clients.openWindow(targetUrl);
-//         })
-//     );
-// });
 
 // Handle notification click
 self.addEventListener('notificationclick', (event) => {
