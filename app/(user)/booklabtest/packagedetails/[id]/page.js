@@ -24,7 +24,7 @@ export default function PackageDetailPage() {
     const [selectedLab, setSelectedLab] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [pageLoading, setPageLoading] = useState(true);
-    
+
     // New state for custom warning modal
     const [showConflictModal, setShowConflictModal] = useState(false);
 
@@ -87,6 +87,13 @@ export default function PackageDetailPage() {
 
     // HANDLER FOR ADD/REMOVE
     const handleAction = async () => {
+        // Check if user is logged in (checking for userToken in localStorage)
+        const token = typeof window !== "undefined" ? localStorage.getItem("userToken") : null;
+        if (!token) {
+            toast.error("Please login to continue");
+            return;
+        }
+
         if (!selectedLab) {
             toast.error("Please select a lab first");
             return;
@@ -137,7 +144,7 @@ export default function PackageDetailPage() {
 
     return (
         <div className="min-h-screen bg-[#FDFDFD] pb-10 md:pb-20">
-            
+
             {/* CUSTOM CONFLICT MODAL */}
             {showConflictModal && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -151,14 +158,14 @@ export default function PackageDetailPage() {
                             Your cart already contains items from <span className="font-bold text-slate-700">{cart.labName || "another laboratory"}</span>. Clear it to add this package?
                         </p>
                         <div className="flex flex-col gap-3">
-                            <button 
-                                onClick={handleConfirmReplace} 
+                            <button
+                                onClick={handleConfirmReplace}
                                 className="w-full py-3 md:py-4 bg-slate-900 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg"
                             >
                                 Clear and Add
                             </button>
-                            <button 
-                                onClick={() => setShowConflictModal(false)} 
+                            <button
+                                onClick={() => setShowConflictModal(false)}
                                 className="w-full py-3 md:py-4 bg-slate-100 text-slate-500 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
                             >
                                 Cancel

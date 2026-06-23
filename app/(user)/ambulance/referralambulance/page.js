@@ -8,9 +8,12 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import UserAPI from "@/app/services/UserAPI";
+import toast from 'react-hot-toast';
+import { useGlobalContext } from '@/app/context/GlobalContext';
 
 export default function ReferralBookingPage() {
   const router = useRouter();
+  const { openModal } = useGlobalContext()
 
   // --- State Management ---
   const [loading, setLoading] = useState(true);
@@ -54,6 +57,13 @@ export default function ReferralBookingPage() {
 
   // --- Initial Data Fetching ---
   useEffect(() => {
+    const token = localStorage.getItem('userToken');
+    if (!token) {
+      toast.error("Please login to continue");
+      router.push('/ambulance');
+      // openModal("login")
+      return;
+    }
     const fetchData = async () => {
       try {
         const storedCoordsString = localStorage.getItem('userCoords');

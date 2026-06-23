@@ -8,10 +8,13 @@ import {
 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import UserAPI from "@/app/services/UserAPI";
+import { useGlobalContext } from '@/app/context/GlobalContext';
+import toast from 'react-hot-toast';
 
 export default function AmbulanceBookingPage() {
   const router = useRouter();
   const { id } = useParams(); // Get ambulance ID from URL
+  const { openModal } = useGlobalContext()
 
   // --- State Management ---
   const [ambulance, setAmbulance] = useState(null);
@@ -44,6 +47,13 @@ export default function AmbulanceBookingPage() {
 
   // --- Fetch Data ---
   useEffect(() => {
+    const token = localStorage.getItem('userToken');
+    if (!token) {
+      toast.error("Please login to continue");
+      router.push('/ambulance');
+      // openModal("login")
+      return;
+    }
     const init = async () => {
       try {
         const storedCoordsString = localStorage.getItem('userCoords');

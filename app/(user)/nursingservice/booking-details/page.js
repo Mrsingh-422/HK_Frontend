@@ -3,10 +3,12 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import {
-    FaArrowLeft, FaCheckCircle, FaUserCircle, 
+    FaArrowLeft, FaCheckCircle, FaUserCircle,
     FaChevronDown, FaClipboardList, FaPlus, FaTimes
 } from "react-icons/fa";
+import toast from "react-hot-toast";
 import UserAPI from "@/app/services/UserAPI";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
 const BASE_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}`;
 
@@ -15,11 +17,12 @@ function BookingDetailsContent() {
     const [initialData, setInitialData] = useState(null);
     const [familyMembers, setFamilyMembers] = useState([]);
     const [loading, setLoading] = useState(true);
-    
+    const { openModal } = useGlobalContext()
+
     // Now tracking multiple selected IDs
     const [selectedFamilyIds, setSelectedFamilyIds] = useState([]);
     const [location, setLocation] = useState("At Home");
-    
+
     // Now tracking multiple patients' input data
     const [patients, setPatients] = useState([]);
 
@@ -31,6 +34,14 @@ function BookingDetailsContent() {
     });
 
     useEffect(() => {
+        const token = localStorage.getItem('userToken');
+        if (!token) {
+            toast.error("Please login to continue");
+            router.push('/nursingservice');
+            // openModal("login")
+            return;
+        }
+
         const fetchBookingData = async () => {
             try {
                 setLoading(true);
@@ -59,7 +70,7 @@ function BookingDetailsContent() {
     // Toggle Selection for Multiple Family Members
     const handleToggleFamily = (member) => {
         const isSelected = selectedFamilyIds.includes(member._id);
-        
+
         if (isSelected) {
             // Remove member
             setSelectedFamilyIds(prev => prev.filter(id => id !== member._id));
@@ -79,7 +90,7 @@ function BookingDetailsContent() {
 
     // Update specific patient details in the array
     const updatePatientData = (id, field, value) => {
-        setPatients(prev => prev.map(p => 
+        setPatients(prev => prev.map(p =>
             p.patientId === id ? { ...p, [field]: value } : p
         ));
     };
@@ -164,7 +175,7 @@ function BookingDetailsContent() {
                             <h3 className="font-black text-slate-800 ml-2">Select Patients (Multiple Allowed)</h3>
                             <div className="flex items-start gap-6 overflow-x-auto pb-4 custom-scrollbar">
                                 {familyMembers.map((member) => (
-                                    <button 
+                                    <button
                                         key={member._id}
                                         onClick={() => handleToggleFamily(member)}
                                         className="flex flex-col items-center gap-2 min-w-[80px]"
@@ -194,7 +205,7 @@ function BookingDetailsContent() {
                         {/* Assessment Location */}
                         <section className="bg-[#F1F9F6] p-6 rounded-[2rem] space-y-4">
                             <h4 className="text-sm font-black text-slate-800">Assessment Location</h4>
-                            <select 
+                            <select
                                 value={location}
                                 onChange={(e) => setLocation(e.target.value)}
                                 className="w-full bg-white border-none rounded-2xl p-4 text-sm font-bold text-slate-700 shadow-sm outline-none"
@@ -209,15 +220,15 @@ function BookingDetailsContent() {
                             <section key={patient.patientId} className="bg-[#FFF9F1] p-6 rounded-[2rem] space-y-5 border-2 border-orange-100 animate-in fade-in slide-in-from-bottom-4">
                                 <div className="flex justify-between items-center">
                                     <h4 className="text-sm font-black text-orange-800">Patient #{index + 1} Details</h4>
-                                    <button onClick={() => handleToggleFamily({_id: patient.patientId})} className="text-orange-300 hover:text-orange-600 transition-colors">
+                                    <button onClick={() => handleToggleFamily({ _id: patient.patientId })} className="text-orange-300 hover:text-orange-600 transition-colors">
                                         <FaTimes />
                                     </button>
                                 </div>
                                 <div className="space-y-4">
                                     <div>
                                         <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Full Name</label>
-                                        <input 
-                                            type="text" 
+                                        <input
+                                            type="text"
                                             value={patient.fullName}
                                             onChange={(e) => updatePatientData(patient.patientId, 'fullName', e.target.value)}
                                             className="w-full bg-white rounded-xl p-4 text-sm font-bold text-slate-700 outline-none shadow-sm"
@@ -227,8 +238,8 @@ function BookingDetailsContent() {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Age</label>
-                                            <input 
-                                                type="number" 
+                                            <input
+                                                type="number"
                                                 value={patient.age}
                                                 onChange={(e) => updatePatientData(patient.patientId, 'age', e.target.value)}
                                                 className="w-full bg-white rounded-xl p-4 text-sm font-bold text-slate-700 outline-none shadow-sm"
@@ -236,7 +247,7 @@ function BookingDetailsContent() {
                                         </div>
                                         <div className="relative">
                                             <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Gender</label>
-                                            <select 
+                                            <select
                                                 value={patient.gender}
                                                 onChange={(e) => updatePatientData(patient.patientId, 'gender', e.target.value)}
                                                 className="w-full bg-white rounded-xl p-4 text-sm font-bold text-slate-700 appearance-none outline-none shadow-sm"
@@ -250,7 +261,7 @@ function BookingDetailsContent() {
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Relation</label>
-                                        <select 
+                                        <select
                                             value={patient.relation}
                                             onChange={(e) => updatePatientData(patient.patientId, 'relation', e.target.value)}
                                             className="w-full bg-white rounded-xl p-4 text-sm font-bold text-slate-700 outline-none shadow-sm"
@@ -272,10 +283,10 @@ function BookingDetailsContent() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Visit Language</label>
-                                    <select 
+                                    <select
                                         value={healthDetails.language}
                                         className="w-full bg-white rounded-xl p-4 text-sm font-bold text-slate-700 outline-none"
-                                        onChange={(e) => setHealthDetails({...healthDetails, language: e.target.value})}
+                                        onChange={(e) => setHealthDetails({ ...healthDetails, language: e.target.value })}
                                     >
                                         <option>English</option>
                                         <option>Hindi</option>
@@ -284,21 +295,21 @@ function BookingDetailsContent() {
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">DOB (Primary Patient)</label>
-                                    <input 
-                                        type="date" 
+                                    <input
+                                        type="date"
                                         value={healthDetails.dob}
                                         className="w-full bg-white rounded-xl p-4 text-sm font-bold text-slate-700 outline-none"
-                                        onChange={(e) => setHealthDetails({...healthDetails, dob: e.target.value})}
+                                        onChange={(e) => setHealthDetails({ ...healthDetails, dob: e.target.value })}
                                     />
                                 </div>
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Special Instructions</label>
-                                <textarea 
+                                <textarea
                                     placeholder="Medical history, allergies, or special needs..."
                                     value={healthDetails.instructions}
                                     className="w-full bg-white rounded-2xl p-4 text-sm font-medium text-slate-600 outline-none h-24 resize-none shadow-inner"
-                                    onChange={(e) => setHealthDetails({...healthDetails, instructions: e.target.value})}
+                                    onChange={(e) => setHealthDetails({ ...healthDetails, instructions: e.target.value })}
                                 />
                             </div>
                         </section>
@@ -356,7 +367,7 @@ function BookingDetailsContent() {
                     </div>
                 </div>
             </div>
-            
+
             <style jsx global>{`
                 .custom-scrollbar::-webkit-scrollbar { height: 4px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }

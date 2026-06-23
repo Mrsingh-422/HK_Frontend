@@ -9,7 +9,9 @@ import {
     FaMapMarkerAlt, FaGlobe, FaPlus, FaUpload, FaUserMd, FaStethoscope,
     FaSpinner
 } from "react-icons/fa";
+import toast from "react-hot-toast";
 import UserAPI from "@/app/services/UserAPI";
+import { useGlobalContext } from "@/app/context/GlobalContext";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -32,6 +34,7 @@ const loadRazorpayScript = () => {
 export default function CheckoutPage() {
     const router = useRouter();
     const [booking, setBooking] = useState(null);
+    const { openModal } = useGlobalContext();
 
     // API Data State
     const [doctors, setDoctors] = useState([]);
@@ -72,6 +75,13 @@ export default function CheckoutPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
+        const token = localStorage.getItem('userToken');
+        if (!token) {
+            toast.error("Please login to continue");
+            router.push('/hospital');
+            // openModal("login")
+            return;
+        }
         const savedData = sessionStorage.getItem("activeBooking");
         if (!savedData) {
             router.push("/");

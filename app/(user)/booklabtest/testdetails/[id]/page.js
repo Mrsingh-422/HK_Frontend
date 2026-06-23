@@ -90,6 +90,13 @@ export default function TestDetailPage() {
 
     // HANDLER FOR ADD/REMOVE
     const handleAction = async () => {
+        // Check if user is logged in (checking for token in localStorage)
+        const token = typeof window !== "undefined" ? localStorage.getItem("userToken") : null;
+        if (!token) {
+            toast.error("Please login to continue");
+            return;
+        }
+
         if (!selectedLab) {
             toast.error("Please select a lab first");
             return;

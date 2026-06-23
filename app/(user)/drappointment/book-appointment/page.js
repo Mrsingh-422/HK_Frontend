@@ -7,7 +7,9 @@ import {
   FaCrown, FaTag, FaSpinner,
   FaUserCircle, FaMapMarkerAlt, FaCheckCircle
 } from 'react-icons/fa';
+import toast from 'react-hot-toast';
 import UserAPI from "@/app/services/UserAPI";
+import { useGlobalContext } from '@/app/context/GlobalContext';
 
 // Utility to dynamically load the Razorpay SDK script
 const loadRazorpayScript = () => {
@@ -27,6 +29,7 @@ const loadRazorpayScript = () => {
 
 export default function BookingConfirmation() {
   const router = useRouter();
+  const { openModal, modalType, closeModal } = useGlobalContext();
 
   // Existing States
   const [bookingData, setBookingData] = useState(null);
@@ -55,6 +58,14 @@ export default function BookingConfirmation() {
 
   // Initialize Data
   useEffect(() => {
+    const token = localStorage.getItem('userToken');
+    if (!token) {
+      toast.error("Please login to continue");
+      router.push('/drappointment');
+      // openModal("login");
+      return;
+    }
+
     const data = localStorage.getItem('pendingBooking');
     if (data) {
       const parsed = JSON.parse(data);
