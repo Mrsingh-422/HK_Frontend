@@ -210,6 +210,23 @@ const HospitalAPI = {
       return { success: false, message: error.response?.data?.message || "Failed to delete ambulance" };
     }
   },
+
+  // 5. Reassign Ambulance on Breakdown (POST)
+  reassignAmbulanceBreakdown: async (bookingId, newAmbulanceId, reason) => {
+    try {
+      const response = await hospitalVendorApi.post('/hospital/panel/ambulance/reassign-breakdown', {
+        bookingId,
+        newAmbulanceId,
+        reason
+      });
+      return response.data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to reassign ambulance on breakdown"
+      };
+    }
+  },
   // ==========================================
   // WARD MANAGEMENT APIs
   // ==========================================
@@ -493,9 +510,16 @@ const HospitalAPI = {
   // ==========================================
 
   // Optimized lookup via functional pending collection query (To bypass details route failures)
-  getAdmissionDetails: async (id = null) => {
+  getAdmissionDetails: async (id = null, caseType = null) => {
+    // Pass caseType inside the config object using Axios params
+    const config = {};
+    if (caseType) {
+      config.params = { caseType };
+    }
+
     const response = await hospitalVendorApi.get(
-      "/hospital/panel/discharges/pending"
+      "/hospital/panel/discharges/pending",
+      config
     );
 
     if (
@@ -535,7 +559,6 @@ const HospitalAPI = {
       message: "Admission details not found.",
     };
   },
-
   finalizeDischarge: async (data) => {
     const response = await hospitalVendorApi.post(
       "/hospital/panel/discharge/finalize",
@@ -551,6 +574,56 @@ const HospitalAPI = {
     );
     return response.data;
   },
+  // ==========================================
+  // HOSPITAL WALLET APIs
+  // ==========================================
+
+  /**
+   * Fetch Hospital Wallet Stats
+   * GET /hospital/wallet/stats
+   */
+  getWalletStats: async () => {
+    try {
+      const response = await hospitalVendorApi.get('/hospital/wallet/stats');
+      return response.data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to fetch wallet statistics"
+      };
+    }
+  },
+
+  /**
+   * Request Hospital Payout / Withdrawal
+   * POST /hospital/wallet/withdraw
+   */
+  requestWithdraw: async (amount) => {
+    try {
+      const response = await hospitalVendorApi.post('/hospital/wallet/withdraw', { amount });
+      return response.data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to process withdrawal request"
+      };
+    }
+  },
+
+  // NEW METHOD: UPDATE HOSPITAL BANK SETTLEMENT DETAILS (JSON PAYLOAD)
+  updateBankDetails: async (bankData) => {
+    try {
+      const response = await hospitalVendorApi.patch('/hospital/wallet/bank-details', bankData);
+      return response.data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to update bank details"
+      };
+    }
+  },
+
+
 
 }
 export default HospitalAPI;

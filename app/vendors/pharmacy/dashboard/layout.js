@@ -7,7 +7,7 @@ import {
     FaBars, FaUserCircle, FaSignOutAlt, FaChevronDown,
     FaHome, FaBoxOpen, FaMotorcycle, FaClipboardList,
     FaMapMarkedAlt, FaPills, FaBullhorn, FaFileAlt,
-    FaMoneyBillWave, FaWallet, FaQuestionCircle,
+    FaMoneyBillWave, FaWallet, FaQuestionCircle,FaUniversity,
     FaCalendarAlt, FaMapMarkerAlt, FaFilePrescription
 } from "react-icons/fa";
 import { MdMenuOpen, MdMenu } from "react-icons/md";
@@ -185,6 +185,7 @@ export default function PharmacyVendorLayout({ children }) {
         { name: 'Promotion', href: '/vendors/pharmacy/dashboard/coupon', icon: FaBullhorn },
         { name: 'Combo Offers', href: '/vendors/pharmacy/dashboard/combo-offers', icon: FaBullhorn },
         { name: 'Manage Documents', href: '/vendors/pharmacy/dashboard/document', icon: FaFileAlt },
+        { name: 'Manage Banking', href: '/vendors/pharmacy/dashboard/ManageBanking', icon: FaUniversity },
         { name: 'Manage Delivery Charges', href: '/vendors/pharmacy/dashboard/delivery-charges', icon: FaMoneyBillWave },
         { name: 'Wallet & Earning', href: '/vendors/pharmacy/dashboard/wallet', icon: FaWallet },
     ];

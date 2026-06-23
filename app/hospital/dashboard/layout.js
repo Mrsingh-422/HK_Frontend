@@ -47,13 +47,15 @@ export default function HospitalLayout({ children }) {
         { name: 'History', href: '/hospital/dashboard/history', icon: FaHistory },
         { name: 'Manage Coupons', href: '/hospital/dashboard/coupons', icon: FaTicketAlt },
         { name: 'Manage Service', href: '/hospital/dashboard/manage-service', icon: FaStethoscope },
-        { name: 'Emergency Discharge', href: '/hospital/dashboard/emergencydischarge', icon: FaFileInvoice },
+        { name: ' Discharge', href: '/hospital/dashboard/emergencydischarge', icon: FaFileInvoice },
         { name: 'Referral Ambulance', href: '/hospital/dashboard/referralambulance', icon: FaAmbulance },
+         { name: 'Wallet', href: '/hospital/dashboard/wallet', icon: FaAmbulance },
         { 
             name: 'Settings', 
             icon: FaCogs,
             subItems: [
                 { name: 'Manage Doctors', href: '/hospital/dashboard/manage-doctor'},
+                { name: 'Manage Banking', href: '/hospital/dashboard/ManageBanking'},
                 { name: 'Manage Ambulance', href: '/hospital/dashboard/manage-ambulance'},
                 { name: 'Manage Wards', href: '/hospital/dashboard/manage-wards' },
                 { name: 'Terms & Conditions', href: '/hospital/dashboard/terms-and-conditions' },

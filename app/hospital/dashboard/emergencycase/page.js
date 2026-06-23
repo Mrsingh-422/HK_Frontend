@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import HospitalAPI from '@/app/services/HospitalAPI';
 import { 
   FaSearch, FaAmbulance, FaNotesMedical, FaClock
@@ -12,6 +12,35 @@ import DateSelectorModal from './components/DateSelectorModal';
 import BedAllocationModal from './components/BedAllocationModal';
 import DoctorAssignmentModal from './components/DoctorAssignmentModal';
 
+// --- SUB-COMPONENT: PAGINATION CONTROLS ---
+const PaginationControls = ({ currentPage, totalPages, onPageChange }) => {
+  if (totalPages <= 1) return null;
+  
+  return (
+    <div className="flex justify-between items-center bg-white px-6 py-4 rounded-2xl border border-emerald-100 shadow-sm mt-4">
+      <p className="text-xs text-gray-500 font-bold">
+        Page {currentPage} of {totalPages}
+      </p>
+      <div className="flex gap-2">
+        <button
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          className="px-3 py-1.5 rounded-lg text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-100 transition-all"
+        >
+          Previous
+        </button>
+        <button
+          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          className="px-3 py-1.5 rounded-lg text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-100 transition-all"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // --- SUB-COMPONENT: EMERGENCY TABLE ---
 const EmergencyTable = ({ items, onView }) => (
   <div className="bg-white rounded-2xl shadow-xl border border-emerald-100 overflow-hidden">
@@ -20,31 +49,50 @@ const EmergencyTable = ({ items, onView }) => (
         <tr>
           <th className="p-5">Booking / Ambulance</th>
           <th className="p-5">Patient Details</th>
-          <th className="p-5">Ward / Bed</th>
+          <th className="p-5">Ward / Bed & Status</th>
           <th className="p-5 text-center">Action</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-emerald-50">
-        {items.map((item) => (
-          <tr key={item._id} className="hover:bg-emerald-50/20 transition-all group">
-            <td className="p-5">
-              <p className="text-xs font-black text-emerald-700">#{item.bookingId}</p>
-              <p className="text-[10px] font-bold text-gray-400 uppercase">{item.ambulanceId?.vehicleNumber || 'Private Arrival'}</p>
-            </td>
-            <td className="p-5">
-              <p className="text-sm font-black text-gray-800">{item.patients[0]?.patientName}</p>
-              <p className="text-[10px] text-gray-500">{item.patients[0]?.gender} • {item.patients[0]?.patientAge}y</p>
-            </td>
-            <td className="p-5">
-              <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-md text-[10px] font-black uppercase">
-                {item.wardName || 'Unassigned'} - {item.bedNumber || 'Unassigned'}
-              </span>
-            </td>
-            <td className="p-5 text-center">
-              <button onClick={() => onView(item)} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase">View</button>
+        {items.length === 0 ? (
+          <tr>
+            <td colSpan="4" className="p-10 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">
+              No cases found in this category
             </td>
           </tr>
-        ))}
+        ) : (
+          items.map((item) => (
+            <tr key={item._id} className="hover:bg-emerald-50/20 transition-all group">
+              <td className="p-5">
+                <p className="text-xs font-black text-emerald-700">#{item.bookingId}</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase">{item.ambulanceId?.vehicleNumber || 'Private Arrival'}</p>
+              </td>
+              <td className="p-5">
+                <p className="text-sm font-black text-gray-800">{item.patients[0]?.patientName}</p>
+                <p className="text-[10px] text-gray-500">{item.patients[0]?.gender} • {item.patients[0]?.patientAge}y</p>
+              </td>
+              <td className="p-5">
+                <div className="flex flex-col gap-1.5 items-start">
+                  <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-md text-[10px] font-black uppercase">
+                    {item.wardName || 'Unassigned'} - {item.bedNumber || 'Unassigned'}
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                    item.clinicalSummary?.dischargedAt != null || item.status?.toLowerCase() === 'completed' || item.status?.toLowerCase() === 'discharged'
+                      ? 'bg-blue-100 text-blue-700'
+                      : item.wardName || item.bedNumber
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {item.clinicalSummary?.dischargedAt != null ? 'Discharged' : item.status || (item.wardName || item.bedNumber ? 'Admitted' : 'Pending')}
+                  </span>
+                </div>
+              </td>
+              <td className="p-5 text-center">
+                <button onClick={() => onView(item)} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase hover:bg-emerald-700 transition-all">View</button>
+              </td>
+            </tr>
+          ))
+        )}
       </tbody>
     </table>
   </div>
@@ -62,24 +110,32 @@ const ReferralTable = ({ items }) => (
         </tr>
       </thead>
       <tbody className="divide-y divide-blue-50">
-        {items.map((ref) => (
-          <tr key={ref._id}>
-            <td className="p-5">
-              <p className="text-xs font-black text-blue-700">{ref.bookingId}</p>
-              <p className="text-[9px] text-gray-400">{ref.caseReference}</p>
-            </td>
-            <td className="p-5">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-gray-600">{ref.pickupHospitalId?.name}</span>
-                <span className="text-blue-400">➔</span>
-                <span className="text-[10px] font-black text-emerald-600">{ref.hospitalId?.name}</span>
-              </div>
-            </td>
-            <td className="p-5">
-              <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[9px] font-black uppercase">{ref.status}</span>
+        {items.length === 0 ? (
+          <tr>
+            <td colSpan="3" className="p-10 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">
+              No transfers found
             </td>
           </tr>
-        ))}
+        ) : (
+          items.map((ref) => (
+            <tr key={ref._id}>
+              <td className="p-5">
+                <p className="text-xs font-black text-blue-700">{ref.bookingId}</p>
+                <p className="text-[9px] text-gray-400">{ref.caseReference}</p>
+              </td>
+              <td className="p-5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-gray-600">{ref.pickupHospitalId?.name}</span>
+                  <span className="text-blue-400">➔</span>
+                  <span className="text-[10px] font-black text-emerald-600">{ref.hospitalId?.name}</span>
+                </div>
+              </td>
+              <td className="p-5">
+                <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[9px] font-black uppercase">{ref.status}</span>
+              </td>
+            </tr>
+          ))
+        )}
       </tbody>
     </table>
   </div>
@@ -146,9 +202,14 @@ const OccupancyGrid = ({ items, wards, selectedWard, setSelectedWard, selectedDa
 // --- MAIN EMERGENCY MANAGEMENT SYSTEM INTERFACE ---
 const EmergencyManagement = () => {
   const [activeTab, setActiveTab] = useState('active'); // 'active', 'referrals', 'occupancy'
+  const [activeSubTab, setActiveSubTab] = useState('pending'); // 'pending', 'assigned', 'completed'
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCase, setSelectedCase] = useState(null);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   
   // Dynamic Sequential Process Modal Status Trigger
   const [activeAction, setActiveAction] = useState(null); // 'select-dates' | 'select-bed' | 'select-doctor' | null
@@ -191,6 +252,11 @@ const EmergencyManagement = () => {
     }
   }, [activeTab, selectedWard, selectedDate]);
 
+  // Reset page when switching category subtabs or main tabs
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, activeSubTab]);
+
   const fetchEmergencies = async () => {
     setLoading(true);
     const res = await HospitalAPI.getEmergencyCases();
@@ -219,6 +285,76 @@ const EmergencyManagement = () => {
     if (res?.success) setData(res.data);
     setLoading(false);
   };
+
+  // --- MEMOIZED ACTIVE CASE CLASSIFICATIONS ---
+  const pendingCases = useMemo(() => {
+    if (activeTab !== 'active') return [];
+    return data.filter(item => {
+      // Rule: If dischargedAt is set, it cannot be pending
+      if (item.clinicalSummary?.dischargedAt != null) return false;
+
+      const statusLower = (item.status || '').toLowerCase();
+      if (statusLower === 'completed' || statusLower === 'discharged') return false;
+      if (statusLower === 'assigned' || statusLower === 'admitted') return false;
+      
+      // If no explicit status, fallback: if it doesn't have a wardName or bedNumber, it is pending
+      if (item.wardName || item.bedNumber) return false;
+      return true;
+    });
+  }, [data, activeTab]);
+
+  const assignedCases = useMemo(() => {
+    if (activeTab !== 'active') return [];
+    return data.filter(item => {
+      // Rule: If dischargedAt is set, it cannot be active/assigned
+      if (item.clinicalSummary?.dischargedAt != null) return false;
+
+      const statusLower = (item.status || '').toLowerCase();
+      if (statusLower === 'completed' || statusLower === 'discharged') return false;
+      if (statusLower === 'assigned' || statusLower === 'admitted') return true;
+      
+      // Fallback: If it has an assigned ward or bed, classify as assigned
+      return !!(item.wardName || item.bedNumber);
+    });
+  }, [data, activeTab]);
+
+  const completedCases = useMemo(() => {
+    if (activeTab !== 'active') return [];
+    return data.filter(item => {
+      // Rule: If dischargedAt is not null, it is completed
+      if (item.clinicalSummary?.dischargedAt != null) return true;
+
+      const statusLower = (item.status || '').toLowerCase();
+      return statusLower === 'completed' || statusLower === 'discharged';
+    });
+  }, [data, activeTab]);
+
+  // --- PAGINATION HELPERS ---
+  const activeSubTabItems = useMemo(() => {
+    if (activeSubTab === 'pending') return pendingCases;
+    if (activeSubTab === 'assigned') return assignedCases;
+    return completedCases;
+  }, [activeSubTab, pendingCases, assignedCases, completedCases]);
+
+  const activeTotalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(activeSubTabItems.length / itemsPerPage));
+  }, [activeSubTabItems.length]);
+
+  const paginatedActiveItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return activeSubTabItems.slice(startIndex, startIndex + itemsPerPage);
+  }, [activeSubTabItems, currentPage]);
+
+  const referralsTotalPages = useMemo(() => {
+    if (activeTab !== 'referrals') return 0;
+    return Math.max(1, Math.ceil(data.length / itemsPerPage));
+  }, [data.length, activeTab]);
+
+  const paginatedReferrals = useMemo(() => {
+    if (activeTab !== 'referrals') return [];
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return data.slice(startIndex, startIndex + itemsPerPage);
+  }, [data, currentPage, activeTab]);
 
   // --- SEQUENTIAL STEP 1: INITIALIZE ADMISSION PROCESS (SELECT DATES) ---
   const handleStartAllocation = () => {
@@ -380,8 +516,63 @@ const EmergencyManagement = () => {
         </div>
       ) : (
         <div className="space-y-6">
-          {activeTab === 'active' && <EmergencyTable items={data} onView={(c) => { setSelectedCase(c); setActiveAction(null); }} />}
-          {activeTab === 'referrals' && <ReferralTable items={data} />}
+          {activeTab === 'active' && (
+            <div className="space-y-4">
+              
+              {/* SUB-TABS FOR ACTIVE CASES */}
+              <div className="flex flex-wrap gap-2 border-b border-emerald-100 pb-2">
+                {[
+                  { id: 'pending', label: 'Pending Admission', count: pendingCases.length, color: 'bg-amber-100 text-amber-800' },
+                  { id: 'assigned', label: 'Assigned / Admitted', count: assignedCases.length, color: 'bg-emerald-100 text-emerald-800' },
+                  { id: 'completed', label: 'Completed', count: completedCases.length, color: 'bg-blue-100 text-blue-800' }
+                ].map(sub => (
+                  <button
+                    key={sub.id}
+                    onClick={() => setActiveSubTab(sub.id)}
+                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                      activeSubTab === sub.id 
+                        ? 'bg-emerald-600 text-white shadow-md' 
+                        : 'bg-white border border-emerald-100 text-gray-600 hover:bg-emerald-50'
+                    }`}
+                  >
+                    <span>{sub.label}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                      activeSubTab === sub.id ? 'bg-white/20 text-white' : sub.color
+                    }`}>
+                      {sub.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* RENDER EMERGENCY TABLE WITH PAGINATED SUB-TAB ITEMS */}
+              <EmergencyTable 
+                items={paginatedActiveItems} 
+                onView={(c) => { setSelectedCase(c); setActiveAction(null); }} 
+              />
+
+              {/* ACTIVE CASES PAGINATION */}
+              <PaginationControls 
+                currentPage={currentPage}
+                totalPages={activeTotalPages}
+                onPageChange={(page) => setCurrentPage(page)}
+              />
+            </div>
+          )}
+
+          {activeTab === 'referrals' && (
+            <div className="space-y-4">
+              <ReferralTable items={paginatedReferrals} />
+              
+              {/* REFERRALS PAGINATION */}
+              <PaginationControls 
+                currentPage={currentPage}
+                totalPages={referralsTotalPages}
+                onPageChange={(page) => setCurrentPage(page)}
+              />
+            </div>
+          )}
+
           {activeTab === 'occupancy' && (
             <OccupancyGrid 
               items={data} 

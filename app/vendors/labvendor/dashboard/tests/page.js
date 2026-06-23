@@ -4,7 +4,7 @@ import { FaPlus, FaFlask, FaSearch, FaSpinner } from 'react-icons/fa'
 import MyTests from './components/MyTests';
 import AllTests from './components/AllTests';
 import AddTestModal from './components/AddTestModal';
-import TestViewModal from './components/TestViewModal'; // IMPORTED NEW MODAL
+import TestViewModal from './components/TestViewModal';
 import LabVendorAPI from '@/app/services/LabVendorAPI';
 
 export default function TestsPage() {
@@ -14,7 +14,7 @@ export default function TestsPage() {
   const [searchTerm, setSearchTerm] = useState(''); 
   
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false); // NEW STATE
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedTest, setSelectedTest] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -56,32 +56,60 @@ export default function TestsPage() {
     );
   }, [masterTests, searchTerm]);
 
-  const handleSaveTest = async (payload) => {
+ const handleSaveTest = async (payload) => {
     setLoading(true);
     try {
-      const cleanData = {
-        ...payload,
-        amount: Number(payload.amount),
-        discountPercent: Number(payload.discountPercent || 0),
-        reportTime: Number(payload.reportTime),
-      };
+      // Create a copy of the payload to safely sanitize it
+      const cleanData = { ...payload };
 
-      if (selectedTest?._id && !selectedTest.standardMRP) {
+      // Convert numeric fields properly
+      cleanData.amount = Number(payload.amount);
+      cleanData.discountPercent = Number(payload.discountPercent || 0);
+      cleanData.reportTime = Number(payload.reportTime);
+
+      // Determine if this is an update or a new test entry
+      const isUpdating = !!(selectedTest?._id && !selectedTest.standardMRP);
+
+      if (isUpdating) {
+        // Provide both '_id' and 'testId' to satisfy whichever field the backend validator requires
         cleanData._id = selectedTest._id;
+        cleanData.testId = selectedTest._id;
       }
 
       const isValidMongoId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
-      let rawId = cleanData.masterTestId?._id || cleanData.masterTestId;
       
+      // Handle MongoDB ID extraction for masterTestId
+      let rawId = cleanData.masterTestId?._id || cleanData.masterTestId;
       if (isValidMongoId(rawId)) {
         cleanData.masterTestId = rawId;
       } else {
         delete cleanData.masterTestId; 
       }
 
-      const response = await LabVendorAPI.saveLabTest(cleanData);
+      // Remove database-specific metadata fields that can trigger 400 validation errors
+      const systemFields = ['createdAt', 'updatedAt', '__v', 'labId', 'lab', 'providerId', 'history'];
+      systemFields.forEach(field => {
+        delete cleanData[field];
+      });
+
+      // Sanitize other nested objects so we don't send unneeded object structures
+      Object.keys(cleanData).forEach(key => {
+        if (cleanData[key] && typeof cleanData[key] === 'object' && !Array.isArray(cleanData[key])) {
+          if (cleanData[key]._id && isValidMongoId(cleanData[key]._id)) {
+            cleanData[key] = cleanData[key]._id;
+          }
+        }
+      });
+
+      // Route to the correct API endpoint
+      let response;
+      if (isUpdating) {
+        response = await LabVendorAPI.updateLabTest(cleanData);
+      } else {
+        response = await LabVendorAPI.saveLabTest(cleanData);
+      }
       
-      if (response.success || response._id) {
+      if (response.success || response._id || response.message) {
         await fetchInitialData(); 
         setIsModalOpen(false);
         setSelectedTest(null);
@@ -96,23 +124,36 @@ export default function TestsPage() {
       setLoading(false);
     }
   };
+  const handleDelete = async (idOrObject) => {
+    // Gracefully handle either the string ID or the whole test object
+    const id = typeof idOrObject === 'object' && idOrObject !== null ? idOrObject._id : idOrObject;
+    if (!id) {
+      alert("Invalid test reference.");
+      return;
+    }
 
-  const handleDelete = async (id) => {
     if (window.confirm("Remove this test?")) {
       try {
-        const res = await LabVendorAPI.deleteService('tests', id); 
-        if (res.success || res.message) {
-          setMyTests(prev => prev.filter(t => t._id !== id));
-        }
+        // Try singular 'test' endpoint type first
+        await LabVendorAPI.deleteService('test', id); 
+        setMyTests(prev => prev.filter(t => t._id !== id));
       } catch (err) {
-        alert("Could not delete. Linking issues.");
+        console.warn("Singular deletion failed, attempting plural fallback:", err);
+        try {
+          // Fallback to plural 'tests' endpoint type if routing requires it
+          await LabVendorAPI.deleteService('tests', id);
+          setMyTests(prev => prev.filter(t => t._id !== id));
+        } catch (fallbackErr) {
+          console.error("Deletion failed:", fallbackErr);
+          alert(fallbackErr.response?.data?.message || "Could not delete. Check if it is linked to other resources.");
+        }
       }
     }
   };
 
   return (
     <div className="min-h-screen bg-[#f8fafc] pb-10">
-      <div className="bg-white border-b border-emerald-100 py-4 px-8 shadow-sm  top-0 z-50">
+      <div className="bg-white border-b border-emerald-100 py-4 px-8 shadow-sm top-0 z-50">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-emerald-600 text-white rounded-xl"><FaFlask size={20} /></div>
@@ -153,14 +194,14 @@ export default function TestsPage() {
           ) : view === 'mine' ? (
             <MyTests 
                 tests={filteredMyTests} 
-                onViewDetails={(t) => { setSelectedTest(t); setIsViewModalOpen(true); }} // Updated to View Modal
+                onViewDetails={(t) => { setSelectedTest(t); setIsViewModalOpen(true); }} 
                 onEdit={(t) => { setSelectedTest(t); setIsModalOpen(true); }} 
                 onDelete={handleDelete} 
             />
           ) : (
             <AllTests 
                 tests={filteredMasterTests} 
-                onViewDetails={(t) => { setSelectedTest(t); setIsViewModalOpen(true); }} // Updated to View Modal
+                onViewDetails={(t) => { setSelectedTest(t); setIsViewModalOpen(true); }} 
             />
           )}
         </div>
@@ -176,7 +217,7 @@ export default function TestsPage() {
         masterTests={masterTests} 
       />
 
-      {/* NEW: Full Information View Modal */}
+      {/* Full Information View Modal */}
       <TestViewModal 
         isOpen={isViewModalOpen}
         onClose={() => { setIsViewModalOpen(false); setSelectedTest(null); }}

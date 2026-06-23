@@ -31,9 +31,17 @@ export default function NurseTopBar({ onToggleSidebar, isCollapsed }) {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('nursingToken'); // Clears the nurse token
+    // Clear all possible nurse and provider auth tokens/metadata
+    localStorage.removeItem('nursingToken');
+    localStorage.removeItem('nurseToken');
+    localStorage.removeItem('nursingProvider');
+    localStorage.removeItem('nurseProfile');
+    localStorage.removeItem('token');
+    
     setIsDropdownOpen(false);
-    router.push('/login'); // Redirect to your login page
+    
+    // Redirect to the login page to lock down the session
+    router.push('/');
   };
 
   return (

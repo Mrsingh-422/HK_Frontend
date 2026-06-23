@@ -7,7 +7,7 @@ import {
     FaFlask, FaVials, FaClipboardList, FaFileMedical, FaCog,
     FaChevronLeft, FaChevronRight, FaUserMd, FaMapMarkedAlt,
     FaBoxOpen, FaPlusSquare, FaBullhorn, FaFolderOpen,
-    FaHistory, FaWallet, FaCalendarCheck, FaTruck
+    FaHistory, FaWallet, FaCalendarCheck, FaTruck, FaUniversity // ADDED FaUniversity IMPORT
 } from "react-icons/fa";
 import { useAuth } from '@/app/context/AuthContext';
 import LabTopBar from './components/LabTopBar';
@@ -19,7 +19,7 @@ const menuItems = [
     { name: 'Manage Phlebotomist', href: '/vendors/labvendor/dashboard/ManagePhlebotomist', icon: FaVials },
     { name: 'Assign Phlebotomist', href: '/vendors/labvendor/dashboard/assign-phlebotomist', icon: FaUserMd },
     { name: 'Track Phlebotomist', href: '/vendors/labvendor/dashboard/track-phlebotomist', icon: FaMapMarkedAlt },
-    { name: 'Manage Tests', href: '/vendors/labvendor/dashboard/tests', icon: FaVials }, // Added Tests here
+    { name: 'Manage Tests', href: '/vendors/labvendor/dashboard/tests', icon: FaVials }, 
     { name: 'Manage Packages', href: '/vendors/labvendor/dashboard/packages', icon: FaBoxOpen },
     { name: 'Add Services', href: '/vendors/labvendor/dashboard/addservices', icon: FaPlusSquare },
     { name: 'Upload Reports', href: '/vendors/labvendor/dashboard/upload-reports', icon: FaFileMedical },
@@ -29,6 +29,7 @@ const menuItems = [
     { name: 'Wallet & Earning', href: '/vendors/labvendor/dashboard/wallet', icon: FaWallet },
     { name: 'Availability', href: '/vendors/labvendor/dashboard/availability', icon: FaCalendarCheck },
     { name: 'Delivery Charges', href: '/vendors/labvendor/dashboard/delivery-charge', icon: FaTruck },
+    { name: 'Manage Banking', href: '/vendors/labvendor/dashboard/ManageBanking', icon: FaUniversity }, // ADDED MANAGE BANKING TO SETTINGS SECTION
     { name: 'Settings', href: '/vendors/labvendor/dashboard/settings', icon: FaCog },
 ];
 
@@ -87,7 +88,7 @@ export default function LabVendorLayout({ children }) {
                 ${isCollapsed ? 'w-20' : 'w-64'} 
             `}>
                 <div className="p-4 border-b border-gray-50 flex items-center justify-center min-h-[70px] flex-shrink-0">
-                    <Link href="/vendors/labvendor/dashboard" className="flex items-center justify-center overflow-hidden">
+                    <Link href="/vendors/labvendor/labdashboard" className="flex items-center justify-center overflow-hidden">
                         {isCollapsed ? (
                             <Image src="/logo.png" alt="Logo" width={40} height={40} className="object-contain" />
                         ) : (

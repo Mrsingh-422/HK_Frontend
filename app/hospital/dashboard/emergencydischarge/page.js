@@ -3,14 +3,15 @@
 import React, { useState, useEffect } from 'react'
 import {
   FaUserCheck, FaFileAlt, FaSignOutAlt,
-  FaMapMarkerAlt, FaNotesMedical, FaDollarSign,
-  FaCheckCircle, FaSearch, FaUserMd, FaTint, FaRegCalendarAlt, FaAmbulance
+  FaNotesMedical, FaDollarSign,
+  FaCheckCircle, FaSearch, FaUserMd, FaTint, FaRegCalendarAlt, FaAmbulance, FaProcedures
 } from 'react-icons/fa'
 import PatientDetailModal from './components/PatientDetailModal';
 import CompleteDischargeModal from './components/CompleteDischargeModal';
 import HospitalAPI from '@/app/services/HospitalAPI';
 
 export default function EmergencyDischargePage() {
+  const [activeTab, setActiveTab] = useState("emergency"); // "emergency" or "admission"
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activePatientId, setActivePatientId] = useState(null);
@@ -20,29 +21,29 @@ export default function EmergencyDischargePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDischargeCandidates();
-  }, []);
+    fetchDischargeCandidates(activeTab);
+  }, [activeTab]);
 
- const fetchDischargeCandidates = async () => {
-  setLoading(true);
+  const fetchDischargeCandidates = async (caseType) => {
+    setLoading(true);
+    try {
+      // Calls updated API function with id as null and the current active tab type
+      const response = await HospitalAPI.getAdmissionDetails(null, caseType);
 
-  try {
-    const response = await HospitalAPI.getAdmissionDetails();
+      console.log(`Discharge Patients API Response (${caseType}):`, response);
 
-    console.log("Discharge Patients API Response:", response);
-
-    if (response?.success) {
-      setPatients(response.data || []);
-    } else {
+      if (response?.success) {
+        setPatients(response.data || []);
+      } else {
+        setPatients([]);
+      }
+    } catch (error) {
+      console.error(`Failed to load discharge patients for ${caseType}:`, error);
       setPatients([]);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error("Failed to load discharge patients:", error);
-    setPatients([]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const handleOpenDetail = (id) => {
     setActivePatientId(id);
@@ -70,8 +71,8 @@ export default function EmergencyDischargePage() {
       }
 
       if (response?.success) {
-        alert(`${response.message}. Final Closed Cost: ₹${response.billAmount}`);
-        fetchDischargeCandidates(); 
+        alert(`${response.message || "Discharge complete"}. Final Closed Cost: ₹${response.billAmount || response.data?.totalAmount}`);
+        fetchDischargeCandidates(activeTab); 
       } else {
         alert(response?.message || "Failed to finalize admission closure.");
       }
@@ -81,6 +82,7 @@ export default function EmergencyDischargePage() {
     }
   };
 
+  // We rely directly on the backend's API response filters, applying only the local query search
   const filteredPatients = patients.filter(p => {
     const mainUserName = p.userId?.name || "";
     const secondaryPatientName = p.patients?.[0]?.patientName || "";
@@ -96,20 +98,11 @@ export default function EmergencyDischargePage() {
     return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#08B36A] mb-4"></div>
-        <span className="text-sm font-semibold text-slate-500">Loading Candidates...</span>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-10">
 
       {/* --- HEADER --- */}
-      <div className="max-w-7xl mx-auto mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-4">
             <span className="p-3 bg-[#08B36A] rounded-2xl shadow-lg shadow-green-100 text-white flex items-center justify-center">
@@ -125,14 +118,45 @@ export default function EmergencyDischargePage() {
           <input
             type="text"
             placeholder="Search patient name or Booking ID..."
-            className="w-full pl-12 pr-4 py-4 bg-white border-none shadow-sm rounded-2xl focus:ring-2 focus:ring-[#08B36A] outline-none transition-all font-semibold text-xs animate-none"
+            className="w-full pl-12 pr-4 py-4 bg-white border-none shadow-sm rounded-2xl focus:ring-2 focus:ring-[#08B36A] outline-none transition-all font-semibold text-xs"
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
       </div>
 
-      {/* --- TABLE CONTAINER --- */}
-      {filteredPatients.length > 0 ? (
+      {/* --- TABS --- */}
+      <div className="max-w-7xl mx-auto mb-8 flex border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab("emergency")}
+          className={`flex items-center gap-2 pb-4 px-6 text-xs font-black uppercase tracking-wider transition-all border-b-2 duration-200 ${
+            activeTab === "emergency"
+              ? "border-[#08B36A] text-[#08B36A]"
+              : "border-transparent text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          <FaAmbulance size={14} />
+          Emergency Ambulances
+        </button>
+        <button
+          onClick={() => setActiveTab("admission")}
+          className={`flex items-center gap-2 pb-4 px-6 text-xs font-black uppercase tracking-wider transition-all border-b-2 duration-200 ${
+            activeTab === "admission"
+              ? "border-[#08B36A] text-[#08B36A]"
+              : "border-transparent text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          <FaProcedures size={14} />
+          Hospital Admissions
+        </button>
+      </div>
+
+      {/* --- CONTENT AREA --- */}
+      {loading ? (
+        <div className="py-20 flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-150 shadow-sm max-w-7xl mx-auto">
+          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#08B36A] mb-4"></div>
+          <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Fetching Pending Discharges...</span>
+        </div>
+      ) : filteredPatients.length > 0 ? (
         <div className="max-w-7xl mx-auto bg-white rounded-3xl border border-slate-150 shadow-[0_8px_30px_rgb(0,0,0,0.015)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -149,30 +173,26 @@ export default function EmergencyDischargePage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredPatients.map((item) => {
-                  // Resolve fallback names and ages
                   const patientName = item.patients?.[0]?.patientName || item.userId?.name || "Unknown Patient";
                   const patientAge = item.patients?.[0]?.patientAge ;
                   const patientGender = item.patients?.[0]?.gender || item.userId?.gender;
                   const relation = item.patients?.[0]?.relation;
                   const bloodGroup = item.clinicalSummary?.bloodGroup || "N/A";
 
-                  // Resolve Complaint and Diagnosis
                   const chiefComplaint = item.clinicalSummary?.chiefComplaint || item.patients?.[0]?.reasonForVisit ;
-                  const diagnosis = item.clinicalSummary?.diagnosis;
+                  const diagnosis = item.clinicalSummary?.diagnosis || "Undisclosed Diagnosis";
 
-                  // Check if doctorId is returned as string or populated object
                   const isDoctorObject = typeof item.doctorId === 'object' && item.doctorId !== null;
                   const docName = isDoctorObject ? item.doctorId.name : "Lead Attending";
                   const docSpec = isDoctorObject ? item.doctorId.speciality : "Duty Physician";
 
-                  // Check if ambulanceId is string or populated object
                   const isAmbulanceObj = typeof item.ambulanceId === 'object' && item.ambulanceId !== null;
                   const ambulanceName = isAmbulanceObj ? item.ambulanceId.name : "Emergency Transit Services";
 
                   return (
                     <tr key={item._id} className="hover:bg-slate-50/50 transition-colors">
                       
-                      {/* Column 1: Patient Info */}
+                      {/* Patient Info */}
                       <td className="p-4 pl-6">
                         <div className="flex flex-col">
                           <span className="text-[10px] font-black text-[#08B36A] uppercase tracking-wider mb-0.5">
@@ -191,12 +211,12 @@ export default function EmergencyDischargePage() {
                         </div>
                       </td>
 
-                      {/* Column 2: Clinical Details */}
+                      {/* Clinical Details */}
                       <td className="p-4 max-w-xs">
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                             <span className="p-1 bg-slate-100 text-slate-500 rounded text-[9px] uppercase tracking-wider font-extrabold">Complaint</span>
-                            <span className="truncate">{chiefComplaint}</span>
+                            <span className="truncate">{chiefComplaint || "N/A"}</span>
                           </div>
                           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
                             <span className="p-1 bg-green-50 text-[#08B36A] rounded text-[9px] uppercase tracking-wider font-extrabold">Diagnosis</span>
@@ -205,7 +225,7 @@ export default function EmergencyDischargePage() {
                         </div>
                       </td>
 
-                      {/* Column 3: Location / Allotment */}
+                      {/* Location / Allotment */}
                       <td className="p-4">
                         {item.bedId ? (
                           <div className="flex flex-col gap-0.5">
@@ -235,7 +255,7 @@ export default function EmergencyDischargePage() {
                         )}
                       </td>
 
-                      {/* Column 4: Doctor Info (Attending Doctor) */}
+                      {/* Doctor Info */}
                       <td className="p-4">
                         <div className="flex flex-col">
                           <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-800">
@@ -248,7 +268,7 @@ export default function EmergencyDischargePage() {
                         </div>
                       </td>
 
-                      {/* Column 5: Admission Schedule */}
+                      {/* Admission Schedule */}
                       <td className="p-4">
                         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                           <FaRegCalendarAlt className="text-slate-400" size={11} />
@@ -256,7 +276,7 @@ export default function EmergencyDischargePage() {
                         </div>
                       </td>
 
-                      {/* Column 6: Status */}
+                      {/* Status */}
                       <td className="p-4">
                         <span className={`inline-flex px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
                           item.status === 'Discharge-Pending' 
@@ -267,7 +287,7 @@ export default function EmergencyDischargePage() {
                         </span>
                       </td>
 
-                      {/* Column 7: Actions */}
+                      {/* Actions */}
                       <td className="p-4 text-right pr-6">
                         <div className="flex justify-end gap-2">
                           <button
@@ -298,8 +318,8 @@ export default function EmergencyDischargePage() {
           <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
             <FaUserCheck size={30} />
           </div>
-          <h3 className="text-xl font-bold text-slate-800">No pending discharges</h3>
-          <p className="text-slate-400 text-sm mt-1">All cleared patient admissions have been processed.</p>
+          <h3 className="text-xl font-bold text-slate-800">No pending discharges found</h3>
+          <p className="text-slate-400 text-sm mt-1">All {activeTab} departures have been cleared.</p>
         </div>
       )}
 
@@ -307,6 +327,7 @@ export default function EmergencyDischargePage() {
       {isModalOpen && (
         <PatientDetailModal
           appointmentId={activePatientId}
+          patientData={patients.find(p => p._id === activePatientId)}
           onClose={() => setIsModalOpen(false)}
         />
       )}
@@ -315,6 +336,7 @@ export default function EmergencyDischargePage() {
       {isCompleteOpen && (
         <CompleteDischargeModal
           patient={activePatient}
+          initialBillingItems={activePatient?.specialServices || []}
           onClose={() => setIsCompleteOpen(false)}
           onConfirm={handleConfirmDischarge}
         />

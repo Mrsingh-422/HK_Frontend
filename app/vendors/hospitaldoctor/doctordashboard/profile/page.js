@@ -1,528 +1,441 @@
-'use client'
-import React, { useState, useEffect, useRef } from 'react'
+'use client';
+import React, { useState, useEffect, useRef } from 'react';
+import HospitalDoctorAPI from '@/app/services/HospitalDoctorAPI';
 import { 
-  FaUser, FaCamera, FaStethoscope, FaLanguage, FaWallet, 
-  FaInfoCircle, FaSave, FaSyncAlt, FaPlus, FaTrash, FaUserMd,
-  FaGraduationCap, FaIdCard, FaMapMarkerAlt, FaPhone, FaEnvelope, 
-  FaClock, FaCheckCircle, FaVideo, FaHospital, FaHome, FaChevronDown 
-} from 'react-icons/fa'
-import { toast, Toaster } from 'react-hot-toast'
-import DoctorAPI from '@/app/services/DoctorAPI';
+    FaUser, FaEnvelope, FaPhoneAlt, FaBriefcase, FaGraduationCap, 
+    FaCamera, FaSpinner, FaSave, FaCheckCircle, 
+    FaExclamationTriangle, FaRegCalendarAlt, FaStethoscope
+} from 'react-icons/fa';
 
 export default function DoctorProfilePage() {
-  const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(true);
-  const [previewImage, setPreviewImage] = useState(null);
-  const fileInputRef = useRef(null);
+    const fileInputRef = useRef(null);
 
-  const [profileData, setProfileData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    about: '',
-    experienceYears: '',
-    qualification: '',
-    speciality: '',
-    licenseNumber: '',
-    councilNumber: '',
-    councilName: '',
-    country: '',
-    state: '',
-    city: '',
-    address: '',
-    slotDuration: 30,
-    languages: ['English'],
-    fees: { online: 0, clinic: 0, home: 0 },
-    consultationStatus: { online: false, clinic: false, home: false },
-    profileImage: null,
-    profileStatus: '',
-    dutyStatus: ''
-  });
+    // Operational Loading States
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState(null);
+    const [successMsg, setSuccessMsg] = useState(null);
 
-  const [newLang, setNewLang] = useState('');
+    // Profile Data States
+    const [profile, setProfile] = useState({
+        name: '',
+        email: '',
+        phone: '',
+        role: '',
+        speciality: '',
+        qualification: '',
+        experienceYears: 0,
+        dutyStatus: 'On Duty',
+        fees: { online: 0, clinic: 0, home: 0 },
+        consultationStatus: { online: false, clinic: false, home: false }
+    });
 
-  useEffect(() => {
-    loadCurrentProfile();
-  }, []);
+    const [specializations, setSpecializations] = useState([]);
+    const [qualificationsList, setQualificationsList] = useState([]);
+    const [selectedQualifications, setSelectedQualifications] = useState([]);
+    const [avatarPreview, setAvatarPreview] = useState(null);
+    const [avatarFile, setAvatarFile] = useState(null);
 
-  const loadCurrentProfile = async () => {
-    try {
-      setFetching(true);
-      const res = await DoctorAPI.getProfile();
-      
-      if (res && res.success && res.data) {
-        const d = res.data;
-        
-        setProfileData({
-          name: d.name || '',
-          email: d.email || '',
-          phone: d.phone || '',
-          about: d.about || '',
-          experienceYears: d.experienceYears || 0,
-          qualification: d.qualification || '',
-          speciality: d.speciality || '',
-          licenseNumber: d.licenseNumber || '',
-          councilNumber: d.councilNumber || '',
-          councilName: d.councilName || '',
-          country: d.country || '',
-          state: d.state || '',
-          city: d.city || '',
-          address: d.address || '',
-          slotDuration: d.slotDuration || 30,
-          languages: Array.isArray(d.languages) && d.languages.length > 0 ? d.languages : ['English'],
-          fees: {
-            online: d.fees?.online ?? 0,
-            clinic: d.fees?.clinic ?? 0,
-            home: d.fees?.home ?? 0
-          },
-          consultationStatus: {
-            online: d.consultationStatus?.online ?? false,
-            clinic: d.consultationStatus?.clinic ?? false,
-            home: d.consultationStatus?.home ?? false
-          },
-          profileImage: null,
-          profileStatus: d.profileStatus || 'Pending',
-          dutyStatus: d.dutyStatus || 'Off Duty'
-        });
-
-        if (d.profileImage) {
-          const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
-          if (d.profileImage.startsWith('http')) {
-            setPreviewImage(d.profileImage);
-          } else {
-            let cleanPath = d.profileImage.replace(/\\/g, '/');
-            if (cleanPath.startsWith('public/')) {
-              cleanPath = cleanPath.replace('public/', '');
-            }
-            cleanPath = cleanPath.replace(/^\/+/, '');
-            const cleanBase = backendUrl.replace(/\/+$/, '');
-            setPreviewImage(`${cleanBase}/${cleanPath}`);
-          }
-        } else {
-          setPreviewImage(null);
-        }
-      }
-    } catch (error) {
-      console.error("Profile Load Error:", error);
-      toast.error("Failed to load profile data");
-    } finally {
-      setFetching(false);
-    }
-  };
-
-  const handleTextChange = (e) => {
-    const { name, value } = e.target;
-    setProfileData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleFeeChange = (e) => {
-    const { name, value } = e.target;
-    setProfileData(prev => ({
-      ...prev,
-      fees: { ...prev.fees, [name]: value }
-    }));
-  };
-
-  // UPDATED: Handler for toggles calls the API immediately
-  const handleStatusToggle = async (type) => {
-    // 1. Calculate new status
-    const newStatusValue = !profileData.consultationStatus[type];
-    const updatedConsultationStatus = {
-      ...profileData.consultationStatus,
-      [type]: newStatusValue
+    // Safe URL joining helper to prevent double-slashes or missing slashes
+    const getFormattedImageUrl = (path) => {
+        if (!path) return null;
+        if (path.startsWith('http://') || path.startsWith('https://')) return path;
+        const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5002';
+        const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+        return `${cleanBaseUrl}${cleanPath}`;
     };
 
-    // 2. Optimistically update local state
-    setProfileData(prev => ({
-      ...prev,
-      consultationStatus: updatedConsultationStatus
-    }));
-
-    try {
-      // 3. Call the specialized API
-      const res = await DoctorAPI.updateSettings({
-        consultationStatus: updatedConsultationStatus
-      });
-
-      if (res && res.success) {
-        toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} status updated!`);
-      } else {
-        throw new Error("Update failed");
-      }
-    } catch (error) {
-      console.error("Toggle update error:", error);
-      toast.error("Failed to update status. Rolling back.");
-      // 4. Rollback state on failure
-      setProfileData(prev => ({
-        ...prev,
-        consultationStatus: {
-          ...prev.consultationStatus,
-          [type]: !newStatusValue
-        }
-      }));
-    }
-  };
-
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setProfileData(prev => ({ ...prev, profileImage: file }));
-      setPreviewImage(URL.createObjectURL(file));
-    }
-  };
-
-  const addLanguage = () => {
-    if (newLang.trim() && !profileData.languages.includes(newLang.trim())) {
-      setProfileData(prev => ({
-        ...prev,
-        languages: [...prev.languages, newLang.trim()]
-      }));
-      setNewLang('');
-    }
-  };
-
-  const removeLanguage = (lang) => {
-    setProfileData(prev => ({
-      ...prev,
-      languages: prev.languages.filter(l => l !== lang)
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      setLoading(true);
-      const formData = new FormData();
-      
-      if (profileData.profileImage instanceof File) {
-        formData.append('profileImage', profileData.profileImage);
-      }
-      
-      Object.keys(profileData).forEach(key => {
-        if (key === 'fees') {
-            formData.append('fees[online]', String(profileData.fees.online || 0));
-            formData.append('fees[clinic]', String(profileData.fees.clinic || 0));
-            formData.append('fees[home]', String(profileData.fees.home || 0));
-        } else if (key === 'consultationStatus') {
-            formData.append('consultationStatus[online]', String(profileData.consultationStatus.online));
-            formData.append('consultationStatus[clinic]', String(profileData.consultationStatus.clinic));
-            formData.append('consultationStatus[home]', String(profileData.consultationStatus.home));
-        } else if (key === 'languages') {
-            profileData.languages.forEach((lang, index) => {
-                formData.append(`languages[${index}]`, lang);
-            });
-        } else if (key !== 'profileImage' && key !== 'profileStatus' && key !== 'dutyStatus') {
-            formData.append(key, profileData[key]);
-        }
-      });
-
-      const res = await DoctorAPI.updateProfile(formData);
-      if (res) {
-        toast.success("Profile Updated Successfully!");
-        await loadCurrentProfile();
-      }
-    } catch (error) {
-      console.error("Update Error:", error);
-      toast.error(error.response?.data?.message || "Error updating profile");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (fetching) return (
-    <div className="flex flex-col items-center justify-center min-h-[400px]">
-        <FaSyncAlt className="animate-spin text-[#08B36A] text-4xl mb-4"/>
-        <p className="text-gray-500 font-bold uppercase tracking-tighter">Syncing Profile Data...</p>
-    </div>
-  );
-
-  return (
-    <div className="w-full max-w-6xl mx-auto pb-20 px-4">
-      <Toaster position="top-right" />
-      
-      <div className="mb-12 flex flex-col items-center text-center">
-        <div className="p-4 bg-[#08B36A] text-white rounded-[2rem] shadow-xl shadow-green-100 mb-4">
-            <FaUserMd size={32}/>
-        </div>
-        <h1 className="text-4xl font-black text-[#1e3a8a] tracking-tighter uppercase leading-none">Doctor Profile</h1>
-        <div className="flex gap-3 mt-3">
-            <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm ${profileData.profileStatus === 'Approved' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>
-                {profileData.profileStatus}
-            </span>
-            <span className="px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm bg-blue-100 text-blue-600">
-                {profileData.dutyStatus}
-            </span>
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left Column */}
-        <div className="lg:col-span-1 space-y-8">
-            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 flex flex-col items-center hover:shadow-lg transition-shadow">
-                <div className="relative">
-                    <div className="w-44 h-44 rounded-[3rem] border-4 border-white shadow-2xl overflow-hidden bg-gray-50 flex items-center justify-center">
-                        {previewImage ? (
-                            <img src={previewImage} alt="Doctor" className="w-full h-full object-cover" onError={(e) => {e.target.style.display = 'none';}} />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-200"><FaUser size={60} /></div>
-                        )}
-                    </div>
-                    <button type="button" onClick={() => fileInputRef.current.click()} className="absolute -bottom-2 -right-2 p-4 bg-[#08B36A] text-white rounded-2xl shadow-xl hover:scale-110 transition-all active:scale-95">
-                        <FaCamera size={20} />
-                    </button>
-                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleImageChange} accept="image/*" />
-                </div>
-                <h3 className="mt-6 font-black text-gray-900 uppercase tracking-tighter">Profile Photo</h3>
-            </div>
-
-            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-purple-50 text-purple-600 rounded-xl"><FaLanguage/></div>
-                    <h2 className="text-lg font-black text-[#1e3a8a] uppercase tracking-tighter">Languages</h2>
-                </div>
-                <div className="flex flex-wrap gap-2 mb-4">
-                    {profileData.languages.map((lang, idx) => (
-                        <div key={idx} className="flex items-center gap-2 bg-gray-50 text-gray-700 px-4 py-2 rounded-xl font-bold text-xs border border-gray-100">
-                            {lang} <button type="button" onClick={() => removeLanguage(lang)} className="text-red-400 hover:text-red-600"><FaTrash size={10}/></button>
-                        </div>
-                    ))}
-                </div>
-                <div className="flex gap-2">
-                    <input value={newLang} onChange={(e) => setNewLang(e.target.value)} placeholder="Add lang" className="input-style !py-3" />
-                    <button type="button" onClick={addLanguage} className="px-4 bg-purple-600 text-white rounded-xl active:scale-95 font-bold">+</button>
-                </div>
-            </div>
-
-            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-pink-50 text-pink-600 rounded-xl"><FaPhone/></div>
-                    <h2 className="text-lg font-black text-[#1e3a8a] uppercase tracking-tighter">Contact Info</h2>
-                </div>
-                <div className="space-y-4">
-                    <div>
-                        <label className="label-style">Email Address</label>
-                        <div className="relative">
-                            <FaEnvelope className="absolute right-4 top-5 text-gray-300"/>
-                            <input name="email" value={profileData.email} disabled className="input-style pl-12 bg-gray-50 opacity-70 cursor-not-allowed" />
-                        </div>
-                    </div>
-                    <div>
-                        <label className="label-style">Phone Number</label>
-                        <div className="relative">
-                            <FaPhone className="absolute right-4 top-5 text-gray-300 rotate-90"/>
-                            <input name="phone" value={profileData.phone} onChange={handleTextChange} className="input-style pl-12" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {/* Right Column */}
-        <div className="lg:col-span-2 space-y-8">
-            {/* Basic Info */}
-            <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-gray-100">
-                <div className="flex items-center gap-3 mb-8">
-                    <div className="p-2 bg-blue-50 text-blue-600 rounded-xl"><FaInfoCircle/></div>
-                    <h2 className="text-xl font-black text-[#1e3a8a] uppercase tracking-tighter">Basic Info</h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-2">
-                        <label className="label-style">Professional Name</label>
-                        <input name="name" value={profileData.name} onChange={handleTextChange} placeholder="Dr. Mudabir Kowsar" className="input-style" required />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="label-style">Experience (Years)</label>
-                        <div className="relative">
-                            <FaStethoscope className="absolute right-4 top-5 text-gray-300"/>
-                            <input name="experienceYears" value={profileData.experienceYears} onChange={handleTextChange} type="number" className="input-style" required />
-                        </div>
-                    </div>
-                    <div className="md:col-span-2 space-y-2">
-                        <label className="label-style">About Biography</label>
-                        <textarea name="about" value={profileData.about} onChange={handleTextChange} rows="3" className="input-style resize-none" required />
-                    </div>
-                </div>
-            </div>
-
-            {/* Professional Credentials */}
-            <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-gray-100">
-                <div className="flex items-center gap-3 mb-8">
-                    <div className="p-2 bg-orange-50 text-orange-600 rounded-xl"><FaGraduationCap/></div>
-                    <h2 className="text-xl font-black text-[#1e3a8a] uppercase tracking-tighter">Professional Details</h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-2">
-                        <label className="label-style">Qualification</label>
-                        <input name="qualification" value={profileData.qualification} onChange={handleTextChange} placeholder="MBBS, MD" className="input-style" />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="label-style">Speciality</label>
-                        <input name="speciality" value={profileData.speciality} onChange={handleTextChange} placeholder="Orthopedic" className="input-style" />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="label-style">License Number</label>
-                        <div className="relative">
-                            <FaIdCard className="absolute right-4 top-5 text-gray-300"/>
-                            <input name="licenseNumber" value={profileData.licenseNumber} onChange={handleTextChange} className="input-style" />
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="label-style">Default Slot (Mins)</label>
-                        <div className="relative">
-                            <FaClock className="absolute right-4 top-5 text-gray-300"/>
-                            <input name="slotDuration" type="number" value={profileData.slotDuration} onChange={handleTextChange} className="input-style" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Fees Section */}
-            <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-gray-100 overflow-hidden">
-                <div className="flex items-center gap-3 mb-8">
-                    <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><FaWallet/></div>
-                    <h2 className="text-xl font-black text-[#1e3a8a] uppercase tracking-tighter">Consultation Fees</h2>
-                </div>
+    // Load initial profile data on page load
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            try {
+                setLoading(true);
+                setError(null);
                 
-                <div className="grid grid-cols-1 gap-6">
-                    {/* Video Consultation Card */}
-                    <div className="group relative bg-white border border-gray-100 rounded-[2rem] p-6 hover:border-blue-200 hover:shadow-md transition-all duration-300">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                            <div className="flex items-center gap-4">
-                                <div className="p-4 bg-blue-50 text-blue-500 rounded-2xl group-hover:scale-110 transition-transform">
-                                    <FaVideo size={24}/>
-                                </div>
-                                <div>
-                                    <h4 className="font-black text-[#1e3a8a] uppercase tracking-tighter text-lg">Video Consultation</h4>
-                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Virtual Session</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-6">
-                                <div className="w-32">
-                                    <label className="text-[9px] font-black text-gray-400 uppercase ml-2 mb-1 block">Base Fee</label>
-                                    <div className="relative">
-                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500 font-black">₹</span>
-                                        <input name="online" value={profileData.fees.online} onChange={handleFeeChange} className="w-full bg-gray-50 border-none rounded-xl py-2.5 pl-8 pr-3 font-black text-gray-700 focus:ring-2 focus:ring-blue-100 transition-all outline-none" />
-                                    </div>
-                                </div>
-                                <div className="w-32">
-                                    <label className="text-[9px] font-black text-gray-400 uppercase ml-2 mb-1 block">Duration</label>
-                                    <div className="relative">
-                                        <input 
-                                            type="number" 
-                                            name="slotDuration" 
-                                            value={profileData.slotDuration} 
-                                            onChange={handleTextChange} 
-                                            className="w-full bg-gray-50 border-none rounded-xl py-2.5 pl-4 pr-10 font-black text-gray-700 focus:ring-2 focus:ring-blue-100 transition-all outline-none" 
-                                            placeholder="30"
-                                        />
-                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-400 uppercase">Min</span>
-                                    </div>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer ml-4">
-                                    <input 
-                                        type="checkbox" 
-                                        className="sr-only peer" 
-                                        checked={profileData.consultationStatus.online} 
-                                        onChange={() => handleStatusToggle('online')} 
-                                    />
-                                    <div className="w-12 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
+                const [profileRes, specRes, qualRes] = await Promise.all([
+                    HospitalDoctorAPI.getProfile(),
+                    HospitalDoctorAPI.getSpecializations(),
+                    HospitalDoctorAPI.getQualifications().catch(() => ({ success: true, data: [] }))
+                ]);
 
-                    {/* Clinic Visit Card */}
-                    <div className="group relative bg-white border border-gray-100 rounded-[2rem] p-6 hover:border-emerald-200 hover:shadow-md transition-all duration-300">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                            <div className="flex items-center gap-4">
-                                <div className="p-4 bg-emerald-50 text-emerald-500 rounded-2xl group-hover:scale-110 transition-transform">
-                                    <FaHospital size={24}/>
-                                </div>
-                                <div>
-                                    <h4 className="font-black text-[#1e3a8a] uppercase tracking-tighter text-lg">Clinic Visit</h4>
-                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">In-Person Appointment</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-6">
-                                <div className="w-48">
-                                    <label className="text-[9px] font-black text-gray-400 uppercase ml-2 mb-1 block">Consultation Fee</label>
-                                    <div className="relative">
-                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-black">₹</span>
-                                        <input name="clinic" value={profileData.fees.clinic} onChange={handleFeeChange} className="w-full bg-gray-50 border-none rounded-xl py-2.5 pl-8 pr-3 font-black text-gray-700 focus:ring-2 focus:ring-emerald-100 outline-none" />
-                                    </div>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer ml-4">
-                                    <input 
-                                        type="checkbox" 
-                                        className="sr-only peer" 
-                                        checked={profileData.consultationStatus.clinic} 
-                                        onChange={() => handleStatusToggle('clinic')} 
-                                    />
-                                    <div className="w-12 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
+                if (profileRes.success) {
+                    const doc = profileRes.data;
+                    setProfile({
+                        name: doc.name || '',
+                        email: doc.email || '',
+                        phone: doc.phone || '',
+                        role: doc.role || '',
+                        speciality: doc.speciality || '',
+                        qualification: doc.qualifcation || doc.qualification || '', 
+                        experienceYears: doc.experienceYears || 0,
+                        dutyStatus: doc.dutyStatus || 'On Duty',
+                        fees: doc.fees || { online: 0, clinic: 0, home: 0 },
+                        consultationStatus: doc.consultationStatus || { online: false, clinic: false, home: false }
+                    });
 
-                    {/* Home Visit Card */}
-                    <div className="group relative bg-white border border-gray-100 rounded-[2rem] p-6 hover:border-orange-200 hover:shadow-md transition-all duration-300">
-                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-                            <div className="flex items-center gap-4">
-                                <div className="p-4 bg-orange-50 text-orange-500 rounded-2xl group-hover:scale-110 transition-transform">
-                                    <FaHome size={24}/>
-                                </div>
-                                <div>
-                                    <h4 className="font-black text-[#1e3a8a] uppercase tracking-tighter text-lg">Home Visit</h4>
-                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Doctor at Doorstep</p>
-                                </div>
-                            </div>
-                            <div className="flex flex-col md:flex-row items-end gap-4">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-32">
-                                        <label className="text-[9px] font-black text-gray-400 uppercase ml-2 mb-1 block">Visit Fee</label>
-                                        <div className="relative">
-                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 font-black">₹</span>
-                                            <input name="home" value={profileData.fees.home} onChange={handleFeeChange} className="w-full bg-gray-50 border-none rounded-xl py-2.5 pl-8 pr-3 font-black text-gray-700 focus:ring-2 focus:ring-orange-100 outline-none" />
-                                        </div>
-                                    </div>
-                                    <div className="w-40">
-                                        <label className="text-[9px] font-black text-gray-400 uppercase ml-2 mb-1 block">Travel/Extra (Opt)</label>
-                                        <div className="relative">
-                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-black">₹</span>
-                                            <input placeholder="0" className="w-full bg-gray-50 border-none rounded-xl py-2.5 pl-8 pr-3 font-black text-gray-700 focus:ring-2 focus:ring-orange-100 outline-none" />
-                                        </div>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer ml-2 mt-4">
-                                        <input 
-                                            type="checkbox" 
-                                            className="sr-only peer" 
-                                            checked={profileData.consultationStatus.home} 
-                                            onChange={() => handleStatusToggle('home')} 
-                                        />
-                                        <div className="w-12 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    // Parse qualifications list safely
+                    const rawQualifications = doc.qualifcation || doc.qualification || '';
+                    const parsedQualifications = rawQualifications 
+                        ? rawQualifications.split(',').map(q => q.trim()).filter(Boolean) 
+                        : [];
+                    setSelectedQualifications(parsedQualifications);
+
+                    // Formats avatar preview URL smoothly
+                    const imagePath = doc.profleImage || doc.profileImage;
+                    if (imagePath) {
+                        setAvatarPreview(getFormattedImageUrl(imagePath));
+                    }
+                }
+
+                if (specRes.success) {
+                    setSpecializations(specRes.data || []);
+                }
+
+                if (qualRes.success) {
+                    setQualificationsList(qualRes.data || []);
+                }
+            } catch (err) {
+                setError(err.toString() || "Failed to sync clinical profile settings.");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchInitialData();
+    }, []);
+
+    const handleAvatarChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setAvatarFile(file);
+            setAvatarPreview(URL.createObjectURL(file));
+        }
+    };
+
+    const handleToggleQualification = (qualName) => {
+        setSelectedQualifications(prev => {
+            if (prev.includes(qualName)) {
+                return prev.filter(q => q !== qualName);
+            } else {
+                return [...prev, qualName];
+            }
+        });
+    };
+
+    const handleDutyStatusChange = async (e) => {
+        const nextStatus = e.target.value;
+        try {
+            setSaving(true);
+            const response = await HospitalDoctorAPI.toggleDutyStatus(nextStatus);
+            if (response.success) {
+                setProfile(prev => ({ ...prev, dutyStatus: nextStatus }));
+                triggerAlert("Duty status updated successfully.");
+            }
+        } catch (err) {
+            alert(err.toString() || "Failed to toggle duty schedule.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const triggerAlert = (msg) => {
+        setSuccessMsg(msg);
+        setTimeout(() => setSuccessMsg(null), 4000);
+    };
+
+    const handleSaveSettings = async (e) => {
+        e.preventDefault();
+        try {
+            setSaving(true);
+            setError(null);
+
+            const formData = new FormData();
+            if (avatarFile) {
+                // Appends both fields to guarantee compatibility with backend variations
+                formData.append('profleImage', avatarFile); 
+                formData.append('profileImage', avatarFile); 
+            }
+            formData.append('name', profile.name);
+            formData.append('speciality', profile.speciality);
+            
+            const compiledQualifications = selectedQualifications.join(', ');
+            formData.append('qualification', compiledQualifications);
+            formData.append('qualifcation', compiledQualifications); 
+            
+            formData.append('experienceYears', profile.experienceYears);
+            formData.append('fees', JSON.stringify(profile.fees));
+            formData.append('consultationStatus', JSON.stringify(profile.consultationStatus));
+
+            const response = await HospitalDoctorAPI.updateProfile(formData);
+            if (response.success) {
+                triggerAlert("Your profile changes have been saved successfully!");
+                const newImagePath = response.data?.profleImage || response.data?.profileImage;
+                if (newImagePath) {
+                    setAvatarPreview(getFormattedImageUrl(newImagePath));
+                }
+            }
+        } catch (err) {
+            setError(err.toString() || "An error occurred while compiling updates.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh]">
+                <FaSpinner className="text-4xl text-emerald-500 animate-spin" />
+                <p className="text-slate-400 text-sm mt-3 font-semibold">Synchronizing roster profile...</p>
+            </div>
+        );
+    }
+
+    const availableQualifications = qualificationsList.length > 0 
+        ? qualificationsList 
+        : ['MBBS', 'MD Cardiology', 'MS General Surgery', 'DM Neurologist'];
+
+    return (
+        <div className="max-w-7xl mx-auto p-4 md:p-8 font-sans bg-slate-50/30 rounded-3xl">
+            
+            {/* Header Banner */}
+            <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-6">
+                <div>
+                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Clinical Profile Settings</h1>
+                    <p className="text-slate-500 text-sm mt-1">Configure your online presence, qualifications, and active shift availability</p>
                 </div>
             </div>
 
-            <div className="flex justify-end pt-4">
-                <button type="submit" disabled={loading} className="flex items-center gap-4 px-12 py-6 bg-[#08B36A] hover:bg-green-600 text-white font-black rounded-[2rem] shadow-2xl shadow-green-200 transition-all active:scale-95 uppercase tracking-tighter">
-                    {loading ? <FaSyncAlt className="animate-spin" /> : <><FaSave size={20}/> Save All Changes</>}
-                </button>
-            </div>
-        </div>
-      </form>
+            {/* Notification Elements */}
+            {error && (
+                <div className="mb-6 p-4 bg-rose-50 border-l-4 border-rose-500 rounded-r-2xl text-rose-800 text-sm flex items-start gap-3 shadow-sm">
+                    <FaExclamationTriangle className="text-lg text-rose-500 flex-shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                </div>
+            )}
 
-      <style jsx>{`
-        .label-style { display: block; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 900; font-size: 0.65rem; color: #9ca3af; margin-bottom: 0.5rem; margin-left: 0.5rem; }
-        .input-style { width: 100%; padding: 16px 20px; background-color: #f8fafc; border-radius: 1.5rem; border: 1px solid #f1f5f9; font-weight: 800; color: #1e293b; font-size: 0.95rem; outline: none; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .input-style:focus { background-color: white; border-color: #08B36A; box-shadow: 0 15px 30px -10px rgba(8, 179, 106, 0.15); transform: translateY(-2px); }
-        .input-style:disabled { cursor: not-allowed; opacity: 0.7; }
-      `}</style>
-    </div>
-  )
+            {successMsg && (
+                <div className="mb-6 p-4 bg-emerald-50 border-l-4 border-emerald-500 rounded-r-2xl text-emerald-800 text-sm flex items-start gap-3 shadow-sm animate-in fade-in slide-in-from-top duration-300">
+                    <FaCheckCircle className="text-lg text-emerald-500 flex-shrink-0 mt-0.5" />
+                    <span>{successMsg}</span>
+                </div>
+            )}
+
+            <form onSubmit={handleSaveSettings} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                
+                {/* LEFT COLUMN: Visual Summary Card */}
+                <div className="lg:col-span-4 space-y-6">
+                    <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm flex flex-col items-center text-center relative overflow-hidden">
+                        
+                        {/* Status Stripe Background decoration */}
+                        <div className={`absolute top-0 inset-x-0 h-2.5 ${
+                            profile.dutyStatus === 'On Duty' ? 'bg-emerald-500' :
+                            profile.dutyStatus === 'Busy' ? 'bg-amber-500' : 'bg-slate-300'
+                        }`} />
+
+                        {/* Interactive Avatar Container */}
+                        <div 
+                            className="relative group cursor-pointer mt-4" 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                fileInputRef.current.click();
+                            }}
+                        >
+                            <div className="w-36 h-36 rounded-full overflow-hidden border-4 border-slate-50 shadow-inner bg-slate-100 flex items-center justify-center">
+                                {avatarPreview ? (
+                                    <img src={avatarPreview} alt="Doctor profile" className="w-full h-full object-cover" />
+                                ) : (
+                                    <FaUser className="text-5xl text-slate-300" />
+                                )}
+                            </div>
+                            <div className="absolute inset-0 bg-black/45 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <FaCamera className="text-white text-xl" />
+                            </div>
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                className="hidden" 
+                                accept="image/*" 
+                                onClick={(e) => e.stopPropagation()} 
+                                onChange={handleAvatarChange} 
+                            />
+                        </div>
+
+                        {/* Summary Texts */}
+                        <h3 className="text-2xl font-black text-slate-800 mt-5 leading-snug">{profile.name || "Dr. Unnamed"}</h3>
+                        <p className="text-xs text-slate-400 font-bold tracking-wider uppercase mt-1.5 flex items-center gap-1.5 justify-center">
+                            <FaStethoscope className="text-emerald-500 text-sm" />
+                            {profile.speciality || "Specialization Pending"}
+                        </p>
+                        
+                        <div className="flex flex-wrap gap-2 justify-center mt-4">
+                            <span className="px-3.5 py-1 bg-slate-50 border border-slate-100 text-slate-600 rounded-full text-xs font-bold">{selectedQualifications.slice(0, 2).join(', ') || "No Degree listed"}{selectedQualifications.length > 2 && '...'}</span>
+                            <span className="px-3.5 py-1 bg-blue-50 border border-blue-100 text-blue-600 rounded-full text-xs font-bold">{profile.experienceYears} Yrs Experience</span>
+                        </div>
+
+                        {/* Dynamic Shift Switcher Toggler */}
+                        <div className="w-full border-t border-slate-100 mt-6 pt-6 flex flex-col items-stretch text-left">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Shift Status</label>
+                            <div className="relative">
+                                <select 
+                                    value={profile.dutyStatus}
+                                    onChange={handleDutyStatusChange}
+                                    disabled={saving}
+                                    className="w-full py-3.5 pl-4 pr-10 bg-slate-50/50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 focus:outline-none hover:border-slate-300 transition-all appearance-none cursor-pointer"
+                                >
+                                    <option value="On Duty">On Duty (Available)</option>
+                                    <option value="Off Duty">Off Duty (Unavailable)</option>
+                                    <option value="On Leave">On Leave</option>
+                                    <option value="Busy">Busy</option>
+                                </select>
+                                <span className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </span>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                {/* RIGHT COLUMN: Detailed Settings Form */}
+                <div className="lg:col-span-8 space-y-6">
+                    
+                    {/* Block A: Base Details */}
+                    <div className="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-sm space-y-6">
+                        <h2 className="text-xl font-bold text-slate-800 border-b border-slate-50 pb-3 flex items-center gap-2">
+                            <FaUser className="text-emerald-500 text-lg" />
+                            Personal & Professional Registry
+                        </h2>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            
+                            <div className="md:col-span-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Registered Name</label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"><FaUser /></span>
+                                    <input 
+                                        type="text" 
+                                        value={profile.name}
+                                        onChange={(e) => setProfile(prev => ({ ...prev, name: e.target.value }))}
+                                        className="w-full py-3.5 pl-10 pr-4 bg-slate-50/50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-2xl text-xs font-semibold focus:outline-none transition-all text-slate-700 shadow-sm"
+                                        placeholder="Dr. Full Name"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Specialization Dropdown</label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"><FaBriefcase /></span>
+                                    <select 
+                                        value={profile.speciality}
+                                        onChange={(e) => setProfile(prev => ({ ...prev, speciality: e.target.value }))}
+                                        className="w-full py-3.5 pl-10 pr-10 bg-slate-50/50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-2xl text-xs font-bold text-slate-700 focus:outline-none transition-all appearance-none cursor-pointer shadow-sm"
+                                        required
+                                    >
+                                        <option value="">Select Specialization</option>
+                                        {specializations.map((spec) => (
+                                            <option key={spec._id} value={spec.name}>{spec.name}</option>
+                                        ))}
+                                    </select>
+                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Roster Experience (Years)</label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"><FaRegCalendarAlt /></span>
+                                    <input 
+                                        type="number" 
+                                        value={profile.experienceYears}
+                                        onChange={(e) => setProfile(prev => ({ ...prev, experienceYears: parseInt(e.target.value) || 0 }))}
+                                        className="w-full py-3.5 pl-10 pr-4 bg-slate-50/50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-2xl text-xs font-semibold focus:outline-none transition-all text-slate-700 shadow-sm"
+                                        min="0"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Registered Email</label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"><FaEnvelope /></span>
+                                    <input 
+                                        type="email" 
+                                        value={profile.email}
+                                        disabled
+                                        className="w-full py-3.5 pl-10 pr-4 bg-slate-100 border border-slate-150 rounded-2xl text-xs font-semibold text-slate-500 focus:outline-none opacity-80 shadow-sm"
+                                        title="Registry emails are immutable."
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Contact Number</label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"><FaPhoneAlt /></span>
+                                    <input 
+                                        type="text" 
+                                        value={profile.phone}
+                                        disabled
+                                        className="w-full py-3.5 pl-10 pr-4 bg-slate-100 border border-slate-150 rounded-2xl text-xs font-semibold text-slate-500 focus:outline-none opacity-80 shadow-sm"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="md:col-span-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-2.5">
+                                    Educational Degree / Qualifications (Select Multiple)
+                                </label>
+                                <div className="flex flex-wrap gap-2.5 p-4 bg-slate-50/50 border border-slate-200 rounded-2xl min-h-[64px] shadow-sm">
+                                    {availableQualifications.map((qual) => {
+                                        const qualName = typeof qual === 'object' ? qual.name : qual;
+                                        const isSelected = selectedQualifications.includes(qualName);
+                                        return (
+                                            <button
+                                                key={qualName}
+                                                type="button"
+                                                onClick={() => handleToggleQualification(qualName)}
+                                                className={`px-4 py-2 rounded-full text-xs font-bold transition-all border flex items-center gap-1.5 select-none ${
+                                                    isSelected 
+                                                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm' 
+                                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                {isSelected && <span className="text-[10px] font-sans">✓</span>}
+                                                {qualName}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex justify-end pt-2">
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 text-white font-extrabold text-sm rounded-2xl tracking-wide transition-all shadow-md active:scale-95 flex items-center gap-2"
+                        >
+                            {saving ? <FaSpinner className="animate-spin text-base" /> : <FaSave className="text-base" />}
+                            Save Settings
+                        </button>
+                    </div>
+
+                </div>
+
+            </form>
+        </div>
+    );
 }

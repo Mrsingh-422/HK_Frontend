@@ -268,12 +268,17 @@ const LabVendorAPI = {
     },
  
      // ==========================================
-    // ORDER MANAGEMENT (NEW)
+    // ORDER MANAGEMENT (UPDATED WITH PRIORITY FILTER)
     // ==========================================
-    getOrders: async (status) => {
-        const response = await labVendorApi.get('/provider/labs/orders', {
-            params: { status: status === 'Approved' ? 'Confirmed' : status }
-        });
+    getOrders: async (status, isPriority = null) => {
+        const params = { status: status === 'Approved' ? 'Confirmed' : status };
+        
+        // Append priority flags to order filtering queries
+        if (isPriority !== null) {
+            params.isPriority = String(isPriority);
+        }
+ 
+        const response = await labVendorApi.get('/provider/labs/orders', { params });
         return response.data;
     },
  
@@ -307,14 +312,48 @@ const LabVendorAPI = {
     },
  
     // ==========================================
-    // ORDER MANAGEMENT (EXISTING)
+    // CENTRALIZED WALLET & PAYOUT APIs (Added)
     // ==========================================
-    getOrders: async (status) => {
-        const response = await labVendorApi.get('/provider/labs/orders', {
-            params: { status: status === 'Approved' ? 'Confirmed' : status }
-        });
+    
+    /**
+     * Fetch wallet balances & dynamic registered bank settings
+     * GET /provider/wallet/stats
+     */
+    getWalletStats: async () => {
+        const response = await labVendorApi.get('/provider/wallet/stats');
         return response.data;
     },
+ 
+    /**
+     * Submit manual payout ticket request
+     * POST /provider/wallet/withdraw
+     */
+    requestWithdrawal: async (amount) => {
+        const response = await labVendorApi.post('/provider/wallet/withdraw', { amount });
+        return response.data;
+    },
+ 
+    /**
+     * Fetch transaction history logs
+     * GET /provider/wallet/transactions
+     */
+    getWalletTransactions: async () => {
+        const response = await labVendorApi.get('/provider/wallet/transactions');
+        return response.data;
+    },
+     // NEW METHOD: UPDATE HOSPITAL BANK SETTLEMENT DETAILS (JSON PAYLOAD)
+  updateBankDetails: async (bankData) => {
+    try {
+      const response = await labVendorApi.patch('/provider/wallet/bank-details', bankData);
+      return response.data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to update bank details"
+      };
+    }
+  },
+ 
     
 };
  

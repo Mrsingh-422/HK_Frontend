@@ -3,19 +3,19 @@
 import React, { useEffect, useState } from 'react'
 import { 
   FaTimes, FaUserMd, FaProcedures, FaClock, 
-  FaHeartbeat, FaFilePrescription, FaPrint, FaTint, FaUserCheck
+  FaHeartbeat, FaFilePrescription, FaPrint, FaTint, FaRegCalendarAlt, FaCreditCard
 } from 'react-icons/fa'
 import HospitalAPI from '@/app/services/HospitalAPI';
 
-const PatientDetailModal = ({ appointmentId, onClose }) => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
+  const [data, setData] = useState(patientData || null);
+  const [loading, setLoading] = useState(!patientData);
 
   useEffect(() => {
-    if (appointmentId) {
+    if (appointmentId && !patientData) {
       loadClinicalCaseFile();
     }
-  }, [appointmentId]);
+  }, [appointmentId, patientData]);
 
   const loadClinicalCaseFile = async () => {
     setLoading(true);
@@ -31,14 +31,28 @@ const PatientDetailModal = ({ appointmentId, onClose }) => {
     }
   };
 
+  const getFullUrl = (path) => {
+    if (!path) return '#';
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    const base = process.env.NEXT_PUBLIC_API_URL || '';
+    const cleanPath = path.replace(/^public\//, '');
+    return `${base}/${cleanPath}`;
+  };
+
   if (!appointmentId) return null;
 
-  // Compute profile fallback variables
-  const patient = data?.patient || {};
+  // Map API response fields safely
+  const patient = data || {};
   const patientName = patient.patients?.[0]?.patientName || patient.userId?.name || "Unknown Patient";
-  const patientAge = patient.patients?.[0]?.patientAge ;
-  const patientGender = patient.patients?.[0]?.gender || patient.userId?.gender ;
-  const relation = patient.patients?.[0]?.relation ;
+  const patientAge = patient.patients?.[0]?.patientAge || "N/A";
+  const patientGender = patient.patients?.[0]?.gender || patient.userId?.gender || "N/A";
+  const relation = patient.patients?.[0]?.relation || "Self";
+  const bloodGroup = patient.clinicalSummary?.bloodGroup || "N/A";
+  const triageLevel = patient.triageLevel || "N/A";
+
+  const isDoctorObject = typeof patient.doctorId === 'object' && patient.doctorId !== null;
+  const docName = isDoctorObject ? patient.doctorId.name : "Lead Attending";
+  const docSpec = isDoctorObject ? patient.doctorId.speciality : "Duty Physician";
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -79,19 +93,26 @@ const PatientDetailModal = ({ appointmentId, onClose }) => {
                   {patientName.charAt(0)}
                 </div>
                 <div className="flex-grow">
-                  <h3 className="text-lg font-black text-slate-900 leading-tight">{patientName}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-black text-slate-900 leading-tight">{patientName}</h3>
+                    {triageLevel && (
+                      <span className="text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider bg-red-100 text-red-600">
+                        {triageLevel}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex flex-wrap gap-3 text-xs font-semibold text-slate-400 mt-1">
                     <span>{patientAge} Years &bull; {patientGender} ({relation})</span>
                     <span>&bull;</span>
                     <span className="text-rose-500 flex items-center gap-1">
-                      <FaTint size={10} /> Blood: {patient.clinicalSummary?.bloodGroup }
+                      <FaTint size={10} /> Blood: {bloodGroup}
                     </span>
                   </div>
                 </div>
                 <div className="text-right">
                   <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Ward Placement</span>
                   <div className="flex items-center gap-1.5 text-slate-800 font-black bg-white px-3 py-1.5 rounded-lg shadow-sm border border-slate-100 text-xs">
-                    <FaProcedures className="text-[#08B36A]" /> {patient.bedId?.wardId?.name || "Neuro ICU"} ({patient.bedId?.bedNumber || "NI-11"})
+                    <FaProcedures className="text-[#08B36A]" /> {patient.bedId?.wardId?.name || patient.wardName || "Neuro ICU"} ({patient.bedId?.bedNumber || patient.bedNumber || "NI-11"})
                   </div>
                 </div>
               </div>
@@ -105,7 +126,7 @@ const PatientDetailModal = ({ appointmentId, onClose }) => {
                     <div className="p-4 bg-slate-50/50 border border-slate-150 rounded-2xl space-y-3 text-xs">
                       <div>
                         <p className="font-bold text-slate-400 uppercase text-[9px]">Chief Complaint:</p>
-                        <p className="font-semibold text-slate-700 mt-0.5">{patient.clinicalSummary?.chiefComplaint || "No complaint specified"}</p>
+                        <p className="font-semibold text-slate-700 mt-0.5">{patient.clinicalSummary?.chiefComplaint || patient.patients?.[0]?.reasonForVisit || "No complaint specified"}</p>
                       </div>
                       <div>
                         <p className="font-bold text-slate-400 uppercase text-[9px]">Admission Reason:</p>
@@ -114,6 +135,10 @@ const PatientDetailModal = ({ appointmentId, onClose }) => {
                       <div>
                         <p className="font-bold text-slate-400 uppercase text-[9px]">Final Diagnosis:</p>
                         <p className="font-semibold text-[#08B36A] mt-0.5">{patient.clinicalSummary?.diagnosis || "Diagnosis pending clinical review"}</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-400 uppercase text-[9px]">Discharge Note:</p>
+                        <p className="font-semibold text-slate-700 mt-0.5">{patient.clinicalSummary?.dischargeNote || "N/A"}</p>
                       </div>
                     </div>
                   </div>
@@ -147,7 +172,7 @@ const PatientDetailModal = ({ appointmentId, onClose }) => {
                   </div>
                 </div>
 
-                {/* Right Column: Personnel & Prescriptions */}
+                {/* Right Column: Personnel, Outcomes & Payment details */}
                 <div className="space-y-6">
                   <div>
                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Lead Physician</h4>
@@ -156,8 +181,8 @@ const PatientDetailModal = ({ appointmentId, onClose }) => {
                         <FaUserMd />
                       </div>
                       <div>
-                        <p className="font-black text-slate-800">{patient.doctorId?.name || "Dr. Attending"}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">{patient.doctorId?.speciality || "General"}</p>
+                        <p className="font-black text-slate-800">{docName}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">{docSpec}</p>
                       </div>
                     </div>
                   </div>
@@ -172,6 +197,29 @@ const PatientDetailModal = ({ appointmentId, onClose }) => {
                       <div>
                         <p className="font-bold text-slate-400 uppercase text-[9px]">Result Summary:</p>
                         <p className="font-medium mt-0.5">{patient.clinicalSummary?.treatmentResult || "N/A"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Details section to ensure no payment status data is missing */}
+                  <div>
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Transaction Information</h4>
+                    <div className="p-4 bg-slate-50/50 border border-slate-150 rounded-2xl text-xs space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-bold uppercase text-[9px]">Status:</span>
+                        <span className={`font-black uppercase tracking-wider ${patient.paymentStatus === 'Paid' ? 'text-green-600' : 'text-amber-500'}`}>
+                          {patient.paymentStatus || "Unpaid"}
+                        </span>
+                      </div>
+                      {patient.paymentDetails?.razorpayPaymentId && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-400 font-bold uppercase text-[9px]">Payment Method:</span>
+                          <span className="font-semibold text-slate-700 uppercase">{patient.paymentDetails.method || "Online"}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-bold uppercase text-[9px]">Total Amount:</span>
+                        <span className="font-black text-slate-900">₹{(patient.totalAmount || 0).toLocaleString('en-IN')}</span>
                       </div>
                     </div>
                   </div>
@@ -195,17 +243,6 @@ const PatientDetailModal = ({ appointmentId, onClose }) => {
                       ) : (
                         <p className="text-[11px] text-slate-400 italic pl-1">No lab files attached to case.</p>
                       )}
-                      {data.prescription?.dietPlanPdf && (
-                        <a 
-                          href={getFullUrl(data.prescription.dietPlanPdf)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center space-x-2 p-2 border border-blue-200 hover:bg-blue-50 rounded-xl text-blue-600 font-bold transition"
-                        >
-                          <FaFilePrescription size={12} />
-                          <span>View Diet Plan PDF</span>
-                        </a>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -224,7 +261,7 @@ const PatientDetailModal = ({ appointmentId, onClose }) => {
           </button>
           <button 
             onClick={onClose}
-            className="flex-1 bg-white border border-slate-200 text-slate-500 py-3 rounded-xl font-bold text-xs hover:border-slate-400 hover:text-slate-800 transition-all animate-none"
+            className="flex-1 bg-white border border-slate-200 text-slate-500 py-3 rounded-xl font-bold text-xs hover:border-slate-400 hover:text-slate-800 transition-all"
           >
             CLOSE DOSSIER
           </button>

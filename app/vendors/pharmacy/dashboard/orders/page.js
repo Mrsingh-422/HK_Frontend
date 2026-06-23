@@ -1,6 +1,9 @@
 'use client'
 import React, { useState, useEffect } from 'react';
-import { FaSearch, FaBoxOpen, FaFilePrescription, FaCheckCircle, FaTimesCircle, FaSpinner } from 'react-icons/fa';
+import { 
+  FaSearch, FaBoxOpen, FaFilePrescription, FaCheckCircle, 
+  FaTimesCircle, FaSpinner, FaTruck, FaTag 
+} from 'react-icons/fa';
 import PharmacyVendorAPI from '@/app/services/PharmacyVendorAPI';
 
 // Import Tab Components
@@ -8,6 +11,7 @@ import General from './components/General';
 import Prescription from './components/Prescription';
 import Approved from './components/Approved';
 import Rejected from './components/Rejected';
+import OrderTable from './components/OrderTable';
 
 export default function PharmacyOrdersPage() {
     const [orders, setOrders] = useState([]);
@@ -24,8 +28,65 @@ export default function PharmacyOrdersPage() {
         try {
             const res = await PharmacyVendorAPI.listPharmacyOrders();
             setOrders(res.data || []);
-        } catch (err) { console.error(err); }
-        finally { setFetching(false); }
+        } catch (err) { 
+            console.error(err); 
+        } finally { 
+            setFetching(false); 
+        }
+    };
+
+    // ==========================================
+    // PARENT-LEVEL ORDER FILTERS (Pre-filtered subsets)
+    // ==========================================
+    
+    // 1. General: New orders waiting to be Accepted
+    const generalOrders = orders.filter(o => ['Placed', 'Under Review'].includes(o.status));
+
+    // 2. Placed: Accepted orders waiting for driver assignment (Both General & Prescription)
+    const placedOrders = orders.filter(o => {
+        const hasNoDriver = !o.driverId || o.driverId === "" || (typeof o.driverId === 'object' && !o.driverId._id);
+        if (!hasNoDriver) return false;
+
+        // Condition 1: Explicitly status 'Accepted'
+        if (o.status === 'Accepted') return true;
+
+        // Condition 2: Prescription orders where the accepted status is 'Placed'
+        if (o.orderType === 'Prescription' && o.status === 'Placed') return true;
+
+        return false;
+    });
+
+    // 3. Approved: Accepted orders with drivers, or in route / completed
+    const approvedOrders = orders.filter(o => 
+        (o.status === 'Accepted' && o.driverId && o.driverId._id) || ['Shipped', 'Delivered', 'Completed'].includes(o.status)
+    );
+
+    // 4. Rejected: Denied orders
+    const rejectedOrders = orders.filter(o => o.status === 'Rejected');
+
+    // 5. Prescription: Orders containing custom prescription attachments
+    const prescriptionOrders = orders.filter(o => o.prescriptionImages?.length > 0);
+
+    // Safe, null-resistant search filter to prevent rendering crashes
+    const getFilteredPlacedOrders = () => {
+        return placedOrders.filter(o => {
+            const id = o.orderId ? String(o.orderId).toLowerCase() : '';
+            const name = o.userId?.name ? String(o.userId.name).toLowerCase() : '';
+            const query = searchTerm ? searchTerm.toLowerCase() : '';
+            return id.includes(query) || name.includes(query);
+        });
+    };
+
+    // Helper to calculate combo counts dynamically per tab
+    const getComboCountForTab = (tabId) => {
+        let subset = [];
+        if (tabId === 'General') subset = generalOrders;
+        else if (tabId === 'Prescription') subset = prescriptionOrders;
+        else if (tabId === 'Placed') subset = placedOrders;
+        else if (tabId === 'Approved') subset = approvedOrders;
+        else if (tabId === 'Rejected') subset = rejectedOrders;
+        
+        return subset.filter(o => o.hasComboApplied).length;
     };
 
     return (
@@ -52,19 +113,33 @@ export default function PharmacyOrdersPage() {
                 {[
                     { id: 'General', icon: <FaBoxOpen />, label: 'General' },
                     { id: 'Prescription', icon: <FaFilePrescription />, label: 'Prescription' },
+                    { id: 'Placed', icon: <FaTruck />, label: 'Placed' }, 
                     { id: 'Approved', icon: <FaCheckCircle />, label: 'Approved' },
                     { id: 'Rejected', icon: <FaTimesCircle />, label: 'Rejected' }
-                ].map(tab => (
-                    <button 
-                        key={tab.id} onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-50'}`}
-                    >
-                        {tab.icon} {tab.label}
-                    </button>
-                ))}
+                ].map(tab => {
+                    const comboCount = getComboCountForTab(tab.id);
+                    return (
+                        <button 
+                            key={tab.id} onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all relative ${
+                                activeTab === tab.id 
+                                    ? 'bg-emerald-600 text-white' 
+                                    : 'text-slate-400 hover:bg-slate-50'
+                            }`}
+                        >
+                            {tab.icon} 
+                            <span>{tab.label}</span>
+                            {comboCount > 0 && (
+                                <span className="flex items-center gap-0.5 ml-1 bg-rose-500 text-white text-[8px] px-1.5 py-0.5 rounded-full font-extrabold uppercase animate-pulse">
+                                    <FaTag size={6} /> {comboCount}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
             </div>
 
-            {/* CONTENT */}
+            {/* CONTENT CONTAINER */}
             <div className="bg-white rounded-[32px] border border-emerald-50 shadow-sm overflow-hidden min-h-[400px]">
                 {fetching ? (
                     <div className="flex flex-col items-center justify-center py-32">
@@ -72,10 +147,21 @@ export default function PharmacyOrdersPage() {
                     </div>
                 ) : (
                     <>
-                        {activeTab === 'General' && <General orders={orders} searchTerm={searchTerm} refresh={fetchOrders} />}
-                        {activeTab === 'Prescription' && <Prescription orders={orders} searchTerm={searchTerm} refresh={fetchOrders} />}
-                        {activeTab === 'Approved' && <Approved orders={orders} searchTerm={searchTerm} refresh={fetchOrders} />}
-                        {activeTab === 'Rejected' && <Rejected orders={orders} searchTerm={searchTerm} refresh={fetchOrders} />}
+                        {/* Render respective tab using filtered datasets */}
+                        {activeTab === 'General' && <General orders={generalOrders} searchTerm={searchTerm} refresh={fetchOrders} />}
+                        {activeTab === 'Prescription' && <Prescription orders={prescriptionOrders} searchTerm={searchTerm} refresh={fetchOrders} />}
+                        
+                        {/* Render the Placed orders dynamically, displaying both General & Prescription accepted orders */}
+                        {activeTab === 'Placed' && (
+                            <OrderTable 
+                                orders={getFilteredPlacedOrders()} 
+                                refresh={fetchOrders} 
+                                isPrescription={true} 
+                            />
+                        )}
+                        
+                        {activeTab === 'Approved' && <Approved orders={approvedOrders} searchTerm={searchTerm} refresh={fetchOrders} />}
+                        {activeTab === 'Rejected' && <Rejected orders={rejectedOrders} searchTerm={searchTerm} refresh={fetchOrders} />}
                     </>
                 )}
             </div>

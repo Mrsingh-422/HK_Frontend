@@ -2,10 +2,14 @@
 
 import PharmacyVendorAPI from "@/app/services/PharmacyVendorAPI";
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { 
+  FaInfoCircle, FaRegClock, FaTrashAlt, FaEdit, 
+  FaCloudUploadAlt, FaPercentage, FaCapsules, FaChevronRight 
+} from "react-icons/fa";
 
 export default function PharmacyAdminPanel() {
   // --- STATE ---
-  const [inventoryList, setInventoryList] = useState([]); // Raw data from inventory endpoint
+  const [inventoryList, setInventoryList] = useState([]); // Filtered OTC non-prescription medicines
   const [campaigns, setCampaigns] = useState([]); // List of active/paused offers
   const [loading, setLoading] = useState(true);
   const [actionProcessing, setActionProcessing] = useState(false);
@@ -13,14 +17,14 @@ export default function PharmacyAdminPanel() {
 
   // Architect Form Fields State
   const [campaignDisplayName, setCampaignDisplayName] = useState("");
-  const [selectedMedId, setSelectedMedId] = useState(""); // Medicine _id (Target Medicine ID)
+  const [selectedMedId, setSelectedMedId] = useState(""); // Medicine _id
   const [buyQty, setBuyQty] = useState(2);
   const [getFreeQty, setGetFreeQty] = useState(1);
   const [startDate, setStartDate] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   
   // Multi-Image Upload State
-  const [selectedImages, setSelectedImages] = useState([]); // Array of { file: File (or null if pre-existing), preview: string }
+  const [selectedImages, setSelectedImages] = useState([]); // Array of { file, preview }
   const fileInputRef = useRef(null);
 
   // Base backend URL for rendering images loaded from public storage paths
@@ -35,16 +39,21 @@ export default function PharmacyAdminPanel() {
   const fetchRequiredData = async () => {
     setLoading(true);
     try {
-      // Step A.1: Fetch medicines in the active inventory (getMyInventory)
-      const inventoryRes = await PharmacyVendorAPI.getMyInventory();
+      // Swapped standard getMyInventory to getMyOtcInventory for Combo promotions
+      const inventoryRes = await PharmacyVendorAPI.getMyOtcInventory();
       if (inventoryRes.success && inventoryRes.data) {
-        setInventoryList(inventoryRes.data);
-        if (inventoryRes.data.length > 0) {
-          setSelectedMedId(inventoryRes.data[0].medicineId._id);
+        // STRICT REGULATORY FILTER: Only allow medicines where prescription_required is explicitly "NO"
+        const filteredOtcOnly = inventoryRes.data.filter(
+          item => item.medicineId?.prescription_required === "NO"
+        );
+        
+        setInventoryList(filteredOtcOnly);
+        if (filteredOtcOnly.length > 0) {
+          setSelectedMedId(filteredOtcOnly[0].medicineId._id);
         }
       }
 
-      // Step A.3: Fetch active/paused combo offers for registry (my-offers)
+      // Fetch active/paused combo offers for registry (my-offers)
       const offersRes = await PharmacyVendorAPI.listComboOffers();
       if (offersRes.success && offersRes.data) {
         setCampaigns(offersRes.data);
@@ -79,7 +88,6 @@ export default function PharmacyAdminPanel() {
     setSelectedImages(prev => {
       const updated = [...prev];
       const target = updated[indexToRemove];
-      // Clean up object URLs created during browser run to free memory
       if (target.preview.startsWith("blob:")) {
         URL.revokeObjectURL(target.preview);
       }
@@ -96,7 +104,7 @@ export default function PharmacyAdminPanel() {
 
   // --- ACTIONS ---
 
-  // Handle Form Submission: Create (Step A.2) or Edit (Step A.4-B)
+  // Handle Form Submission: Create or Edit
   const handleSaveCampaign = async (e) => {
     e.preventDefault();
     if (!selectedMedId) return;
@@ -109,9 +117,16 @@ export default function PharmacyAdminPanel() {
     setActionProcessing(true);
     try {
       const selectedItem = inventoryList.find(item => item.medicineId._id === selectedMedId);
+      
+      // Safety Check before submission
+      if (selectedItem?.medicineId?.prescription_required !== "NO") {
+        alert("Action Blocked: Only non-prescription medicines can be utilized in combo campaigns.");
+        setActionProcessing(false);
+        return;
+      }
+
       const computedPromoMargin = Number(dealAnalysis?.promoMargin || 0);
 
-      // Construct a unified FormData instance to support multipart/form-data upload
       const formData = new FormData();
       formData.append("campaignDisplayName", campaignDisplayName.trim() || `${selectedItem?.medicineId?.name} Buy ${buyQty} Get ${getFreeQty}`);
       formData.append("medicineId", selectedMedId);
@@ -121,7 +136,6 @@ export default function PharmacyAdminPanel() {
       formData.append("expiryDate", expiryDate);
       formData.append("projectedPromoMargin", computedPromoMargin);
 
-      // Append binary files for newly added files
       selectedImages.forEach((img) => {
         if (img.file) {
           formData.append("images", img.file);
@@ -129,17 +143,14 @@ export default function PharmacyAdminPanel() {
       });
 
       if (editingId) {
-        // Step A.4-B: Update existing campaign (PUT with Multipart optional image re-upload)
         const response = await PharmacyVendorAPI.updateComboOffer(editingId, formData);
         if (response.success) {
           setEditingId(null);
         }
       } else {
-        // Step A.2: Create new campaign (POST with Multipart images requirement)
         await PharmacyVendorAPI.createComboOffer(formData);
       }
 
-      // Reset configurations and load updated lists
       resetForm();
       const freshOffers = await PharmacyVendorAPI.listComboOffers();
       if (freshOffers.success) setCampaigns(freshOffers.data);
@@ -150,7 +161,7 @@ export default function PharmacyAdminPanel() {
     }
   };
 
-  // Step A.4-A: Switch toggle active state
+  // Switch toggle active state
   const handleToggleStatus = async (id) => {
     try {
       const res = await PharmacyVendorAPI.toggleComboOffer(id);
@@ -167,7 +178,7 @@ export default function PharmacyAdminPanel() {
     }
   };
 
-  // Step A.4-B: Load target record details into editing state
+  // Load target record details into editing state
   const handleEditInit = (camp) => {
     setEditingId(camp._id);
     setCampaignDisplayName(camp.campaignDisplayName);
@@ -181,7 +192,6 @@ export default function PharmacyAdminPanel() {
     if (camp.startDate) setStartDate(camp.startDate.substring(0, 10));
     if (camp.expiryDate) setExpiryDate(camp.expiryDate.substring(0, 10));
 
-    // Map existing remote image strings back into structural layout previews
     if (camp.images && Array.isArray(camp.images)) {
       setSelectedImages(camp.images.map(imgUrl => ({ file: null, preview: imgUrl })));
     } else {
@@ -206,7 +216,6 @@ export default function PharmacyAdminPanel() {
     setStartDate("");
     setExpiryDate("");
 
-    // Revoke local object URLs to prevent system footprint lag
     selectedImages.forEach(img => {
       if (img.preview.startsWith("blob:")) {
         URL.revokeObjectURL(img.preview);
@@ -215,7 +224,7 @@ export default function PharmacyAdminPanel() {
     setSelectedImages([]);
   };
 
-  // Step A.4-C: Delete Campaign
+  // Delete Campaign
   const handleDeleteCampaign = async (id) => {
     if (!window.confirm("Are you sure you want to permanently delete this combo offer?")) return;
     try {
@@ -256,7 +265,6 @@ export default function PharmacyAdminPanel() {
     if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("blob:")) {
       return path;
     }
-    // Clean storage prefix configurations if required
     return `${imageBaseUrl}/${path.replace(/\\/g, "/")}`;
   };
 
@@ -270,54 +278,64 @@ export default function PharmacyAdminPanel() {
   }
 
   return (
-    <div className="bg-slate-50 text-slate-800 min-h-screen font-sans antialiased selection:bg-[#08B36A]/20">
+    <div className="bg-[#fcfdfd] text-slate-800 min-h-screen font-sans antialiased selection:bg-[#08B36A]/20">
       
       {/* Navigation Brand Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/60 py-5 px-8  top-0 z-40 transition-all">
+      <header className="bg-white/90 backdrop-blur-md border-b border-slate-100 py-6 px-8  top-0 z-40">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-[#08B36A]/10 rounded-2xl text-[#08B36A] shadow-inner">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v15.714a3 3 0 01-3 3h-3.375a3 3 0 01-3-3V3.104a3 3 0 013-3h3.375a3 3 0 013 3zm0 15.714a3 3 0 013-3h3.375a3 3 0 013 3v1.5a3 3 0 01-3 3h-3.375a3 3 0 01-3-3v-1.5z" />
-              </svg>
+          <div className="flex items-center space-x-3.5">
+            <div className="p-3 bg-emerald-50 rounded-2xl text-[#08B36A] border border-emerald-100/50 shadow-sm">
+              <FaCapsules size={20} />
             </div>
             <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">RxCombo Dashboard</h1>
-              <p className="text-[11px] text-slate-400 font-semibold tracking-wide">BOGO Offer Optimization Suite</p>
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight">OTC Promo Hub</h1>
+              <p className="text-xs text-slate-400 font-bold tracking-wide mt-0.5">Compliant BOGO Campaign Suite</p>
             </div>
           </div>
-          <span className="text-xs text-slate-600 font-bold bg-slate-100 px-3.5 py-1.5 rounded-xl border border-slate-200/60 shadow-sm">
-            Control Console
+          <span className="text-xs text-slate-500 font-black bg-slate-100 border border-slate-200/50 px-4 py-2 rounded-2xl shadow-sm tracking-widest uppercase">
+            REGULATED CONSOLE
           </span>
         </div>
       </header>
 
       {/* Main Workspace Grid */}
       <main className="max-w-7xl mx-auto px-6 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
           
           {/* COLUMN 1: Campaign Architect */}
           <section className="lg:col-span-5 space-y-6">
-            <div className={`bg-white rounded-3xl shadow-[0_12px_40px_rgba(0,0,0,0.03)] border transition-all duration-300 overflow-hidden ${
-              editingId ? "border-[#08B36A]/50 ring-4 ring-[#08B36A]/5" : "border-slate-200/80"
+            
+            {/* Regulatory Safeguard Info Banner */}
+            <div className="bg-blue-50/70 border border-blue-100 p-5 rounded-3xl flex items-start gap-4">
+              <FaInfoCircle className="text-blue-500 shrink-0 mt-0.5" size={18} />
+              <div className="space-y-1">
+                <h4 className="text-xs font-black text-blue-900 uppercase tracking-wider">Regulatory Safeguard</h4>
+                <p className="text-[11px] text-blue-700/90 leading-relaxed font-semibold">
+                  Under retail drug regulations, prescription-required medicines are strictly barred from incentive promotional bundling programs. Only Over-The-Counter (OTC) medicines can be selected.
+                </p>
+              </div>
+            </div>
+
+            <div className={`bg-white rounded-[32px] shadow-[0_12px_50px_rgba(8,179,106,0.03)] border transition-all duration-300 overflow-hidden ${
+              editingId ? "border-[#08B36A]/45 ring-4 ring-[#08B36A]/5" : "border-slate-100"
             }`}>
               
               <div className={`p-6 border-b transition-colors ${
-                editingId ? "border-[#08B36A]/10 bg-[#08B36A]/5" : "border-slate-100"
+                editingId ? "border-[#08B36A]/10 bg-emerald-50/10" : "border-slate-50"
               }`}>
                 <div className="flex justify-between items-center">
                   <div>
-                    <h2 className="text-base font-extrabold text-slate-900">
-                      {editingId ? "Edit Campaign" : "Campaign Architect"}
+                    <h2 className="text-lg font-black text-slate-900 tracking-tight">
+                      {editingId ? "Edit Promo Setup" : "Campaign Architect"}
                     </h2>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {editingId ? "Modify settings for this active offer" : "Design standard 'Buy X Get Y Free' promotional setups"}
+                    <p className="text-xs text-slate-400 mt-1 font-medium">
+                      Configure your Buy-X-Get-Y promotional templates.
                     </p>
                   </div>
                   {editingId && (
                     <button 
                       onClick={cancelEditing}
-                      className="text-xs text-rose-600 hover:text-rose-700 font-bold bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg transition"
+                      className="text-[10px] text-rose-600 hover:text-rose-700 font-black bg-rose-50 hover:bg-rose-100/80 px-3 py-1.5 rounded-xl uppercase tracking-wider transition"
                     >
                       Cancel Edit
                     </button>
@@ -326,15 +344,15 @@ export default function PharmacyAdminPanel() {
               </div>
 
               {inventoryList.length === 0 ? (
-                <div className="p-6 text-center text-slate-500">
-                  <p className="text-sm font-semibold">No active inventory found.</p>
-                  <p className="text-xs text-slate-400 mt-1">Please populate your store inventory list before configuring combo promotions.</p>
+                <div className="p-8 text-center text-slate-500 space-y-2">
+                  <p className="text-sm font-black">No compliant OTC medicines found.</p>
+                  <p className="text-xs text-slate-400">Please verify you have medicines in your inventory marked as prescription not required.</p>
                 </div>
               ) : (
-                <form onSubmit={handleSaveCampaign} className="p-6 space-y-5">
+                <form onSubmit={handleSaveCampaign} className="p-6 space-y-6">
                   {/* Campaign Name */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
                       Campaign Display Name
                     </label>
                     <input 
@@ -342,26 +360,31 @@ export default function PharmacyAdminPanel() {
                       placeholder="e.g. Paracetamol Clearance"
                       value={campaignDisplayName}
                       onChange={(e) => setCampaignDisplayName(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] focus:outline-none p-3 text-xs font-semibold transition"
+                      className="w-full bg-slate-50 border border-slate-100 text-slate-900 rounded-2xl focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] focus:outline-none p-4 text-xs font-bold transition"
                       required
                     />
                   </div>
 
-                  {/* Target Medicine Select (Step A.1) */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                      Select Target Medicine
-                    </label>
+                  {/* Target Medicine Select (Filtered to OTC Only) */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        Select Eligible OTC Medicine
+                      </label>
+                      <span className="bg-emerald-50 text-emerald-700 text-[8px] font-black uppercase px-2 py-0.5 rounded border border-emerald-100">
+                        OTC ONLY
+                      </span>
+                    </div>
                     <select 
                       value={selectedMedId}
                       onChange={(e) => setSelectedMedId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] focus:outline-none p-3 text-xs font-semibold transition"
+                      className="w-full bg-slate-50 border border-slate-100 text-slate-900 rounded-2xl focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] focus:outline-none p-4 text-xs font-bold transition cursor-pointer"
                       required
-                      disabled={!!editingId} // Protect medicine modification on existing promotions
+                      disabled={!!editingId}
                     >
                       {inventoryList.map(item => (
                         <option key={item._id} value={item.medicineId._id}>
-                          {item.medicineId.name} ({parseFloat(item.vendor_price).toFixed(2)})
+                          {item.medicineId.name} (MRP: ₹{parseFloat(item.medicineId.mrp).toFixed(2)})
                         </option>
                       ))}
                     </select>
@@ -369,25 +392,25 @@ export default function PharmacyAdminPanel() {
 
                   {/* Mechanic Configurations */}
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Buy Qty (X)</label>
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Buy Qty (X)</label>
                       <input 
                         type="number" 
                         min="1" 
                         value={buyQty} 
                         onChange={(e) => setBuyQty(Math.max(1, Number(e.target.value)))}
-                        className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] p-3 text-xs font-semibold focus:outline-none transition"
+                        className="w-full bg-slate-50 border border-slate-100 text-slate-900 rounded-2xl focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] p-4 text-xs font-bold focus:outline-none transition"
                         required
                       />
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Get Free (Y)</label>
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Get Free (Y)</label>
                       <input 
                         type="number" 
                         min="1" 
                         value={getFreeQty} 
                         onChange={(e) => setGetFreeQty(Math.max(1, Number(e.target.value)))}
-                        className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] p-3 text-xs font-semibold focus:outline-none transition"
+                        className="w-full bg-slate-50 border border-slate-100 text-slate-900 rounded-2xl focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] p-4 text-xs font-bold focus:outline-none transition"
                         required
                       />
                     </div>
@@ -395,36 +418,36 @@ export default function PharmacyAdminPanel() {
 
                   {/* Duration Config (Start and Expiry Dates) */}
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
                         Start Date
                       </label>
                       <input 
                         type="date" 
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] p-3 text-xs font-semibold focus:outline-none transition"
+                        className="w-full bg-slate-50 border border-slate-100 text-slate-900 rounded-2xl focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] p-4 text-xs font-bold focus:outline-none transition"
                         required
                       />
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
                         Expiry Date
                       </label>
                       <input 
                         type="date" 
                         value={expiryDate}
                         onChange={(e) => setExpiryDate(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-xl focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] p-3 text-xs font-semibold focus:outline-none transition"
+                        className="w-full bg-slate-50 border border-slate-100 text-slate-900 rounded-2xl focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] p-4 text-xs font-bold focus:outline-none transition"
                         required
                       />
                     </div>
                   </div>
 
                   {/* Multi-Image File upload interface */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                      Campaign Banner / Promo Images (Max 10)
+                  <div className="space-y-2.5">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      Campaign Banner / Banners (Max 10)
                     </label>
                     
                     <input 
@@ -438,22 +461,20 @@ export default function PharmacyAdminPanel() {
 
                     <div 
                       onClick={triggerFileSelect}
-                      className="w-full border-2 border-dashed border-slate-200 hover:border-[#08B36A] bg-slate-50 hover:bg-[#08B36A]/5 p-5 rounded-2xl cursor-pointer transition text-center flex flex-col items-center justify-center space-y-1.5"
+                      className="w-full border-2 border-dashed border-slate-200 hover:border-[#08B36A]/60 bg-slate-50 hover:bg-emerald-50/20 p-6 rounded-3xl cursor-pointer transition text-center flex flex-col items-center justify-center space-y-2"
                     >
-                      <div className="p-2 bg-white rounded-xl border border-slate-100 text-[#08B36A] shadow-sm">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                        </svg>
+                      <div className="p-3 bg-white rounded-2xl border border-slate-100 text-[#08B36A] shadow-sm">
+                        <FaCloudUploadAlt size={22} />
                       </div>
-                      <span className="text-xs font-semibold text-slate-700">Add Campaign Media</span>
-                      <span className="text-[10px] text-slate-400">Attach banner images for promotion display</span>
+                      <span className="text-xs font-bold text-slate-700">Add Campaign Media</span>
+                      <span className="text-[10px] text-slate-400 font-medium">PNG, JPG, or WebP banner designs</span>
                     </div>
 
                     {/* Previews Grid with delete action overlay */}
                     {selectedImages.length > 0 && (
                       <div className="grid grid-cols-4 gap-3 mt-4">
                         {selectedImages.map((img, idx) => (
-                          <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border border-slate-100 shadow-sm bg-slate-50">
+                          <div key={idx} className="relative group aspect-square rounded-2xl overflow-hidden border border-slate-100 shadow-sm bg-slate-50">
                             <img 
                               src={getFullImageUrl(img.preview)} 
                               alt="Upload preview" 
@@ -466,9 +487,7 @@ export default function PharmacyAdminPanel() {
                                 className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition"
                                 title="Delete image"
                               >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
+                                <FaTrashAlt size={11} />
                               </button>
                             </div>
                           </div>
@@ -486,23 +505,23 @@ export default function PharmacyAdminPanel() {
                           ? "bg-amber-50/70 border-amber-100 text-amber-800" 
                           : "bg-[#08B36A]/5 border-[#08B36A]/10 text-emerald-800"
                     }`}>
-                      <div className="flex justify-between items-center text-[10px] font-extrabold uppercase tracking-wider opacity-95">
-                        <span>Projected Promo Margin</span>
-                        <span>{dealAnalysis.promoMargin}%</span>
+                      <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+                        <span className="flex items-center gap-1.5"><FaPercentage /> Projected Margin</span>
+                        <span className="font-extrabold text-sm">{dealAnalysis.promoMargin}%</span>
                       </div>
                       {dealAnalysis.isNegative && (
-                        <p className="text-[10px] leading-relaxed">
-                          Negative margins. Cost of raw materials exceeds estimated promotional revenue.
+                        <p className="text-[10px] leading-relaxed font-semibold">
+                          Alert: The cost of raw goods exceeds estimated promotional revenue payouts.
                         </p>
                       )}
                       {dealAnalysis.isTight && !dealAnalysis.isNegative && (
-                        <p className="text-[10px] leading-relaxed">
-                          Margin is tight (under 15%). Assess item volume constraints before running.
+                        <p className="text-[10px] leading-relaxed font-semibold">
+                          Notice: Profit margins are thin (under 15%). Assess item volume constraints before running.
                         </p>
                       )}
                       {!dealAnalysis.isTight && !dealAnalysis.isNegative && (
-                        <p className="text-[10px] leading-relaxed">
-                          Margin healthy. Promotional yield is sustainable.
+                        <p className="text-[10px] leading-relaxed font-semibold">
+                          Success: Profit margin parameters are stable.
                         </p>
                       )}
                     </div>
@@ -511,7 +530,7 @@ export default function PharmacyAdminPanel() {
                   <button 
                     type="submit" 
                     disabled={actionProcessing}
-                    className="w-full bg-[#08B36A] disabled:bg-slate-300 hover:bg-[#079d5c] text-white font-extrabold rounded-xl text-xs px-5 py-3.5 text-center transition duration-150 shadow-sm shadow-[#08B36A]/10"
+                    className="w-full bg-[#08B36A] disabled:bg-slate-300 hover:bg-[#079d5c] text-white font-black rounded-2xl text-[10px] uppercase tracking-widest py-4 text-center transition duration-150 shadow-lg shadow-emerald-100/30"
                   >
                     {actionProcessing ? "Saving changes..." : editingId ? "Save Campaign Changes" : "Deploy BOGO Offer"}
                   </button>
@@ -520,48 +539,51 @@ export default function PharmacyAdminPanel() {
             </div>
           </section>
 
-          {/* COLUMN 2: Campaign Registry (Step A.3) */}
+          {/* COLUMN 2: Campaign Registry */}
           <section className="lg:col-span-7">
-            <div className="bg-white rounded-3xl shadow-[0_12px_40px_rgba(0,0,0,0.03)] border border-slate-200/80 overflow-hidden">
-              <div className="p-6 border-b border-slate-100">
-                <h3 className="text-base font-extrabold text-slate-900">Campaign Registry</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Control live and paused combo offers deployed to standard registers</p>
+            <div className="bg-white rounded-[32px] shadow-[0_12px_50px_rgba(8,179,106,0.03)] border border-slate-100 overflow-hidden">
+              <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 tracking-tight">Campaign Registry</h3>
+                  <p className="text-xs text-slate-400 mt-1 font-medium">Registry queue of active, compliant OTC discount programs</p>
+                </div>
+                <span className="bg-slate-100 text-slate-500 text-[10px] font-black px-3 py-1.5 rounded-xl uppercase tracking-wider">
+                  Count: {campaigns.length}
+                </span>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-200 text-slate-400 bg-slate-50/50">
-                      <th className="p-4 font-bold uppercase tracking-wider">Campaign Details</th>
-                      <th className="p-4 font-bold uppercase tracking-wider">Mechanic Rule</th>
-                      <th className="p-4 font-bold uppercase tracking-wider">Campaign Schedule</th>
-                      <th className="p-4 font-bold uppercase tracking-wider text-center">Status Toggle</th>
-                      <th className="p-4 font-bold uppercase tracking-wider text-right">Actions</th>
+                    <tr className="border-b border-slate-100 text-slate-400 bg-slate-50/50 text-[9px] uppercase tracking-widest font-black">
+                      <th className="p-5 pl-8">Campaign Details</th>
+                      <th className="p-5">Mechanic Rule</th>
+                      <th className="p-5">Campaign Schedule</th>
+                      <th className="p-5 text-center">Status Toggle</th>
+                      <th className="p-5 text-right pr-8">Actions</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-50">
                     {campaigns.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center text-slate-400 py-16 italic font-medium">
-                          No offers configured in registry. Create one using the architect form.
+                        <td colSpan={5} className="text-center text-slate-300 py-20 uppercase font-black tracking-widest text-[10px]">
+                          No offers configured in registry.
                         </td>
                       </tr>
                     ) : (
                       campaigns.map(camp => {
                         const medName = typeof camp.medicineId === "object" ? camp.medicineId?.name : "Unknown Medicine";
                         const isCurrentlyEditing = editingId === camp._id;
-                        
-                        // Pick first image for the registry list thumbnail view
                         const firstImage = camp.images && camp.images.length > 0 ? camp.images[0] : null;
 
                         return (
-                          <tr key={camp._id} className={`border-b border-slate-100 hover:bg-slate-50/50 transition-colors ${
-                            isCurrentlyEditing ? "bg-slate-50" : ""
+                          <tr key={camp._id} className={`hover:bg-emerald-50/10 transition-colors ${
+                            isCurrentlyEditing ? "bg-emerald-50/20" : ""
                           }`}>
-                            <td className="p-4">
-                              <div className="flex items-center space-x-3">
+                            <td className="p-5 pl-8">
+                              <div className="flex items-center space-x-3.5">
                                 {firstImage && (
-                                  <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-100 flex-shrink-0 bg-slate-100">
+                                  <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-100 flex-shrink-0 bg-slate-50">
                                     <img 
                                       src={getFullImageUrl(firstImage)} 
                                       alt="Banner" 
@@ -569,26 +591,31 @@ export default function PharmacyAdminPanel() {
                                     />
                                   </div>
                                 )}
-                                <div>
-                                  <p className="font-bold text-slate-900 text-sm">{camp.campaignDisplayName}</p>
-                                  <p className="text-slate-400 text-[10px] mt-0.5">{medName}</p>
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="font-black text-slate-800 text-sm">{camp.campaignDisplayName}</p>
+                                    <span className="bg-emerald-50 text-emerald-700 text-[8px] font-black px-1.5 py-0.5 rounded border border-emerald-100">
+                                      OTC Only
+                                    </span>
+                                  </div>
+                                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-tight">{medName}</p>
                                 </div>
                               </div>
                             </td>
-                            <td className="p-4 whitespace-nowrap">
-                              <span className="bg-[#08B36A]/10 text-[#08B36A] font-bold px-2.5 py-1.5 rounded-xl border border-[#08B36A]/20">
+                            <td className="p-5 whitespace-nowrap">
+                              <span className="bg-emerald-50 text-[#08B36A] font-black px-3 py-2 rounded-2xl text-[10px] border border-[#08B36A]/10 uppercase tracking-wider">
                                 Buy {camp.buyQty} Get {camp.getFreeQty}
                               </span>
                             </td>
-                            <td className="p-4">
-                              <div className="flex flex-col gap-0.5 text-slate-500 font-semibold">
-                                <span className="text-[10px]"><strong className="text-slate-400">Start:</strong> {camp.startDate ? camp.startDate.substring(0, 10) : "Immediate"}</span>
-                                <span className="text-[10px]"><strong className="text-slate-400">End:</strong> {camp.expiryDate ? camp.expiryDate.substring(0, 10) : "No Expiry"}</span>
+                            <td className="p-5">
+                              <div className="flex flex-col gap-1 text-slate-500 font-bold">
+                                <span className="text-[10px] flex items-center gap-1"><FaRegClock className="text-slate-300" size={10} /> <strong>Start:</strong> {camp.startDate ? camp.startDate.substring(0, 10) : "Immediate"}</span>
+                                <span className="text-[10px] flex items-center gap-1"><FaRegClock className="text-slate-300" size={10} /> <strong>End:</strong> {camp.expiryDate ? camp.expiryDate.substring(0, 10) : "No Expiry"}</span>
                               </div>
                             </td>
                             
-                            {/* iOS Style Toggle Switch (Step A.4-A) */}
-                            <td className="p-4 text-center">
+                            {/* iOS Style Toggle Switch */}
+                            <td className="p-5 text-center">
                               <div className="flex items-center justify-center gap-2">
                                 <button 
                                   onClick={() => handleToggleStatus(camp._id)}
@@ -597,39 +624,35 @@ export default function PharmacyAdminPanel() {
                                 >
                                   <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${camp.isActive ? "translate-x-5" : "translate-x-0.5"}`} />
                                 </button>
-                                <span className="text-[10px] font-extrabold text-slate-400 min-w-[45px] text-left">
+                                <span className="text-[9px] font-black text-slate-400 min-w-[45px] text-left uppercase tracking-wider">
                                   {camp.isActive ? "Active" : "Paused"}
                                 </span>
                               </div>
                             </td>
 
                             {/* Actions Control Column */}
-                            <td className="p-4 text-right">
-                              <div className="flex items-center justify-end space-x-1">
+                            <td className="p-5 text-right pr-8">
+                              <div className="flex items-center justify-end space-x-1.5">
                                 {/* Edit Button */}
                                 <button 
                                   onClick={() => handleEditInit(camp)} 
                                   title="Edit Campaign"
-                                  className={`p-2 rounded-xl transition ${
+                                  className={`p-2 rounded-xl border transition ${
                                     isCurrentlyEditing 
-                                      ? "bg-[#08B36A] text-white" 
-                                      : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                                      ? "bg-[#08B36A] text-white border-[#08B36A]" 
+                                      : "text-slate-400 hover:text-slate-700 bg-slate-50 border-slate-100 hover:border-slate-200"
                                   }`}
                                 >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                                  </svg>
+                                  <FaEdit size={12} />
                                 </button>
 
                                 {/* Delete Button */}
                                 <button 
                                   onClick={() => handleDeleteCampaign(camp._id)} 
                                   title="Delete Campaign"
-                                  className="text-slate-400 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50/50 transition"
+                                  className="text-slate-400 hover:text-rose-600 p-2 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-100 hover:border-rose-200 transition"
                                 >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                                  </svg>
+                                  <FaTrashAlt size={12} />
                                 </button>
                               </div>
                             </td>

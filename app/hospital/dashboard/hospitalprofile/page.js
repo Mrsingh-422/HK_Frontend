@@ -19,9 +19,12 @@ export default function HospitalProfilePage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Form States
+  // Form States (Bank fields completely removed)
   const [formData, setFormData] = useState({
-    name: '', address: '', state: '', city: ''
+    name: '', 
+    address: '', 
+    state: '', 
+    city: ''
   });
   const [files, setFiles] = useState({
     hospitalImage: null, licenseDocument: null, otherDocuments: null
@@ -45,7 +48,7 @@ export default function HospitalProfilePage() {
     fetchProfile();
   }, []);
 
-  // Modal Open Handler
+  // Modal Open Handler (populating text fields only)
   const openEditModal = () => {
     setFormData({
       name: hospitalData?.name || '',
@@ -60,7 +63,7 @@ export default function HospitalProfilePage() {
   const handleTextChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
   const handleFileChange = (e) => setFiles({ ...files, [e.target.name]: e.target.files[0] });
 
-  // Submit Update API
+  // Submit Update Profile Details Only
   const handleUpdateSubmit = async (e) => {
     e.preventDefault();
     setIsUpdating(true);
@@ -316,35 +319,38 @@ export default function HospitalProfilePage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl flex flex-col relative">
             <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-5 flex items-center justify-between z-10 rounded-t-3xl">
-              <h2 className="text-xl font-extrabold text-gray-800 flex items-center gap-2"><FaEdit className="text-[#08B36A]"/> Edit Profile</h2>
+              <h2 className="text-xl font-extrabold text-gray-800 flex items-center gap-2"><FaEdit className="text-[#08B36A]"/> Edit Profile & Details</h2>
               <button onClick={() => setIsEditModalOpen(false)} className="p-2 bg-gray-50 text-gray-500 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors">
                 <FaTimes />
               </button>
             </div>
 
             <form onSubmit={handleUpdateSubmit} className="p-6 space-y-8">
-              {/* Text Fields */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Hospital Name</label>
-                  <input type="text" name="name" required value={formData.name} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="Enter name"/>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Address</label>
-                  <input type="text" name="address" required value={formData.address} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="Enter address"/>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">City</label>
-                  <input type="text" name="city" required value={formData.city} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="City"/>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">State</label>
-                  <input type="text" name="state" required value={formData.state} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="State"/>
+              {/* Profile Text Fields */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-800 mb-4 uppercase tracking-wider">Hospital Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Hospital Name</label>
+                    <input type="text" name="name" required value={formData.name} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="Enter name"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Address</label>
+                    <input type="text" name="address" required value={formData.address} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="Enter address"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">City</label>
+                    <input type="text" name="city" required value={formData.city} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="City"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">State</label>
+                    <input type="text" name="state" required value={formData.state} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="State"/>
+                  </div>
                 </div>
               </div>
 
               {/* File Uploads */}
-              <div>
+              <div className="border-t border-gray-100 pt-6">
                 <h3 className="text-sm font-bold text-gray-800 mb-4 uppercase tracking-wider">Update Documents</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 flex flex-col items-center justify-center text-center hover:bg-gray-50 hover:border-[#08B36A] transition-colors relative group">

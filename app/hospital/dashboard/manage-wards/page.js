@@ -26,16 +26,22 @@ const ManageWards = () => {
   const [bedsList, setBedsList] = useState([]);
   const [loadingBeds, setLoadingBeds] = useState(false);
   const [statusModal, setStatusModal] = useState({ isOpen: false, bed: null, newStatus: '' });
-  const [priceModal, setPriceModal] = useState({ isOpen: false, bed: null, newPrice: '' }); // NEW STATE FOR PRICE
+  const [priceModal, setPriceModal] = useState({ isOpen: false, bed: null, newPrice: '' }); 
   const [isProcessing, setIsProcessing] = useState(false);
 
   // ---------------------------------------------------------
   // Logic & APIs
   // ---------------------------------------------------------
+  
+  // Load enums once on mount
   useEffect(() => { 
-    fetchWards(); 
     fetchEnums(); 
   }, []);
+
+  // Fetch and calculate dynamic ward counts whenever the selected date changes
+  useEffect(() => {
+    fetchWards();
+  }, [selectedDate]);
 
   // Stabilized dependency array to prevent React order errors
   useEffect(() => {
@@ -49,9 +55,43 @@ const ManageWards = () => {
     setLoading(true);
     try {
       const response = await HospitalAPI.getWardsList();
-      if (response?.success) setWards(response.data);
-    } catch (error) { console.error(error); } 
-    finally { setLoading(false); }
+      if (response?.success) {
+        const rawWards = response.data || [];
+        
+        // Fetch the date-specific bed configurations for each ward in parallel
+        const wardsWithDynamicCounts = await Promise.all(
+          rawWards.map(async (ward) => {
+            try {
+              const occupancyResponse = await HospitalAPI.getDailyOccupancy(ward._id, selectedDate);
+              if (occupancyResponse?.success) {
+                const beds = occupancyResponse.data || [];
+                const availableCount = beds.filter(b => b.status === 'Available').length;
+                const occupiedCount = beds.filter(b => b.status === 'Occupied').length;
+                const maintenanceCount = beds.filter(b => b.status === 'Maintenance').length;
+                const totalCount = beds.length;
+                
+                return {
+                  ...ward,
+                  availableBeds: availableCount,
+                  occupiedBeds: occupiedCount,
+                  maintenanceBeds: maintenanceCount,
+                  totalBeds: totalCount
+                };
+              }
+            } catch (err) {
+              console.error(`Error loading dynamic occupancy for ward ${ward._id}:`, err);
+            }
+            return ward;
+          })
+        );
+        
+        setWards(wardsWithDynamicCounts);
+      }
+    } catch (error) { 
+      console.error(error); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const fetchEnums = async () => {
@@ -146,7 +186,6 @@ const ManageWards = () => {
     } finally { setIsProcessing(false); }
   };
 
-  // NEW: Single Bed Price Update Handler using API file integration
   const handlePriceSubmit = async (e) => {
     e.preventDefault();
     setIsProcessing(true);
@@ -158,9 +197,9 @@ const ManageWards = () => {
       const response = await HospitalAPI.updateBedPrice(payload);
       
       if (response?.success) {
-        // Update local bed list state
         setBedsList(prev => prev.map(b => b._id === priceModal.bed._id ? { ...b, pricePerDay: Number(priceModal.newPrice) } : b));
         setPriceModal({ isOpen: false, bed: null, newPrice: '' });
+        fetchWards();
       } else {
         console.error("Failed to update bed price:", response);
       }
@@ -174,7 +213,7 @@ const ManageWards = () => {
     <div className="p-4 md:p-6 max-w-[1400px] mx-auto font-sans min-h-screen bg-emerald-50/20">
       
       {/* ---------------- HEADER ---------------- */}
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 relative overflow-hidden">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 relative overflow-hidden gap-4">
         <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full -mr-8 -mt-8 opacity-50"></div>
         <div className="relative z-10">
           <h2 className="text-2xl font-black text-gray-800 tracking-tight flex items-center gap-3">
@@ -183,13 +222,27 @@ const ManageWards = () => {
           </h2>
           <p className="text-[10px] text-emerald-600 mt-1 font-black uppercase tracking-widest ml-1">Real-time Facility Monitoring & Control</p>
         </div>
-        <button 
-          onClick={() => setShowAddModal(true)}
-          className="mt-4 md:mt-0 px-6 py-3 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-lg shadow-emerald-200 transition-all flex items-center gap-2 active:scale-95 group relative z-10"
-        >
-          <span className="text-lg group-hover:rotate-90 transition-transform">+</span> 
-          <span>Initialize Ward</span>
-        </button>
+
+        <div className="flex flex-col sm:flex-row items-center gap-4 relative z-10 w-full md:w-auto">
+          {/* Date Switcher */}
+          <div className="flex items-center gap-3 bg-emerald-50 p-2 rounded-xl border border-emerald-100 shadow-inner w-full sm:w-auto justify-between sm:justify-start">
+             <span className="text-[10px] font-black text-emerald-700 uppercase ml-3 tracking-widest">View Date:</span>
+             <input 
+               type="date" 
+               value={selectedDate}
+               onChange={(e) => setSelectedDate(e.target.value)}
+               className="bg-white border-none rounded-lg px-3 py-1.5 text-xs font-black text-emerald-900 outline-none shadow-sm cursor-pointer hover:bg-emerald-100 transition-all"
+             />
+          </div>
+
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="w-full sm:w-auto px-6 py-3 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2 active:scale-95 group"
+          >
+            <span className="text-lg group-hover:rotate-90 transition-transform">+</span> 
+            <span>Initialize Ward</span>
+          </button>
+        </div>
       </div>
 
       {/* ---------------- WARD CARDS ---------------- */}
@@ -224,14 +277,23 @@ const ManageWards = () => {
 
               <h3 className="text-lg font-black text-gray-800 tracking-tight mb-4 truncate group-hover:text-emerald-700 transition-colors">{ward.name}</h3>
               
+              {/* Dynamic 2x2 Metric Grid */}
               <div className="grid grid-cols-2 gap-3 mb-5">
-                 <div className="bg-emerald-50/50 rounded-xl p-3 border border-emerald-50 text-center">
+                 <div className="bg-emerald-50/50 rounded-xl p-2.5 border border-emerald-50 text-center">
                     <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-0.5">Available</p>
-                    <p className="text-xl font-black text-emerald-700">{ward.availableBeds}</p>
+                    <p className="text-lg font-black text-emerald-700">{ward.availableBeds || 0}</p>
                  </div>
-                 <div className="bg-rose-50/50 rounded-xl p-3 border border-rose-50 text-center">
+                 <div className="bg-rose-50/50 rounded-xl p-2.5 border border-rose-50 text-center">
                     <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest mb-0.5">Occupied</p>
-                    <p className="text-xl font-black text-rose-700">{ward.occupiedBeds}</p>
+                    <p className="text-lg font-black text-rose-700">{ward.occupiedBeds || 0}</p>
+                 </div>
+                 <div className="bg-amber-50/50 rounded-xl p-2.5 border border-amber-55 text-center">
+                    <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest mb-0.5">Maintenance</p>
+                    <p className="text-lg font-black text-amber-700">{ward.maintenanceBeds || 0}</p>
+                 </div>
+                 <div className="bg-slate-50/50 rounded-xl p-2.5 border border-slate-100 text-center">
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Total Beds</p>
+                    <p className="text-lg font-black text-slate-700">{ward.totalBeds || 0}</p>
                  </div>
               </div>
 
@@ -310,7 +372,6 @@ const ManageWards = () => {
                            >
                               
                               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex flex-col gap-2 transition-all">
-                                 {/* NEW: Updated to trigger Price Update Modal instead of relying solely on card click */}
                                  <button 
                                    type="button"
                                    title="Update Bed Price"
@@ -368,7 +429,7 @@ const ManageWards = () => {
         </ModalWrapper>
       )}
 
-      {/* ---------------- MODAL 5: CHANGE BED STATUS (REDESIGNED) ---------------- */}
+      {/* ---------------- MODAL 5: CHANGE BED STATUS ---------------- */}
       {statusModal.isOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 md:pl-64 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden border border-emerald-50 relative">
@@ -463,7 +524,7 @@ const ManageWards = () => {
         </ModalWrapper>
       )}
 
-      {/* ---------------- MODAL 6: UPDATE BED PRICE (NEW) ---------------- */}
+      {/* ---------------- MODAL 6: UPDATE BED PRICE ---------------- */}
       {priceModal.isOpen && (
         <ModalWrapper title="Modify Bed Rate" onClose={() => setPriceModal({ isOpen: false, bed: null, newPrice: '' })}>
            <form onSubmit={handlePriceSubmit} className="space-y-4">

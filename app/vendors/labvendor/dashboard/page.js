@@ -28,7 +28,7 @@ export default function LabVendorDashboard() {
     const [inventoryData, setInventoryData] = useState([]);
     const [labName, setLabName] = useState("Lab Partner");
 
-    const COLORS = ['#F59E0B', '#08B36A', '#3B82F6', '#EF4444'];
+    const COLORS = ['#F59E0B', '#EF4444', '#08B36A', '#3B82F6']; // Included red for priority requests
 
     useEffect(() => {
         const fetchDashboardData = async () => {
@@ -44,7 +44,7 @@ export default function LabVendorDashboard() {
 
                 const d = dashRes.data;
 
-                // 1. Process Stats Cards
+                // 1. Process Stats Cards (Included priorityRequests)
                 setStats([
                     {
                         label: 'New Requests',
@@ -52,6 +52,13 @@ export default function LabVendorDashboard() {
                         icon: FaClipboardList,
                         color: 'text-amber-600',
                         bg: 'bg-amber-100'
+                    },
+                    {
+                        label: 'Priority Requests', 
+                        value: d.priorityRequests || 0,
+                        icon: FaExclamationCircle,
+                        color: 'text-red-600',
+                        bg: 'bg-red-100'
                     },
                     {
                         label: 'Accepted Orders',
@@ -79,6 +86,7 @@ export default function LabVendorDashboard() {
                 // 2. Process Pie Chart (Distribution of Orders)
                 const formattedPieData = [
                     { name: 'PENDING', value: d.requests || 0 },
+                    { name: 'PRIORITY', value: d.priorityRequests || 0 },
                     { name: 'ACCEPTED', value: d.accepted || 0 },
                     { name: 'COMPLETED', value: d.completed || 0 },
                 ].filter(item => item.value > 0);
@@ -134,16 +142,16 @@ export default function LabVendorDashboard() {
                 <p className="text-gray-500 mt-1 font-medium">Welcome back, <span className="text-[#08B36A]">{labName}</span>. Here is your summary.</p>
             </div>
 
-            {/* Quick Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+            {/* Quick Stats Grid (Updated layout properties to prevent column shrinking on medium screens) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 mb-10">
                 {stats.map((stat) => (
-                    <div key={stat.label} className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:border-[#08B36A]/20 group">
-                        <div className={`p-4 rounded-2xl ${stat.bg} ${stat.color} flex items-center justify-center transition-transform group-hover:scale-110`}>
+                    <div key={stat.label} className="bg-white p-5 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:border-[#08B36A]/20 group">
+                        <div className={`p-4 rounded-2xl ${stat.bg} ${stat.color} flex items-center justify-center shrink-0 transition-transform group-hover:scale-110`}>
                             <stat.icon size={24} />
                         </div>
-                        <div>
-                            <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">{stat.label}</p>
-                            <h2 className="text-2xl font-black text-gray-800">{stat.value}</h2>
+                        <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-wider text-gray-400 font-black leading-tight break-words">{stat.label}</p>
+                            <h2 className="text-xl sm:text-2xl font-black text-gray-800 mt-1 truncate">{stat.value}</h2>
                         </div>
                     </div>
                 ))}

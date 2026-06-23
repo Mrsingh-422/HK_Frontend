@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import HospitalAPI from '@/app/services/HospitalAPI';
 import { 
   FaUser, FaPhoneAlt, FaMapMarkerAlt, FaFileMedical, FaClock,
@@ -86,6 +86,7 @@ const ManageAdmissions = () => {
   const [admissions, setAdmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [activeSubTab, setActiveSubTab] = useState('pending'); // 'pending', 'active', 'discharge-pending', 'completed', 'cancelled'
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -116,6 +117,11 @@ const ManageAdmissions = () => {
     fetchAdmissions();
   }, []);
 
+  // Reset pagination to page 1 whenever active tab filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeSubTab]);
+
   const fetchAdmissions = async () => {
     setLoading(true);
     try {
@@ -130,11 +136,55 @@ const ManageAdmissions = () => {
     }
   };
 
+  // ---------------------------------------------------------
+  // 📁 ADMISSIONS MEMOIZED SUB-TAB FILTERS
+  // ---------------------------------------------------------
+  const pendingAdmissions = useMemo(() => {
+    return admissions.filter(adm => (adm.status || '').toLowerCase() === 'hospital-pending');
+  }, [admissions]);
+
+  const activeAdmissions = useMemo(() => {
+    return admissions.filter(adm => {
+      const statusLower = (adm.status || '').toLowerCase();
+      return statusLower === 'confirmed' || statusLower === 'in-progress';
+    });
+  }, [admissions]);
+
+  const dischargePendingAdmissions = useMemo(() => {
+    return admissions.filter(adm => (adm.status || '').toLowerCase() === 'discharge-pending');
+  }, [admissions]);
+
+  const completedAdmissions = useMemo(() => {
+    return admissions.filter(adm => {
+      const statusLower = (adm.status || '').toLowerCase();
+      return statusLower === 'completed' || statusLower === 'discharged';
+    });
+  }, [admissions]);
+
+  const cancelledAdmissions = useMemo(() => {
+    return admissions.filter(adm => (adm.status || '').toLowerCase().startsWith('cancelled'));
+  }, [admissions]);
+
+  const filteredItems = useMemo(() => {
+    if (activeSubTab === 'pending') return pendingAdmissions;
+    if (activeSubTab === 'active') return activeAdmissions;
+    if (activeSubTab === 'discharge-pending') return dischargePendingAdmissions;
+    if (activeSubTab === 'completed') return completedAdmissions;
+    if (activeSubTab === 'cancelled') return cancelledAdmissions;
+    return admissions;
+  }, [activeSubTab, pendingAdmissions, activeAdmissions, dischargePendingAdmissions, completedAdmissions, cancelledAdmissions, admissions]);
+
   // Pagination Logic
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = admissions.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(admissions.length / itemsPerPage);
+  
+  const currentItems = useMemo(() => {
+    return filteredItems.slice(indexOfFirstItem, indexOfLastItem);
+  }, [filteredItems, indexOfFirstItem, indexOfLastItem]);
+
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredItems.length / itemsPerPage));
+  }, [filteredItems, itemsPerPage]);
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
@@ -341,10 +391,38 @@ const ManageAdmissions = () => {
         </div>
       </div>
 
+      {/* ---------------- SUB-TABS NAVIGATION ---------------- */}
+      <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-100 pb-2">
+        {[
+          { id: 'pending', label: 'Pending', count: pendingAdmissions.length, color: 'bg-amber-100 text-amber-800' },
+          { id: 'active', label: 'Confirmed / Active', count: activeAdmissions.length, color: 'bg-emerald-100 text-emerald-800' },
+          { id: 'discharge-pending', label: 'Discharge Pending', count: dischargePendingAdmissions.length, color: 'bg-indigo-100 text-indigo-800' },
+          { id: 'completed', label: 'Completed', count: completedAdmissions.length, color: 'bg-blue-100 text-blue-800' },
+          { id: 'cancelled', label: 'Cancelled', count: cancelledAdmissions.length, color: 'bg-rose-100 text-rose-800' },
+        ].map(sub => (
+          <button
+            key={sub.id}
+            onClick={() => setActiveSubTab(sub.id)}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+              activeSubTab === sub.id 
+                ? 'bg-[#08B36A] text-white shadow-md' 
+                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <span>{sub.label}</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+              activeSubTab === sub.id ? 'bg-white/20 text-white' : sub.color
+            }`}>
+              {sub.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {/* ---------------- ADMISSIONS TABLE LISTING ---------------- */}
       {loading ? (
         <div className="flex flex-col items-center justify-center h-64 gap-4"><SpinnerIcon className="w-10 h-10 text-[#08B36A] animate-spin" /><p className="text-sm text-gray-500 font-bold">Syncing Records...</p></div>
-      ) : admissions.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <div className="text-center bg-white p-16 rounded-3xl shadow-sm border-2 border-dashed border-gray-200">
           <div className="w-20 h-20 bg-[#08B36A]/10 text-[#08B36A] rounded-full flex items-center justify-center text-4xl mb-4 mx-auto shadow-inner">🛏️</div>
           <p className="text-gray-700 text-xl font-black">No Admissions Found</p>
@@ -441,7 +519,7 @@ const ManageAdmissions = () => {
           {/* ---------------- PAGINATION ---------------- */}
           <div className="mt-6 flex flex-col sm:flex-row justify-between items-center bg-white px-5 py-4 rounded-xl border border-gray-100 shadow-sm gap-4">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-              Showing <span className="text-[#08B36A]">{indexOfFirstItem + 1}</span> to <span className="text-[#08B36A]">{Math.min(indexOfLastItem, admissions.length)}</span> of <span className="text-[#08B36A]">{admissions.length}</span> records
+              Showing <span className="text-[#08B36A]">{filteredItems.length === 0 ? 0 : indexOfFirstItem + 1}</span> to <span className="text-[#08B36A]">{Math.min(indexOfLastItem, filteredItems.length)}</span> of <span className="text-[#08B36A]">{filteredItems.length}</span> records
             </p>
             <div className="flex gap-2">
               <button 

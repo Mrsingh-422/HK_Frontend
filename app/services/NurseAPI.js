@@ -278,7 +278,62 @@ const NurseAPI = {
         return response.data;
     },
  
+    // ==========================================
+    // CENTRALIZED WALLET & PAYOUT APIs (Added)
+    // ==========================================
+ 
+    /**
+     * Fetch wallet stats (balances & mapped bank details)
+     * GET /provider/wallet/stats
+     */
+    getWalletStats: async () => {
+        try {
+            const response = await nurseVendorApi.get('/provider/wallet/stats');
+            return response.data;
+        } catch (error) {
+            return { success: false, message: error.response?.data?.message || "Failed to fetch wallet stats" };
+        }
+    },
+ 
+    /**
+     * Submit withdrawal request
+     * POST /provider/wallet/withdraw
+     */
+    requestWithdrawal: async (amount) => {
+        try {
+            const response = await nurseVendorApi.post('/provider/wallet/withdraw', { amount });
+            return response.data;
+        } catch (error) {
+            return { success: false, message: error.response?.data?.message || "Failed to submit withdrawal request" };
+        }
+    },
+ 
+    /**
+     * Fetch transaction history ledger logs
+     * GET /provider/wallet/transactions
+     */
+    getWalletTransactions: async () => {
+        try {
+            const response = await nurseVendorApi.get('/provider/wallet/transactions');
+            return response.data;
+        } catch (error) {
+            return { success: false, message: error.response?.data?.message || "Failed to fetch transaction logs" };
+        }
+    },
+    updateBankDetails: async (bankData) => {
+    try {
+      const response = await nurseVendorApi.patch('/provider/wallet/bank-details', bankData);
+      return response.data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to update bank details"
+      };
+    }
+  },
+ 
 };
  
 export default NurseAPI;
+ 
  

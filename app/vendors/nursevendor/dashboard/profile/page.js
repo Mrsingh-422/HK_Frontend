@@ -4,9 +4,9 @@ import React, { useState, useEffect } from 'react';
 import NurseAPI from '@/app/services/NurseAPI';
 import { 
     Camera, Mail, Phone, MapPin, Briefcase, Save, Loader2, 
-    FileText, CheckCircle, Info, Globe, Navigation, UploadCloud 
+    FileText, CheckCircle, Info, Globe, Navigation, UploadCloud
 } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { toast, Toaster } from 'react-hot-toast'; 
 import { useUserContext } from '@/app/context/UserContext'; 
 
 const ProfilePage = () => {
@@ -74,7 +74,7 @@ const ProfilePage = () => {
             if (res.success) {
                 const d = res.data;
                 
-                // Set initial profile state
+                // Set initial profile state (Bank Details removed)
                 setProfile({
                     name: d.name || '',
                     email: d.email || '',
@@ -198,6 +198,8 @@ const ProfilePage = () => {
             if (res.success) {
                 toast.success("Profile successfully updated!");
                 fetchProfile();
+            } else {
+                toast.error(res.message || "Failed to update profile.");
             }
         } catch (error) {
             toast.error("Error updating profile");
@@ -214,6 +216,7 @@ const ProfilePage = () => {
 
     return (
         <div className="min-h-screen bg-gray-50/50 p-4 md:p-8 font-sans">
+            <Toaster position="top-right" />
             <div className="max-w-6xl mx-auto">
                 <form onSubmit={handleSubmit} className="space-y-6">
                     
@@ -227,7 +230,7 @@ const ProfilePage = () => {
                                     className="w-full h-full object-cover" 
                                 />
                             </div>
-                            <label className="absolute -bottom-2 -right-2 bg-[#08B36A] p-2.5 rounded-2xl text-white cursor-pointer hover:scale-110 transition-all shadow-lg border-2 border-white">
+                            <label className="absolute -bottom-2 -right-2 bg-[#08B36A] p-2.5 rounded-2xl text-white cursor-pointer hover:scale-110 transition-transform shadow-lg border-2 border-white">
                                 <Camera size={18} />
                                 <input type="file" hidden onChange={(e) => handleFileChange(e, 'profileImage')} accept="image/*" />
                             </label>

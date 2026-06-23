@@ -5,17 +5,27 @@ import {
   FaCheckCircle, FaTimesCircle, FaClock, FaEye, FaTimes, FaVial,
   FaCheck, FaExclamationTriangle, FaTruckLoading, FaMoneyBillWave,
   FaIdBadge, FaCheckDouble, FaCalendarAlt, FaFlask, FaClipboardList,
-  FaPercentage, FaShippingFast, FaWallet
+  FaPercentage, FaShippingFast, FaWallet, FaExclamationCircle
 } from 'react-icons/fa'
-// Adjust path based on your folder structure
-import { toast } from 'react-hot-toast';
+import { toast, Toaster } from 'react-hot-toast';
 import LabVendorAPI from '@/app/services/LabVendorAPI';
 
 export default function LabOrdersPage() {
   const [activeTab, setActiveTab] = useState('Pending'); 
+  const [approvedSubTab, setApprovedSubTab] = useState('General'); // New sub-tab state for Approved orders
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null); 
+
+  // Tab Counts State
+  const [counts, setCounts] = useState({
+    Pending: 0,
+    Priority: 0,
+    Approved: 0,
+    ApprovedGeneral: 0,
+    ApprovedPriority: 0,
+    Rejected: 0
+  });
 
   // Modal States
   const [actionOrder, setActionOrder] = useState(null); 
@@ -30,28 +40,77 @@ export default function LabOrdersPage() {
   const [selectedDriverId, setSelectedDriverId] = useState('');
 
   // ==========================================
+  // FETCH COUNTS
+  // ==========================================
+  const fetchCounts = async () => {
+    try {
+      const [
+        pendingRes,
+        priorityRes,
+        approvedGenRes,
+        approvedPrioRes,
+        rejectedRes
+      ] = await Promise.all([
+        LabVendorAPI.getOrders('Pending', false),
+        LabVendorAPI.getOrders('Pending', true),
+        LabVendorAPI.getOrders('Confirmed', false),
+        LabVendorAPI.getOrders('Confirmed', true),
+        LabVendorAPI.getOrders('Cancelled', null)
+      ]);
+
+      const pendingCount = pendingRes.success ? (pendingRes.data?.length || 0) : 0;
+      const priorityCount = priorityRes.success ? (priorityRes.data?.length || 0) : 0;
+      const approvedGenCount = approvedGenRes.success ? (approvedGenRes.data?.length || 0) : 0;
+      const approvedPrioCount = approvedPrioRes.success ? (approvedPrioRes.data?.length || 0) : 0;
+      const rejectedCount = rejectedRes.success ? (rejectedRes.data?.length || 0) : 0;
+
+      setCounts({
+        Pending: pendingCount,
+        Priority: priorityCount,
+        Approved: approvedGenCount + approvedPrioCount,
+        ApprovedGeneral: approvedGenCount,
+        ApprovedPriority: approvedPrioCount,
+        Rejected: rejectedCount
+      });
+    } catch (error) {
+      console.error("Error fetching order counts:", error);
+    }
+  };
+
+  // ==========================================
   // FETCH DATA
   // ==========================================
   const fetchOrders = async () => {
     try {
       setLoading(true);
 
-      /**
-       * STATUS MAPPING LOGIC:
-       * UI Tab "Approved" maps to Backend "Confirmed"
-       * UI Tab "Rejected" maps to Backend "Cancelled" (since your DB stores them as Cancelled)
-       */
       let apiStatus = activeTab;
-      if (activeTab === 'Approved') apiStatus = 'Confirmed';
-      if (activeTab === 'Rejected') apiStatus = 'Cancelled'; // Fetch 'Cancelled' items for the 'Rejected' tab
+      let isPriority = null;
 
-      const response = await LabVendorAPI.getOrders(apiStatus);
+      // Map Active Tab selections to status and priority parameters
+      if (activeTab === 'Pending') {
+        apiStatus = 'Pending';
+        isPriority = false; // Regular Pending Orders
+      } else if (activeTab === 'Priority') {
+        apiStatus = 'Pending';
+        isPriority = true;  // Priority (Rapid) Pending Orders
+      } else if (activeTab === 'Approved') {
+        apiStatus = 'Confirmed';
+        isPriority = approvedSubTab === 'Priority'; // Differentiate approved normal vs priority
+      } else if (activeTab === 'Rejected') {
+        apiStatus = 'Cancelled';
+      }
+
+      const response = await LabVendorAPI.getOrders(apiStatus, isPriority);
       
       if (response.success) {
         setOrders(response.data || []);
       } else {
         setOrders([]);
       }
+
+      // Refresh aggregate counts in the background
+      await fetchCounts();
     } catch (error) {
       console.error("Error fetching orders:", error);
       setOrders([]);
@@ -72,7 +131,7 @@ export default function LabOrdersPage() {
 
   useEffect(() => {
     fetchOrders();
-  }, [activeTab]);
+  }, [activeTab, approvedSubTab]); // Re-runs fetch when main tab or sub-tab changes
 
   // ==========================================
   // HANDLERS
@@ -118,8 +177,6 @@ export default function LabOrdersPage() {
     if (!actionOrder) return;
     try {
       const fullReason = rejectComment ? `${rejectReason}: ${rejectComment}` : rejectReason;
-      
-      // Sending 'Rejected' status to API
       const response = await LabVendorAPI.orderAction(actionOrder._id, 'Rejected', fullReason);
       
       if (response.success) {
@@ -153,33 +210,85 @@ export default function LabOrdersPage() {
   };
 
   return (
-    <div className="w-full relative p-4">
+    <div className="w-full relative p-4 font-sans">
+      <Toaster position="top-right" />
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Lab Bookings & Orders</h1>
           <p className="text-gray-500 text-sm mt-1">Manage all your patient test bookings here.</p>
         </div>
 
-        <div className="bg-white p-1 rounded-xl shadow-sm border border-gray-200 flex space-x-1">
-          {['Pending', 'Approved', 'Rejected'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-6 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                activeTab === tab 
-                  ? tab === 'Approved' ? 'bg-[#08B36A] text-white shadow-md' 
-                    : tab === 'Rejected' ? 'bg-red-500 text-white shadow-md' 
-                    : 'bg-yellow-500 text-white shadow-md'
-                  : 'text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+        {/* Tab Selection Row (Updated with badge counts) */}
+        <div className="bg-white p-1 rounded-xl shadow-sm border border-gray-200 flex flex-wrap gap-1">
+          {['Pending', 'Priority', 'Approved', 'Rejected'].map((tab) => {
+            const count = counts[tab] ?? 0;
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${
+                  activeTab === tab 
+                    ? tab === 'Approved' ? 'bg-[#08B36A] text-white shadow-md' 
+                      : tab === 'Priority' ? 'bg-red-500 text-white shadow-md' 
+                      : tab === 'Rejected' ? 'bg-red-600 text-white shadow-md' 
+                      : 'bg-yellow-500 text-white shadow-md'
+                    : 'text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                <span>{tab}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold transition-all ${
+                  activeTab === tab 
+                    ? 'bg-white/20 text-white' 
+                    : tab === 'Priority' ? 'bg-red-100 text-red-600'
+                    : tab === 'Rejected' ? 'bg-red-100 text-red-600'
+                    : tab === 'Approved' ? 'bg-green-100 text-[#08B36A]'
+                    : 'bg-yellow-100 text-yellow-700'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        
+        {/* Secondary Sub-Tabs displayed exclusively inside the Approved view */}
+        {activeTab === 'Approved' && (
+          <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between gap-4">
+            <div className="flex gap-2">
+              {['General', 'Priority'].map((subTab) => {
+                const subCount = subTab === 'General' ? counts.ApprovedGeneral : counts.ApprovedPriority;
+                return (
+                  <button
+                    key={subTab}
+                    type="button"
+                    onClick={() => setApprovedSubTab(subTab)}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                      approvedSubTab === subTab
+                        ? 'bg-[#08B36A] text-white shadow-sm'
+                        : 'text-gray-500 bg-white border border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span>{subTab} Orders</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold ${
+                      approvedSubTab === subTab
+                        ? 'bg-white/20 text-white'
+                        : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {subCount}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-gray-400 font-extrabold uppercase tracking-wider">
+              Approved Filter: {approvedSubTab}
+            </p>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 text-sm uppercase">
@@ -227,9 +336,10 @@ export default function LabOrdersPage() {
                          {(order.status === 'Rejected' || order.status === 'Cancelled') ? 'Rejected' : order.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-2">
-                        {activeTab === 'Pending' && (
+                        {/* Enables accept/reject actions for both regular and priority pending bookings */}
+                        {(activeTab === 'Pending' || activeTab === 'Priority') && (
                           <>
                             <button onClick={(e) => handleOpenApprove(order, e)} className="px-3 py-1.5 bg-[#08B36A] hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors">Approve</button>
                             <button onClick={(e) => handleOpenReject(order, e)} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium rounded-lg transition-colors">Reject</button>
@@ -246,7 +356,7 @@ export default function LabOrdersPage() {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="5" className="px-6 py-12 text-center text-gray-400">No {activeTab} Orders Found</td></tr>
+                <tr><td colSpan="5" className="px-6 py-12 text-center text-gray-400 font-sans">No {activeTab} Orders Found</td></tr>
               )}
             </tbody>
           </table>
@@ -328,7 +438,7 @@ export default function LabOrdersPage() {
                   {Array.isArray(selectedOrder.patients) && selectedOrder.patients.map((p, i) => (
                     <div key={i} className="flex flex-col p-4 bg-white rounded-2xl border border-gray-200">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-green-50 text-[#08B36A] rounded-full flex items-center justify-center font-bold">
+                        <div className="w-10 h-10 bg-green-50 text-[#08B36A] rounded-full flex items-center justify-center font-bold font-sans">
                           {p.name?.charAt(0)}
                         </div>
                         <div>
@@ -456,7 +566,7 @@ export default function LabOrdersPage() {
                     )}
                     <div className="flex justify-between items-center pt-3 mt-3 border-t-2 border-dashed border-gray-300">
                       <span className="text-sm font-black text-gray-800 uppercase tracking-tighter">Total Amount</span>
-                      <span className="text-2xl font-black text-[#08B36A]">₹{selectedOrder.billSummary?.totalAmount || 0}</span>
+                      <span className="text-2xl font-black text-[#08B36A] font-sans">₹{selectedOrder.billSummary?.totalAmount || 0}</span>
                     </div>
                   </div>
                 </div>
@@ -471,7 +581,7 @@ export default function LabOrdersPage() {
                 Close
               </button>
               
-              {selectedOrder.status === 'Pending' && (activeTab === 'Pending') && (
+              {selectedOrder.status === 'Pending' && (activeTab === 'Pending' || activeTab === 'Priority') && (
                 <>
                   <button 
                     onClick={() => { setSelectedOrder(null); handleOpenReject(selectedOrder); }} 

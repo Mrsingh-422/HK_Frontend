@@ -40,7 +40,7 @@ export default function LabTopBar({ onMobileMenuClick }) {
     localStorage.removeItem('pharmacyToken');
     localStorage.removeItem('nurseToken');
     // Add any other local storage keys you use for auth
-    router.push('/login'); // Redirect to your login page
+    router.push('/'); // Redirect to your login page
   };
 
   // Close dropdown when clicked outside

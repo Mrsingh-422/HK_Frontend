@@ -33,7 +33,7 @@ export default function LabVendorLayout({ children }) {
  
     const menuItems = [
        
-        { name: 'Home', href: '/vendors/nursevendor/dashboard/homenurse', icon: FaHome },
+        { name: 'Home', href: '/vendors/nursevendor/dashboard', icon: FaHome },
         { name: 'Orders', href: '/vendors/nursevendor/dashboard/ordersnurse', icon: FaClipboardList },
         { name: 'Manage Nurse', href: '/vendors/nursevendor/dashboard/managenurse', icon: FaUserNurse },
         { name: 'Assign Nurse', href: '/vendors/nursevendor/dashboard/assignnurse', icon: FaUserPlus },
@@ -44,9 +44,9 @@ export default function LabVendorLayout({ children }) {
         { name: 'Promotions', href: '/vendors/nursevendor/dashboard/promotions', icon: FaBullhorn },
         { name: 'Order History', href: '/vendors/nursevendor/dashboard/orderhistory', icon: FaHistory },
         { name: 'Manage Documents', href: '/vendors/nursevendor/dashboard/documents', icon: FaFileMedical },
-        { name: 'Profile', href: '/vendors/nursevendor/dashboard/profile', icon: FaUserCircle },
         { name: 'Manage Delivery Charges', href: '/vendors/nursevendor/dashboard/deliverycharges', icon: FaTruck },
         { name: 'Wallet & Earning', href: '/vendors/nursevendor/dashboard/wallet&earning', icon: FaWallet },
+         { name: 'Manage Banking', href: '/vendors/nursevendor/dashboard/ManageBanking', icon: FaWallet },
         { name: 'FAQ', href: '/vendors/nursevendor/dashboard/faq', icon: FaQuestionCircle },
     ];
  

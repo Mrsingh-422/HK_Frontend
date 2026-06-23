@@ -1,247 +1,380 @@
-'use client'
-import React, { useState } from 'react'
+"use client";
+
+import NurseVendorAPI from '@/app/services/NurseAPI'; // Adjust path based on your structure
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
-    FaWallet, FaMoneyBillWave, FaUniversity, FaHistory, 
-    FaPlus, FaArrowCircleDown, FaCheckCircle, FaTrashAlt,
-    FaRegClock, FaChartLine, FaUserEdit, FaHashtag, FaKey, FaTimesCircle
-} from 'react-icons/fa'
+  FaWallet, 
+  FaMoneyBillWave, 
+  FaRupeeSign, 
+  FaUniversity, 
+  FaPlus, 
+  FaArrowDown, 
+  FaArrowUp, 
+  FaClock, 
+  FaTimes
+} from 'react-icons/fa';
 
 export default function WalletDashboard() {
-    const [isAddBankModalOpen, setIsAddBankModalOpen] = useState(false);
+  
+  // ==========================================
+  // STATES
+  // ==========================================
+  const [activeTab, setActiveTab] = useState('Credit');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [selectedBank, setSelectedBank] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
+  
+  // Dynamic Data from API
+  const [stats, setStats] = useState(null);
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [transactions, setTransactions] = useState([]);
 
-    // --- MOCK DATA ---
-    const earnings = [
-        { label: 'Total Earning', value: '189', icon: <FaChartLine />, color: 'bg-green-600' },
-        { label: 'Monthly Earning', value: '0', icon: <FaMoneyBillWave />, color: 'bg-[#08B36A]' },
-        { label: 'Weekly Earning', value: '0', icon: <FaMoneyBillWave />, color: 'bg-[#32B97D]' },
-        { label: 'Daily Earning', value: '0', icon: <FaMoneyBillWave />, color: 'bg-[#40c78d]' },
-    ];
+  // Modal State for Adding/Updating Bank
+  const [isAddBankModalOpen, setIsAddBankModalOpen] = useState(false);
 
-    return (
-        <div className=" bg-[#F9FAFB] min-h-screen font-sans text-[#1e5a91]">
+  // Load Wallet Statistics and Ledger Logs
+  const loadWalletData = useCallback(async () => {
+    setLoading(true);
+    setFormError('');
+    try {
+      // 1. Fetch Balances and Mapped Settlement Account
+      if (typeof NurseVendorAPI?.getWalletStats !== 'function') {
+        setFormError("The 'getWalletStats' function is missing from your NurseAPI.js file. Please verify the file has been updated.");
+        return;
+      }
+
+      const statsRes = await NurseVendorAPI.getWalletStats();
+      if (statsRes?.success) {
+        setStats(statsRes);
+        
+        // Map the verified settlement account returned by API
+        if (statsRes.bankDetails) {
+          const mainBank = {
+            id: 'verified-primary',
+            holder: statsRes.bankDetails.accountHolderName,
+            accNo: statsRes.bankDetails.accountNumber,
+            bankName: statsRes.bankDetails.bankName,
+            ifsc: statsRes.bankDetails.ifscCode,
+            isVerified: statsRes.bankDetails.isVerified
+          };
+          setBankAccounts([mainBank]);
+          setSelectedBank('verified-primary');
+        } else {
+          setBankAccounts([]);
+        }
+      } else {
+        setFormError(statsRes?.message || "Failed to load wallet metrics.");
+      }
+
+      // 2. Fetch Transaction History Ledger
+      if (typeof NurseVendorAPI?.getWalletTransactions === 'function') {
+        const txRes = await NurseVendorAPI.getWalletTransactions();
+        if (txRes?.success) {
+          setTransactions(txRes.transactions || []);
+        } else {
+          setTransactions([]);
+        }
+      }
+
+    } catch (err) {
+      setFormError("An unexpected connection error occurred.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadWalletData();
+  }, [loadWalletData]);
+
+  // Filters transactions by tab selection (Credit or Debit)
+  const filteredTransactions = transactions.filter(trx => trx.type === activeTab);
+
+  // ==========================================
+  // HANDLERS
+  // ==========================================
+  const handleWithdraw = async (e) => {
+    e.preventDefault();
+    setFormError('');
+    setFormSuccess('');
+
+    const parsedAmount = parseFloat(withdrawAmount);
+
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      setFormError("Please enter a valid positive withdrawal amount.");
+      return;
+    }
+
+    if (!selectedBank) {
+      setFormError("Please map a verified bank destination.");
+      return;
+    }
+
+    // Spec [1.2.2] Limit Validation: Check requestedAmount <= withdrawableBalance
+    if (stats && parsedAmount > stats.withdrawableBalance) {
+      setFormError("You cannot withdraw more than your available cleared balance.");
+      return;
+    }
+
+    try {
+      if (typeof NurseVendorAPI?.requestWithdrawal !== 'function') {
+        setFormError("API method 'requestWithdrawal' is missing from NurseAPI.js.");
+        return;
+      }
+
+      setLoading(true);
+      const res = await NurseVendorAPI.requestWithdrawal(parsedAmount);
+      if (res?.success) {
+        setFormSuccess(res.message || "Withdrawal request submitted successfully. Waiting for admin manual payout approval.");
+        setWithdrawAmount('');
+        await loadWalletData(); // Reload stats
+      } else {
+        setFormError(res?.message || "Failed to submit withdrawal request.");
+      }
+    } catch (err) {
+      setFormError("An error occurred during submission.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddBank = (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const holder = form.elements[0].value;
+    const accNo = form.elements[1].value;
+    const bankName = form.elements[2].value;
+    const ifsc = form.elements[3].value;
+
+    const newBank = {
+      id: Date.now().toString(),
+      holder,
+      accNo: `XXXXXX${accNo.slice(-4)}`,
+      bankName,
+      ifsc,
+      isVerified: true
+    };
+
+    setBankAccounts([newBank]);
+    setSelectedBank(newBank.id);
+    setIsAddBankModalOpen(false);
+    alert("Settlement bank details assigned successfully!");
+  };
+
+  return (
+    <div className="w-full max-w-7xl mx-auto space-y-8 pb-10 min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
+      
+      {/* ========================================= */}
+      {/* 1. MY WALLET BALANCE GRID                 */}
+      {/* ========================================= */}
+      <section className="space-y-6">
+        <h2 className="text-2xl font-bold text-[#1e3a8a] flex items-center gap-2">
+          <FaWallet className="text-[#08B36A]"/> My Wallet Balances
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          {/* Card 1: Withdrawable Balance (Primary Action Card) [1.2.2] */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col justify-between">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs font-bold text-slate-400 tracking-wider uppercase">Withdrawable Balance</span>
+                <span className="bg-emerald-50 text-emerald-700 text-[10px] px-2.5 py-0.5 rounded-full font-bold">Ready</span>
+              </div>
+              <h3 className="text-3xl font-black text-slate-900 flex items-center gap-1">
+                <FaRupeeSign className="text-xl text-[#08B36A]"/> {stats?.withdrawableBalance?.toLocaleString('en-IN') || '0'}
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-2">Cleared earnings older than 7 days, adjusted for requested payouts.</p>
+            </div>
             
-            {/* --- SECTION 1: MY EARNINGS GRID --- */}
-            <div className="mb-10">
-                <h2 className="text-xl font-black mb-6 flex items-center gap-2">
-                    <FaMoneyBillWave className="text-[#08B36A]" /> My Earnings
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {earnings.map((item, idx) => (
-                        <div key={idx} className={`${item.color} p-6 rounded-[2rem] shadow-lg shadow-green-100 text-white relative overflow-hidden group`}>
-                            <div className="relative z-10">
-                                <p className="text-xs font-bold uppercase tracking-widest opacity-80 mb-1">{item.label}</p>
-                                <h3 className="text-3xl font-black">₹{item.value}</h3>
-                            </div>
-                            <div className="absolute right-[-10px] bottom-[-10px] text-white/10 text-7xl transition-transform group-hover:scale-110 duration-500">
-                                {item.icon}
-                            </div>
-                        </div>
-                    ))}
+            {/* Withdrawal Quick Form */}
+            <div className="bg-slate-50 px-6 py-4 border-t border-slate-100">
+              <form onSubmit={handleWithdraw} className="space-y-3">
+                <div className="flex gap-2">
+                  <div className="relative flex-grow">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">₹</span>
+                    <input 
+                      type="number" 
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      placeholder="Amount" 
+                      className="w-full pl-7 pr-3 py-1.5 bg-white rounded-lg border border-slate-200 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20 focus:border-[#08B36A] transition-all"
+                      required
+                    />
+                  </div>
+                  <button 
+                    type="submit"
+                    disabled={loading}
+                    className="px-4 py-1.5 bg-[#08B36A] hover:bg-green-600 text-white font-bold rounded-lg text-xs transition-all disabled:opacity-50"
+                  >
+                    Withdraw
+                  </button>
                 </div>
+                {formError && <p className="text-[10px] text-red-600 font-bold">{formError}</p>}
+                {formSuccess && <p className="text-[10px] text-emerald-600 font-bold">{formSuccess}</p>}
+              </form>
             </div>
+          </div>
 
-            {/* --- SECTION 2: MY WALLET & WITHDRAW --- */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-                {/* Wallet Balance Card */}
-                <div className="lg:col-span-1 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-[0_20px_50px_rgba(0,0,0,0.04)] flex flex-col justify-between">
-                    <div className="flex justify-between items-start mb-6">
-                        <div>
-                            <h2 className="text-lg font-black uppercase tracking-tight">My Wallet</h2>
-                            <p className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mt-1">Available Funds</p>
-                        </div>
-                        <div className="w-14 h-14 bg-green-50 text-[#08B36A] rounded-2xl flex items-center justify-center shadow-inner">
-                            <FaWallet size={28} />
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <div className="text-5xl font-black text-gray-800 flex items-center gap-1">
-                            <span className="text-2xl text-[#08B36A]">₹</span>180
-                        </div>
-                        <p className="text-xs text-gray-400 font-medium leading-relaxed mt-4">
-                            Your earnings are securely held. You can withdraw funds to your verified bank account at any time.
-                        </p>
-                    </div>
-                </div>
-
-                {/* Withdraw Form Card */}
-                <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-[0_20px_50px_rgba(0,0,0,0.04)]">
-                    <h3 className="text-sm font-black text-gray-700 uppercase tracking-widest mb-6 flex items-center gap-2">
-                        <FaArrowCircleDown className="text-[#08B36A]"/> Withdraw Money
-                    </h3>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label className="text-[11px] font-black text-gray-400 uppercase ml-1">Withdraw Amount 💸</label>
-                            <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-400 pl-4 text-sm">₹ </span>
-                                <input type="number" placeholder="  Enter Amount" className="w-full pl-8 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-bold text-sm" />
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-[11px] font-black text-gray-400 uppercase ml-1">Select Bank Account 🏦</label>
-                            <div className="flex gap-2">
-                                <select className="flex-1 p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-bold text-sm text-gray-500">
-                                    <option>Select Your Bank</option>
-                                </select>
-                                <button 
-                                    onClick={() => setIsAddBankModalOpen(true)}
-                                    className="bg-gray-800 hover:bg-black text-white px-6 rounded-2xl text-xs font-bold transition-all whitespace-nowrap active:scale-95"
-                                >
-                                    Add New
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <button className="mt-8 w-full md:w-auto px-12 py-4 bg-[#08B36A] hover:bg-[#069a5a] text-white font-black rounded-2xl shadow-lg shadow-green-100 transition-all active:scale-95 uppercase tracking-widest text-xs">
-                        Process Withdrawal
-                    </button>
-                </div>
+          {/* Card 2: Pending Balance (Locked 7-day period window with clock icon) [1.2.2] */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs font-bold text-slate-400 tracking-wider uppercase">Pending Balance</span>
+                <FaClock className="text-slate-400" size={14} />
+              </div>
+              <h3 className="text-3xl font-black text-slate-500 flex items-center gap-1">
+                <FaRupeeSign className="text-xl"/> {stats?.pendingBalance?.toLocaleString('en-IN') || '0'}
+              </h3>
             </div>
-
-            {/* --- SECTION 3: TABLES --- */}
-            <div className="space-y-10">
-                
-                {/* Bank Details Table */}
-                <div>
-                    <h2 className="text-lg font-black mb-4 flex items-center gap-2 px-2">
-                        <FaUniversity className="text-[#08B36A]" /> Bank Details
-                    </h2>
-                    <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-gray-50/80 border-b border-gray-100">
-                                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center whitespace-nowrap">Sr No.</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Account Holder</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Account Number</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Bank Name</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right whitespace-nowrap">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td colSpan="5" className="py-12 text-center">
-                                            <div className="flex flex-col items-center gap-2 opacity-30">
-                                                <FaUniversity size={40} />
-                                                <p className="text-sm font-bold uppercase tracking-widest">No Bank details found!</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Transaction Details Table */}
-                <div>
-                    <h2 className="text-lg font-black mb-4 flex items-center gap-2 px-2">
-                        <FaHistory className="text-[#08B36A]" /> Transaction History
-                    </h2>
-                    <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-gray-50/80 border-b border-gray-100">
-                                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center whitespace-nowrap">Sr No.</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Date</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Amount</th>
-                                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td colSpan="4" className="py-12 text-center">
-                                            <div className="flex flex-col items-center gap-2 opacity-30">
-                                                <FaRegClock size={40} />
-                                                <p className="text-sm font-bold uppercase tracking-widest">No Withdrawal requests found!</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+            <div className="border-t border-slate-100 pt-4 mt-4">
+              <p className="text-[11px] text-slate-400 font-semibold italic">
+                Unlocks after 7 days of order completion.
+              </p>
             </div>
+          </div>
 
-            {/* --- ADD BANK DETAILS MODAL --- */}
-            {isAddBankModalOpen && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-[#1e5a91]/20 backdrop-blur-sm animate-in fade-in duration-300 text-[#1e5a91]">
-                    <div className="bg-white w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in duration-300 border border-white">
-                        
-                        {/* Modal Header */}
-                        <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-white">
-                            <h2 className="text-xl font-black uppercase tracking-tight">Add Bank Details</h2>
-                            <button onClick={() => setIsAddBankModalOpen(false)} className="text-gray-300 hover:text-red-500 transition-all">
-                                <FaTimesCircle size={28} />
-                            </button>
-                        </div>
+          {/* Card 3: Total Balance */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs font-bold text-slate-400 tracking-wider uppercase">Total Balance</span>
+                <span className="bg-indigo-50 text-indigo-700 text-[10px] px-2 py-0.5 rounded font-bold">Cleared + Locked</span>
+              </div>
+              <h3 className="text-3xl font-black text-slate-900 flex items-center gap-1">
+                <FaRupeeSign className="text-xl text-indigo-600"/> {stats?.totalBalance?.toLocaleString('en-IN') || '0'}
+              </h3>
+            </div>
+            <div className="border-t border-slate-100 pt-4 mt-4 text-xs font-semibold text-slate-400 flex justify-between">
+              <span>Today: ₹{stats?.todayEarning || '0'}</span>
+              <span>Weekly: ₹{stats?.weeklyEarning || '0'}</span>
+            </div>
+          </div>
 
-                        {/* Modal Body */}
-                        <div className="p-8 space-y-5">
-                            
-                            {/* Account Holder Name */}
-                            <div className="space-y-2">
-                                <label className="text-[11px] font-black uppercase tracking-widest ml-1 flex items-center gap-2">
-                                    <FaUserEdit className="text-gray-400" /> Account Holder Name
-                                </label>
-                                <input 
-                                    type="text" 
-                                    placeholder="Enter full name" 
-                                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:ring-4 focus:ring-[#1e5a91]/10 focus:border-[#1e5a91] transition-all text-sm font-bold text-gray-700 placeholder:text-gray-300" 
-                                />
-                            </div>
-
-                            {/* Bank Account Number */}
-                            <div className="space-y-2">
-                                <label className="text-[11px] font-black uppercase tracking-widest ml-1 flex items-center gap-2">
-                                    <FaHashtag className="text-gray-400" /> Bank Account Number
-                                </label>
-                                <input 
-                                    type="text" 
-                                    placeholder="Enter account number" 
-                                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:ring-4 focus:ring-[#1e5a91]/10 focus:border-[#1e5a91] transition-all text-sm font-bold text-gray-700 placeholder:text-gray-300" 
-                                />
-                            </div>
-
-                            {/* Bank Name */}
-                            <div className="space-y-2">
-                                <label className="text-[11px] font-black uppercase tracking-widest ml-1 flex items-center gap-2">
-                                    <FaUniversity className="text-gray-400" /> Bank Name
-                                </label>
-                                <input 
-                                    type="text" 
-                                    placeholder="e.g. HDFC Bank" 
-                                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:ring-4 focus:ring-[#1e5a91]/10 focus:border-[#1e5a91] transition-all text-sm font-bold text-gray-700 placeholder:text-gray-300" 
-                                />
-                            </div>
-
-                            {/* Bank IFSC Code */}
-                            <div className="space-y-2">
-                                <label className="text-[11px] font-black uppercase tracking-widest ml-1 flex items-center gap-2">
-                                    <FaKey className="text-gray-400" /> Bank IFSC Code
-                                </label>
-                                <input 
-                                    type="text" 
-                                    placeholder="Enter IFSC code" 
-                                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:ring-4 focus:ring-[#1e5a91]/10 focus:border-[#1e5a91] transition-all text-sm font-bold text-gray-700 placeholder:text-gray-300 uppercase" 
-                                />
-                            </div>
-
-                            {/* Submit Button */}
-                            <div className="pt-4">
-                                <button className="w-full bg-[#1e5a91] hover:bg-[#164a77] text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-100 transition-all active:scale-[0.98] uppercase tracking-widest text-xs">
-                                    Add Bank Detail
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
-    )
+      </section>
+
+      {/* ========================================= */}
+      {/* 2. BANK SETTINGS & TRANSACTION LOGS       */}
+      {/* ========================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Settlement Bank Details Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 h-fit">
+          <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
+            <h3 className="font-bold text-slate-900 text-sm">Settlement Account</h3>
+            <button 
+              onClick={() => setIsAddBankModalOpen(true)}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1"
+            >
+              Update
+            </button>
+          </div>
+          {bankAccounts.length > 0 ? (
+            <div className="space-y-3 text-xs font-semibold">
+              <div className="flex justify-between"><span className="text-slate-400">Holder Name:</span><span className="text-slate-700">{bankAccounts[0].holder}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Account Number:</span><span className="text-slate-700 font-mono">{bankAccounts[0].accNo}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Bank Destination:</span><span className="text-slate-700">{bankAccounts[0].bankName}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">IFSC Code:</span><span className="text-slate-700 font-mono uppercase">{bankAccounts[0].ifsc}</span></div>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400">No settlement account mapped. Please update details.</p>
+          )}
+        </div>
+
+        {/* Transaction History Ledger */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm lg:col-span-2 space-y-4">
+          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+            <h3 className="font-bold text-slate-900 text-sm">Ledger Audit History</h3>
+            
+            {/* Filter Tabs */}
+            <div className="flex gap-1 bg-slate-50 p-1 rounded-lg border border-slate-100">
+              {['Credit', 'Debit'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-4 py-1 rounded text-[11px] font-bold transition-all ${
+                    activeTab === tab 
+                      ? 'bg-[#08B36A] text-white shadow-sm' 
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {tab === 'Credit' ? <FaArrowDown className="inline mr-1" /> : <FaArrowUp className="inline mr-1" />}
+                  {tab}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="max-h-[220px] overflow-y-auto divide-y divide-slate-100 pr-2">
+            {filteredTransactions.length > 0 ? (
+              filteredTransactions.map((trx, idx) => (
+                <div key={trx._id || idx} className="py-2.5 flex justify-between items-center text-xs font-semibold">
+                  <div className="space-y-1">
+                    <p className="text-slate-800 font-bold">{trx.remark || "Settlement Transaction"}</p>
+                    <p className="text-[10px] text-slate-400">{new Date(trx.date).toLocaleDateString('en-IN')}</p>
+                  </div>
+                  {/* Spec [1.2.2] Color and positive/negative indicators mapping */}
+                  <span className={`text-sm font-extrabold ${trx.type === 'Credit' ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {trx.type === 'Credit' ? `+ ₹${trx.amount}` : `- ₹${trx.amount}`}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-slate-400 text-center py-8">No {activeTab} history logs recorded.</p>
+            )}
+          </div>
+        </div>
+
+      </div>
+
+      {/* ========================================= */}
+      {/* 🌟 UPDATE BANK ACCOUNT MODAL 🌟           */}
+      {/* ========================================= */}
+      {isAddBankModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsAddBankModalOpen(false)}></div>
+          
+          <div className="relative bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl animate-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-[#1e3a8a] flex items-center gap-2">
+                <FaUniversity className="text-[#08B36A]" /> Update Bank Details
+              </h3>
+              <button onClick={() => setIsAddBankModalOpen(false)} className="text-gray-400 hover:text-red-500 transition-colors">
+                <FaTimes size={20}/>
+              </button>
+            </div>
+
+            <form onSubmit={handleAddBank} className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Account Holder Name</label>
+                <input type="text" placeholder="John Doe" className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" required />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Account Number</label>
+                <input type="text" placeholder="XXXXXXXXX1234" className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" required />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Bank Name</label>
+                  <input type="text" placeholder="HDFC Bank" className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">IFSC Code</label>
+                  <input type="text" placeholder="HDFC0001234" className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] uppercase transition-all" required />
+                </div>
+              </div>
+
+              <button type="submit" className="w-full mt-4 py-3 bg-[#08B36A] hover:bg-green-600 text-white font-bold rounded-xl shadow-md transition-all">
+                Save Bank Details
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
 }

@@ -83,6 +83,184 @@ export default function HospitalHistory() {
     });
   };
 
+  // Dedicated Print-Engine Handler
+  const handlePrint = (record) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const modalUser = record.userId && typeof record.userId === 'object' ? record.userId : {};
+    const modalDoctor = record.doctorId && typeof record.doctorId === 'object' ? record.doctorId : null;
+    const bed = record.bedId && typeof record.bedId === 'object' ? record.bedId : null;
+
+    const specialServicesHtml = record.specialServices && record.specialServices.length > 0 
+      ? record.specialServices.map(s => `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span>${s.serviceName}</span>
+            <strong>₹${s.price}</strong>
+          </div>
+        `).join('')
+      : '<p style="font-style: italic; color: #94a3b8; margin: 0;">No extra services registered.</p>';
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Case Dossier - ${record.bookingId || 'N/A'}</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #1e293b; padding: 40px; line-height: 1.5; }
+          .header { border-bottom: 2px solid #08B36A; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
+          .title { margin: 0; font-size: 24px; font-weight: 900; }
+          .sub { color: #64748b; font-size: 12px; margin-top: 5px; font-weight: bold; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
+          .card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; }
+          .card-title { font-size: 11px; font-weight: bold; color: #08B36A; text-transform: uppercase; margin-top: 0; margin-bottom: 12px; letter-spacing: 0.05em; }
+          .info-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+          .info-table td { padding: 12px; border: 1px solid #e2e8f0; font-size: 13px; }
+          .info-table th { background: #f8fafc; padding: 12px; border: 1px solid #e2e8f0; text-align: left; font-size: 11px; text-transform: uppercase; color: #64748b; }
+          .section-title { font-size: 12px; font-weight: bold; color: #08B36A; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+          .amount { font-size: 18px; color: #08B36A; font-weight: 900; }
+          @media print {
+            body { padding: 0; }
+            button { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <h1 class="title">CASE DOSSIER</h1>
+            <div class="sub">Booking ID: ${record.bookingId || 'N/A'} | Type: ${record.bookingType || 'Consultation'}</div>
+          </div>
+          <div style="text-align: right; font-size: 12px; color: #64748b; font-weight: bold;">
+            Printed On: ${new Date().toLocaleDateString('en-GB')}
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <h3 class="card-title">Primary Patient Details</h3>
+            <strong style="font-size: 16px; color: #0f172a;">${record.patients?.[0]?.patientName || record.userId?.name || 'N/A'}</strong>
+            <p style="margin: 6px 0 0 0; font-size: 13px; color: #475569;">Age: ${record.patients?.[0]?.patientAge || 'N/A'} | Gender: ${record.patients?.[0]?.gender || 'N/A'}</p>
+            <p style="margin: 12px 0 0 0; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 8px;">Booked by: ${modalUser.name || 'N/A'} (${modalUser.phone || 'N/A'})</p>
+          </div>
+          <div class="card">
+            <h3 class="card-title">Attending Physician</h3>
+            ${modalDoctor ? `
+              <strong style="font-size: 16px; color: #0f172a;">${modalDoctor.name || 'N/A'}</strong>
+              <p style="margin: 6px 0 0 0; font-size: 13px; color: #475569;">${modalDoctor.speciality || 'General Medicine'}</p>
+              <p style="margin: 12px 0 0 0; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 8px;">Credentials: ${modalDoctor.qualification || 'N/A'}</p>
+            ` : '<p style="color: #64748b; font-style: italic; font-size: 13px; margin: 0;">No clinical doctor assigned.</p>'}
+          </div>
+        </div>
+
+        <table class="info-table">
+          <thead>
+            <tr>
+              <th>Ward & Bed Info</th>
+              <th>Stay Timeline</th>
+              <th>Duration of Stay</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>${record.wardName || 'N/A'}</strong> - Bed: ${record.bedNumber || 'N/A'} (Type: ${record.bedBookingType || 'Standard'})</td>
+              <td>${formatDate(record.appointmentDate || record.startDate)} to ${formatDate(record.endDate)}</td>
+              <td><strong>${record.stayDuration || 0} Days</strong></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="grid">
+          <div>
+            <h4 class="section-title">Diagnostics & Manifestations</h4>
+            <div style="margin-bottom: 12px; font-size: 13px;">
+              <span style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: bold; display: block;">Chief Complaint</span>
+              <p style="margin: 4px 0 0 0; font-weight: 600;">${record.clinicalSummary?.chiefComplaint || 'No complaints registered.'}</p>
+            </div>
+            <div style="margin-bottom: 12px; font-size: 13px;">
+              <span style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: bold; display: block;">Diagnosis</span>
+              <p style="margin: 4px 0 0 0; font-weight: bold;">${record.clinicalSummary?.diagnosis || 'Pending clinical diagnosis.'}</p>
+            </div>
+            <div style="margin-bottom: 12px; font-size: 13px;">
+              <span style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: bold; display: block;">Investigation Notes</span>
+              <p style="margin: 4px 0 0 0; font-weight: 600;">${record.clinicalSummary?.investigation || 'No specific diagnostic investigation found.'}</p>
+            </div>
+          </div>
+          <div>
+            <h4 class="section-title">Clinical Notes & Result</h4>
+            <div style="margin-bottom: 12px; font-size: 13px;">
+              <span style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: bold; display: block;">Treatment Result</span>
+              <p style="margin: 4px 0 0 0; font-weight: 600;">${record.clinicalSummary?.treatmentResult || 'No registered summary.'}</p>
+            </div>
+            <div style="margin-bottom: 12px; font-size: 13px;">
+              <span style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: bold; display: block;">Admission Note</span>
+              <p style="margin: 4px 0 0 0; font-weight: 600;">${record.clinicalSummary?.admissionNote || 'No special admission details provided.'}</p>
+            </div>
+            <div style="margin-bottom: 12px; font-size: 13px;">
+              <span style="color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: bold; display: block;">Discharge Note</span>
+              <p style="margin: 4px 0 0 0; font-weight: 600;">${record.clinicalSummary?.dischargeNote || 'No discharge notes provided.'}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div>
+            <h4 class="section-title">Special Services Used</h4>
+            <div style="font-size: 13px;">${specialServicesHtml}</div>
+          </div>
+          <div>
+            <h4 class="section-title">Billing Ledger</h4>
+            ${record.pricingBreakdown ? `
+              <div style="font-size: 13px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #475569;">
+                  <span>Base Bed Fee:</span>
+                  <span>₹${record.pricingBreakdown.baseFee}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #475569;">
+                  <span>Doctor Visit Charges:</span>
+                  <span>₹${record.pricingBreakdown.visitCharges}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #475569;">
+                  <span>Extra Charges:</span>
+                  <span>₹${record.pricingBreakdown.extraCharges}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: #ef4444; font-weight: bold;">
+                  <span>Discount Applied:</span>
+                  <span>-₹${record.pricingBreakdown.discountAmount}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-weight: 950; font-size: 15px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+                  <span>Total Paid (INR):</span>
+                  <span class="amount">₹${record.totalAmount}</span>
+                </div>
+                <div style="text-align: right; margin-top: 10px;">
+                  <span style="font-size: 10px; font-weight: bold; color: #08B36A; border: 1px solid #08B36A; padding: 3px 8px; border-radius: 6px; text-transform: uppercase;">Payment: ${record.paymentStatus || 'N/A'}</span>
+                </div>
+              </div>
+            ` : `
+              <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 15px; padding-top: 12px;">
+                <span>Total Invoice Sum:</span>
+                <span class="amount">₹${record.totalAmount || 0}</span>
+              </div>
+            `}
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+            window.onafterprint = function() {
+              window.close();
+            };
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   return (
     <div className="p-6 md:p-10 bg-[#F8FAFC] min-h-screen text-slate-800 font-sans antialiased selection:bg-[#08B36A]/20">
       
@@ -485,7 +663,10 @@ export default function HospitalHistory() {
 
               {/* Modal Footer */}
               <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
-                <button className="flex-1 bg-slate-900 text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-black transition-all">
+                <button 
+                  onClick={() => handlePrint(selectedRecord)}
+                  className="flex-1 bg-slate-900 text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-black transition-all"
+                >
                   <FaPrint /> Print Case File
                 </button>
                 <button

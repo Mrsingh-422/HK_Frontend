@@ -3,9 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
     FaBuilding, FaMapMarkerAlt, FaFlask, FaCamera, FaFileUpload, 
-    FaSave, FaGlobe, FaShieldAlt, FaClock, FaTimes, FaInfoCircle, FaCheckCircle 
+    FaSave, FaGlobe, FaShieldAlt, FaClock, FaTimes, FaInfoCircle, 
+    FaCheckCircle 
 } from 'react-icons/fa';
-import { toast } from 'react-hot-toast';
+import { toast, Toaster } from 'react-hot-toast';
 import LabVendorAPI from '@/app/services/LabVendorAPI';
 import { useUserContext } from '@/app/context/UserContext';
 
@@ -24,7 +25,7 @@ export default function LabProfile() {
     // Insurance Master List State
     const [insuranceMasterList, setInsuranceMasterList] = useState([]);
 
-    // All fields from API response included
+    // Profile Details State (Bank details completely removed)
     const [profile, setProfile] = useState({
         name: '',
         about: '',
@@ -41,7 +42,7 @@ export default function LabProfile() {
         acceptedInsurances: '', 
         timingLabel: '',
         gstNumber: '', 
-        drugLicenseType: 'Retail', 
+        drugLicenseType: 'Retail'
     });
 
     // States for image previews
@@ -188,9 +189,7 @@ export default function LabProfile() {
         }
     };
 
-    // Updated logic to only allow ONE insurance selection
     const handleInsuranceToggle = (insuranceName) => {
-        // Just set the name directly for single selection
         setProfile(prev => ({ ...prev, acceptedInsurances: insuranceName }));
     };
 
@@ -240,10 +239,12 @@ export default function LabProfile() {
             const res = await LabVendorAPI.updateLabProfile(formData);
             if (res.success) {
                 toast.success("Profile updated successfully!");
+            } else {
+                toast.error(res.message || "Failed to update profile.");
             }
         } catch (err) {
             console.error(err);
-            toast.error("Update failed");
+            toast.error("An error occurred during update.");
         } finally {
             setLoading(false);
         }
@@ -253,6 +254,7 @@ export default function LabProfile() {
 
     return (
         <div className="min-h-screen bg-gray-50/50 p-4 md:p-8">
+            <Toaster position="top-right" /> 
             <div className="max-w-6xl mx-auto">
                 <form onSubmit={handleSubmit} className="space-y-6">
                     
@@ -323,6 +325,8 @@ export default function LabProfile() {
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <div className="lg:col-span-2 space-y-6">
+                            
+                            {/* General Information */}
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                                 <h3 className="text-lg font-bold text-[#1e3a8a] mb-6 flex items-center gap-2">
                                     <FaBuilding className="text-[#08B36A]" /> General Information
@@ -368,6 +372,7 @@ export default function LabProfile() {
                                 </div>
                             </div>
 
+                            {/* Location Details */}
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                                 <h3 className="text-lg font-bold text-[#1e3a8a] mb-6 flex items-center gap-2">
                                     <FaMapMarkerAlt className="text-[#08B36A]" /> Location Details
@@ -383,6 +388,7 @@ export default function LabProfile() {
                                     </div>
                                 </div>
                             </div>
+
                         </div>
 
                         <div className="space-y-6">
