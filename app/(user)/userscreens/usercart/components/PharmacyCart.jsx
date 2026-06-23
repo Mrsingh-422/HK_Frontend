@@ -2,7 +2,12 @@
 
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaPills, FaSpinner, FaTruck, FaFilePrescription, FaPrescriptionBottleAlt, FaMinus, FaPlus, FaClock, FaCalendarAlt, FaChevronRight, FaCamera, FaTrash, FaCheckCircle, FaStore, FaShieldAlt, FaGift } from 'react-icons/fa';
+import {
+    FaPills, FaSpinner, FaTruck, FaFilePrescription,
+    FaPrescriptionBottleAlt, FaMinus, FaPlus, FaClock,
+    FaCalendarAlt, FaChevronRight, FaCamera, FaTrash,
+    FaCheckCircle, FaStore, FaShieldAlt, FaGift, FaTimes
+} from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
 import UserAPI from '@/app/services/UserAPI';
@@ -54,8 +59,9 @@ const PharmacyCart = () => {
     const [deliveryChargesConfig, setDeliveryChargesConfig] = useState(null);
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
 
-    // Prescription State
+    // Prescription & Zoom States
     const [prescriptionFiles, setPrescriptionFiles] = useState([]);
+    const [zoomedImage, setZoomedImage] = useState(null);
 
     const pharmacyItems = useMemo(() => pharmacyCart?.items || [], [pharmacyCart]);
     const pharmacyId = useMemo(() => pharmacyCart?.pharmacyId?._id || pharmacyCart?.pharmacyId, [pharmacyCart]);
@@ -405,6 +411,20 @@ const PharmacyCart = () => {
                                 <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">1</span>
                                 Review Items ({pharmacyItems.length})
                             </h2>
+
+                            {/* ADD MORE MEDICINES BUTTON */}
+                            {pharmacyId && (
+                                <div className="flex justify-between items-center bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                                    <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Need to add more?</span>
+                                    <button
+                                        onClick={() => router.push(`/buymedicine/singlepharmacydetail/${pharmacyId}`)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl font-bold text-xs uppercase tracking-wider transition hover:bg-emerald-100 active:scale-95 shadow-sm"
+                                    >
+                                        + Add More Medicines
+                                    </button>
+                                </div>
+                            )}
+
                             <div className="space-y-3">
                                 {pharmacyItems.map((item) => (
                                     <div key={item._id} className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col shadow-sm hover:shadow-md transition-shadow">
@@ -474,9 +494,22 @@ const PharmacyCart = () => {
                                                     {prescriptionFiles.map((file, idx) => (
                                                         <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-emerald-500 group">
                                                             <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" />
-                                                            <button onClick={() => removeFile(idx)} className="absolute inset-0 bg-rose-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <FaTrash size={12} />
-                                                            </button>
+                                                            <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <button
+                                                                    onClick={() => setZoomedImage(URL.createObjectURL(file))}
+                                                                    className="p-1.5 bg-white/20 text-white hover:bg-white/35 rounded-lg transition"
+                                                                    title="Zoom"
+                                                                >
+                                                                    <FaCamera size={10} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => removeFile(idx)}
+                                                                    className="p-1.5 bg-rose-500/80 text-white hover:bg-rose-600 rounded-lg transition"
+                                                                    title="Delete"
+                                                                >
+                                                                    <FaTrash size={10} />
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -537,6 +570,29 @@ const PharmacyCart = () => {
                     setIsSlotModalOpen(false);
                 }}
             />
+
+            {/* LIGHTBOX / ZOOMED PRESCRIPTION MODAL */}
+            {zoomedImage && (
+                <div
+                    className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in duration-200 cursor-pointer"
+                    onClick={() => setZoomedImage(null)}
+                >
+                    <div className="relative max-w-4xl max-h-[85vh] w-full h-full flex items-center justify-center">
+                        <button
+                            onClick={() => setZoomedImage(null)}
+                            className="absolute top-4 right-4 z-50 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+                        >
+                            <FaTimes size={20} />
+                        </button>
+                        <img
+                            src={zoomedImage}
+                            className="max-w-full max-h-full object-contain rounded-2xl animate-in zoom-in-95 duration-200"
+                            alt="Zoomed Prescription"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

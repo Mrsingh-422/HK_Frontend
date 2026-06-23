@@ -54,6 +54,9 @@ function ProductDetailPage() {
     const [showConflictModal, setShowConflictModal] = useState(false);
     const [pendingVendor, setPendingVendor] = useState(null);
 
+    // Lightbox State
+    const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
     const cartProduct = pharmacyCart?.items?.find(item =>
         (item.medicineId?._id === id || item.medicineId === id)
     );
@@ -167,7 +170,10 @@ function ProductDetailPage() {
                     quantity,
                     "Full Course"
                 );
-                toast.success(`Added to cart from ${vendor.name}`);
+                // toast.success(`Added to cart from ${vendor.name}`);
+                CostoumPopup("Test added to cart", "success", 3000);
+                router.push("/userscreens/usercart");
+
             }
         } catch (error) {
             console.error("Cart Error:", error);
@@ -258,7 +264,12 @@ function ProductDetailPage() {
                     <div className="lg:col-span-5">
                         <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-8 sticky top-20">
                             <div className="relative aspect-square bg-slate-50 rounded-xl flex items-center justify-center overflow-hidden">
-                                <img src={FALLBACK_IMAGE} alt={product.name} className="w-4/5 h-4/5 object-contain" />
+                                <img
+                                    src={FALLBACK_IMAGE}
+                                    alt={product.name}
+                                    onClick={() => setIsLightboxOpen(true)}
+                                    className="w-4/5 h-4/5 object-contain cursor-zoom-in transition-opacity hover:opacity-90"
+                                />
                                 <div className="absolute top-3 left-3 flex flex-col gap-2">
                                     {product.prescription_required === "YES" && (
                                         <span className="bg-red-50 text-red-600 text-[10px] font-bold px-2 py-1 rounded border border-red-100 flex items-center gap-1">
@@ -415,25 +426,37 @@ function ProductDetailPage() {
                         {activeTab === 'safety advice' && (
                             <div className="max-w-3xl space-y-6">
                                 <div className="bg-red-50 p-6 rounded-xl border border-red-100">
-                                    <h4 className="text-xs font-bold text-red-700 uppercase mb-2">Side Effects</h4>
-                                    <p className="text-lg font-bold text-red-900 mb-2">{product.side_effect}</p>
-                                    <p className="text-xs text-red-700 italic">Management: {product.how_crop_side_effects}</p>
-                                </div>
-                                <div className="p-6 bg-blue-50 rounded-xl border border-blue-100">
-                                    <h4 className="text-xs font-bold text-blue-700 uppercase mb-2">Safety Advice</h4>
-                                    <p className="text-sm font-medium text-blue-900 leading-relaxed italic">{product.safety_advise}</p>
+                                    <h4 className="text-xs font-bold text-red-700 uppercase mb-2">Safety Advice</h4>
+                                    <p className="text-slate-600 leading-relaxed text-sm">{product.safety_advice || "Please consult your doctor before using this medicine."}</p>
                                 </div>
                             </div>
                         )}
                     </div>
-
-                    <div className="bg-slate-50 p-6 border-t border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <TrustCard icon={<Truck size={18} className="text-emerald-500" />} title="Quick Delivery" desc="Within 24-48 hours" />
-                        <TrustCard icon={<ShieldCheck size={18} className="text-emerald-500" />} title="Genuine Only" desc="100% Authentic" />
-                        <TrustCard icon={<RotateCcw size={18} className="text-emerald-500" />} title="Easy Returns" desc="7-Day Window" />
-                    </div>
                 </div>
             </main>
+
+            {/* LIGHTBOX / FULL SCREEN MODAL */}
+            {isLightboxOpen && (
+                <div
+                    className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200 cursor-pointer"
+                    onClick={() => setIsLightboxOpen(false)}
+                >
+                    <div className="relative max-w-4xl max-h-[85vh] w-full h-full flex items-center justify-center">
+                        <button
+                            onClick={() => setIsLightboxOpen(false)}
+                            className="absolute top-4 right-4 z-50 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+                        >
+                            <X size={24} />
+                        </button>
+                        <img
+                            src={FALLBACK_IMAGE}
+                            className="max-w-full max-h-full object-contain rounded-2xl animate-in zoom-in-95 duration-200 cursor-default"
+                            alt={product.name}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

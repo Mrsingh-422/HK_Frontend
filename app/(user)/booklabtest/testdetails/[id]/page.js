@@ -81,7 +81,8 @@ export default function TestDetailPage() {
             setShowConflictModal(false);
             // Call addItem with forceReplace = true
             await addItem(selectedLab.labId, selectedLab.labTestId, 'LabTest', true);
-            toast.success("Cart updated successfully");
+            CostoumPopup("Cart updated successfully", "success", 3000);
+            router.push("/userscreens/usercart");
         } catch (error) {
             toast.error("Failed to update cart");
         } finally {
@@ -130,6 +131,8 @@ export default function TestDetailPage() {
             try {
                 setIsProcessing(true);
                 await addItem(selectedLab.labId, selectedLab.labTestId, 'LabTest');
+                CostoumPopup("Test added to cart", "success", 3000);
+                router.push("/userscreens/usercart");
             } catch (error) {
                 console.error("Cart Add Error", error);
             } finally {

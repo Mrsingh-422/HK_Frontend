@@ -126,6 +126,8 @@ export default function PackageDetailPage() {
             try {
                 setIsProcessing(true);
                 await addItem(selectedLab.labId, selectedLab.labPackageId, 'LabPackage');
+                CostoumPopup("Package added to cart", "success", 3000);
+                router.push("/userscreens/usercart");
             } catch (error) {
                 console.error("Cart Add Error", error);
             } finally {

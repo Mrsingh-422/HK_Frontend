@@ -469,6 +469,19 @@ const LabCart = () => {
                             </div>
                         )}
 
+                        {/* ADD MORE TESTS BUTTON */}
+                        {currentLabId && (
+                            <div className="flex justify-between items-center bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                                <span className="text-xs font-black text-gray-500 uppercase tracking-widest">Need to add more?</span>
+                                <button
+                                    onClick={() => router.push(`/booklabtest/singlelabdetail/${currentLabId}`)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl font-bold text-xs uppercase tracking-wider transition hover:bg-emerald-100 active:scale-95 shadow-sm"
+                                >
+                                    + Add More Tests / Packages
+                                </button>
+                            </div>
+                        )}
+
                         {labItems.map((item) => (
                             <div key={item._id} className="bg-white border border-gray-200 rounded-xl p-5 flex items-center gap-5 shadow-sm">
                                 <div className="w-16 h-16 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600 flex-shrink-0"><FaPrescriptionBottleAlt size={24} /></div>
