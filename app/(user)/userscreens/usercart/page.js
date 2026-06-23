@@ -25,7 +25,7 @@ const CartPage = () => {
                 // Delay the redirect so the user can see the message
                 setTimeout(() => {
                     router.push('/');
-                }, 3000);
+                }, 1500);
             } else {
                 setIsAuthorized(true);
                 setIsLoading(false);

@@ -277,7 +277,7 @@ const PharmacyCart = () => {
                 slotCharge: totals.slotFee,
                 couponDiscount: totals.discount,
                 couponId: appliedCouponName || null,
-                tax: totals.tax, 
+                tax: totals.tax,
                 comboSavings: totals.comboSavings,
                 totalAmount: totals.total
             };
@@ -417,7 +417,7 @@ const PharmacyCart = () => {
                                                     <div>
                                                         <h3 className="font-bold text-slate-900 text-md leading-tight">{item.name}</h3>
                                                         <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter mt-1">{item.medicineId?.manufacturers}</p>
-                                                        
+
                                                         {/* BOGO Promo badge mapping active metadata keys */}
                                                         {item.isComboApplied && (
                                                             <span className="inline-flex items-center gap-1 text-emerald-600 bg-emerald-50 text-[9px] font-black uppercase px-2 py-0.5 rounded border border-emerald-100 mt-1">
