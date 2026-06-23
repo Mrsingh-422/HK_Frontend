@@ -12,6 +12,7 @@ import {
 import toast from "react-hot-toast";
 import UserAPI from "@/app/services/UserAPI";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import CostoumPopup from "@/lib/CostoumPopup";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -77,7 +78,7 @@ export default function CheckoutPage() {
     useEffect(() => {
         const token = localStorage.getItem('userToken');
         if (!token) {
-            toast.error("Please login to continue");
+            CostoumPopup("Please Login To Continue", "warning", 4000);
             router.push('/hospital');
             // openModal("login")
             return;

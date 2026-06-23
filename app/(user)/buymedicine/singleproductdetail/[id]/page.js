@@ -26,6 +26,7 @@ import {
 import UserAPI from '@/app/services/UserAPI';
 import { useCart } from '@/app/context/CartContext';
 import { toast } from 'react-hot-toast';
+import CostoumPopup from '@/lib/CostoumPopup';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5002";
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=800&auto=format&fit=crop";
@@ -131,7 +132,7 @@ function ProductDetailPage() {
     const handleCartAction = async (selectedVendor = null) => {
         const token = localStorage.getItem('userToken');
         if (!token) {
-            toast.error("Please login to add items to cart");
+            CostoumPopup("Please Login To Continue", "warning", 4000);
             router.push('/');
             return;
         }

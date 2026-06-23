@@ -11,6 +11,7 @@ import {
 import { useCart } from "@/app/context/CartContext";
 import toast from "react-hot-toast";
 import UserAPI from "@/app/services/UserAPI";
+import CostoumPopup from "@/lib/CostoumPopup";
 
 export default function PackageDetailPage() {
     const { id } = useParams();
@@ -90,7 +91,7 @@ export default function PackageDetailPage() {
         // Check if user is logged in (checking for userToken in localStorage)
         const token = typeof window !== "undefined" ? localStorage.getItem("userToken") : null;
         if (!token) {
-            toast.error("Please login to continue");
+            CostoumPopup("Please Login To Continue", "warning", 4000);
             return;
         }
 

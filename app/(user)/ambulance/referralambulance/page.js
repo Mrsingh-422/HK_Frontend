@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import UserAPI from "@/app/services/UserAPI";
 import toast from 'react-hot-toast';
 import { useGlobalContext } from '@/app/context/GlobalContext';
+import CostoumPopup from '@/lib/CostoumPopup';
 
 export default function ReferralBookingPage() {
   const router = useRouter();
@@ -59,7 +60,7 @@ export default function ReferralBookingPage() {
   useEffect(() => {
     const token = localStorage.getItem('userToken');
     if (!token) {
-      toast.error("Please login to continue");
+      CostoumPopup("Please Login To Continue", "warning", 4000);
       router.push('/ambulance');
       // openModal("login")
       return;
