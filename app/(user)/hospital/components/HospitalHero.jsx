@@ -145,25 +145,21 @@ const HospitalHero = () => {
                                 icon={<Calendar className="w-5 h-5 md:w-6 md:h-6" />}
                                 title="Book Appointment"
                                 color="bg-emerald-500"
-                                onClick={() => router.push('/userscreens/hospitalappointment')}
                             />
                             <QuickActionCard
                                 icon={<Stethoscope className="w-5 h-5 md:w-6 md:h-6" />}
                                 title="Find Specialist"
                                 color="bg-blue-500"
-                                onClick={() => router.push('/userscreens/doctorappointment')}
                             />
                             <QuickActionCard
                                 icon={<FlaskConical className="w-5 h-5 md:w-6 md:h-6" />}
                                 title="Lab Tests"
                                 color="bg-amber-500"
-                                onClick={() => router.push('/booklabtest')}
                             />
                             <QuickActionCard
                                 icon={<Truck className="w-5 h-5 md:w-6 md:h-6" />}
                                 title="Buy Medicine"
                                 color="bg-slate-900"
-                                onClick={() => router.push('/buymedicine')}
                             />
                         </div>
 

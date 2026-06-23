@@ -18,6 +18,7 @@ const getToastContainer = () => {
     if (!container) {
         container = document.createElement("div");
         container.id = "custom-toast-stack-container";
+        // Fixed container setup to stack nicely and allow clicks underneath
         container.className = "fixed top-6 right-6 z-[9999] flex flex-col gap-3 w-full max-w-sm pointer-events-none";
         document.body.appendChild(container);
     }
@@ -31,8 +32,7 @@ function ToastComponent({ message, type, duration, onClose }) {
     useEffect(() => {
         const timer = setTimeout(() => {
             setIsRendered(false);
-            // Allow transition animation to finish before removing from DOM
-            setTimeout(onClose, 300);
+            setTimeout(onClose, 300); // Wait for fade-out animation
         }, duration);
 
         return () => clearTimeout(timer);
@@ -40,30 +40,26 @@ function ToastComponent({ message, type, duration, onClose }) {
 
     const typeConfigs = {
         success: {
-            bgColor: "bg-emerald-50",
-            borderColor: "border-emerald-200",
-            textColor: "text-emerald-800",
+            accentColor: "bg-emerald-500",
+            textColor: "text-slate-800",
             iconColor: "text-emerald-500",
             icon: <FaCheckCircle className="size-5" />
         },
         error: {
-            bgColor: "bg-rose-50",
-            borderColor: "border-rose-200",
-            textColor: "text-rose-800",
+            accentColor: "bg-rose-500",
+            textColor: "text-slate-800",
             iconColor: "text-rose-500",
             icon: <FaExclamationCircle className="size-5" />
         },
         warning: {
-            bgColor: "bg-amber-50",
-            borderColor: "border-amber-200",
-            textColor: "text-amber-800",
+            accentColor: "bg-amber-500",
+            textColor: "text-slate-800",
             iconColor: "text-amber-500",
             icon: <FaExclamationTriangle className="size-5" />
         },
         info: {
-            bgColor: "bg-blue-50",
-            borderColor: "border-blue-200",
-            textColor: "text-blue-800",
+            accentColor: "bg-blue-500",
+            textColor: "text-slate-800",
             iconColor: "text-blue-500",
             icon: <FaInfoCircle className="size-5" />
         }
@@ -71,44 +67,52 @@ function ToastComponent({ message, type, duration, onClose }) {
 
     const config = typeConfigs[type] || typeConfigs.success;
 
+    const handleDismiss = () => {
+        setIsRendered(false);
+        setTimeout(onClose, 300);
+    };
+
     return (
         <div
-            className={`max-w-sm w-full pointer-events-auto transition-all duration-300 ease-out transform ${isRendered ? "translate-x-0 opacity-100 scale-100" : "translate-x-10 opacity-0 scale-95"
+            className={`max-w-sm w-full pointer-events-auto transition-all duration-300 cubic-bezier(0.16, 1, 0.3, 1) transform ${isRendered
+                    ? "translate-x-0 opacity-100 scale-100"
+                    : "translate-x-12 opacity-0 scale-95"
                 }`}
         >
-            <div className={`flex items-start gap-3 p-4 rounded-2xl border ${config.bgColor} ${config.borderColor} bg-white shadow-xl shadow-slate-200/40 relative overflow-hidden`}>
+            {/* Glassmorphism Card Wrapper */}
+            <div className="flex items-start gap-3.5 p-4 rounded-2xl border border-white/40 bg-white/75 backdrop-blur-md shadow-lg shadow-slate-200/50 relative overflow-hidden select-none">
+
+                {/* Sleek Vertical Accent Strip */}
+                <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${config.accentColor}`} />
 
                 {/* Visual Indicator Icon */}
-                <div className={`flex-shrink-0 mt-0.5 ${config.iconColor}`}>
+                <div className={`flex-shrink-0 mt-0.5 ml-1 ${config.iconColor}`}>
                     {config.icon}
                 </div>
 
                 {/* Message Panel */}
                 <div className="flex-1 pr-6">
-                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-0.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
                         {type}
                     </p>
-                    <p className={`text-xs md:text-sm font-semibold ${config.textColor} leading-normal`}>
+                    <p className={`text-sm font-medium ${config.textColor} leading-snug`}>
                         {message}
                     </p>
                 </div>
 
                 {/* Close Interaction */}
                 <button
-                    onClick={() => {
-                        setIsRendered(false);
-                        setTimeout(onClose, 300);
-                    }}
-                    className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors"
+                    onClick={handleDismiss}
+                    className="absolute top-3.5 right-3.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100/50 p-1 rounded-lg transition-all"
                     aria-label="Dismiss"
                 >
                     <FaTimes size={12} />
                 </button>
 
                 {/* Dynamic Visual Timer Bar */}
-                <div className="absolute bottom-0 left-0 h-1 bg-black/10 w-full">
+                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-slate-100/50">
                     <div
-                        className="h-full bg-black/15"
+                        className={`h-full ${config.accentColor} opacity-40`}
                         style={{
                             animation: `shrinkWidth ${duration}ms linear forwards`
                         }}
@@ -127,7 +131,7 @@ function ToastComponent({ message, type, duration, onClose }) {
 }
 
 // 3. Dynamic Execution Function (Callable anywhere)
-const CostoumPopup = (message, type = "success", duration = 3000) => {
+const customToast = (message, type = "success", duration = 3000) => {
     const container = getToastContainer();
     if (!container) return;
 
@@ -158,4 +162,4 @@ const CostoumPopup = (message, type = "success", duration = 3000) => {
     );
 };
 
-export default CostoumPopup;
+export default customToast;
