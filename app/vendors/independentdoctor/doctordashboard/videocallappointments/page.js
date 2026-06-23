@@ -358,7 +358,7 @@ function Page() {
                                             <td className="px-8 py-6">
                                                 <div className="flex items-center gap-4">
                                                     <img
-                                                        src={appt.userAccount?.profilePic ? `http://192.168.1.26:5002${appt.userAccount.profilePic}` : '/default-avatar.png'}
+                                                        // src={appt.userAccount?.profilePic ? `http://192.168.1.26:5002${appt.userAccount.profilePic}`}
                                                         alt={appt.patientName}
                                                         className="w-12 h-12 rounded-2xl object-cover bg-gray-100 border border-gray-100"
                                                         onError={(e) => {
