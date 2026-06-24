@@ -2,33 +2,33 @@
 
 import React, { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  FaChevronRight, 
-  FaChevronLeft, 
-  FaStar, 
-  FaUserMd, 
-  FaPlus,
-  FaCalendarCheck,
-  FaMapMarkerAlt,
-  FaClock,
-  FaSpinner
-} from "react-icons/fa"; 
+import {
+    FaChevronRight,
+    FaChevronLeft,
+    FaStar,
+    FaUserMd,
+    FaPlus,
+    FaCalendarCheck,
+    FaMapMarkerAlt,
+    FaClock,
+    FaSpinner
+} from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
 export default function AppointmentComponent() {
     const router = useRouter();
     const scrollRef = useRef(null);
-    
+
     // --- API STATES ---
     const [doctors, setDoctors] = useState([]);
     const [loading, setLoading] = useState(true);
 
     // HELPER: Formats the image URL by removing 'public/' and prepending the base URL
     const getImageUrl = (path) => {
-        if (!path) return "https://via.placeholder.com/400x500?text=No+Image";
+        if (!path) return "https://thumbs.dreamstime.com/b/default-placeholder-businessman-half-length-portr-portrait-photo-avatar-man-gray-color-116470617.jpg";
         if (path.startsWith('http')) return path;
         const cleanPath = path.replace(/^public\//, '');
-        const BASE_URL = 'http://192.168.1.26:5002';
+        const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
         return `${BASE_URL}/${cleanPath}`;
     };
 
@@ -39,7 +39,7 @@ export default function AppointmentComponent() {
                 setLoading(true);
                 let coordsPayload = {};
                 const storedCoords = localStorage.getItem('userCoords');
-                
+
                 if (storedCoords) {
                     try {
                         const parsedCoords = JSON.parse(storedCoords);
@@ -55,10 +55,10 @@ export default function AppointmentComponent() {
                 const docRes = await UserAPI.getDoctorsList(coordsPayload);
 
                 if (docRes.success) {
-                    const doctorData = Array.isArray(docRes.data) 
-                        ? docRes.data 
+                    const doctorData = Array.isArray(docRes.data)
+                        ? docRes.data
                         : (docRes.data.profile ? [docRes.data.profile] : []);
-                    
+
                     // Taking first 10 for the horizontal scroll
                     setDoctors(doctorData);
                 }
@@ -91,24 +91,24 @@ export default function AppointmentComponent() {
                 <div className="flex items-end justify-between mb-8">
                     <div>
                         <div className="flex items-center gap-2 mb-2">
-                             <span className="h-1 w-8 bg-[#08B36A] rounded-full"></span>
-                             <span className="text-[10px] font-bold text-[#08B36A] uppercase tracking-[2px]">Expert Care</span>
+                            <span className="h-1 w-8 bg-[#08B36A] rounded-full"></span>
+                            <span className="text-[10px] font-bold text-[#08B36A] uppercase tracking-[2px]">Expert Care</span>
                         </div>
                         <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
                             Book an Appointment
                         </h2>
                     </div>
-                    
+
                     <div className="flex items-center gap-3">
                         <div className="hidden md:flex gap-2">
                             <button onClick={() => scroll('left')} className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-slate-600 cursor-pointer shadow-sm">
-                                <FaChevronLeft size={14}/>
+                                <FaChevronLeft size={14} />
                             </button>
                             <button onClick={() => scroll('right')} className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-slate-600 cursor-pointer shadow-sm">
-                                <FaChevronRight size={14}/>
+                                <FaChevronRight size={14} />
                             </button>
                         </div>
-                        <button 
+                        <button
                             onClick={() => router.push("/drappointment/seealldoctors")}
                             className="text-xs font-bold text-white bg-slate-900 px-5 py-2.5 rounded-xl hover:bg-[#08B36A] transition-all cursor-pointer shadow-lg shadow-slate-200 uppercase tracking-wider"
                         >
@@ -118,7 +118,7 @@ export default function AppointmentComponent() {
                 </div>
 
                 {/* --- HORIZONTAL SCROLL --- */}
-                <div 
+                <div
                     ref={scrollRef}
                     className="flex flex-nowrap overflow-x-auto gap-5 pb-8 scrollbar-hide snap-x snap-mandatory pt-2 min-h-[400px]"
                 >
@@ -163,7 +163,7 @@ export default function AppointmentComponent() {
                                     <p className="text-[11px] text-[#08B36A] font-bold uppercase tracking-wider mb-2">
                                         {doc.speciality}
                                     </p>
-                                    
+
                                     <div className="space-y-1.5 mb-4">
                                         <div className="flex items-center gap-2 text-slate-500 text-[10px] font-medium">
                                             <FaMapMarkerAlt className="text-slate-300" />
@@ -199,20 +199,20 @@ export default function AppointmentComponent() {
 
                 {/* --- TRUST BAR --- */}
                 <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <TrustItem 
-                        icon={<FaUserMd className="text-emerald-600" size={20}/>} 
-                        title="Verified Doctors" 
-                        desc="Highly experienced specialists" 
+                    <TrustItem
+                        icon={<FaUserMd className="text-emerald-600" size={20} />}
+                        title="Verified Doctors"
+                        desc="Highly experienced specialists"
                     />
-                    <TrustItem 
-                        icon={<FaCalendarCheck className="text-emerald-600" size={20}/>} 
-                        title="Instant Booking" 
-                        desc="No waiting in long queues" 
+                    <TrustItem
+                        icon={<FaCalendarCheck className="text-emerald-600" size={20} />}
+                        title="Instant Booking"
+                        desc="No waiting in long queues"
                     />
-                    <TrustItem 
-                        icon={<FaClock className="text-emerald-600" size={20}/>} 
-                        title="Flexible Slots" 
-                        desc="Morning, Afternoon & Evening" 
+                    <TrustItem
+                        icon={<FaClock className="text-emerald-600" size={20} />}
+                        title="Flexible Slots"
+                        desc="Morning, Afternoon & Evening"
                     />
                 </div>
 

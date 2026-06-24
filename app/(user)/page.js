@@ -37,7 +37,7 @@ export default function Home() {
       <NewArrivals />
       <ComboOffers />
       <MedicineComponent />
-      {/* <AppointmentComponent /> */}
+      <AppointmentComponent />
       <SomeProducts />
       <PersonalCare />
       <LabTests />
