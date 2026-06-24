@@ -2,16 +2,16 @@
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  FaChevronRight, 
-  FaChevronLeft, 
-  FaStar, 
-  FaHeart, 
-  FaPlus,
-  FaCheckCircle,
-  FaTruck,
-  FaLock
-} from "react-icons/fa"; 
+import {
+    FaChevronRight,
+    FaChevronLeft,
+    FaStar,
+    FaHeart,
+    FaPlus,
+    FaCheckCircle,
+    FaTruck,
+    FaLock
+} from "react-icons/fa";
 import UserAPI from '@/app/services/UserAPI';
 
 const RANDOM_IMAGES = [
@@ -73,24 +73,24 @@ export default function MedicineComponent() {
                 <div className="flex items-end justify-between mb-8">
                     <div>
                         <div className="flex items-center gap-2 mb-2">
-                             <span className="h-1 w-8 bg-[#08B36A] rounded-full"></span>
-                             <span className="text-[10px] font-bold text-[#08B36A] uppercase tracking-[2px]">Trusted Pharmacy</span>
+                            <span className="h-1 w-8 bg-[#08B36A] rounded-full"></span>
+                            <span className="text-[10px] font-bold text-[#08B36A] uppercase tracking-[2px]">Trusted Pharmacy</span>
                         </div>
                         <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
                             Featured Medicines
                         </h2>
                     </div>
-                    
+
                     <div className="flex items-center gap-3">
                         <div className="hidden md:flex gap-2">
                             <button onClick={() => scroll('left')} className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-slate-600 cursor-pointer shadow-sm">
-                                <FaChevronLeft size={14}/>
+                                <FaChevronLeft size={14} />
                             </button>
                             <button onClick={() => scroll('right')} className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-slate-600 cursor-pointer shadow-sm">
-                                <FaChevronRight size={14}/>
+                                <FaChevronRight size={14} />
                             </button>
                         </div>
-                        <button 
+                        <button
                             onClick={() => router.push("/buymedicine/seeallmed")}
                             className="text-xs font-bold text-white bg-slate-900 px-5 py-2.5 rounded-xl hover:bg-[#08B36A] transition-all cursor-pointer shadow-lg shadow-slate-200"
                         >
@@ -100,7 +100,7 @@ export default function MedicineComponent() {
                 </div>
 
                 {/* --- HORIZONTAL SCROLL --- */}
-                <div 
+                <div
                     ref={scrollRef}
                     className="flex flex-nowrap overflow-x-auto gap-5 pb-8 scrollbar-hide snap-x snap-mandatory pt-2"
                 >
@@ -112,7 +112,7 @@ export default function MedicineComponent() {
                     ) : (
                         products.map((med, index) => {
                             const displayImage = RANDOM_IMAGES[index % RANDOM_IMAGES.length];
-                            
+
                             return (
                                 <div
                                     key={med._id}
@@ -162,11 +162,11 @@ export default function MedicineComponent() {
                                                 <span className="text-lg font-black text-slate-900">₹{med.best_price}</span>
                                             </div>
 
-                                            <button 
-                                                onClick={(e) => e.stopPropagation()}
+                                            <button
+                                                onClick={() => router.push(`/buymedicine/singleproductdetail/${med.medicineId}`)}
                                                 className="flex items-center gap-2 bg-[#08B36A] text-white px-4 py-2.5 rounded-xl text-xs font-black hover:bg-slate-900 transition-all active:scale-90 shadow-lg shadow-emerald-500/20 cursor-pointer"
                                             >
-                                                <FaPlus size={10} /> ADD
+                                                <FaPlus size={10} /> View
                                             </button>
                                         </div>
                                     </div>
@@ -178,20 +178,20 @@ export default function MedicineComponent() {
 
                 {/* --- TRUST BAR --- */}
                 <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <TrustItem 
-                        icon={<FaCheckCircle className="text-emerald-600" size={20}/>} 
-                        title="100% Authentic" 
-                        desc="Products sourced directly" 
+                    <TrustItem
+                        icon={<FaCheckCircle className="text-emerald-600" size={20} />}
+                        title="100% Authentic"
+                        desc="Products sourced directly"
                     />
-                    <TrustItem 
-                        icon={<FaTruck className="text-emerald-600" size={20}/>} 
-                        title="Express Delivery" 
-                        desc="Safe & on-time home delivery" 
+                    <TrustItem
+                        icon={<FaTruck className="text-emerald-600" size={20} />}
+                        title="Express Delivery"
+                        desc="Safe & on-time home delivery"
                     />
-                    <TrustItem 
-                        icon={<FaLock className="text-emerald-600" size={20}/>} 
-                        title="Secure Checkout" 
-                        desc="Encrypted payment processing" 
+                    <TrustItem
+                        icon={<FaLock className="text-emerald-600" size={20} />}
+                        title="Secure Checkout"
+                        desc="Encrypted payment processing"
                     />
                 </div>
 

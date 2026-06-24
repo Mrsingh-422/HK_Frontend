@@ -13,15 +13,12 @@ import {
     FaPlus
 } from "react-icons/fa";
 import { useRouter } from "next/navigation";
-import TestDetailsModal from "./otherComponents/TestDetailsModal";
 import UserAPI from "@/app/services/UserAPI";
 
 export default function HealthPackagesLanding() {
     const router = useRouter();
     const [packages, setPackages] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedPackage, setSelectedPackage] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
 
     // 3 Static images for the first three packages
     const STATIC_IMAGES = [
@@ -47,12 +44,6 @@ export default function HealthPackagesLanding() {
         fetchPackages();
     }, []);
 
-    const handleBookClick = (e, pkg) => {
-        e.stopPropagation(); // Prevent navigation when clicking the book button
-        setSelectedPackage(pkg);
-        setIsModalOpen(true);
-    };
-
     const handleNavigate = (id) => {
         router.push(`/booklabtest/packagedetails/${id}`);
     };
@@ -62,12 +53,6 @@ export default function HealthPackagesLanding() {
 
     return (
         <section className="py-12 md:py-24 bg-[#FDFDFD]">
-            <TestDetailsModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                pkg={selectedPackage}
-            />
-
             <div className="max-w-7xl mx-auto px-4 md:px-6">
                 
                 {/* --- SECTION HEADER --- */}
@@ -179,7 +164,7 @@ export default function HealthPackagesLanding() {
                                             </div>
 
                                             <button 
-                                                onClick={(e) => handleBookClick(e, pkg)}
+                                            onClick={() => router.push(`/buymedicine/singleproductdetail/${pkg._id}`)}
                                                 className="h-12 w-12 md:h-16 md:w-16 bg-slate-900 text-white rounded-xl md:rounded-[1.5rem] flex items-center justify-center hover:bg-emerald-500 transition-all duration-300 shadow-xl shadow-slate-200 group/btn"
                                             >
                                                 <FaPlus className="size-4 md:size-auto group-hover:rotate-90 transition-transform" />

@@ -146,7 +146,9 @@ export default function NewArrivals() {
 
                                             {/* --- THE PREMIUM VIEW DETAIL BUTTON --- */}
                                             <div className="mt-auto">
-                                                <button className="w-full py-2.5 md:py-3 bg-emerald-600 text-white rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-[0.15em] flex items-center justify-center gap-2 group-hover:bg-slate-900 transition-all duration-300 shadow-lg shadow-slate-100">
+                                                <button
+                                                    onClick={() => router.push(`/buymedicine/singleproductdetail/${item.medicineId}`)}
+                                                    className="w-full py-2.5 md:py-3 bg-emerald-600 text-white rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-[0.15em] flex items-center justify-center gap-2 group-hover:bg-slate-900 transition-all duration-300 shadow-lg shadow-slate-100">
                                                     <FaEye size={12} className="opacity-70" /> View Detail
                                                 </button>
                                             </div>

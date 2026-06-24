@@ -42,13 +42,13 @@ export default function LabPackages() {
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch 6 packages from the API
+  // Fetch 8 packages from the API
   const fetchPackages = useCallback(async () => {
     try {
       setLoading(true);
       const response = await UserAPI.getStandardPackageCatalog({
         page: 1,
-        limit: 6, // Showing only 6 packages
+        limit: 8, // Showing exactly 8 packages as requested
       });
 
       if (response.success) {
@@ -123,7 +123,7 @@ export default function LabPackages() {
           className="flex flex-nowrap overflow-x-auto gap-4 md:gap-6 pt-10 pb-8 scrollbar-hide snap-x snap-mandatory -mx-4 px-4 sm:mx-0 sm:px-0"
         >
           {loading ? (
-            Array(3).fill(0).map((_, i) => <PackageSkeleton key={i} />)
+            Array(4).fill(0).map((_, i) => <PackageSkeleton key={i} />)
           ) : (
             packages.map((pkg, index) => {
               const isAdded = cartItemIds.includes(pkg._id);
@@ -148,8 +148,13 @@ export default function LabPackages() {
                   <div className="p-5 md:p-6 pb-0">
                     <div className="flex justify-between items-start mb-4 pt-2">
                       <div className="space-y-1">
-                        <p className="text-[10px] md:text-[11px] font-bold text-emerald-600 uppercase tracking-wide">{pkg.gender || "All Adults"}</p>
+                        <p className="text-[10px] md:text-[11px] font-bold text-emerald-600 uppercase tracking-wide">
+                          {pkg.gender || "All Adults"} {pkg.category && `• ${pkg.category}`}
+                        </p>
                         <h3 className="text-lg md:text-xl font-bold text-slate-900 leading-tight line-clamp-1">{pkg.packageName}</h3>
+                        {pkg.shortDescription && (
+                          <p className="text-[11px] text-slate-400 font-medium line-clamp-1 mt-0.5">{pkg.shortDescription}</p>
+                        )}
                       </div>
                       <div className="bg-slate-50 p-2.5 md:p-3 rounded-2xl text-slate-400 group-hover:text-emerald-500 transition-colors">
                         <FaMicroscope size={18} className="md:w-5 md:h-5" />
@@ -159,7 +164,7 @@ export default function LabPackages() {
                     <div className="grid grid-cols-2 gap-2.5 mb-5 md:mb-6">
                       <div className="flex items-center gap-2 px-2.5 py-2 bg-slate-50 rounded-xl border border-slate-100">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                        <span className="text-[10px] md:text-[11px] font-bold text-slate-700">{pkg.totalTestsIncluded || pkg.tests?.length || 0} Tests</span>
+                        <span className="text-[10px] md:text-[11px] font-bold text-slate-700">{pkg.totalTestsIncluded || pkg.testCount || pkg.tests?.length || 0} Tests</span>
                       </div>
                       <div className="flex items-center gap-2 px-2.5 py-2 bg-slate-50 rounded-xl border border-slate-100">
                         <FaClock className="text-slate-400" size={10} />
@@ -170,12 +175,20 @@ export default function LabPackages() {
                     <div className="space-y-2 mb-5 md:mb-6">
                       <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
                         <FaHouseUser className="text-emerald-500 flex-shrink-0" size={12} />
-                        <span>Free Home Sample Collection</span>
+                        <span>{pkg.isFastingRequired ? "Fasting Required" : "No Fasting Required"}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                        <FaShieldAlt className="text-emerald-500 flex-shrink-0" size={12} />
-                        <span>Certified & NABL Accredited Labs</span>
-                      </div>
+                      {pkg.sampleTypes && pkg.sampleTypes.length > 0 && (
+                        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                          <FaShieldAlt className="text-emerald-500 flex-shrink-0" size={12} />
+                          <span>Sample: {pkg.sampleTypes.join(" & ")}</span>
+                        </div>
+                      )}
+                      {pkg.preparations && pkg.preparations.length > 0 && (
+                        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                          <FaShieldAlt className="text-emerald-500 flex-shrink-0" size={12} />
+                          <span className="truncate">Prep: {pkg.preparations.join(", ")}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -241,4 +254,4 @@ export default function LabPackages() {
       </div>
     </section>
   );
-} 
+}

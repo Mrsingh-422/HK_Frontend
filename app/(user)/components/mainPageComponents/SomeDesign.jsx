@@ -2,12 +2,11 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-// Corrected Icon Imports
+// Corrected Icon Imports (FaWhatsapp removed)
 import {
   FaFileMedical,
   FaTruck,
   FaNotesMedical,
-  FaWhatsapp,
   FaChevronRight,
   FaFileInvoice
 } from "react-icons/fa";
@@ -59,7 +58,7 @@ export default function SomeDesign() {
         </div>
       </div>
 
-      {/* --- 2. ACTION CARDS (Prescription & WhatsApp) --- */}
+      {/* --- 2. ACTION CARDS (Prescription & Store) --- */}
       <div className="max-w-7xl mx-auto px-4 mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
 
         {/* Prescription Card */}
@@ -78,21 +77,21 @@ export default function SomeDesign() {
           </div>
         </Link>
 
-        {/* WhatsApp Card */}
-        <div className="bg-white border border-slate-100 rounded-[24px] p-6 flex items-center justify-between group cursor-pointer hover:border-green-500 hover:shadow-xl hover:shadow-green-500/5 transition-all">
+        {/* Shop Medicines Card */}
+        <Link href='/buymedicine' className="bg-white border border-slate-100 rounded-[24px] p-6 flex items-center justify-between group cursor-pointer hover:border-[#08B36A] hover:shadow-xl hover:shadow-[#08B36A]/5 transition-all">
           <div className="flex items-center gap-6">
-            <div className="w-16 h-16 bg-green-500/10 rounded-2xl flex items-center justify-center text-green-500 group-hover:scale-110 transition-transform">
-              <FaWhatsapp size={32} />
+            <div className="w-16 h-16 bg-[#08B36A]/10 rounded-2xl flex items-center justify-center text-[#08B36A] group-hover:scale-110 transition-transform">
+              <FaNotesMedical size={30} />
             </div>
             <div>
-              <h3 className="font-black text-slate-800 text-xl">WhatsApp Order</h3>
-              <p className="text-sm text-slate-500 font-medium">Chat with us to buy medicines</p>
+              <h3 className="font-black text-slate-800 text-xl">Shop Medicines</h3>
+              <p className="text-sm text-slate-500 font-medium">Browse OTC drugs & health wellness products</p>
             </div>
           </div>
-          <div className="bg-slate-50 p-4 rounded-full group-hover:bg-green-500 group-hover:text-white transition-all">
+          <div className="bg-slate-50 p-4 rounded-full group-hover:bg-[#08B36A] group-hover:text-white transition-all">
             <FaChevronRight size={14} />
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* --- 3. TRUST STRIP --- */}

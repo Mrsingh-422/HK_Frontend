@@ -103,6 +103,13 @@ export default function LabTests() {
               const isAdded = cartItemIds.includes(test._id);
               const displayPrice = test.offerPrice || test.minPrice || test.standardMRP;
               const strikePrice = test.standardMRP || test.mrp;
+              
+              // Resolve report time from vendorList if available
+              const rawReportTime = test.vendorList?.[0]?.reportTime || test.reportTime;
+              const reportTimeString = rawReportTime ? `${rawReportTime} hrs` : "24 hrs";
+
+              // Resolve display text if sampleType is not required
+              const displaySampleType = test.sampleType === "NA" ? "No Sample Required" : (test.sampleType || "Blood Sample");
 
               return (
                 <div
@@ -127,13 +134,13 @@ export default function LabTests() {
 
                     <p className="text-[11px] text-slate-500 font-medium mb-4 flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#08B36A]"></span>
-                      {test.sampleType || "Blood Sample"}
+                      {displaySampleType}
                     </p>
 
                     <div className="flex gap-2 mb-6">
                       <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
                         <FaClock className="text-slate-400" size={10} />
-                        <span className="text-[10px] font-bold text-slate-600">{test.reportTime || "24 hrs"}</span>
+                        <span className="text-[10px] font-bold text-slate-600">{reportTimeString}</span>
                       </div>
                       <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
                         <FaHome className="text-slate-400" size={10} />
