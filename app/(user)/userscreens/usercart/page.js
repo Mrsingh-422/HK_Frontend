@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { FaMicroscope, FaPills, FaLock, FaExclamationCircle } from 'react-icons/fa';
+import { FaMicroscope, FaPills, FaLock, FaExclamationCircle, FaArrowLeft } from 'react-icons/fa';
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import LabCart from './components/LabCart';
@@ -78,7 +78,17 @@ const CartPage = () => {
                 >
                     {/* Header Section */}
                     <div className="bg-white border-b border-slate-100">
-                        <div className="max-w-7xl mx-auto px-4 pt-10 pb-6">
+                        <div className="max-w-7xl mx-auto px-4 pt-8 pb-6">
+                            
+                            {/* Upgraded Back Button */}
+                            <button 
+                                onClick={() => router.back()} 
+                                className="group mb-6 flex items-center justify-center gap-2 px-3.5 py-2 bg-white border border-slate-100 hover:border-emerald-100 hover:bg-emerald-50/30 rounded-xl text-slate-500 hover:text-emerald-700 transition-all shadow-sm active:scale-95 w-fit"
+                            >
+                                <FaArrowLeft size={11} className="group-hover:-translate-x-0.5 transition-transform" />
+                                <span className="text-[10px] font-black uppercase tracking-wider leading-none">Back</span>
+                            </button>
+
                             <div className="flex items-center justify-between mb-6">
                                 <h1 className="text-3xl font-black text-slate-900 tracking-tight">Shopping Cart</h1>
                                 <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 rounded-full border border-emerald-100">

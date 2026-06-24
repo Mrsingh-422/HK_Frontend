@@ -9,6 +9,18 @@ import {
 } from 'react-icons/fi';
 import { MdOutlineLocalPharmacy } from 'react-icons/md';
 
+const IMAGE_BASE_URL = "http://192.168.1.26:5002";
+
+// Helper to construct accurate prescription and profile image URLs
+const getPrescriptionImageUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+        return path;
+    }
+    const cleanedPath = path.replace(/^public\//, '');
+    return `${IMAGE_BASE_URL}/${cleanedPath}`;
+};
+
 // Utility to dynamically load the Razorpay SDK script
 const loadRazorpayScript = () => {
     return new Promise((resolve) => {
@@ -32,6 +44,7 @@ export default function PrescriptionOrders() {
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [mounted, setMounted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [zoomedPrescription, setZoomedPrescription] = useState(null);
 
     // 1. Handle Mounting for Portals in Next.js
     useEffect(() => {
@@ -41,12 +54,12 @@ export default function PrescriptionOrders() {
 
     // 2. Prevent body scroll when modal is open
     useEffect(() => {
-        if (selectedOrder) {
+        if (selectedOrder || zoomedPrescription) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
-    }, [selectedOrder]);
+    }, [selectedOrder, zoomedPrescription]);
 
     useEffect(() => {
         fetchOrders(1);
@@ -200,44 +213,135 @@ export default function PrescriptionOrders() {
                     </div>
 
                     {/* Content */}
-                    <div className="px-6 md:px-8 py-2 overflow-y-auto custom-scrollbar flex-1">
-                        <div className="space-y-3">
-                            {order.requestedMedicines.map((med, idx) => (
-                                <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100/50">
-                                    <div className="flex gap-3">
-                                        <FiCornerDownRight className="mt-1 text-emerald-500" size={16} />
-                                        <div>
-                                            <p className="text-sm font-bold text-slate-800 uppercase">{med.name}</p>
-                                            <p className="text-[10px] font-medium text-slate-500">Qty: {med.dosage} • {med.durationDays} Days</p>
-                                        </div>
-                                    </div>
-                                    {order.status === 'Bill Generated' && <p className="text-sm font-bold text-slate-900">₹{med.mrp}</p>}
+                    <div className="px-6 md:px-8 py-2 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+                        {/* Status Check / Reason for Rejection */}
+                        {order.status === 'Rejected' && (
+                            <div className="p-5 bg-rose-50 border border-rose-100 rounded-[2rem] flex items-start gap-3">
+                                <FiXCircle className="text-rose-500 mt-0.5 shrink-0" size={18} />
+                                <div>
+                                    <p className="text-xs font-bold text-rose-800 uppercase tracking-wide">Request Rejected</p>
+                                    <p className="text-xs text-rose-700 mt-1 font-medium">{order.rejectReason || "No rejection reason specified."}</p>
                                 </div>
-                            ))}
+                            </div>
+                        )}
+
+                        {/* Prescription General details card */}
+                        <div className="p-5 bg-slate-50 border border-slate-100 rounded-[2rem] space-y-2">
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-slate-400 uppercase tracking-wider">Prescribed By:</span>
+                                <span className="font-semibold text-slate-800 uppercase">{order.doctorName || "Unspecified"}</span>
+                            </div>
+                            {order.prescriptionDate && (
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="font-bold text-slate-400 uppercase tracking-wider">Prescription Date:</span>
+                                    <span className="font-semibold text-slate-600">{new Date(order.prescriptionDate).toLocaleDateString()}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-slate-400 uppercase tracking-wider">Duration:</span>
+                                <span className="font-semibold text-slate-600">{order.durationType || "Full Course"}</span>
+                            </div>
                         </div>
 
+                        {/* Uploaded Prescription Image Section */}
+                        {order.prescriptionImage && (
+                            <div className="space-y-2.5">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Prescription Attachment</p>
+                                <div className="relative aspect-video w-full rounded-[2rem] overflow-hidden border border-slate-100 bg-slate-50 flex items-center justify-center p-2 group">
+                                    <img 
+                                        src={getPrescriptionImageUrl(order.prescriptionImage)} 
+                                        className="max-h-full max-w-full object-contain cursor-zoom-in transition-opacity hover:opacity-95 rounded-xl" 
+                                        alt="Prescription document"
+                                        onClick={() => setZoomedPrescription(getPrescriptionImageUrl(order.prescriptionImage))}
+                                    />
+                                    <div 
+                                        onClick={() => setZoomedPrescription(getPrescriptionImageUrl(order.prescriptionImage))}
+                                        className="absolute inset-0 bg-slate-950/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                    >
+                                        <span className="text-white text-[10px] font-black uppercase tracking-widest bg-slate-900/60 px-4 py-2 rounded-full">View Fullscreen</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Requested Medicines Section */}
+                        <div className="space-y-2.5">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Requested Medicines</p>
+                            <div className="space-y-3">
+                                {order.requestedMedicines.map((med, idx) => (
+                                    <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100/50">
+                                        <div className="flex gap-3">
+                                            <FiCornerDownRight className="mt-1 text-emerald-500" size={16} />
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-800 uppercase">{med.name}</p>
+                                                <p className="text-[10px] font-medium text-slate-500">Qty: {med.dosage} • {med.durationDays} Days</p>
+                                            </div>
+                                        </div>
+                                        {order.status === 'Bill Generated' && <p className="text-sm font-bold text-slate-900">₹{med.mrp}</p>}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Delivery Address Section */}
+                        {order.address && (
+                            <div className="space-y-2.5">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Delivery Destination</p>
+                                <div className="p-5 bg-slate-50 border border-slate-100 rounded-[2rem] space-y-2">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="font-bold text-slate-400">Recipient Name</span>
+                                        <span className="font-semibold text-slate-800">{order.address.name} ({order.address.addressType})</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="font-bold text-slate-400">Contact Number</span>
+                                        <span className="font-semibold text-slate-600">{order.address.phone}</span>
+                                    </div>
+                                    <div className="flex justify-between items-start text-xs pt-1.5 border-t border-slate-200/60">
+                                        <span className="font-bold text-slate-400 shrink-0">Address Details</span>
+                                        <span className="font-semibold text-slate-600 text-right truncate max-w-[200px]" title={`${order.address.houseNo}, ${order.address.city} - ${order.address.pincode}`}>
+                                            H.No {order.address.houseNo}, {order.address.city} - {order.address.pincode}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Payment/Status Section */}
-                        <div className="mt-6 mb-4">
+                        <div className="pt-2">
                             {order.status === 'Bill Generated' ? (
                                 <div className="p-6 bg-slate-900 rounded-[2rem] text-white">
                                     <div className="flex justify-between items-center mb-4 opacity-60 text-[10px] font-bold uppercase tracking-widest">
-                                        <span>Total Amount</span>
-                                        <span>Verified Invoice</span>
+                                        <span>Verified Invoice Breakdown</span>
+                                        <span>Invoice Details</span>
                                     </div>
-                                    <div className="text-3xl font-light">₹{order.verifiedBill?.totalAmount}</div>
+                                    <div className="space-y-2.5 mb-5 text-xs text-slate-300">
+                                        <div className="flex justify-between">
+                                            <span>Medicines Subtotal</span>
+                                            <span className="font-semibold text-white">₹{order.verifiedBill?.itemTotal || 0}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Delivery Fee</span>
+                                            <span className="font-semibold text-white">₹{order.verifiedBill?.deliveryCharge || 0}</span>
+                                        </div>
+                                        <div className="h-px bg-white/10 my-1" />
+                                        <div className="flex justify-between text-sm font-bold text-white">
+                                            <span>Grand Total</span>
+                                            <span className="text-emerald-400 text-lg">₹{order.verifiedBill?.totalAmount}</span>
+                                        </div>
+                                    </div>
                                     <div className="mt-4 pt-4 border-t border-white/10 flex justify-between text-[11px] opacity-70">
-                                        <span className="flex items-center gap-1.5"><FiCheckCircle size={14} /> Includes GST</span>
+                                        <span className="flex items-center gap-1.5"><FiCheckCircle size={14} /> Taxes & GST Included</span>
                                         <span>{new Date().toLocaleDateString()}</span>
                                     </div>
                                 </div>
-                            ) : (
+                            ) : order.status !== 'Rejected' ? (
                                 <div className="p-5 bg-blue-50 border border-blue-100 rounded-[2rem] flex items-center gap-4">
                                     <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-blue-500 shadow-sm shrink-0">
                                         <FiClock size={22} className="animate-pulse" />
                                     </div>
                                     <p className="text-xs font-bold text-blue-900 uppercase leading-relaxed">The pharmacy is currently reviewing stock and generating your bill.</p>
                                 </div>
-                            )}
+                            ) : null}
                         </div>
                     </div>
 
@@ -304,7 +408,15 @@ export default function PrescriptionOrders() {
                                     </div>
                                     <div>
                                         <h4 className="text-base font-semibold text-slate-800">{order.pharmacyId?.name || "Local Pharmacy"}</h4>
-                                        <p className="text-xs text-slate-500">Ordered {new Date(order.createdAt).toLocaleDateString()}</p>
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-x-3 gap-y-1 mt-1 text-xs text-slate-500">
+                                            <span>Ordered {new Date(order.createdAt).toLocaleDateString()}</span>
+                                            {order.doctorName && (
+                                                <>
+                                                    <span className="hidden sm:inline text-slate-300">•</span>
+                                                    <span>Doctor: {order.doctorName}</span>
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -327,7 +439,7 @@ export default function PrescriptionOrders() {
                 ))}
             </div>
 
-            {/* --- Render Modal using Portal --- */}
+            {/* --- Render Details Modal using Portal --- */}
             {selectedOrder && (
                 <ModalPortal
                     order={selectedOrder}
@@ -335,6 +447,29 @@ export default function PrescriptionOrders() {
                     onCheckout={handleCheckout}
                     isSubmitting={isSubmitting}
                 />
+            )}
+
+            {/* --- FULLSCREEN LIGHTBOX FOR PRESCRIPTION IMAGES --- */}
+            {zoomedPrescription && (
+                <div 
+                    className="fixed inset-0 z-[200000] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200 cursor-pointer"
+                    onClick={() => setZoomedPrescription(null)}
+                >
+                    <div className="relative max-w-4xl max-h-[85vh] w-full h-full flex items-center justify-center">
+                        <button 
+                            onClick={() => setZoomedPrescription(null)}
+                            className="absolute top-4 right-4 z-[200001] p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+                        >
+                            <FiXCircle size={24} />
+                        </button>
+                        <img 
+                            src={zoomedPrescription} 
+                            className="max-w-full max-h-full object-contain rounded-2xl animate-in zoom-in-95 duration-200 cursor-default" 
+                            alt="Zoomed Prescription"
+                            onClick={(e) => e.stopPropagation()} 
+                        />
+                    </div>
+                </div>
             )}
 
             <style jsx>{`
