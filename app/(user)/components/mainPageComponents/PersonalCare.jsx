@@ -178,17 +178,16 @@ export default function PersonalCare() {
         </div>
 
         {/* --- PREMIUM PROMO BANNER --- */}
-        <div
-          onClick={() => router.push("/offers")}
-          className="mt-4 md:mt-8 cursor-pointer overflow-hidden rounded-[1.5rem] md:rounded-[2.5rem] bg-slate-900 relative group"
-        >
+        <div className="mt-4 md:mt-8 cursor-pointer overflow-hidden rounded-[1.5rem] md:rounded-[2.5rem] bg-slate-900 relative group">
           <div className="relative z-10 p-6 md:p-12 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="max-w-md">
               <span className="bg-emerald-600 text-white text-[9px] md:text-[11px] font-black px-3 py-1 rounded-full uppercase tracking-[0.2em]">Limited Offer</span>
               <h4 className="text-xl md:text-4xl font-black text-white mt-3 md:mt-4 leading-tight">Glow Up This <span className="text-emerald-500">Season!</span></h4>
               <p className="text-slate-400 text-xs md:text-base mt-2 md:mt-3 font-medium">Flat 25% off on all luxury personal care brands.</p>
             </div>
-            <button className="bg-emerald-600 text-white px-6 md:px-10 py-3 md:py-4 rounded-xl md:rounded-2xl font-black text-[11px] md:text-sm shadow-2xl shadow-emerald-900/20 group-hover:bg-white group-hover:text-emerald-700 transition-all active:scale-95 uppercase tracking-widest">
+            <button
+              onClick={() => router.push("/buymedicine/seeallmed")}
+              className="bg-emerald-600 text-white px-6 md:px-10 py-3 md:py-4 rounded-xl md:rounded-2xl font-black text-[11px] md:text-sm shadow-2xl shadow-emerald-900/20 group-hover:bg-white group-hover:text-emerald-700 transition-all active:scale-95 uppercase tracking-widest">
               SHOP THE SALE
             </button>
           </div>
