@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaMapMarkerAlt, FaStar, FaClock, FaArrowRight, FaHospital, FaSpinner, FaLocationArrow } from 'react-icons/fa';
 import UserAPI from "@/app/services/UserAPI";
+import { useGlobalContext } from '@/app/context/GlobalContext';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -12,6 +13,7 @@ function HospitalsMainPage() {
     const scrollRef = useRef(null);
     const [hospitals, setHospitals] = useState([]);
     const [loading, setLoading] = useState(true);
+    const {openModal} = useGlobalContext()
 
     useEffect(() => {
         const fetchHospitals = async () => {
@@ -154,7 +156,9 @@ function HospitalsMainPage() {
                             Join India's fastest growing healthcare network. Register your facility with Health Kangaroo to manage appointments, digitize records, and reach patients efficiently.
                         </p>
                     </div>
-                    <button className="relative z-10 bg-white text-emerald-600 px-10 py-5 rounded-2xl font-black text-sm md:text-base uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all shadow-2xl whitespace-nowrap active:scale-95">
+                    <button 
+                    onClick={()=> openModal('register')}
+                    className="relative z-10 bg-white text-emerald-600 px-10 py-5 rounded-2xl font-black text-sm md:text-base uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all shadow-2xl whitespace-nowrap active:scale-95">
                         Partner With Us
                     </button>
                 </div>

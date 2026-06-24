@@ -186,14 +186,14 @@ export default function OurPartners() {
         )}
 
         {/* --- FOOTER CTA --- */}
-        <div className="mt-12 md:mt-20 flex flex-col items-center bg-white border border-slate-100 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-sm text-center">
+        {/* <div className="mt-12 md:mt-20 flex flex-col items-center bg-white border border-slate-100 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-sm text-center">
           <FaShieldAlt size={30} className="text-emerald-500 mb-3 md:mb-4 md:size-[40px]" />
           <h4 className="text-lg md:text-xl font-black text-slate-800 mb-1 md:mb-2">Are you a Lab Owner?</h4>
           <p className="text-slate-500 text-xs md:text-sm font-medium mb-4 md:mb-6">Join our network and grow your diagnostic practice.</p>
           <button className="bg-slate-900 text-white px-8 md:px-10 py-3 md:py-4 rounded-xl md:rounded-2xl text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] hover:bg-[#08B36A] transition-all shadow-xl shadow-slate-200">
             Become a Partner
           </button>
-        </div>
+        </div> */}
       </div>
     </div>
   );

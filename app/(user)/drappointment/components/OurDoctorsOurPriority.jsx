@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { FaPlusSquare, FaChevronRight, FaHospitalSymbol, FaUserShield, FaArrowRight } from "react-icons/fa";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import Link from "next/link";
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -155,10 +156,10 @@ function OurDoctorsOurPriority() {
             </div>
 
             <div className="pt-6">
-              <button className="bg-slate-900 text-white font-black px-12 py-5 rounded-2xl hover:bg-[#08B36A] transition-all duration-500 active:scale-95 flex items-center gap-4 uppercase tracking-[0.2em] text-[10px] shadow-2xl hover:-translate-y-1 group">
+              <Link href="/drappointment/seealldoctors" className="bg-slate-900 text-white font-black px-12 py-5 rounded-2xl hover:bg-[#08B36A] transition-all duration-500 active:scale-95 flex items-center gap-4 uppercase tracking-[0.2em] text-[10px] shadow-2xl hover:-translate-y-1 group">
                 Consult With Experts
                 <FaArrowRight className="text-xs group-hover:translate-x-2 transition-transform" />
-              </button>
+              </Link>
               
               <div className="mt-8 flex items-center gap-4">
                   <div className="flex -space-x-3">

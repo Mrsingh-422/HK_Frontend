@@ -1,153 +1,197 @@
 "use client";
-import React from 'react';
-import Link from 'next/link';
-import { FaStar, FaArrowRight, FaShieldAlt, FaAward, FaUserMd, FaMapMarkerAlt } from 'react-icons/fa';
 
-const nurses = [
-    {
-        id: 1,
-        slug: "sarah-johnson",
-        name: "Sarah Johnson",
-        specialty: "Critical Care",
-        experience: "8 Yrs",
-        rating: 4.9,
-        image: "https://thumbs.dreamstime.com/b/beautiful-medical-nurse-27010781.jpg",
-        location: "Delhi"
-    },
-    {
-        id: 2,
-        slug: "michael-chen",
-        name: "Michael Chen",
-        specialty: "Pediatric",
-        experience: "6 Yrs",
-        rating: 4.8,
-        image: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=800",
-        location: "Mumbai"
-    },
-    {
-        id: 3,
-        slug: "priya-sharma",
-        name: "Priya Sharma",
-        specialty: "Geriatric Care",
-        experience: "10 Yrs",
-        rating: 5.0,
-        image: "https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&q=80&w=800",
-        location: "Bangalore"
-    },
-    {
-        id: 4,
-        slug: "david-wilson",
-        name: "David Wilson",
-        specialty: "Post-Surgical",
-        experience: "5 Yrs",
-        rating: 4.7,
-        image: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=800",
-        location: "Kolkata"
-    }
-];
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { 
+  FaStar, 
+  FaArrowRight, 
+  FaCheckCircle, 
+  FaMapMarkerAlt, 
+  FaAward, 
+  FaUserNurse 
+} from "react-icons/fa";
+import UserAPI from "@/app/services/UserAPI";
+import { useGlobalContext } from "@/app/context/GlobalContext";
+
+// Premium Static Image for Nursing Fallback
+const STATIC_NURSE_IMAGE = "https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=2070&auto=format&fit=crop";
+const BASE_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}/`;
 
 function NurseSection() {
-    return (
-        <section className="py-10 md:py-20 bg-slate-50 min-h-screen">
-            <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+  const router = useRouter();
+  const [nurseServices, setNurseServices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const {openModal} = useGlobalContext()
 
-                {/* Section Header */}
-                <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 md:mb-16 gap-4 md:gap-6 text-center md:text-left">
-                    <div className="max-w-2xl">
-                        <span className="text-emerald-600 font-black uppercase tracking-widest text-[10px] md:text-sm mb-2 md:mb-4 block">
-                            Our Verified Professionals
-                        </span>
-                        <h2 className="text-2xl sm:text-4xl md:text-5xl font-black text-slate-900 leading-tight">
-                            Meet Our Specialized <span className="text-emerald-600">Nurses</span>
-                        </h2>
-                    </div>
-                    <button className="hidden md:flex bg-white border-2 border-slate-200 px-8 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all items-center justify-center gap-3">
-                        View All Staff <FaArrowRight />
-                    </button>
-                </div>
+  // Fetch Services List dynamically using active user coordinates
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        setLoading(true);
+        const storedCoords = localStorage.getItem("userCoords");
+        const coords = storedCoords ? JSON.parse(storedCoords) : { lat: 30.7380, lng: 76.6604 };
+        const res = await UserAPI.getNurseServices(coords);
+        if (res?.success) {
+          // Limit to exactly 6 cards as requested
+          setNurseServices(res.data.slice(0, 6));
+        }
+      } catch (error) {
+        console.error("Error fetching nurse services:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchServices();
+  }, []);
 
-                {/* Nurse Grid - grid-cols-2 for Mobile */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-8">
-                    {nurses.map((nurse) => (
-                        <div key={nurse.id} className="group bg-white rounded-[1.5rem] md:rounded-[3rem] p-2.5 md:p-5 border border-slate-100 shadow-sm hover:shadow-2xl transition-all duration-500">
+  const handleBooking = (id) => router.push(`/nursingservice/nurseservicedetail/${id}`);
 
-                            {/* Profile Image Area */}
-                            <div className="relative mb-3 md:mb-6">
-                                <div className="w-full h-40 sm:h-64 md:h-72 rounded-[1.2rem] md:rounded-[2.5rem] overflow-hidden">
-                                    <img
-                                        src={nurse.image}
-                                        alt={nurse.name}
-                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                    />
-                                </div>
-
-                                {/* Badges - Scaled down for mobile */}
-                                <div className="absolute top-2 left-2 md:top-4 md:left-4 flex flex-col gap-1">
-                                    <div className="bg-emerald-600 text-white text-[7px] md:text-[10px] font-black px-1.5 py-0.5 md:px-3 md:py-1.5 rounded-full uppercase tracking-widest flex items-center gap-1 shadow-lg w-fit">
-                                        <FaShieldAlt className="hidden xs:block" size={8} /> Verified
-                                    </div>
-                                </div>
-
-                                {/* Rating - Scaled for mobile */}
-                                <div className="absolute bottom-2 right-2 md:bottom-4 md:right-4 bg-white/90 backdrop-blur px-1.5 py-1 md:px-3 md:py-2 rounded-lg md:rounded-2xl shadow-xl flex items-center gap-1">
-                                    <FaStar className="text-yellow-400" size={10} />
-                                    <span className="font-black text-slate-900 text-[10px] md:text-sm">{nurse.rating}</span>
-                                </div>
-                            </div>
-
-                            {/* Info Area */}
-                            <div className="px-1 md:px-2">
-                                <div className="mb-2 md:mb-4">
-                                    <h3 className="text-sm md:text-2xl font-black text-slate-900 group-hover:text-emerald-600 transition-colors truncate">
-                                        {nurse.name}
-                                    </h3>
-                                    <p className="text-emerald-600 font-bold text-[9px] md:text-sm tracking-wide uppercase mt-0.5">
-                                        {nurse.specialty}
-                                    </p>
-                                </div>
-
-                                <div className="flex items-center gap-1 text-slate-400 text-[9px] md:text-sm mb-3 md:mb-8">
-                                    <FaMapMarkerAlt className="text-slate-300" size={10} />
-                                    <span className="font-medium truncate">{nurse.location}</span>
-                                    <span className="mx-1">•</span>
-                                    <span className="font-bold text-slate-500">{nurse.experience}</span>
-                                </div>
-
-                                {/* Main View Profile Button */}
-                                <Link
-                                    href={`/nurses/${nurse.slug}`}
-                                    className="block w-full text-center py-2.5 md:py-5 bg-slate-900 text-white rounded-xl md:rounded-[1.5rem] font-black text-[10px] md:text-lg hover:bg-emerald-600 transition-all flex items-center justify-center gap-1.5 md:gap-3"
-                                >
-                                    <FaUserMd className="hidden xs:block md:block" />
-                                    <span>Profile</span>
-                                </Link>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Mobile View All Button (Visible only on small screens) */}
-                <button className="md:hidden w-full mt-8 bg-white border-2 border-slate-200 py-4 rounded-2xl font-bold text-slate-600 flex items-center justify-center gap-3">
-                    View All Staff <FaArrowRight />
-                </button>
-
-                {/* Bottom Trust Section */}
-                <div className="mt-12 md:mt-24 bg-slate-900 rounded-[2rem] md:rounded-[3rem] p-6 md:p-16 flex flex-col lg:flex-row items-center justify-between gap-6 md:gap-10 text-center lg:text-left">
-                    <div>
-                        <h2 className="text-xl md:text-4xl font-black text-white mb-2 md:mb-4 leading-tight">
-                            Are you a Certified Nurse?
-                        </h2>
-                        <p className="text-slate-400 text-sm md:text-lg">
-                            Join our network and start providing care in your city.
-                        </p>
-                    </div>
-                    <button className="w-full lg:w-auto whitespace-nowrap bg-emerald-500 text-white px-8 md:px-10 py-4 md:py-5 rounded-xl md:rounded-[2rem] font-black text-base md:text-xl hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-900/20">
-                        Join Us
-                    </button>
-                </div>
+  return (
+    <div className="min-h-screen bg-slate-50/50 font-sans py-12 md:py-24">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        {/* --- SECTION HEADER --- */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 sm:mb-16 gap-6">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-[2px] bg-teal-500 rounded-full"></span>
+              <span className="text-teal-600 font-bold text-xs uppercase tracking-wider">Verified Professionals</span>
             </div>
-        </section>
-    );
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight leading-none">
+              Meet Our Specialized <span className="text-teal-500">Nurses</span>
+            </h2>
+          </div>
+          <button 
+            onClick={() => router.push("/nursingservice/seeallnurses")} 
+            className="flex items-center gap-3 font-bold text-slate-800 hover:text-teal-600 transition-all text-sm sm:text-base group"
+          >
+            Explore Directory
+            <div className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center group-hover:bg-slate-900 group-hover:border-slate-900 group-hover:text-white transition-all duration-300">
+              <FaArrowRight className="text-xs transition-transform group-hover:translate-x-0.5" />
+            </div>
+          </button>
+        </div>
+
+        {/* --- NURSE SERVICES GRID --- */}
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <div key={n} className="h-[420px] bg-white animate-pulse rounded-3xl border border-slate-100" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+            {nurseServices.map((nurse) => (
+              <div
+                key={nurse._id}
+                onClick={() => handleBooking(nurse._id)}
+                className="group relative bg-white rounded-3xl p-4 border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgba(15,118,110,0.08)] transition-all duration-500 cursor-pointer flex flex-col hover:-translate-y-1.5"
+              >
+                {/* Verified Badge Icon (Repositioned to top-right beautifully) */}
+                <div className="absolute top-6 right-6 z-10 bg-white/90 backdrop-blur-md rounded-full p-1.5 shadow-sm border border-slate-100">
+                  <FaCheckCircle className="text-teal-500 text-base" />
+                </div>
+
+                {/* Image Section */}
+                <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-slate-50 mb-5">
+                  <img 
+                    src={nurse.profileImage ? `${BASE_URL}${nurse.profileImage.replace('public/', '')}` : STATIC_NURSE_IMAGE} 
+                    alt={nurse.name} 
+                    className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                    onError={(e) => { e.target.src = STATIC_NURSE_IMAGE; }}
+                  />
+                  
+                  {/* Experience Badge */}
+                  <div className="absolute bottom-3 left-3">
+                    <div className="bg-slate-900/70 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-1.5 border border-white/10">
+                      <FaAward className="text-teal-400 text-xs" />
+                      <span className="font-semibold text-[11px] text-white tracking-wide">
+                        {nurse.experienceYears} Yrs Exp
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Rating Badge */}
+                  <div className="absolute bottom-3 right-3">
+                    <div className="bg-amber-500/90 backdrop-blur-md px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-sm">
+                      <FaStar className="text-white text-xs" />
+                      <span className="text-white font-bold text-[11px] leading-none">
+                        {nurse.rating > 0 ? nurse.rating : "New"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Content Section */}
+                <div className="flex flex-col flex-1 px-1">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <FaMapMarkerAlt className="text-slate-400 text-xs" />
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{nurse.city}</span>
+                  </div>
+
+                  <h3 className="text-xl font-bold text-slate-800 leading-snug mb-3 group-hover:text-teal-600 transition-colors line-clamp-1">
+                    {nurse.name}
+                  </h3>
+
+                  {/* Services tags */}
+                  <div className="flex flex-wrap gap-1.5 mb-6">
+                    {nurse.topServices?.map((service, idx) => (
+                      <span key={idx} className="bg-teal-50/60 text-teal-700 text-[10px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wide border border-teal-100/50">
+                        {service}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Price & Action */}
+                  <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Starting From</span>
+                      <p className="text-2xl font-extrabold text-slate-900 mt-0.5">
+                        <span className="text-lg font-bold text-slate-800 mr-0.5">₹</span>{nurse.startingPrice}
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center group-hover:bg-teal-500 group-hover:text-white transition-all duration-300 shadow-sm group-hover:shadow-teal-100">
+                      <FaArrowRight className="text-sm transition-transform group-hover:translate-x-0.5" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* --- EMPTY STATE --- */}
+        {!loading && nurseServices.length === 0 && (
+          <div className="text-center py-20 bg-white rounded-3xl border border-slate-100 shadow-sm max-w-xl mx-auto">
+            <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100">
+              <FaUserNurse size={24} className="text-slate-400" />
+            </div>
+            <p className="text-slate-500 font-semibold text-lg">No nursing services available in this area.</p>
+            <p className="text-slate-400 text-sm mt-1">Please try shifting your current location settings.</p>
+          </div>
+        )}
+
+        {/* --- BOTTOM TRUST SECTION --- */}
+        <div className="mt-16 md:mt-28 bg-slate-900 rounded-3xl p-8 md:p-16 flex flex-col lg:flex-row items-center justify-between gap-8 text-center lg:text-left relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+          <div className="z-10">
+            <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-3 tracking-tight">
+              Are you a Certified Nurse?
+            </h2>
+            <p className="text-slate-400 text-sm md:text-base max-w-lg">
+              Join our exclusive network and start providing premium specialized care right in your city.
+            </p>
+          </div>
+          <button
+          onClick={()=> openModal('register')}
+          className="z-10 w-full lg:w-auto whitespace-nowrap bg-teal-500 text-white px-8 py-4 rounded-2xl font-bold text-base hover:bg-teal-400 transition-all duration-300 shadow-lg shadow-teal-500/20 hover:-translate-y-0.5">
+            Join Us As Professional
+          </button>
+        </div>
+
+      </section>
+    </div>
+  );
 }
 
 export default NurseSection;

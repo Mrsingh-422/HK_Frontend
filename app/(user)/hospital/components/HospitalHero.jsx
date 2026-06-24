@@ -79,10 +79,10 @@ const HospitalHero = () => {
 
     return (
         <div className="w-full bg-white flex flex-col items-center">
-            
+
             {/* --- 1. HERO CONTENT & BACKGROUND SECTION --- */}
             <section className="relative w-full pt-12 pb-24 md:pt-16 md:pb-32 px-6 overflow-hidden font-sans flex items-center min-h-[55vh]">
-                
+
                 {/* Visual Background layers */}
                 <div className="absolute inset-0 z-0">
                     <img
@@ -142,21 +142,26 @@ const HospitalHero = () => {
                         {/* Right Content: Quick Actions Grid */}
                         <div className="lg:col-span-5 grid grid-cols-2 gap-3 sm:gap-4 mt-4 lg:mt-0">
                             <QuickActionCard
+                                onClick={() => router.push("/drappointment")}
                                 icon={<Calendar className="w-5 h-5 md:w-6 md:h-6" />}
                                 title="Book Appointment"
                                 color="bg-emerald-500"
                             />
                             <QuickActionCard
+
+                                onClick={() => router.push("/drappointment/seealldoctors")}
                                 icon={<Stethoscope className="w-5 h-5 md:w-6 md:h-6" />}
                                 title="Find Specialist"
                                 color="bg-blue-500"
                             />
                             <QuickActionCard
+                                onClick={() => router.push("/booklabtest")}
                                 icon={<FlaskConical className="w-5 h-5 md:w-6 md:h-6" />}
                                 title="Lab Tests"
                                 color="bg-amber-500"
                             />
                             <QuickActionCard
+                                onClick={() => router.push("/buymedicine")}
                                 icon={<Truck className="w-5 h-5 md:w-6 md:h-6" />}
                                 title="Buy Medicine"
                                 color="bg-slate-900"
@@ -170,7 +175,7 @@ const HospitalHero = () => {
             {/* --- 2. FLOATING SEARCH CONTAINER --- */}
             <section className="w-full max-w-7xl px-6 relative z-20 -mt-10 sm:-mt-12 mb-16">
                 <div className="max-w-3xl mx-auto relative" ref={searchRef}>
-                    
+
                     {/* Input Field Card */}
                     <div className="bg-white p-2 sm:p-2.5 rounded-2xl sm:rounded-[2rem] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.12)] border border-slate-100 flex flex-col md:flex-row items-center gap-2.5 transition-all duration-300 hover:shadow-[0_30px_60px_-10px_rgba(0,0,0,0.18)]">
                         <div className="flex-1 flex items-center px-4 gap-3 w-full group">
@@ -184,15 +189,15 @@ const HospitalHero = () => {
                                 className="bg-transparent border-none outline-none text-sm sm:text-base font-bold text-slate-700 w-full h-12 placeholder-slate-400"
                             />
                             {searchTerm && (
-                                <button 
-                                    onClick={() => {setSearchTerm(""); setSuggestions([]);}}
+                                <button
+                                    onClick={() => { setSearchTerm(""); setSuggestions([]); }}
                                     className="p-1 rounded-full text-slate-300 hover:text-red-500 hover:bg-slate-50 transition-colors"
                                 >
                                     <X className="w-4 h-4" />
                                 </button>
                             )}
                         </div>
-                        <button 
+                        <button
                             onClick={handleManualSearch}
                             className="w-full md:w-auto bg-slate-900 text-white px-8 py-3.5 rounded-xl sm:rounded-[1.25rem] font-black text-xs uppercase tracking-widest hover:bg-[#08B36A] transition-all shadow-md active:scale-[0.98] whitespace-nowrap"
                         >
@@ -228,7 +233,7 @@ const HospitalHero = () => {
                                     ))}
                                 </div>
                             </div>
-                            <div 
+                            <div
                                 className="bg-slate-50/80 p-3.5 text-center cursor-pointer hover:bg-emerald-50 border-t border-slate-100 transition-colors"
                                 onClick={handleManualSearch}
                             >
@@ -260,7 +265,7 @@ const HospitalHero = () => {
 
 // --- SUB-COMPONENT FOR ACTION CARDS ---
 const QuickActionCard = ({ icon, title, color, onClick }) => (
-    <div 
+    <div
         onClick={onClick}
         className="bg-white p-5 rounded-2xl sm:rounded-[2rem] shadow-md shadow-slate-100 border border-slate-50 flex flex-col items-center justify-center text-center group cursor-pointer hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 active:scale-[0.97]"
     >
