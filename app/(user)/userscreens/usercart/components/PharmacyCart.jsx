@@ -394,15 +394,7 @@ const PharmacyCart = () => {
 
     return (
         <div className="bg-[#F8FAFC] min-h-screen pb-20 font-['Plus_Jakarta_Sans']">
-            <div className="bg-white border-b border-gray-100 px-4 py-4 mb-6">
-                <div className="max-w-7xl mx-auto flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    <span className="hover:text-emerald-600 cursor-pointer" onClick={() => router.push('/')}>Home</span>
-                    <FaChevronRight size={8} />
-                    <span className="text-slate-900">Pharmacy Checkout</span>
-                </div>
-            </div>
-
-            <div className="max-w-7xl mx-auto px-4">
+            <div className="max-w-7xl mx-auto px-4 pt-6">
                 <div className="flex flex-col lg:flex-row gap-8 items-start">
                     <div className="flex-1 w-full space-y-6">
 
