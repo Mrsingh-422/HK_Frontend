@@ -2,10 +2,13 @@
  
 import React, { useState, useEffect } from "react";
 import { useUserContext } from "@/app/context/UserContext";
-import DiamondAPI from "@/app/services/DiamondAPI"; // API import karein
+import DiamondAPI from "@/app/services/DiamondAPI"; // Aapka original API import
+import axios from "axios"; // Sirf POST API ke liye
 import { toast, Toaster } from "react-hot-toast";
  
-function AddNewSubadmin({ onSuccess }) { // onSuccess callback add kiya hai list refresh ke liye
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+ 
+function AddNewSubadmin({ onSuccess }) {
     const {
         getAllCountries,
         getStatesByCountry,
@@ -19,20 +22,20 @@ function AddNewSubadmin({ onSuccess }) { // onSuccess callback add kiya hai list
         password: "",
         phone: "",
         address: "",
-        roleTypeId: "", // Role Template ki ID store karne ke liye
+        roleTypeId: "",
         country: "",
         state: "",
         city: "",
     });
  
     const [submitting, setSubmitting] = useState(false);
-    const [dbRoles, setDbRoles] = useState([]); // Database wale roles
+    const [dbRoles, setDbRoles] = useState([]);
  
     const [countries, setCountries] = useState([]);
     const [states, setStates] = useState([]);
     const [cities, setCities] = useState([]);
  
-    // --- 1. Real Roles Fetch Karein ---
+    // --- 1. Real Roles Fetch Karein (100% AAPKA ORIGINAL CODE, KOI CHANGE NAHI) ---
     useEffect(() => {
         const loadInitialData = async () => {
             try {
@@ -49,7 +52,7 @@ function AddNewSubadmin({ onSuccess }) { // onSuccess callback add kiya hai list
         loadInitialData();
     }, []);
  
-    // Fetch States when Country changes
+    // Fetch States when Country changes (ORIGINAL)
     useEffect(() => {
         if (!formData.country) return;
         const fetchStates = async () => {
@@ -59,7 +62,7 @@ function AddNewSubadmin({ onSuccess }) { // onSuccess callback add kiya hai list
         fetchStates();
     }, [formData.country]);
  
-    // Fetch Cities when State changes
+    // Fetch Cities when State changes (ORIGINAL)
     useEffect(() => {
         if (!formData.state) return;
         const fetchCities = async () => {
@@ -73,13 +76,13 @@ function AddNewSubadmin({ onSuccess }) { // onSuccess callback add kiya hai list
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
  
-    // --- 2. ASLI SUBMIT LOGIC ---
+    // --- 2. ASLI SUBMIT LOGIC (SIRF YAHAN AXIOS POST LAGAYA HAI) ---
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
  
         try {
-            // Find Names for ID (Backend location names maangta hai aksar)
+            // Find Names for ID
             const countryName = countries.find(c => c.id == formData.country)?.name;
             const stateName = states.find(s => s.id == formData.state)?.name;
             const cityName = cities.find(c => c.id == formData.city)?.name;
@@ -89,7 +92,7 @@ function AddNewSubadmin({ onSuccess }) { // onSuccess callback add kiya hai list
                 email: formData.email,
                 password: formData.password,
                 phone: formData.phone,
-                roleTypeId: formData.roleTypeId, // Role ID bhej rahe hain
+                roleTypeId: formData.roleTypeId,
                 locationAccess: {
                     country: countryName,
                     state: stateName,
@@ -97,13 +100,19 @@ function AddNewSubadmin({ onSuccess }) { // onSuccess callback add kiya hai list
                 }
             };
  
-            const res = await DiamondAPI.createSubAdmin(payload);
-            if (res.success) {
+            // Admin token nikal rahe hain taaki backend middleware bypass ho
+            const adminToken = localStorage.getItem("token");
+            const config = { headers: { Authorization: `Bearer ${adminToken}` } };
+ 
+            // YAHAN DIRECT AXIOS SE POST API HIT KI HAI SUBADMIN KE LIYE
+            const res = await axios.post(`${API_URL}/api/auth/admin`, payload, config);
+           
+            if (res.data.success) {
                 toast.success("Sub-Admin Deployed Successfully!");
-                if (onSuccess) onSuccess(); // List wapas dikhao aur refresh karo
+                if (onSuccess) onSuccess();
             }
         } catch (error) {
-            toast.error(error.message || "Failed to create Sub-admin");
+            toast.error(error.response?.data?.message || error.message || "Failed to create Sub-admin");
         } finally {
             setSubmitting(false);
         }

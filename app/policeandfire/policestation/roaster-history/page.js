@@ -1,11 +1,7 @@
 'use client'
 import React, { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation' // 👈 Routing ke liye import add kiya
 import { 
   FaSearch, 
-  FaUserShield, 
-  FaMapMarkerAlt, 
-  FaClock, 
   FaFilter,
   FaFileExport, 
   FaTimes,
@@ -13,76 +9,45 @@ import {
   FaCheckCircle,
   FaCalendarTimes,
   FaPlaneDeparture,
-  FaHospitalUser,
-  FaBed,
   FaSun,
-  FaMoon,
-  FaExclamationCircle
+  FaTimesCircle,
+  FaHistory,
+  FaClock
 } from 'react-icons/fa'
 import PoliceAPI from '@/app/services/PoliceAPI' // 👈 Apna path check kar lijiye
 
-export default function StaffRosterPage() {
-  const router = useRouter(); // 👈 Router initialize kiya
-
+export default function RosterHistoryPage() {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [requests, setRequests] = useState([]);
+  const [historyData, setHistoryData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // States for Rejection Logic
-  const [isRejectMode, setIsRejectMode] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
-
-  // Fetch Requests from API
+  // Fetch History from API
   useEffect(() => {
-    fetchRequests();
+    fetchHistory();
   }, []);
 
-  const fetchRequests = async () => {
+  const fetchHistory = async () => {
     try {
       setLoading(true);
-      const response = await PoliceAPI.getRosterRequests();
+      const response = await PoliceAPI.getRosterHistory(); // Aapki Nayi API
       if (response.success) {
-        setRequests(response.data);
+        setHistoryData(response.data);
       }
     } catch (error) {
-      console.error("Error fetching roster requests:", error);
+      console.error("Error fetching roster history:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // PUT API: Approve or Reject Request
-  const handleManageRequest = async (id, newStatus) => {
-    try {
-      // API Payload setup
-      const payload = { status: newStatus };
-      if (newStatus === 'Rejected') {
-          payload.rejectionReason = rejectReason;
-      }
-
-      const response = await PoliceAPI.manageRosterRequest(id, payload);
-      
-      if (response.success) {
-        alert(`Request has been ${newStatus}!`);
-        closeModal();
-        fetchRequests(); // Refresh the list
-      }
-    } catch (error) {
-      console.error("Error updating request:", error);
-      alert("Failed to update request status.");
-    }
-  };
-
-  // Helper to close modal and reset rejection states
+  // Helper: Close Modal
   const closeModal = () => {
       setIsModalOpen(false);
       setSelectedRequest(null);
-      setIsRejectMode(false);
-      setRejectReason("");
   };
 
-  // Helper to get Initials (First letter of first name & First letter of last name)
+  // Helper: Get Initials for Avatar
   const getInitials = (name) => {
     if (!name) return "UN";
     const parts = name.trim().split(" ");
@@ -90,33 +55,29 @@ export default function StaffRosterPage() {
     return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
   };
 
-  // Format Date Helper
+  // Helper: Format Date
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     return new Date(dateString).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  // Dynamic Status Styling
+  // Helper: Status Styling
   const getStatusStyle = (status) => {
-    switch(status) {
-      case 'Approved': return 'bg-green-50 text-green-600 border-green-100';
-      case 'Pending': return 'bg-amber-50 text-amber-600 border-amber-100';
-      case 'Rejected': return 'bg-red-50 text-red-600 border-red-100';
-      default: return 'bg-slate-50 text-slate-400 border-slate-100';
-    }
+    if (status === 'Approved') return 'bg-green-50 text-green-600 border-green-100';
+    if (status === 'Rejected') return 'bg-red-50 text-red-600 border-red-100';
+    return 'bg-slate-50 text-slate-400 border-slate-100';
   };
 
   const getStatusIcon = (status) => {
     if (status === 'Approved') return <FaCheckCircle />;
-    if (status === 'Pending') return <FaClock />;
-    if (status === 'Rejected') return <FaTimes />;
-    return <FaBed />;
+    if (status === 'Rejected') return <FaTimesCircle />;
+    return <FaClock />;
   };
 
-  // Calculate Stats
-  const totalRequests = requests.length;
-  const pendingLeaves = requests.filter(r => r.requestType === 'Leave' && r.status === 'Pending').length;
-  const pendingShifts = requests.filter(r => r.requestType === 'Shift Change' && r.status === 'Pending').length;
+  // Stats Calculation
+  const totalRequests = historyData.length;
+  const approvedCount = historyData.filter(r => r.status === 'Approved').length;
+  const rejectedCount = historyData.filter(r => r.status === 'Rejected').length;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
@@ -124,39 +85,31 @@ export default function StaffRosterPage() {
       {/* --- HEADER --- */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Staff Roster Requests</h1>
-          <p className="text-slate-500 font-medium mt-1">Manage duty shifts and personnel absences</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Roster History</h1>
+          <p className="text-slate-500 font-medium mt-1">Log of all processed leave and shift requests</p>
         </div>
         <div className="flex gap-3">
-            {/* 👈 YE RAHA AAPKA NAYA BUTTON ROUTING KE SATH */}
-            <button 
-                onClick={() => router.push('/policeandfire/policestation/roaster-history')}
-                className="bg-white border border-slate-200 text-slate-600 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 shadow-sm hover:bg-slate-50 transition-all"
-            >
-                <FaCalendarTimes /> Roster History
-            </button>
-            <button className="bg-[#08B36A] text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-green-100 hover:bg-[#07a25f] transition-all">
-                <FaFileExport /> Export Registry
+            <button className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg hover:bg-slate-800 transition-all">
+                <FaFileExport /> Export History
             </button>
         </div>
       </div>
 
       {/* --- STATS SECTION --- */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <CompactStatCard title="Total Requests" count={totalRequests} label="All" color="slate" icon={<FaUserShield/>} />
-        <CompactStatCard title="Pending Leaves" count={pendingLeaves} label="Absence" color="amber" icon={<FaPlaneDeparture/>} />
-        <CompactStatCard title="Pending Shifts" count={pendingShifts} label="Shift Changes" color="blue" icon={<FaClock/>} />
-        <CompactStatCard title="Action Required" count={pendingLeaves + pendingShifts} label="Pending" color="emerald" icon={<FaExclamationCircle/>} />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <CompactStatCard title="Total Processed" count={totalRequests} label="All Time" color="blue" icon={<FaHistory/>} />
+        <CompactStatCard title="Approved Requests" count={approvedCount} label="Accepted" color="emerald" icon={<FaCheckCircle/>} />
+        <CompactStatCard title="Rejected Requests" count={rejectedCount} label="Denied" color="red" icon={<FaTimesCircle/>} />
       </div>
 
-      {/* --- ROSTER TABLE --- */}
+      {/* --- HISTORY TABLE --- */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
         
         {/* Table Toolbar */}
         <div className="p-6 flex flex-col md:flex-row justify-between items-center gap-4 bg-white">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-slate-900 rounded-xl text-white shadow-inner"><FaIdBadge /></div>
-            <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Deployment & Leave Requests</h2>
+            <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Processed Requests Log</h2>
           </div>
           
           <div className="flex items-center gap-3 w-full md:w-auto">
@@ -164,7 +117,7 @@ export default function StaffRosterPage() {
               <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
               <input 
                 type="text" 
-                placeholder="Search name, badge or status..." 
+                placeholder="Search history..." 
                 className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#08B36A]/20 transition-all"
               />
             </div>
@@ -176,28 +129,31 @@ export default function StaffRosterPage() {
 
         <div className="overflow-x-auto">
           {loading ? (
-             <div className="p-10 text-center font-bold text-slate-400">Loading requests...</div>
-          ) : requests.length === 0 ? (
-             <div className="p-10 text-center font-bold text-slate-400">No pending requests found.</div>
+             <div className="p-10 flex flex-col items-center justify-center text-slate-400 font-bold">
+                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#08B36A] mb-3"></div>
+                 Loading History...
+             </div>
+          ) : historyData.length === 0 ? (
+             <div className="p-10 text-center font-bold text-slate-400">No processed history found.</div>
           ) : (
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-[0.15em] border-y border-slate-50">
                   <th className="px-8 py-4">Officer Profile</th>
-                  <th className="px-6 py-4">Request Type & Timeline</th>
-                  <th className="px-6 py-4">Leave / Shift Details & Reason</th>
-                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Request Type & Dates</th>
+                  <th className="px-6 py-4">Reason / Shift Info</th>
+                  <th className="px-6 py-4">Final Status</th>
                   <th className="px-8 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {requests.map((item) => (
+                {historyData.map((item) => (
                   <tr 
                     key={item._id} 
                     className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
                     onClick={() => { setSelectedRequest(item); setIsModalOpen(true); }}
                   >
-                    {/* 1. PROFILE (WITH INITIALS LOGIC) */}
+                    {/* 1. PROFILE WITH INITIALS */}
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-4">
                           <div className="relative">
@@ -212,9 +168,8 @@ export default function StaffRosterPage() {
                                       {getInitials(item.staffId?.fullName)}
                                   </div>
                               )}
-                              
                               <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white ${
-                                  item.status === 'Approved' ? 'bg-green-500' : item.status === 'Pending' ? 'bg-amber-500' : 'bg-red-500'
+                                  item.status === 'Approved' ? 'bg-green-500' : 'bg-red-500'
                               }`}></div>
                           </div>
                           <div className="flex flex-col">
@@ -224,7 +179,7 @@ export default function StaffRosterPage() {
                       </div>
                     </td>
                     
-                    {/* 2. SHIFT / LEAVE TIMELINE */}
+                    {/* 2. TIMELINE */}
                     <td className="px-6 py-5">
                       {item.requestType === 'Shift Change' ? (
                           <div className="flex flex-col">
@@ -232,7 +187,7 @@ export default function StaffRosterPage() {
                                 <FaSun className="text-orange-400"/> Shift Change
                               </span>
                               <span className="text-[10px] font-bold text-slate-400 mt-0.5">
-                                {item.shiftDetails?.fromShift || 'Any'} ➔ {item.shiftDetails?.toShift || 'Any'}
+                                {formatDate(item.startDate)}
                               </span>
                           </div>
                       ) : (
@@ -247,7 +202,7 @@ export default function StaffRosterPage() {
                       )}
                     </td>
 
-                    {/* 3. REASON */}
+                    {/* 3. REASON / SHIFT UPDATE */}
                     <td className="px-6 py-5">
                       <div className="flex flex-col">
                           <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">{item.leaveType}</span>
@@ -265,7 +220,7 @@ export default function StaffRosterPage() {
 
                     {/* 5. ACTIONS */}
                     <td className="px-8 py-5 text-right">
-                      <button className="bg-white border border-slate-200 text-slate-400 px-3 py-1.5 rounded-lg text-[10px] font-black hover:border-slate-900 hover:text-slate-900 transition-all uppercase">
+                      <button className="bg-white border border-slate-200 text-slate-400 px-3 py-1.5 rounded-lg text-[10px] font-black hover:border-slate-900 hover:text-slate-900 transition-all uppercase shadow-sm">
                           View Details
                       </button>
                     </td>
@@ -277,7 +232,7 @@ export default function StaffRosterPage() {
         </div>
       </div>
 
-      {/* --- REQUEST DETAIL MODAL (Manage Approve/Reject) --- */}
+      {/* --- HISTORY DETAIL MODAL (Read Only) --- */}
       {isModalOpen && selectedRequest && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={closeModal}></div>
@@ -318,7 +273,7 @@ export default function StaffRosterPage() {
                     </div>
 
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                        <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Request Reason ({selectedRequest.leaveType})</p>
+                        <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Original Request Reason</p>
                         <p className="text-sm font-bold text-slate-700 leading-relaxed italic">
                             "{selectedRequest.reason}"
                         </p>
@@ -332,91 +287,31 @@ export default function StaffRosterPage() {
                         />
                         {selectedRequest.requestType === 'Shift Change' && (
                             <InfoItem 
-                                label="Shift Update" 
-                                value={`${selectedRequest.shiftDetails?.fromShift} ➔ ${selectedRequest.shiftDetails?.toShift}`} 
+                                label="Requested Shift" 
+                                value={`${selectedRequest.shiftDetails?.fromShift || 'Any'} ➔ ${selectedRequest.shiftDetails?.toShift || 'Any'}`} 
                                 icon={<FaClock/>} 
                             />
                         )}
                     </div>
 
-                    {selectedRequest.status === 'Rejected' && selectedRequest.rejectionReason && (
-                        <div className="bg-red-50 p-5 rounded-2xl border border-red-100">
-                            <p className="text-[9px] font-black text-red-400 uppercase mb-2">Reason for Rejection</p>
+                    {/* DYNAMIC SHOW: REJECTION REASON (If Rejected) */}
+                    {selectedRequest.status === 'Rejected' && (
+                        <div className="bg-red-50 p-5 rounded-2xl border border-red-100 mt-4">
+                            <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+                                <FaTimesCircle /> Official Rejection Reason
+                            </p>
                             <p className="text-sm font-bold text-red-700 leading-relaxed italic">
-                                "{selectedRequest.rejectionReason}"
+                                "{selectedRequest.rejectionReason || 'No official reason provided.'}"
                             </p>
                         </div>
                     )}
                 </div>
 
-                {/* Approve / Reject Actions (Footer) */}
-                <div className="p-8 bg-slate-50 border-t border-slate-100 shrink-0">
-                    
-                    {/* IF STATUS IS PENDING */}
-                    {selectedRequest.status === 'Pending' ? (
-                        
-                        isRejectMode ? (
-                            // --- REJECT REASON INPUT VIEW ---
-                            <div className="w-full flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2">
-                                <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">Provide Rejection Reason</p>
-                                <textarea 
-                                    className="w-full p-4 rounded-xl border border-red-200 bg-white text-sm font-medium outline-none focus:border-red-400 shadow-sm"
-                                    placeholder="Type the reason for denying this request..."
-                                    rows="3"
-                                    value={rejectReason}
-                                    onChange={(e) => setRejectReason(e.target.value)}
-                                ></textarea>
-                                
-                                <div className="flex gap-2 justify-end mt-2">
-                                    <button 
-                                        onClick={() => { setIsRejectMode(false); setRejectReason(""); }} 
-                                        className="px-5 py-2.5 text-slate-500 font-black text-[11px] uppercase tracking-widest hover:text-slate-800"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button 
-                                        onClick={() => handleManageRequest(selectedRequest._id, 'Rejected')}
-                                        className="bg-red-500 text-white px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-red-200 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        disabled={!rejectReason.trim()}
-                                    >
-                                        Confirm Reject
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            // --- DEFAULT BUTTON VIEW (Approve/Reject) ---
-                            <div className="flex justify-between items-center w-full">
-                                <button onClick={closeModal} className="text-slate-500 font-black text-[11px] uppercase tracking-widest hover:text-slate-800">
-                                    Close Window
-                                </button>
-                                <div className="flex gap-2">
-                                    <button 
-                                        onClick={() => setIsRejectMode(true)}
-                                        className="bg-red-50 text-red-600 border border-red-200 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-red-100 transition-colors"
-                                    >
-                                        Reject
-                                    </button>
-                                    <button 
-                                        onClick={() => handleManageRequest(selectedRequest._id, 'Approved')}
-                                        className="bg-[#08B36A] text-white px-6 py-3 rounded-2xl text-[11px] font-black shadow-xl shadow-green-200 uppercase tracking-widest hover:bg-emerald-600 transition-colors"
-                                    >
-                                        Approve
-                                    </button>
-                                </div>
-                            </div>
-                        )
-
-                    ) : (
-                        // IF REQUEST IS ALREADY PROCESSED
-                        <div className="flex justify-between items-center w-full">
-                            <button onClick={closeModal} className="text-slate-500 font-black text-[11px] uppercase tracking-widest hover:text-slate-800">
-                                Close Window
-                            </button>
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                                Request Already {selectedRequest.status}
-                            </span>
-                        </div>
-                    )}
+                {/* Footer (Read Only) */}
+                <div className="p-6 bg-slate-50 border-t border-slate-100 shrink-0 flex justify-end">
+                    <button onClick={closeModal} className="bg-slate-900 text-white px-8 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-lg hover:bg-slate-800 transition-colors">
+                        Close Record
+                    </button>
                 </div>
 
             </div>
@@ -432,7 +327,7 @@ function CompactStatCard({ title, count, label, color, icon }) {
     const colors = {
         blue: "text-blue-600 bg-blue-50 border-blue-100",
         emerald: "text-emerald-600 bg-emerald-50 border-emerald-100",
-        amber: "text-amber-600 bg-amber-50 border-amber-100",
+        red: "text-red-600 bg-red-50 border-red-100",
         slate: "text-slate-600 bg-slate-50 border-slate-100"
     }
     return (

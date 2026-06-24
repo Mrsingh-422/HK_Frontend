@@ -3,7 +3,7 @@ import PoliceAPI from '@/app/services/PoliceAPI';
 import React, { useState, useEffect } from 'react'
 import { 
   FaSearch, FaEye, FaShieldAlt, FaMapMarkerAlt, FaClock, FaUserShield,
-  FaFileExport, FaTimes, FaHospital, FaUserInjured, FaExclamationTriangle,
+  FaFileExport, FaTimes, FaUserInjured, FaExclamationTriangle,
   FaCheckCircle, FaFileMedical, FaPhoneAlt
 } from 'react-icons/fa'
 import DeployOfficerModal from '../components/DeployOfficerModal';
@@ -13,6 +13,7 @@ export default function FreshCasePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
   const [isAccepting, setIsAccepting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(''); // 👈 Search state added
 
   // API Data States
   const [cases, setCases] = useState([]);
@@ -26,8 +27,16 @@ export default function FreshCasePage() {
         PoliceAPI.getPoliceStationCases(),
         PoliceAPI.getAllStaff()
       ]);
-      if (casesRes.success) setCases(casesRes.data);
-      if (staffRes.success) setOfficers(staffRes.data);
+      
+      if (casesRes.success && casesRes.data) {
+        // 👈 MAIN FIX: Filter strictly for 'Fresh' status cases
+        const freshCasesOnly = casesRes.data.filter(c => c.status === 'Fresh');
+        setCases(freshCasesOnly);
+      }
+      
+      if (staffRes.success && staffRes.data) {
+        setOfficers(staffRes.data);
+      }
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -39,6 +48,12 @@ export default function FreshCasePage() {
     fetchData();
   }, []);
 
+  // 👈 SEARCH LOGIC: Filter cases based on search input
+  const filteredCases = cases.filter(c => 
+    c.caseNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.victimName && c.victimName.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
   const handleOpenDetails = (caseItem) => {
     setSelectedCase(caseItem);
     setIsModalOpen(true);
@@ -48,13 +63,13 @@ export default function FreshCasePage() {
     e.stopPropagation(); 
     setSelectedCase(caseItem);
     
-    if (caseItem.status === 'Pending' || !caseItem.progress.isAccepted) {
+    if (caseItem.status === 'Pending' || !caseItem.progress?.isAccepted) {
         try {
             setIsAccepting(true);
             const res = await PoliceAPI.acceptCase(caseItem._id);
             if (res.success) {
-                await fetchData();
-                setIsDeployModalOpen(true);
+                await fetchData(); // Refresh data to reflect status change
+                setIsDeployModalOpen(true); // Now open deploy modal
             }
         } catch (error) {
             alert("Failed to accept the case.");
@@ -67,6 +82,7 @@ export default function FreshCasePage() {
   };
 
   const formatTime = (dateStr) => {
+    if (!dateStr) return "N/A";
     return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
@@ -101,7 +117,13 @@ export default function FreshCasePage() {
           </div>
           <div className="relative flex-1 md:w-72">
             <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-3.5" />
-            <input type="text" placeholder="Search Case No or Victim..." className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#08B36A]/20 transition-all" />
+            <input 
+              type="text" 
+              placeholder="Search Case No or Victim..." 
+              value={searchQuery} // 👈 Binded search state
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#08B36A]/20 transition-all" 
+            />
           </div>
         </div>
 
@@ -120,13 +142,22 @@ export default function FreshCasePage() {
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr><td colSpan="6" className="p-20 text-center text-xs font-bold text-slate-400 uppercase animate-pulse">Syncing Registry...</td></tr>
-              ) : cases.map((item) => (
+              ) : filteredCases.length === 0 ? (
+                <tr><td colSpan="6" className="p-20 text-center text-xs font-bold text-slate-400 uppercase">No Fresh Cases Found</td></tr>
+              ) : filteredCases.map((item) => (
                 <tr key={item._id} onClick={() => handleOpenDetails(item)} className="hover:bg-slate-50/50 transition-colors group cursor-pointer">
                   <td className="px-8 py-5">
-                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 font-black border border-slate-100 shadow-sm">{item.victimName.charAt(0)}</div>
+                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 font-black border border-slate-100 shadow-sm">
+                      {item.victimName ? item.victimName.charAt(0).toUpperCase() : '?'}
+                    </div>
                   </td>
                   <td className="px-6 py-5"><span className="text-sm font-black text-blue-600 hover:underline">{item.caseNo}</span></td>
-                  <td className="px-6 py-5"><div className="flex flex-col"><span className="text-sm font-bold text-slate-700">{item.victimName}</span><span className="text-[10px] font-bold text-slate-400 uppercase">{item.victimPhone}</span></div></td>
+                  <td className="px-6 py-5">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-slate-700">{item.victimName || "Unknown"}</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">{item.victimPhone || "N/A"}</span>
+                    </div>
+                  </td>
                   <td className="px-6 py-5"><span className={`px-3 py-1 ${item.severity === 'Critical' ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'} text-[9px] font-black rounded-lg uppercase tracking-widest`}>{item.incidentType}</span></td>
                   <td className="px-6 py-5">
                     <div className="flex flex-col gap-1 text-slate-500">
@@ -137,7 +168,7 @@ export default function FreshCasePage() {
                   <td className="px-6 py-5">
                     <div className="flex items-center justify-center gap-2">
                       <button onClick={(e) => handleOpenDeploy(e, item)} disabled={isAccepting && selectedCase?._id === item._id} className="bg-[#08B36A] text-white px-5 py-2 rounded-xl text-[10px] font-black flex items-center gap-2 shadow-lg shadow-green-100 hover:bg-[#07a25f] transition-all disabled:opacity-50">
-                        {isAccepting && selectedCase?._id === item._id ? "ACCEPTING..." : (<>{item.progress.isAccepted ? <FaUserShield size={12} /> : <FaCheckCircle size={12} />} {item.progress.isAccepted ? "DEPLOY" : "ACCEPT & DEPLOY"}</>)}
+                        {isAccepting && selectedCase?._id === item._id ? "ACCEPTING..." : (<>{item.progress?.isAccepted ? <FaUserShield size={12} /> : <FaCheckCircle size={12} />} {item.progress?.isAccepted ? "DEPLOY" : "ACCEPT & DEPLOY"}</>)}
                       </button>
                       <button className="bg-white border border-slate-200 text-slate-500 px-3 py-2 rounded-xl text-[10px] font-black hover:border-slate-800 hover:text-slate-800 transition-all"><FaEye /></button>
                     </div>
@@ -168,8 +199,8 @@ export default function FreshCasePage() {
                     <div className="space-y-4">
                         <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><FaUserInjured /> Victim Information</h4>
                         <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                            <p className="text-lg font-black text-slate-800">{selectedCase.victimName}</p>
-                            <p className="text-xs font-bold text-slate-500 mt-1 flex items-center gap-2"><FaPhoneAlt size={10}/> {selectedCase.victimPhone}</p>
+                            <p className="text-lg font-black text-slate-800">{selectedCase.victimName || 'Unknown'}</p>
+                            <p className="text-xs font-bold text-slate-500 mt-1 flex items-center gap-2"><FaPhoneAlt size={10}/> {selectedCase.victimPhone || 'N/A'}</p>
                         </div>
                         <InfoItem label="Incident Category" value={selectedCase.incidentType} color="text-red-500" />
                         <InfoItem label="Description" value={selectedCase.description || "No description provided."} />
@@ -177,14 +208,14 @@ export default function FreshCasePage() {
                     <div className="space-y-4">
                         <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><FaMapMarkerAlt /> Location Details</h4>
                         <InfoItem label="Occurrence Address" value={selectedCase.address} />
-                        <InfoItem label="Reported At" value={new Date(selectedCase.reportedAt).toLocaleString()} />
+                        <InfoItem label="Reported At" value={new Date(selectedCase.reportedAt).toLocaleString('en-IN')} />
                         <InfoItem label="Severity Status" value={selectedCase.severityStatus} />
                     </div>
                 </div>
                 <div className="p-8 bg-slate-50 flex justify-end gap-3">
                     <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 text-slate-500 font-black text-[11px] uppercase tracking-widest">Close View</button>
                     <button onClick={(e) => { setIsModalOpen(false); handleOpenDeploy(e, selectedCase); }} className="bg-[#08B36A] text-white px-8 py-3 rounded-2xl text-[11px] font-black shadow-xl shadow-green-100 uppercase tracking-widest">
-                        {selectedCase.progress.isAccepted ? "Deploy Force" : "Accept & Deploy"}
+                        {selectedCase.progress?.isAccepted ? "Deploy Force" : "Accept & Deploy"}
                     </button>
                 </div>
             </div>

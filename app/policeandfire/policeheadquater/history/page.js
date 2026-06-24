@@ -1,79 +1,68 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation' // 👈 ROUTER IMPORT KIYA HAI
 import { 
   FaSearch, 
-  FaEye, 
   FaShieldAlt, 
   FaCheckCircle, 
   FaHistory, 
-  FaUserShield,
   FaFilter,
   FaFileExport,
   FaTimes,
-  FaHospital,
   FaUserInjured,
   FaCalendarCheck,
   FaUserTie,
   FaClipboardCheck,
-  FaPrint
+  FaPrint,
+  FaArrowRight // 👈 NAYA ICON
 } from 'react-icons/fa'
+import PoliceAPI from '@/app/services/PoliceAPI' // Aapka API path yahan add karein
 
 export default function HistoryCasePoliceTable() {
+  const router = useRouter(); // 👈 ROUTER INITIALIZE KIYA HAI
+  const [historyCases, setHistoryCases] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedCase, setSelectedCase] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Mock Data for History (Closed Cases)
-  const [historyCases] = useState([
-    { 
-      id: "MLC-20250001", 
-      patient: "Aman Preet Singh", 
-      incidentType: "Road Accident", 
-      closedBy: "Inspector Vikram Singh",
-      closureDate: "2025-02-28",
-      location: "Sector 74, Mohali", 
-      hospital: "Radius Hospital",
-      resolution: "Solved - FIR Filed",
-      age: "31",
-      gender: "Male",
-      reportedBy: "Dr. Aman Deep",
-      finalNote: "Statements of both parties recorded. Insurance claim processed and FIR #442 registered at Phase 8 Police Station.",
-      image: "https://via.placeholder.com/150"
-    },
-    { 
-      id: "MLC-20250005", 
-      patient: "Sunita Rani", 
-      incidentType: "Household Injury", 
-      closedBy: "SI Rajesh Kumar",
-      closureDate: "2025-03-01",
-      location: "Phase 11, Mohali", 
-      hospital: "City Care",
-      resolution: "Closed - Accidental",
-      age: "48",
-      gender: "Female",
-      reportedBy: "Dr. Sunita",
-      finalNote: "Investigation concluded it was a genuine accidental fall. No foul play suspected. Victim family satisfied with inquiry.",
-      image: "https://via.placeholder.com/150"
-    },
-    { 
-      id: "MLC-20240982", 
-      patient: "Rohan Mehra", 
-      incidentType: "Assault", 
-      closedBy: "Officer Amit Verma",
-      closureDate: "2025-03-04",
-      location: "Tdi City, Mohali", 
-      hospital: "Fortis IT",
-      resolution: "Solved - Arrest Made",
-      age: "22",
-      gender: "Male",
-      reportedBy: "Dr. Mike",
-      finalNote: "CCTV footage identified the attacker. Accused in custody. Case transferred to District Court.",
-      image: "https://via.placeholder.com/150"
+  // 1. Fetch Data on Component Mount
+  useEffect(() => {
+    fetchHistoryData();
+  }, []);
+
+  const fetchHistoryData = async () => {
+    try {
+      setLoading(true);
+      const response = await PoliceAPI.getAllCases();
+      
+      if (response.success && response.data) {
+        const closedCases = response.data.filter(
+          (caseItem) => caseItem.status === 'Closed' || caseItem.status === 'Archived'
+        );
+        setHistoryCases(closedCases);
+      }
+    } catch (error) {
+      console.error("Error fetching cases:", error);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
 
   const handleOpenDetails = (caseItem) => {
     setSelectedCase(caseItem);
     setIsModalOpen(true);
+  };
+
+  // 👈 ROUTING FUNCTION (Go to Details Page)
+  const handleViewSummary = (e, id) => {
+    e.stopPropagation(); // Taki row click hone par Modal open na ho
+    router.push(`/policeandfire/policeheadquater/history/${id}`);
   };
 
   return (
@@ -81,9 +70,9 @@ export default function HistoryCasePoliceTable() {
       
       {/* --- STATS SUMMARY --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <StatMini label="Total Resolved Cases" value="482" color="text-emerald-600" />
-        <StatMini label="Solved this Month" value="24" color="text-blue-600" />
-        <StatMini label="Avg. Resolution Time" value="4.2 Days" color="text-slate-600" />
+        <StatMini label="Total Resolved Cases" value={historyCases.length} color="text-emerald-600" />
+        <StatMini label="Solved this Month" value="-" color="text-blue-600" />
+        <StatMini label="Avg. Resolution Time" value="-" color="text-slate-600" />
       </div>
 
       {/* --- TABLE CONTAINER --- */}
@@ -94,7 +83,7 @@ export default function HistoryCasePoliceTable() {
           <div>
             <h2 className="text-xl font-black text-slate-800 flex items-center gap-3">
               <span className="p-2 bg-emerald-50 text-[#08B36A] rounded-lg"><FaHistory /></span>
-              Closed MLC Archives
+              Closed Case Archives
             </h2>
             <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">History of resolved investigations</p>
           </div>
@@ -119,64 +108,77 @@ export default function HistoryCasePoliceTable() {
 
         {/* The Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-[0.15em] border-y border-slate-50">
-                <th className="px-6 py-4">Case ID</th>
-                <th className="px-6 py-4">Victim Name</th>
-                <th className="px-6 py-4">Incident Type</th>
-                <th className="px-6 py-4">Closed By</th>
-                <th className="px-6 py-4">Closure Date</th>
-                <th className="px-6 py-4 text-center">Outcome</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {historyCases.map((item) => (
-                <tr 
-                  key={item.id} 
-                  onClick={() => handleOpenDetails(item)}
-                  className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
-                >
-                  <td className="px-6 py-5">
-                    <span className="text-sm font-black text-slate-400">{item.id}</span>
-                  </td>
-                  
-                  <td className="px-6 py-5">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-700">{item.patient}</span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">{item.hospital}</span>
-                    </div>
-                  </td>
-
-                  <td className="px-6 py-5">
-                    <span className="text-xs font-bold text-slate-600">{item.incidentType}</span>
-                  </td>
-
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-2">
-                        <FaUserTie size={12} className="text-slate-300"/>
-                        <span className="text-sm font-bold text-slate-500">{item.closedBy}</span>
-                    </div>
-                  </td>
-
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <FaCalendarCheck size={10} className="text-[#08B36A]" />
-                      <span className="text-xs font-bold">{item.closureDate}</span>
-                    </div>
-                  </td>
-
-                  <td className="px-6 py-5">
-                    <div className="flex items-center justify-center">
-                      <span className="bg-emerald-50 text-[#08B36A] px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-2">
-                        <FaCheckCircle /> {item.resolution.split(' - ')[0]}
-                      </span>
-                    </div>
-                  </td>
+          {loading ? (
+             <div className="p-10 text-center text-slate-400 font-bold">Loading Data...</div>
+          ) : historyCases.length === 0 ? (
+             <div className="p-10 text-center text-slate-400 font-bold">No Closed Cases Found</div>
+          ) : (
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-[0.15em] border-y border-slate-50">
+                  <th className="px-6 py-4">Case ID</th>
+                  <th className="px-6 py-4">Victim Name</th>
+                  <th className="px-6 py-4">Incident Type</th>
+                  <th className="px-6 py-4">Closed By</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-center">Action</th> {/* 👈 NAYA COLUMN */}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {historyCases.map((item) => (
+                  <tr 
+                    key={item._id} 
+                    onClick={() => handleOpenDetails(item)}
+                    className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
+                  >
+                    <td className="px-6 py-5">
+                      <span className="text-sm font-black text-slate-400">{item.caseNo}</span>
+                      <div className="flex items-center gap-1 text-slate-400 mt-1">
+                        <FaCalendarCheck size={10} className="text-[#08B36A]" />
+                        <span className="text-[10px] font-bold">{formatDate(item.updatedAt)}</span>
+                      </div>
+                    </td>
+                    
+                    <td className="px-6 py-5">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-700">{item.victimName}</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[150px]">{item.address}</span>
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-5">
+                      <span className="text-xs font-bold text-slate-600">{item.incidentType}</span>
+                    </td>
+
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-2">
+                          <FaUserTie size={12} className="text-slate-300"/>
+                          <span className="text-sm font-bold text-slate-500">
+                            {item.stationId?.shoName || "HQ Staff"}
+                          </span>
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-5">
+                      <span className="bg-emerald-50 text-[#08B36A] px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1.5">
+                        <FaCheckCircle /> {item.status}
+                      </span>
+                    </td>
+
+                    {/* 👈 VIEW SUMMARY BUTTON (Table Row Me) */}
+                    <td className="px-6 py-5 text-center">
+                      <button 
+                        onClick={(e) => handleViewSummary(e, item._id)}
+                        className="bg-[#08B36A] hover:bg-[#069356] text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 mx-auto"
+                      >
+                        View Summary <FaArrowRight size={10} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* Footer */}
@@ -202,10 +204,10 @@ export default function HistoryCasePoliceTable() {
                             <FaClipboardCheck size={24} />
                         </div>
                         <div>
-                            <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none">Archived Case: {selectedCase.id}</h3>
+                            <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none">Archived Case: {selectedCase.caseNo}</h3>
                             <div className="flex items-center gap-2 mt-2">
                                 <span className="text-[#08B36A] font-black text-[10px] uppercase tracking-widest px-2 py-0.5 bg-emerald-50 rounded">Investigation Resolved</span>
-                                <span className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">• Closed on {selectedCase.closureDate}</span>
+                                <span className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">• Closed on {formatDate(selectedCase.updatedAt)}</span>
                             </div>
                         </div>
                     </div>
@@ -217,17 +219,17 @@ export default function HistoryCasePoliceTable() {
                 {/* Modal Body */}
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
                     
-                    {/* Victim & Hospital Section */}
+                    {/* Victim & Station Section */}
                     <div className="space-y-4">
                         <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                             <FaUserInjured /> Victim Details
                         </h4>
                         <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                            <p className="text-lg font-black text-slate-800">{selectedCase.patient}</p>
-                            <p className="text-xs font-bold text-slate-500 mt-1">{selectedCase.incidentType} • Age: {selectedCase.age}</p>
+                            <p className="text-lg font-black text-slate-800">{selectedCase.victimName}</p>
+                            <p className="text-xs font-bold text-slate-500 mt-1">{selectedCase.incidentType} • Ph: {selectedCase.victimPhone}</p>
                         </div>
-                        <InfoItem label="Resolved By" value={selectedCase.closedBy} color="text-[#08B36A]" />
-                        <InfoItem label="Incident Hospital" value={selectedCase.hospital} />
+                        <InfoItem label="Resolved By" value={selectedCase.stationId?.shoName || 'HQ Staff'} color="text-[#08B36A]" />
+                        <InfoItem label="Handling Station" value={selectedCase.stationId?.stationName || 'HQ Direct'} />
                     </div>
 
                     {/* Official Outcome Section */}
@@ -235,35 +237,35 @@ export default function HistoryCasePoliceTable() {
                         <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                             <FaShieldAlt /> Official Outcome
                         </h4>
-                        <InfoItem label="Final Status" value={selectedCase.resolution} color="text-emerald-600" />
-                        <InfoItem label="Occurrence Area" value={selectedCase.location} />
-                        <InfoItem label="Reporting Doctor" value={selectedCase.reportedBy} />
+                        <InfoItem label="Final Status" value={selectedCase.status} color="text-emerald-600" />
+                        <InfoItem label="Occurrence Area" value={selectedCase.address} />
+                        <InfoItem label="Case Severity" value={`${selectedCase.severity} (${selectedCase.severityLevel})`} />
                     </div>
 
                     {/* Final Case Summary (Full Width) */}
                     <div className="md:col-span-2 space-y-2">
                         <p className="text-[10px] font-bold text-slate-400 uppercase ml-1">Investigation Final Summary</p>
                         <div className="bg-emerald-50/30 border border-emerald-100 p-6 rounded-2xl">
-                            <p className="text-sm font-bold text-slate-600 leading-relaxed italic">
-                                "{selectedCase.finalNote}"
+                            <p className="text-sm font-bold text-slate-600 leading-relaxed italic whitespace-pre-wrap">
+                                "{selectedCase.remarks || selectedCase.description || 'No remarks available.'}"
                             </p>
                         </div>
                     </div>
                 </div>
 
                 {/* Modal Footer */}
-                <div className="p-8 bg-slate-50 flex justify-between gap-3">
-                    <button className="bg-white border-2 border-slate-200 text-slate-600 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-slate-100">
-                        <FaPrint /> Print Official Report
+                <div className="p-6 bg-slate-50 flex justify-between items-center gap-3">
+                    <button className="text-slate-400 hover:text-slate-600 font-bold text-[10px] uppercase tracking-widest px-4 py-2 transition-colors">
+                        Close
                     </button>
-                    <div className="flex gap-3">
-                        <button 
-                            onClick={() => setIsModalOpen(false)}
-                            className="bg-slate-800 text-white px-8 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest"
-                        >
-                            Close Record
-                        </button>
-                    </div>
+                    
+                    {/* 👈 VIEW FULL SUMMARY BUTTON (Modal Me Bhi) */}
+                    <button 
+                        onClick={() => router.push(`/policeandfire/policeheadquater/history/${selectedCase._id}`)}
+                        className="bg-[#08B36A] hover:bg-[#069356] text-white px-8 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-[#08B36A]/20 transition-all transform hover:scale-105"
+                    >
+                        View Full Summary <FaArrowRight size={12} />
+                    </button>
                 </div>
             </div>
         </div>

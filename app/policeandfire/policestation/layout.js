@@ -10,7 +10,9 @@ import {
     FaCalendarAlt,
     FaHistory,
     FaMapMarkedAlt,
-    FaCog
+    FaCog,
+    FaHome,
+    FaKey
 } from "react-icons/fa";
 
 import TopbarPoliceStation from './components/topbarpolicestation';
@@ -21,6 +23,11 @@ export default function PoliceStationLayout({ children }) {
     const pathname = usePathname()
 
     const menuItems = [
+        {
+            name: 'Dashboard',
+            href: '/policeandfire/policestation/dashboard',
+            icon: FaHome
+        },
         {
             name: 'Fresh Case',
             href: '/policeandfire/policestation/freshcase',
@@ -42,15 +49,16 @@ export default function PoliceStationLayout({ children }) {
             icon: FaCalendarAlt
         },
         {
+            name: 'Create Case',
+            href: '/policeandfire/policestation/create-case',
+            icon: FaCalendarAlt
+        },
+        {
             name: 'History',
             href: '/policeandfire/policestation/history',
             icon: FaHistory
         },
-        {
-            name: 'Manage Leave',
-            href: '/policeandfire/policestation/manageleave',
-            icon: FaHistory
-        },
+        
         {
             name: 'Jurisdiction Areas',
             href: '/policeandfire/policestation/jurdictionarea',
@@ -61,13 +69,21 @@ export default function PoliceStationLayout({ children }) {
             href: '/policeandfire/policestation/setting',
             icon: FaCog
         },
+        {
+            name: 'Change Password',
+            href: '/policeandfire/policestation/change-password',
+            icon: FaKey
+        },
     ];
 
     return (
-        <div className="min-h-screen bg-[#F9FAFB] flex font-sans">
+        // FIX 1: 'min-h-screen' hata kar 'fixed inset-0 overflow-hidden' lagaya jisse page lock ho jaye.
+        <div className="fixed inset-0 bg-[#F9FAFB] flex font-sans overflow-hidden">
+            
             {/* --- SIDEBAR --- */}
+            {/* FIX 2: 'h-full shrink-0' lagaya taaki sidebar dab ke chhota na ho */}
             <aside className={`
-                fixed inset-y-0 left-0 z-50 bg-white border-r border-gray-100 flex flex-col
+                fixed inset-y-0 left-0 z-50 bg-white border-r border-gray-100 flex flex-col h-full shrink-0
                 transition-all duration-300 ease-in-out
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
                 lg:translate-x-0 lg:static lg:inset-0
@@ -124,18 +140,23 @@ export default function PoliceStationLayout({ children }) {
                     })}
                 </nav>
 
-
             </aside>
 
             {/* --- MAIN CONTENT --- */}
-            <div className="flex-1 flex flex-col min-w-0">
-                <TopbarPoliceStation
-                    isCollapsed={isCollapsed}
-                    onToggleSidebar={() => setIsCollapsed(!isCollapsed)}
-                    onMobileMenuClick={() => setSidebarOpen(true)} // Pass mobile trigger
-                />
+            {/* FIX 3: Right side container ko 'h-full min-h-0 overflow-hidden' diya */}
+            <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden">
+                
+                {/* FIX 4: Topbar ko shrink-0 me wrap kiya jisse wo upar fixed rahe */}
+                <div className="shrink-0">
+                    <TopbarPoliceStation
+                        isCollapsed={isCollapsed}
+                        onToggleSidebar={() => setIsCollapsed(!isCollapsed)}
+                        onMobileMenuClick={() => setSidebarOpen(true)} // Pass mobile trigger
+                    />
+                </div>
 
-                <main className="flex-1 p-6 md:p-8 overflow-auto">
+                {/* FIX 5: Main section ko 'overflow-y-auto min-h-0' diya taaki SIRF ye scroll ho */}
+                <main className="flex-1 p-6 md:p-8 overflow-y-auto min-h-0 custom-scrollbar">
                     <div className="max-w-7xl mx-auto">
                         {children}
                     </div>

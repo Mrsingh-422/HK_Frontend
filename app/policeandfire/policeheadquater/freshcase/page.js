@@ -13,9 +13,10 @@ import {
   FaUserInjured,
   FaExclamationTriangle,
   FaBuilding,
-  FaFolderOpen
+  FaFolderOpen,
+  FaExchangeAlt, // Added for Reassign icon
+  FaCheckCircle
 } from 'react-icons/fa'
-import DeployStationModal from '../components/DeployStationModal';
 import PoliceAPI from '@/app/services/PoliceAPI';
 
 export default function FreshCasePoliceTable() {
@@ -24,7 +25,7 @@ export default function FreshCasePoliceTable() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   
-  // Tab State based on your Schema Enum
+  // Tab State
   const [activeTab, setActiveTab] = useState("Fresh");
   const tabs = ['Fresh', 'Pending', 'Under Investigation', 'Critical', 'Closed', 'Archived'];
   
@@ -57,8 +58,8 @@ export default function FreshCasePoliceTable() {
         const matchesTab = c.status === activeTab;
         const matchesSearch = 
             c.caseNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            c.victimName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            c.incidentType.toLowerCase().includes(searchQuery.toLowerCase());
+            (c.victimName && c.victimName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            (c.incidentType && c.incidentType.toLowerCase().includes(searchQuery.toLowerCase()));
         
         return matchesTab && matchesSearch;
     });
@@ -76,8 +77,8 @@ export default function FreshCasePoliceTable() {
     setIsDeployModalOpen(true);
   };
 
-  // Helper to format Date
   const formatDateTime = (dateStr) => {
+    if (!dateStr) return "N/A";
     const d = new Date(dateStr);
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " | " + d.toLocaleDateString();
   };
@@ -87,7 +88,7 @@ export default function FreshCasePoliceTable() {
   return (
     <div className="space-y-6">
       
-      {/* --- STATS SUMMARY (Global) --- */}
+      {/* --- STATS SUMMARY --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <StatMini label="Global Fresh Intake" value={cases.filter(c => c.status === 'Fresh').length.toString().padStart(2, '0')} color="text-blue-600" />
         <StatMini label="Critical Severity" value={cases.filter(c => c.severity === 'Critical').length.toString().padStart(2, '0')} color="text-red-600" />
@@ -170,8 +171,8 @@ export default function FreshCasePoliceTable() {
                   
                   <td className="px-6 py-5">
                     <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-700">{item.victimName}</span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{item.victimPhone}</span>
+                      <span className="text-sm font-bold text-slate-700">{item.victimName || 'Unknown'}</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{item.victimPhone || 'N/A'}</span>
                     </div>
                   </td>
 
@@ -197,15 +198,21 @@ export default function FreshCasePoliceTable() {
 
                   <td className="px-6 py-5">
                     <div className="flex items-center justify-center gap-2">
-                      <button 
-                        onClick={(e) => handleOpenDeploy(e, item)}
-                        className="bg-[#08B36A] text-white px-4 py-2 rounded-xl text-[11px] font-black flex items-center gap-2 shadow-lg shadow-green-100 hover:bg-[#07a25f] transition-all"
-                      >
-                        <FaUserShield size={12} /> DEPLOY
-                      </button>
-                      <button 
-                        className="bg-white border border-slate-200 text-slate-500 px-3 py-2 rounded-xl text-[11px] font-black hover:border-slate-800 hover:text-slate-800 transition-all"
-                      >
+                      {/* 💡 DYNAMIC BUTTON LOGIC: Deploy for Fresh, Re-assign for others */}
+                      {item.status !== 'Closed' && item.status !== 'Archived' && (
+                        <button 
+                          onClick={(e) => handleOpenDeploy(e, item)}
+                          className={`text-white px-4 py-2 rounded-xl text-[11px] font-black flex items-center gap-2 shadow-lg transition-all ${
+                            item.status === 'Fresh' 
+                              ? 'bg-[#08B36A] shadow-green-100 hover:bg-[#07a25f]' 
+                              : 'bg-blue-600 shadow-blue-100 hover:bg-blue-700'
+                          }`}
+                        >
+                          {item.status === 'Fresh' ? <><FaUserShield size={12} /> Deploy</> : <><FaExchangeAlt size={12} /> Re-assign</>}
+                        </button>
+                      )}
+
+                      <button className="bg-white border border-slate-200 text-slate-500 px-3 py-2 rounded-xl text-[11px] font-black hover:border-slate-800 hover:text-slate-800 transition-all">
                         <FaEye />
                       </button>
                     </div>
@@ -261,8 +268,8 @@ export default function FreshCasePoliceTable() {
                             <FaUserInjured /> Victim Details
                         </h4>
                         <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                            <p className="text-lg font-black text-slate-800">{selectedCase.victimName}</p>
-                            <p className="text-xs font-bold text-slate-500 mt-1">Contact: {selectedCase.victimPhone}</p>
+                            <p className="text-lg font-black text-slate-800">{selectedCase.victimName || 'Unknown'}</p>
+                            <p className="text-xs font-bold text-slate-500 mt-1">Contact: {selectedCase.victimPhone || 'N/A'}</p>
                         </div>
                         <InfoItem label="Incident Type" value={selectedCase.incidentType} color="text-red-500" />
                         <InfoItem label="Reported At" value={formatDateTime(selectedCase.reportedAt)} />
@@ -279,19 +286,31 @@ export default function FreshCasePoliceTable() {
                 </div>
                 <div className="p-8 bg-slate-50 flex justify-end gap-3">
                     <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 text-slate-500 font-black text-[11px] uppercase tracking-widest hover:text-slate-800">Close</button>
-                    <button onClick={() => { setIsModalOpen(false); setIsDeployModalOpen(true); }} className="bg-[#08B36A] text-white px-8 py-3 rounded-2xl text-[11px] font-black shadow-xl shadow-green-100 uppercase tracking-widest">Update Dispatch</button>
+                    
+                    {selectedCase.status !== 'Closed' && selectedCase.status !== 'Archived' && (
+                        <button 
+                            onClick={() => { setIsModalOpen(false); setIsDeployModalOpen(true); }} 
+                            className={`text-white px-8 py-3 rounded-2xl text-[11px] font-black shadow-xl uppercase tracking-widest transition-all ${
+                                selectedCase.status === 'Fresh' ? 'bg-[#08B36A] hover:bg-[#07a25f] shadow-green-100' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-100'
+                            }`}
+                        >
+                            {selectedCase.status === 'Fresh' ? 'Deploy Station Now' : 'Re-assign Station'}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
       )}
 
-      {/* --- DEPLOY MODAL --- */}
-      <DeployStationModal 
-        isOpen={isDeployModalOpen}
-        onClose={() => setIsDeployModalOpen(false)}
-        selectedCase={selectedCase}
-        refreshData={fetchCases}
-      />
+      {/* --- INTEGRATED SMART DEPLOY MODAL --- */}
+      {isDeployModalOpen && selectedCase && (
+        <SmartDeployModal 
+          caseData={selectedCase} 
+          mode={selectedCase.status === 'Fresh' ? 'assign' : 'reassign'} 
+          onClose={() => setIsDeployModalOpen(false)} 
+          onSuccess={fetchCases} // Refresh the entire cases list
+        />
+      )}
 
     </div>
   )
@@ -314,6 +333,164 @@ function InfoItem({ label, value, color = "text-slate-700" }) {
             <p className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1">{label}</p>
             <div className="bg-white border border-slate-100 px-4 py-2.5 rounded-xl">
                 <p className={`text-sm font-bold ${color}`}>{value}</p>
+            </div>
+        </div>
+    )
+}
+
+// =========================================================================
+// SMART DEPLOY MODAL COMPONENT (Handles Assign & Reassign based on Mode)
+// =========================================================================
+function SmartDeployModal({ caseData, onClose, onSuccess, mode }) {
+    const [stations, setStations] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+    
+    const [selectedStation, setSelectedStation] = useState("");
+    const [severityLevel, setSeverityLevel] = useState(caseData.severityLevel || "Level 1");
+
+    const isReassign = mode === "reassign";
+
+    useEffect(() => {
+        const fetchStations = async () => {
+            setLoading(true);
+            try {
+                const response = await PoliceAPI.getAllPoliceStations();
+                if (response.success) {
+                    setStations(response.data);
+                }
+            } catch (error) {
+                console.error("Error fetching stations:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchStations();
+    }, []);
+
+    const handleDeploy = async () => {
+        if (!selectedStation) return alert("Please select a Police Station!");
+        
+        setSubmitting(true);
+        try {
+            let response;
+            // DYNAMIC API SELECTION based on mode
+            if (isReassign) {
+                response = await PoliceAPI.reassignCase(caseData._id, {
+                    stationId: selectedStation,
+                    severityLevel: severityLevel
+                });
+            } else {
+                response = await PoliceAPI.assignCaseToPoliceStataion(caseData._id, {
+                    stationId: selectedStation,
+                    severityLevel: severityLevel
+                });
+            }
+
+            if (response.success) {
+                onSuccess(); // Refresh list
+                onClose();   // Close modal
+            } else {
+                alert(response.message || "Failed to process request");
+            }
+        } catch (error) {
+            console.error("Action Error:", error);
+            alert("Something went wrong!");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" onClick={!submitting ? onClose : undefined}></div>
+            <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                
+                {/* Header */}
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                            {isReassign ? <FaExchangeAlt className="text-blue-600" /> : <FaBuilding className="text-[#08B36A]" />} 
+                            {isReassign ? 'Re-assign Case' : 'Deploy to Station'}
+                        </h3>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+                            Case No: {caseData.caseNo}
+                        </p>
+                    </div>
+                    <button onClick={onClose} disabled={submitting} className="p-2 text-slate-400 hover:text-red-500 transition-colors bg-white rounded-full border border-slate-200 shadow-sm">
+                        <FaTimes size={16} />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 space-y-6">
+                    
+                    <div className="bg-orange-50 border border-orange-100 p-4 rounded-2xl flex gap-3">
+                        <FaExclamationTriangle className="text-orange-500 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-orange-500 mb-1">Incident Location</p>
+                            <p className="text-sm font-bold text-orange-900 leading-snug">
+                                {caseData.address}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-5">
+                        {/* Station Selection */}
+                        <div>
+                            <label className="text-xs font-black uppercase tracking-widest text-slate-500 block mb-2">Select Target Police Station</label>
+                            {loading ? (
+                                <div className="p-3.5 bg-slate-50 text-slate-400 text-sm font-bold rounded-xl animate-pulse border border-slate-100">
+                                    Loading available stations...
+                                </div>
+                            ) : (
+                                <select 
+                                    className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 transition-all cursor-pointer"
+                                    value={selectedStation}
+                                    onChange={(e) => setSelectedStation(e.target.value)}
+                                >
+                                    <option value="" disabled>-- Choose a Station --</option>
+                                    {stations.map(stn => (
+                                        <option key={stn._id} value={stn._id}>
+                                            {stn.stationName} (Code: {stn.stationCode})
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
+                        </div>
+
+                        {/* Severity Level */}
+                        <div>
+                            <label className="text-xs font-black uppercase tracking-widest text-slate-500 block mb-2">Assign Severity Level</label>
+                            <select 
+                                className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 transition-all cursor-pointer"
+                                value={severityLevel}
+                                onChange={(e) => setSeverityLevel(e.target.value)}
+                            >
+                                <option value="Level 1">Level 1 (Standard Action)</option>
+                                <option value="Level 2">Level 2 (Elevated Response)</option>
+                                <option value="Level 3">Level 3 (Critical / Emergency)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                    <button onClick={onClose} disabled={submitting} className="px-6 py-3 text-slate-500 font-black text-[11px] uppercase tracking-widest hover:text-slate-800 transition-colors">
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={handleDeploy} 
+                        disabled={submitting || !selectedStation}
+                        className={`${isReassign ? 'bg-blue-600 hover:bg-blue-700' : 'bg-[#08B36A] hover:bg-[#07a25f]'} disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-3 rounded-2xl text-[11px] font-black shadow-lg uppercase tracking-widest flex items-center gap-2 transition-all transform active:scale-95`}
+                    >
+                        {submitting 
+                            ? 'Processing...' 
+                            : <><FaCheckCircle size={14} /> {isReassign ? 'Confirm Re-assign' : 'Confirm Deployment'}</>
+                        }
+                    </button>
+                </div>
             </div>
         </div>
     )

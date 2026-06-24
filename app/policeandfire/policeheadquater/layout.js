@@ -10,7 +10,9 @@ import {
     FaCog,             
     FaUserShield,      
     FaChevronLeft,
-    FaChevronRight
+    FaChevronRight,
+    FaHome,
+    FaMap
 } from "react-icons/fa";
 import TopbarPoliceHeadquarter from './components/TopbarPoliceHeadquarter'
 
@@ -34,11 +36,16 @@ export default function LabVendorLayout({ children }) {
     }, [router]);
 
     const menuItems = [
-        { name: 'Fresh Case', href: '/policeandfire/policeheadquater/freshcase', icon: FaFileMedicalAlt },
+        { name: 'Dashboard', href: '/policeandfire/policeheadquater/dashboard', icon: FaHome },
+        { name: 'All Case', href: '/policeandfire/policeheadquater/freshcase', icon: FaFileMedicalAlt },
+        { name: 'Fresh Case', href: '/policeandfire/policeheadquater/only-fresh-cases', icon: FaFileMedicalAlt },
+        { name: 'Pending Case', href: '/policeandfire/policeheadquater/pendingcases', icon: FaFileMedicalAlt },
         // { name: 'Pending', href: '/policeandfire/policeheadquater/pendingcase', icon: FaClipboardList },
         { name: 'Create Case', href: '/policeandfire/policeheadquater/createcase', icon: FaFileMedicalAlt },
         { name: 'Manage Police Station', href: '/policeandfire/policeheadquater/managepolicestation', icon: FaUserShield },
-        { name: 'Terms & Conditions', href: '/policeandfire/policeheadquater/termsandconditions', icon: FaCog },
+        { name: 'Manage Jurisdiction Area', href: '/policeandfire/policeheadquater/jurisdiction', icon: FaMap },
+        { name: 'Cases History', href: '/policeandfire/policeheadquater/history', icon: FaFileMedicalAlt },
+        { name: 'Terms & Conditions', href: '/policeandfire/policeheadquater/Term-and-condition', icon: FaCog },
     ];
 
     // Prevent rendering children until authorization check is done
@@ -47,13 +54,15 @@ export default function LabVendorLayout({ children }) {
     }
  
     return (
-        <div className="min-h-screen bg-gray-50 flex">
+        // FIX 1: Changed min-h-screen to h-screen and added overflow-hidden to prevent whole page scrolling
+        <div className="h-screen overflow-hidden bg-gray-50 flex">
+            
             {/* --- SIDEBAR --- */}
             <aside className={`
                 fixed inset-y-0 left-0 z-50 bg-white border-r border-gray-200 flex flex-col
                 transition-all duration-300 ease-in-out
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-                lg:translate-x-0 lg:static lg:inset-0
+                lg:translate-x-0 lg:static lg:h-screen
                 ${isCollapsed ? 'w-20' : 'w-64'}
             `}>
                 <div className="p-4 border-b border-gray-50 flex items-center justify-center min-h-[70px]">
@@ -96,13 +105,16 @@ export default function LabVendorLayout({ children }) {
                 </nav>
             </aside>
  
-            <div className="flex-1 flex flex-col min-w-0">
+            {/* FIX 2: Added h-screen and overflow-hidden here as well to restrict height */}
+            <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
                 <TopbarPoliceHeadquarter 
                     isCollapsed={isCollapsed} 
                     onToggleSidebar={() => setIsCollapsed(!isCollapsed)} 
                     onMobileMenuClick={() => setSidebarOpen(true)}
                 />
-                <main className="flex-1 p-4 md:p-8 overflow-auto bg-[#F9FAFB]">
+                
+                {/* FIX 3: Changed overflow-auto to overflow-y-auto to handle only vertical scrolling */}
+                <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-[#F9FAFB] custom-scrollbar">
                     {children}
                 </main>
             </div>
