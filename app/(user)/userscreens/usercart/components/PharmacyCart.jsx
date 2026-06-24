@@ -484,34 +484,34 @@ const PharmacyCart = () => {
                                         <p className="text-[11px] text-slate-400 font-medium mb-4">Please upload a clear image of your doctor's prescription to proceed.</p>
 
                                         <label className="inline-flex items-center justify-center px-6 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer hover:bg-slate-800 transition-colors">
-                                            <span>Select Files ({prescriptionFiles.length}/5)</span>
+                                            <span>Select File</span>
                                             <input type="file" hidden accept="image/*" multiple onChange={handleFileChange} />
                                         </label>
 
                                         {prescriptionFiles.length > 0 && (
                                             <div className="mt-6 pt-6 border-t border-slate-50">
                                                 <div className="flex flex-wrap gap-3 justify-center">
-                                                    {prescriptionFiles.map((file, idx) => (
-                                                        <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-emerald-500 group">
-                                                            <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" />
-                                                            <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <button
-                                                                    onClick={() => setZoomedImage(URL.createObjectURL(file))}
-                                                                    className="p-1.5 bg-white/20 text-white hover:bg-white/35 rounded-lg transition"
-                                                                    title="Zoom"
-                                                                >
-                                                                    <FaCamera size={10} />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => removeFile(idx)}
-                                                                    className="p-1.5 bg-rose-500/80 text-white hover:bg-rose-600 rounded-lg transition"
-                                                                    title="Delete"
-                                                                >
-                                                                    <FaTrash size={10} />
-                                                                </button>
+                                                    {prescriptionFiles.map((file, idx) => {
+                                                        const imgUrl = URL.createObjectURL(file);
+                                                        return (
+                                                            <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-emerald-500 group cursor-pointer" onClick={() => setZoomedImage(imgUrl)}>
+                                                                <img src={imgUrl} className="w-full h-full object-cover" />
+                                                                <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <span className="text-white text-[9px] font-black uppercase tracking-wider">View</span>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            removeFile(idx);
+                                                                        }}
+                                                                        className="absolute top-1 right-1 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-md transition-colors"
+                                                                        title="Delete"
+                                                                    >
+                                                                        <FaTrash size={8} />
+                                                                    </button>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         )}

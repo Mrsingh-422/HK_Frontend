@@ -276,6 +276,11 @@ const DoctorAPI = {
         const response = await doctorApi.get('/admin/doctor-data/specializations');
         return response.data;
     },
+
+    // ==========================================
+    // DOCTOR DASHBOARD SUMMARY
+    // ==========================================
+
     getDashboardSummary: async () => {
         try {
             const response = await doctorApi.get('/doctor/appointments/dashboard/summary');
@@ -285,6 +290,88 @@ const DoctorAPI = {
         }
     },
 
+    //video call
+    initiateVideoCall: async (callData) => {
+        try {
+            const response = await doctorApi.post('/doctor/video-call/initiate', callData);
+            return response.data;
+        }
+        catch (error) {
+            console.error("API Error in initiateVideoCall:", error);
+            return Promise.reject(error.response?.data?.message || "Something went wrong");
+        }
+    },
+
+    // ==========================================
+    // CENTRALIZED WALLET & PAYOUT APIs (Added & Fixed)
+    // ==========================================
+
+    getWalletStats: async () => {
+        try {
+            const response = await doctorApi.get('/doctor/wallet/stats');
+            return response.data;
+        } catch (error) {
+            return { success: false, message: error.response?.data?.message || "Failed to fetch wallet stats" };
+        }
+    },
+
+    requestWithdrawal: async (amount) => {
+        try {
+            const response = await doctorApi.post('/doctor/wallet/withdraw', { amount });
+            return response.data;
+        } catch (error) {
+            return { success: false, message: error.response?.data?.message || "Failed to submit withdrawal request" };
+        }
+    },
+
+    getDoctorTransactions: async () => {
+        try {
+            const response = await doctorApi.get('/doctor/wallet/transactions');
+            return response.data;
+        } catch (error) {
+            return { success: false, message: error.response?.data?.message || "Failed to fetch transactions" };
+        }
+    },
+
+    getAdminPendingWithdrawals: async () => {
+        try {
+            const response = await doctorApi.get('/api/admin/wallet/pending-withdrawals');
+            return response.data;
+        } catch (error) {
+            return { success: false, message: error.response?.data?.message || "Failed to fetch pending queue" };
+        }
+    },
+
+    approveWithdrawal: async (requestId, transactionReference) => {
+        try {
+            const response = await doctorApi.patch(`/api/admin/wallet/approve-withdrawal/${requestId}`, {
+                transactionReference
+            });
+            return response.data;
+        } catch (error) {
+            return { success: false, message: error.response?.data?.message || "Failed to approve request" };
+        }
+    },
+
+    rejectWithdrawal: async (requestId, reason) => {
+        try {
+            const response = await doctorApi.patch(`/api/admin/wallet/reject-withdrawal/${requestId}`, {
+                reason
+            });
+            return response.data;
+        } catch (error) {
+            return { success: false, message: error.response?.data?.message || "Failed to reject request" };
+        }
+    },
+    // NEW ADDITION: UPDATE DOCTOR BANK SETTLEMENT INFO
+    updateBankDetails: async (bankData) => {
+        try {
+            const response = await doctorApi.patch('/doctor/wallet/bank-details', bankData);
+            return response.data;
+        } catch (error) {
+            return { success: false, message: error.response?.data?.message || "Failed to update bank details" };
+        }
+    },
     initiateVideoCall: async (callData) => {
         try {
             console.log(callData);
@@ -325,10 +412,6 @@ const DoctorAPI = {
             console.error("API Error in getDoctorChatHistory:", error);
         }
     }
-
-
-
-
-}
+};
 
 export default DoctorAPI;

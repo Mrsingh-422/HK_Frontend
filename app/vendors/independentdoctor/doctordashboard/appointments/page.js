@@ -8,6 +8,7 @@ import {
 import { IoCloseOutline } from "react-icons/io5";
 import DoctorAPI from '@/app/services/DoctorAPI';
 import { toast, Toaster } from 'react-hot-toast';
+import VideoCallModal from '../../../../(user)/components/videoCall/VideoCallModal';
 
 export default function AppointmentsPage() {
     const [appointments, setAppointments] = useState([]);
@@ -15,6 +16,7 @@ export default function AppointmentsPage() {
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState(''); // Empty means 'All'
     const [filterConsultationType, setFilterConsultationType] = useState(''); // Empty means 'All'
+    const [searchQuery, setSearchQuery] = useState(''); // Search query state
 
     // Pagination States
     const [currentPage, setCurrentPage] = useState(1);
@@ -28,6 +30,8 @@ export default function AppointmentsPage() {
     const [rescheduleData, setRescheduleData] = useState({ date: '', time: '', reason: '' });
     const [submitting, setSubmitting] = useState(false);
 
+    const [activeCallId, setActiveCallId] = useState(null);
+    const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -110,6 +114,36 @@ export default function AppointmentsPage() {
         }
     };
 
+    const handleStartCall = async (appointment) => {
+        try {
+            setSubmitting(true);
+
+            const payload = {
+                appointmentId: appointment._id,
+                callId: appointment._id, // We use the appointment ID as the Firestore Room ID
+                callerName: "Dr. " + (appointment.doctorId?.name || "Doctor"),
+                receiverId: appointment.userId._id, // The Patient ID
+            }
+            console.log(payload)
+            // Tell backend to send Push Notification to Patient
+            const res = await DoctorAPI.initiateVideoCall(payload);
+
+            if (res.success) {
+                toast.success("Calling patient...");
+                setSelectedAppointment(appointment);
+                setActiveCallId(payload.callId); // Store the callId
+                setIsVideoModalOpen(true); // Open WebRTC UI
+            } else {
+                toast.error("Patient is offline or unreachable");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Could not initiate call session");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const getConsultationIcon = (type) => {
         switch (type) {
             case 'Home Visit': return <FaHome className="text-orange-500" />;
@@ -124,6 +158,11 @@ export default function AppointmentsPage() {
         return status.toLowerCase().includes('cancelled');
     };
 
+    const isCancelledByUserStatus = (status) => {
+        if (!status) return false;
+        return status.toLowerCase() === 'cancelled-by-user';
+    };
+
     const openViewModal = (appt) => {
         setSelectedAppointment(appt);
         setIsViewModalOpen(true);
@@ -136,28 +175,88 @@ export default function AppointmentsPage() {
         setIsRescheduleModalOpen(true);
     };
 
-    // Safe client-side status filter fallback
+    // Helper to divide appointment dates into Today (0), Future (1), and Past (2) buckets
+    const getAppointmentBucket = (dateStr) => {
+        if (!dateStr) return 2; // Treat unassigned dates as past
+        try {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const target = new Date(dateStr);
+            target.setHours(0, 0, 0, 0);
+
+            if (target.getTime() === today.getTime()) {
+                return 0; // Today
+            } else if (target.getTime() > today.getTime()) {
+                return 1; // Future
+            } else {
+                return 2; // Past
+            }
+        } catch (e) {
+            return 2;
+        }
+    };
+
+    // Safe client-side status & search filter fallback
     const filteredAppointments = appointments.filter(appt => {
-        if (!filterStatus) return true;
-        if (filterStatus === 'Cancelled') return isCancelledStatus(appt.status);
-        return appt.status === filterStatus;
+        // Status filter
+        let matchesStatus = true;
+        if (filterStatus) {
+            if (filterStatus === 'Cancelled') {
+                matchesStatus = isCancelledStatus(appt.status);
+            } else {
+                matchesStatus = appt.status === filterStatus;
+            }
+        }
+
+        // Real-time keyword filter (Matches Patient Name, Booking ID, Contact Phone, or Email)
+        let matchesSearch = true;
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            const patientName = (appt.patients?.[0]?.patientName || appt.userId?.name || '').toLowerCase();
+            const bookingId = (appt.bookingId || '').toLowerCase();
+            const phone = (appt.userId?.phone || '').toLowerCase();
+            const email = (appt.userId?.email || '').toLowerCase();
+
+            matchesSearch = patientName.includes(query) || 
+                            bookingId.includes(query) || 
+                            phone.includes(query) || 
+                            email.includes(query);
+        }
+
+        return matchesStatus && matchesSearch;
+    });
+
+    // Hierarchical Sorting: 
+    // Bucket 0 (Today) -> Bucket 1 (Future) -> Bucket 2 (Past)
+    // Within each category bucket, listings are sorted chronologically
+    const sortedAppointments = [...filteredAppointments].sort((a, b) => {
+        const bucketA = getAppointmentBucket(a.appointmentDate);
+        const bucketB = getAppointmentBucket(b.appointmentDate);
+
+        if (bucketA !== bucketB) {
+            return bucketA - bucketB; 
+        }
+
+        // Chronological sort within the same date bucket
+        return new Date(a.appointmentDate) - new Date(b.appointmentDate);
     });
 
     // Pagination Calculations
-    const totalPages = Math.ceil(filteredAppointments.length / itemsPerPage);
+    const totalPages = Math.ceil(sortedAppointments.length / itemsPerPage);
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentAppointments = filteredAppointments.slice(indexOfFirstItem, indexOfLastItem);
+    const currentAppointments = sortedAppointments.slice(indexOfFirstItem, indexOfLastItem);
 
     // Checks if the consultation type represents an online call
     const isOnlineConsultation =
         selectedAppointment?.consultationType?.toLowerCase().includes('online') ||
         selectedAppointment?.consultationType?.toLowerCase().includes('video');
 
-    // Checks if the appointment is in a terminal status (Completed or Cancelled)
+    // Checks if the appointment is in a terminal status (Completed or Cancelled), excluding "Cancelled-By-User"
     const isTerminalStatus =
         selectedAppointment?.status === 'Completed' ||
-        isCancelledStatus(selectedAppointment?.status);
+        (isCancelledStatus(selectedAppointment?.status) && !isCancelledByUserStatus(selectedAppointment?.status));
 
     return (
         <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans">
@@ -188,12 +287,29 @@ export default function AppointmentsPage() {
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto items-stretch sm:items-center">
+                        
+                        {/* Interactive Search Bar */}
+                        <div className="relative flex-grow sm:flex-grow-0">
+                            <input
+                                type="text"
+                                placeholder="Search patient name, ID..."
+                                value={searchQuery}
+                                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                                className="w-full sm:w-64 bg-white pl-11 pr-5 py-3.5 rounded-2xl shadow-sm border border-gray-100 text-[11px] font-black uppercase tracking-widest text-gray-700 placeholder-gray-400 outline-none focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] transition-all"
+                            />
+                            <div className="absolute top-1/2 left-4 -translate-y-1/2 pointer-events-none text-gray-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.637 10.637z" />
+                                </svg>
+                            </div>
+                        </div>
+
                         {/* Status Filter Bar */}
                         <div className="bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100 flex gap-1 overflow-x-auto">
                             {['', 'Pending', 'Confirmed', 'Completed', 'Cancelled'].map((status) => (
                                 <button
                                     key={status}
-                                    onClick={() => setFilterStatus(status)}
+                                    onClick={() => { setFilterStatus(status); setCurrentPage(1); }}
                                     className={`px-5 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${filterStatus === status ? 'bg-[#08B36A] text-white' : 'text-gray-400 hover:bg-gray-50'
                                         }`}
                                 >
@@ -206,7 +322,7 @@ export default function AppointmentsPage() {
                         <div className="relative">
                             <select
                                 value={filterConsultationType}
-                                onChange={(e) => setFilterConsultationType(e.target.value)}
+                                onChange={(e) => { setFilterConsultationType(e.target.value); setCurrentPage(1); }}
                                 className="w-full sm:w-auto bg-white px-5 py-3.5 rounded-2xl shadow-sm border border-gray-100 text-[11px] font-black uppercase tracking-widest text-gray-500 hover:text-gray-800 hover:border-gray-200 outline-none focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] transition-all cursor-pointer appearance-none pr-12"
                             >
                                 <option value="">All Types</option>
@@ -229,7 +345,7 @@ export default function AppointmentsPage() {
                         <FaSpinner className="animate-spin text-[#08B36A] mb-4" size={30} />
                         <p className="text-gray-400 font-bold uppercase text-xs tracking-widest">Fetching appointments...</p>
                     </div>
-                ) : filteredAppointments.length === 0 ? (
+                ) : sortedAppointments.length === 0 ? (
                     <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-gray-200">
                         <p className="text-gray-400 font-bold uppercase text-xs tracking-widest">No appointments found for this selection</p>
                     </div>
@@ -313,6 +429,13 @@ export default function AppointmentsPage() {
                                                                 <FaCheck />
                                                             </button>
                                                         </>
+                                                    ) : isCancelledByUserStatus(appt.status) ? (
+                                                        <button
+                                                            onClick={(e) => openRescheduleModal(e, appt)}
+                                                            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-orange-200 text-orange-600 hover:bg-orange-50 transition-all"
+                                                        >
+                                                            <FaUndo /> Reschedule
+                                                        </button>
                                                     ) : (isCancelledStatus(appt.status) || appt.status === 'Completed') ? (
                                                         <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest px-4 py-2 bg-gray-50 rounded-xl">View Only</span>
                                                     ) : (
@@ -337,9 +460,9 @@ export default function AppointmentsPage() {
                                 <p className="text-xs text-gray-400 font-bold">
                                     Showing <span className="font-black text-gray-800">{indexOfFirstItem + 1}</span> to{' '}
                                     <span className="font-black text-gray-800">
-                                        {Math.min(indexOfLastItem, filteredAppointments.length)}
+                                        {Math.min(indexOfLastItem, sortedAppointments.length)}
                                     </span>{' '}
-                                    of <span className="font-black text-gray-800">{filteredAppointments.length}</span> appointments
+                                    of <span className="font-black text-gray-800">{sortedAppointments.length}</span> appointments
                                 </p>
                                 <div className="flex gap-2">
                                     <button
@@ -509,11 +632,33 @@ export default function AppointmentsPage() {
                             >
                                 Close Details
                             </button>
-
+                            {!isTerminalStatus && (
+                                isOnlineConsultation ? (
+                                    <button
+                                        disabled={submitting}
+                                        onClick={() => handleStartCall(selectedAppointment)}
+                                        className="flex-1 py-4 rounded-2xl bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        {submitting ? <FaSpinner className="animate-spin" /> : <FaVideo />}
+                                        Start Call
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={(e) => {
+                                            setIsViewModalOpen(false);
+                                            openRescheduleModal(e, selectedAppointment);
+                                        }}
+                                        className="flex-1 py-4 rounded-2xl bg-[#08B36A] text-white font-black text-[10px] uppercase tracking-widest hover:bg-green-600 shadow-xl shadow-green-100 transition-all"
+                                    >
+                                        Modify Schedule
+                                    </button>
+                                )
+                            )}
                         </div>
                     </div>
                 </div>
             )}
+
             {/* RESCHEDULE MODAL */}
             {isRescheduleModalOpen && (
                 <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[120] p-4 backdrop-blur-md">
@@ -584,6 +729,14 @@ export default function AppointmentsPage() {
                 </div>
             )}
 
+            {/* Video Call Session Modal Portal */}
+            {isVideoModalOpen && (
+                <VideoCallModal
+                    callId={activeCallId}
+                    callerName="Doctor"
+                    onClose={() => setIsVideoModalOpen(false)}
+                />
+            )}
         </div>
     )
 }

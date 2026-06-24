@@ -41,7 +41,6 @@ export default function DoctorProfilePage() {
     profileImage: null,
     profileStatus: '',
     dutyStatus: '',
-    // NEW FIELDS FROM RESPONSE
     competencies: [],
     treatedConditions: [],
     location: { lat: 0, lng: 0 }
@@ -339,9 +338,8 @@ export default function DoctorProfilePage() {
                 formData.append(`treatedConditions[${index}]`, item);
             });
         } else if (key === 'qualification') {
-            // Converts array back to a comma-separated string format for backend column compatibility
             formData.append('qualification', profileData.qualification.join(', '));
-        } else if (key !== 'profileImage' && key !== 'profileStatus') {
+        } else if (key !== 'profileImage' && key !== 'profileStatus' && key !== 'bankDetails') {
             formData.append(key, profileData[key]);
         }
       });
