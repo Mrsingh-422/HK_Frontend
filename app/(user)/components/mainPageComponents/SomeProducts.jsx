@@ -179,7 +179,7 @@ export default function HealthMonitors() {
 
         {/* --- PREMIUM BANNER --- */}
         <div
-          onClick={() => router.push("/offers")}
+          // onClick={() => router.push("/offers")}
           className="mt-4 md:mt-8 cursor-pointer overflow-hidden rounded-[1.5rem] md:rounded-[2.5rem] bg-slate-900 relative group p-8 md:p-14"
         >
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -196,7 +196,9 @@ export default function HealthMonitors() {
                 Up to 3 years of extended warranty on select digital monitors.
               </p>
             </div>
-            <button className="bg-emerald-600 text-white px-8 md:px-12 py-3 md:py-5 rounded-xl md:rounded-2xl font-black text-[11px] md:text-sm shadow-2xl shadow-emerald-900/40 group-hover:bg-white group-hover:text-slate-900 transition-all active:scale-95 uppercase tracking-widest">
+            <button
+            onClick={()=> router.push("/userscreens/allcoupons")}
+            className="bg-emerald-600 text-white px-8 md:px-12 py-3 md:py-5 rounded-xl md:rounded-2xl font-black text-[11px] md:text-sm shadow-2xl shadow-emerald-900/40 group-hover:bg-white group-hover:text-slate-900 transition-all active:scale-95 uppercase tracking-widest">
               CLAIM BENEFITS
             </button>
           </div>

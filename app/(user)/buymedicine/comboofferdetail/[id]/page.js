@@ -23,6 +23,7 @@ import {
 import UserAPI from "@/app/services/UserAPI";
 import { useCart } from "@/app/context/CartContext";
 import { toast } from "react-hot-toast";
+import CostoumPopup from '@/lib/CostoumPopup';
 
 const FALLBACK_MED_IMAGE = "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=600&auto=format&fit=crop";
 
@@ -139,16 +140,22 @@ export default function ComboOfferDetailPage() {
     };
 
     // Main cart evaluation & addition flow
-    const handleCartAction = async () => {
+    const handleCartAction = async (e, selectedVendor = null) => {
+        // Prevent event bubbling and default action conflicts
+        if (e) {
+            if (typeof e.stopPropagation === 'function') e.stopPropagation();
+            if (typeof e.preventDefault === 'function') e.preventDefault();
+        }
+
         const token = localStorage.getItem('userToken');
         if (!token) {
-            toast.error("Please login to buy items");
+            CostoumPopup("Please login to continue", "warning", 4000);
             router.push('/');
             return;
         }
 
         if (!vendor.pharmacyId) {
-            toast.error("No pharmacy available for this product");
+            CostoumPopup("No phamacy added to this product", "warning", 4000);
             return;
         }
 
@@ -166,7 +173,7 @@ export default function ComboOfferDetailPage() {
             setProcessing(true);
             if (isAdded) {
                 await removePharmacyItem(id);
-                toast.success("BOGO deal removed from cart");
+                CostoumPopup("BOGO deal removed from cart", "success", 3000);
             } else {
                 // Passes parameters with specified isComboApplied and dynamic comboOfferId
                 await addPharmacyToCart(
@@ -178,7 +185,8 @@ export default function ComboOfferDetailPage() {
                     true,        // isComboApplied (Explicitly true) [1]
                     offer?._id   // comboOfferId (Dynamic combo offer _id) [1]
                 );
-                toast.success(`BOGO deal added from ${store?.name}`);
+                CostoumPopup("BOGO deal added to cart", "success", 3000);
+                router.push('/userscreens/usercart');
             }
         } catch (error) {
             console.error("Cart action failed:", error);
@@ -372,8 +380,8 @@ export default function ComboOfferDetailPage() {
                                         key={tab}
                                         onClick={() => setActiveTab(tab.toLowerCase())}
                                         className={`px-6 py-4 text-[11px] font-black uppercase tracking-widest transition-all cursor-pointer border-none bg-transparent ${activeTab === tab.toLowerCase()
-                                                ? 'bg-white text-[#08B36A] border-b-2 border-[#08B36A]'
-                                                : 'text-slate-400 hover:text-slate-600'
+                                            ? 'bg-white text-[#08B36A] border-b-2 border-[#08B36A]'
+                                            : 'text-slate-400 hover:text-slate-600'
                                             }`}
                                     >
                                         {tab}
@@ -499,11 +507,11 @@ export default function ComboOfferDetailPage() {
                             </div>
 
                             <button
-                                onClick={handleCartAction}
+                                onClick={(e) => handleCartAction(e)}
                                 disabled={processing}
                                 className={`w-full md:w-auto px-10 py-4 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 border-none cursor-pointer transition-all duration-300 ${isAdded
-                                        ? "bg-slate-900 text-white shadow-lg"
-                                        : "bg-gradient-to-r from-[#08B36A] to-emerald-600 hover:from-slate-900 hover:to-slate-900 text-white shadow-lg shadow-emerald-500/10"
+                                    ? "bg-slate-900 text-white shadow-lg"
+                                    : "bg-gradient-to-r from-[#08B36A] to-emerald-600 hover:from-slate-900 hover:to-slate-900 text-white shadow-lg shadow-emerald-500/10"
                                     }`}
                             >
                                 {processing ? (

@@ -33,6 +33,10 @@ const UserAPI = {
     // ==========================================
     // PUBLIC METHODS (No Token Needed)
     // ==========================================
+    getAllCoupons: async () => {
+        const response = await publicApi.get('/user/homepage/coupons')
+        return response.data
+    },
 
     // General Search Suggestions (autocomplete)
     getGlobalSearchSuggestions: async (query, type = "") => {
