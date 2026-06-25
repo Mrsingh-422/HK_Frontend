@@ -930,7 +930,7 @@ const UserAPI = {
     getComboOfferDetail: async (offerId) => {
         const response = await publicApi.get(`/user/pharmacy/combo-offers/details/${offerId}`)
         return response.data;
-    }
+    },
 
 
 

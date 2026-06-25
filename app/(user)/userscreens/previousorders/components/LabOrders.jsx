@@ -11,6 +11,18 @@ import {
 import { HiStar } from 'react-icons/hi';
 import { MdOutlineScience, MdOutlineRateReview, MdPayment } from 'react-icons/md';
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5002";
+
+// Helper to resolve files and assets from the backend server
+const getReportFileUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+        return path;
+    }
+    const cleanedPath = path.replace(/^\/+/, '');
+    return `${BACKEND_URL}/${cleanedPath}`;
+};
+
 // --- SUB-COMPONENT: STEPPER ---
 const StatusStepper = ({ status }) => {
     const statusMap = {
@@ -232,7 +244,7 @@ function LabOrders() {
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300" onClick={onClose} />
 
                 {/* Modal Card */}
-                <div className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-[0_30px_80px_-15px_rgba(0,0,0,0.5)] overflow-hidden p-6 md:p-8 animate-in zoom-in-95 fade-in duration-300">
+                <div className="relative bg-white w-full max-w-md rounded-[2.5rem] p-6 md:p-8 shadow-[0_30px_80px_-15px_rgba(0,0,0,0.5)] overflow-hidden p-6 md:p-8 animate-in zoom-in-95 fade-in duration-300">
                     <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-2">
                             <span className="bg-amber-100 text-amber-600 p-2 rounded-xl">
@@ -385,8 +397,21 @@ function LabOrders() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                             <div className="space-y-4">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 font-black text-xl border border-indigo-100">
-                                        {data.labId?.name?.charAt(0) || 'L'}
+                                    {/* Dynamic Image Wrapper supporting resolved base path URLs */}
+                                    <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 font-black text-xl border border-indigo-100 overflow-hidden shrink-0">
+                                        {data.labId?.profileImage ? (
+                                            <img 
+                                                src={getReportFileUrl(data.labId.profileImage)} 
+                                                className="w-full h-full object-cover" 
+                                                alt="Lab Logo" 
+                                                onError={(e) => {
+                                                    e.target.onerror = null;
+                                                    e.target.style.display = 'none';
+                                                }}
+                                            />
+                                        ) : (
+                                            data.labId?.name?.charAt(0) || 'L'
+                                        )}
                                     </div>
                                     <div>
                                         <h4 className="font-black text-slate-900 text-lg leading-tight">{data.labId?.name}</h4>
@@ -421,6 +446,10 @@ function LabOrders() {
                                     <div className="flex items-center gap-3 text-xs font-bold text-slate-700">
                                         {data.collectionType === "Home Collection" ? <FiHome className="text-emerald-500" size={16} /> : <FiMapPin className="text-blue-500" size={16} />}
                                         <span>Collection: {data.collectionType}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                                        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Booking Type:</span>
+                                        <span className="font-semibold text-slate-800">{data.bookingType || "Direct"}</span>
                                     </div>
                                 </div>
                             </div>
@@ -522,6 +551,12 @@ function LabOrders() {
                                         <span>Subtotal</span>
                                         <span>₹{data.billSummary?.itemTotal}</span>
                                     </div>
+                                    {data.billSummary?.itemDiscount > 0 && (
+                                        <div className="flex justify-between text-rose-400">
+                                            <span>Item Discount</span>
+                                            <span>- ₹{data.billSummary?.itemDiscount}</span>
+                                        </div>
+                                    )}
                                     {data.billSummary?.couponDiscount > 0 && (
                                         <div className="flex justify-between text-rose-400">
                                             <span>Coupon Applied</span>
@@ -577,6 +612,20 @@ function LabOrders() {
                                         <span>Bank / Method:</span>
                                         <span className="capitalize text-slate-800">{data.paymentDetails.bank || data.paymentDetails.method || data.paymentMethod || "N/A"}</span>
 
+                                        {data.paymentDetails.wallet && (
+                                            <>
+                                                <span>Wallet Partner:</span>
+                                                <span className="capitalize text-slate-800">{data.paymentDetails.wallet}</span>
+                                            </>
+                                        )}
+
+                                        {data.paymentDetails.vpa && (
+                                            <>
+                                                <span>VPA / UPI ID:</span>
+                                                <span className="font-mono text-slate-800 break-all">{data.paymentDetails.vpa}</span>
+                                            </>
+                                        )}
+
                                         <span>Transaction Date:</span>
                                         <span className="text-slate-800">{data.paymentDetails.paidAt ? new Date(data.paymentDetails.paidAt).toLocaleString() : "N/A"}</span>
                                     </div>
@@ -585,7 +634,7 @@ function LabOrders() {
                         </div>
                     </div>
 
-                    {/* Actions */}
+                    {/* Actions with full PDF download handlers */}
                     <div className="p-6 md:p-8 bg-slate-50/50 border-t flex flex-wrap sm:flex-nowrap gap-3 shrink-0">
                         {data.status === "Completed" && (
                             <button 
@@ -598,13 +647,18 @@ function LabOrders() {
                                 <FiStar size={16} /> {review ? "Edit Review & Rating" : "Add Review & Rating"}
                             </button>
                         )}
-                        <button className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
-                            <FiDownload size={16} /> Download Receipt
-                        </button>
-                        {['Report Generated', 'Completed'].includes(data.status) && (
-                            <button className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
-                                <MdOutlineScience size={18} /> View Lab Report
-                            </button>
+                        
+                        {/* Download Receipt Link */}
+                        {data.reportFile && (
+                            <a 
+                                href={getReportFileUrl(data.reportFile)}
+                                download={`receipt-${data.bookingId}.pdf`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all text-center"
+                            >
+                                <FiDownload size={16} /> Download Receipt
+                            </a>
                         )}
                     </div>
                 </div>

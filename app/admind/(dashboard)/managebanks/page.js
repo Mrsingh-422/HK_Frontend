@@ -3,9 +3,9 @@
 import AdminAPI from '@/app/services/AdminAPI'
 import React, { useState, useEffect, useMemo } from 'react'
 import {
-    FaSearch, FaFilter, FaCheck, FaTimes, FaSpinner, 
-    FaUniversity, FaUser, FaPhone, FaEnvelope, 
-    FaUserMd, FaUserNurse, FaMicroscope, FaPrescriptionBottle, 
+    FaSearch, FaFilter, FaCheck, FaTimes, FaSpinner,
+    FaUniversity, FaUser, FaPhone, FaEnvelope,
+    FaUserMd, FaUserNurse, FaMicroscope, FaPrescriptionBottle,
     FaHospital, FaAmbulance, FaExclamationTriangle, FaShieldAlt
 } from "react-icons/fa"
 
@@ -86,16 +86,16 @@ export default function BankVerificationPage() {
             const ifsc = b.bankDetails?.ifscCode?.toLowerCase() || ""
             const model = b.vendorModel || ""
 
-            const matchesSearch = vendorName.includes(query) || 
-                                  email.includes(query) || 
-                                  phone.includes(query) || 
-                                  bankName.includes(query) || 
-                                  accountNumber.includes(query) || 
-                                  ifsc.includes(query)
+            const matchesSearch = vendorName.includes(query) ||
+                email.includes(query) ||
+                phone.includes(query) ||
+                bankName.includes(query) ||
+                accountNumber.includes(query) ||
+                ifsc.includes(query)
 
-            const matchesCategory = selectedCategory === "All" || 
-                                    model.toLowerCase() === selectedCategory.toLowerCase() ||
-                                    (selectedCategory === "Lab" && model === "Laboratory")
+            const matchesCategory = selectedCategory === "All" ||
+                model.toLowerCase() === selectedCategory.toLowerCase() ||
+                (selectedCategory === "Lab" && model === "Laboratory")
 
             return matchesSearch && matchesCategory
         })
@@ -108,11 +108,11 @@ export default function BankVerificationPage() {
         try {
             setSubmittingAction(true)
             const response = await AdminAPI.verifyBank(
-                selectedBank.vendorModel, 
-                selectedBank.vendorId, 
+                selectedBank.vendorModel,
+                selectedBank.vendorId,
                 true
             )
-            
+
             if (response?.success) {
                 alert(`Bank details for ${selectedBank.name} verified successfully.`)
                 closeModal()
@@ -227,7 +227,7 @@ export default function BankVerificationPage() {
 
             {/* --- CATEGORY QUICK FILTERS --- */}
             <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-12">
-                <button 
+                <button
                     onClick={() => setSelectedCategory("Hospital")}
                     className={`bg-white border p-4 rounded-3xl flex flex-col items-center text-center hover:border-[#08B36A]/30 transition-all group ${selectedCategory === "Hospital" ? 'border-[#08B36A] ring-2 ring-[#08B36A]/10' : 'border-slate-100'}`}
                 >
@@ -238,7 +238,7 @@ export default function BankVerificationPage() {
                     <p className="text-xs font-bold text-slate-700">{computedStats.Hospital} Profiles</p>
                 </button>
 
-                <button 
+                <button
                     onClick={() => setSelectedCategory("Doctor")}
                     className={`bg-white border p-4 rounded-3xl flex flex-col items-center text-center hover:border-[#08B36A]/30 transition-all group ${selectedCategory === "Doctor" ? 'border-[#08B36A] ring-2 ring-[#08B36A]/10' : 'border-slate-100'}`}
                 >
@@ -249,7 +249,7 @@ export default function BankVerificationPage() {
                     <p className="text-xs font-bold text-slate-700">{computedStats.Doctor} Profiles</p>
                 </button>
 
-                <button 
+                <button
                     onClick={() => setSelectedCategory("Nurse")}
                     className={`bg-white border p-4 rounded-3xl flex flex-col items-center text-center hover:border-[#08B36A]/30 transition-all group ${selectedCategory === "Nurse" ? 'border-[#08B36A] ring-2 ring-[#08B36A]/10' : 'border-slate-100'}`}
                 >
@@ -260,7 +260,7 @@ export default function BankVerificationPage() {
                     <p className="text-xs font-bold text-slate-700">{computedStats.Nurse} Profiles</p>
                 </button>
 
-                <button 
+                <button
                     onClick={() => setSelectedCategory("Lab")}
                     className={`bg-white border p-4 rounded-3xl flex flex-col items-center text-center hover:border-[#08B36A]/30 transition-all group ${selectedCategory === "Lab" ? 'border-[#08B36A] ring-2 ring-[#08B36A]/10' : 'border-slate-100'}`}
                 >
@@ -271,7 +271,7 @@ export default function BankVerificationPage() {
                     <p className="text-xs font-bold text-slate-700">{computedStats.Lab} Profiles</p>
                 </button>
 
-                <button 
+                <button
                     onClick={() => setSelectedCategory("Pharmacy")}
                     className={`bg-white border p-4 rounded-3xl flex flex-col items-center text-center hover:border-[#08B36A]/30 transition-all group ${selectedCategory === "Pharmacy" ? 'border-[#08B36A] ring-2 ring-[#08B36A]/10' : 'border-slate-100'}`}
                 >
@@ -282,7 +282,7 @@ export default function BankVerificationPage() {
                     <p className="text-xs font-bold text-slate-700">{computedStats.Pharmacy} Profiles</p>
                 </button>
 
-                <button 
+                <button
                     onClick={() => setSelectedCategory("Ambulance")}
                     className={`bg-white border p-4 rounded-3xl flex flex-col items-center text-center hover:border-[#08B36A]/30 transition-all group ${selectedCategory === "Ambulance" ? 'border-[#08B36A] ring-2 ring-[#08B36A]/10' : 'border-slate-100'}`}
                 >
@@ -321,8 +321,8 @@ export default function BankVerificationPage() {
                         </div>
                         <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3">
                             <FaFilter className="text-slate-400 text-xs" />
-                            <select 
-                                value={selectedCategory} 
+                            <select
+                                value={selectedCategory}
                                 onChange={(e) => setSelectedCategory(e.target.value)}
                                 className="bg-transparent text-xs font-bold text-slate-600 outline-none uppercase tracking-widest"
                             >
@@ -418,14 +418,14 @@ export default function BankVerificationPage() {
                 <div className="p-6 bg-slate-50/50 flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest border-t border-slate-100">
                     <span>Showing {filteredBanks.length} of {totalServerCount} Unverified Accounts</span>
                     <div className="flex gap-2">
-                        <button 
-                            disabled={currentPage === 1} 
+                        <button
+                            disabled={currentPage === 1}
                             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                             className="px-4 py-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Previous
                         </button>
-                        <button 
+                        <button
                             disabled={filteredBanks.length < itemsPerPage}
                             onClick={() => setCurrentPage(prev => prev + 1)}
                             className="px-4 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
@@ -440,7 +440,7 @@ export default function BankVerificationPage() {
             {isConfirming && selectedBank && (
                 <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                     <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-150">
-                        
+
                         {/* Header */}
                         <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
                             <h3 className="text-lg font-black uppercase text-slate-800 tracking-tight">Confirm Verification</h3>

@@ -624,8 +624,77 @@ const AdminAPI = {
             isVerified
         });
         return response.data;
-    }
+    },
+    /**
+         * API 1: List All Templates (Table View)
+         * Fetches paginated and searchable report templates.
+         * @param {Object} queryParams - Object containing page, limit, and search parameters.
+         */
+    getReportTemplates: async ({ page = 1, limit = 20, search = '' } = {}) => {
+        const response = await api.get('/admin/lab/tests/report-templates', {
+            params: { page, limit, search }
+        });
+        return response.data;
+    },
 
+    /**
+     * API 2: Fetch Single Template Details (For Edit Form)
+     * Retrieves the structural parameters of a single template by its database ID.
+     * @param {string} id - MongoDB ID of the template.
+     */
+    getReportTemplateDetails: async (id) => {
+        const response = await api.get(`/admin/lab/tests/report-templates/details/${id}`);
+        return response.data;
+    },
+
+    /**
+     * API 7: Bulk Upload Report Templates Via CSV
+     * Uploads a CSV file containing multiple report template configurations.
+     * @param {File} file - The .csv file instance to be uploaded.
+     */
+    bulkUploadReportTemplates: async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        console.log(formData);
+
+        const response = await api.post('/admin/lab/tests/upload-templates', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data;
+    },
+
+    /**
+     * API 8: Manually Create Report Template (Admin Form)
+     * Registers a new test template manually.
+     * @param {Object} templateData - Payload containing testName and parameters.
+     */
+    createReportTemplate: async (templateData) => {
+        const response = await api.post('/admin/lab/tests/create-template', templateData);
+        return response.data;
+    },
+
+    /**
+     * API 9: Manually Edit Report Template
+     * Updates an existing test template with modified structures or parameters.
+     * @param {string} id - MongoDB _id of the template.
+     * @param {Object} templateData - Object containing updated testName and parameters.
+     */
+    editReportTemplate: async (id, templateData) => {
+        const response = await api.put(`/admin/lab/tests/edit-template/${id}`, templateData);
+        return response.data;
+    },
+
+    /**
+     * API 10: Manually Delete Report Template
+     * Removes a template document from the database permanently.
+     * @param {string} id - MongoDB _id of the template.
+     */
+    deleteLabTestTemplate: async (id) => {
+        const response = await api.delete(`/admin/lab/tests/delete-template/${id}`);
+        return response.data;
+    }
 
 };
 
