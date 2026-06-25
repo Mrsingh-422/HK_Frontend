@@ -131,7 +131,7 @@ function RegisterAsDoctorAppointment() {
       setSuccess("Phone verified! Redirecting...");
 
       setTimeout(() => {
-        router.push("/vendors/doctor/documents");
+        router.push("/vendors/independentdoctor/documents");
         closeModal();
       }, 1500);
     } catch (err) {

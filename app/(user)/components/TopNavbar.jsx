@@ -26,7 +26,7 @@ import {
   FaUserNurse,
   FaStethoscope
 } from "react-icons/fa";
-import { FiMessageCircle } from "react-icons/fi";
+// import { FiMessageCircle } from "react-fi"; // Note: Adjust if fi icons import fails
 
 import MainLogin from "./loginComponents/MainLogin";
 import MainRegister from "./registerComponents/MainRegister";
@@ -45,6 +45,7 @@ export default function TopNavbar() {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [user, setUser] = useState(null); // Initialized as null for safe checking
   const searchRef = useRef(null);
 
   // --- LOCATION STATES ---
@@ -60,8 +61,20 @@ export default function TopNavbar() {
 
   const DELHI_COORDS = { lat: 28.6139, lng: 77.209 };
 
-  // --- SEARCH LOGIC ---
+  // --- USER SESSION RETRIEVAL (FIXED) ---
+  useEffect(() => {
+    const userDetail = localStorage.getItem('user');
+    if (userDetail) {
+      try {
+        const parsedUser = JSON.parse(userDetail);
+        setUser(parsedUser);
+      } catch (err) {
+        console.error("Failed to parse user session JSON:", err);
+      }
+    }
+  }, []); // Run only once on mount to prevent infinite re-renders
 
+  // --- SEARCH LOGIC ---
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       if (searchQuery.length >= 2) {
@@ -97,14 +110,12 @@ export default function TopNavbar() {
     }
   };
 
-  // --- DYNAMIC NAVIGATION LOGIC BASED ON TYPE ---
   const handleSuggestionClick = (item) => {
     setShowSuggestions(false);
     setSearchQuery(item.title);
 
     const id = item.id;
-    const type = item.type; // Matches your API response 'type' field
-    // alert(`Clicked on ${type} with ID: ${id}`); // For debugging
+    const type = item.type;
 
     switch (type) {
       case "Doctor":
@@ -132,7 +143,6 @@ export default function TopNavbar() {
         router.push(`/nursingservice/nurseservicedetail/${id}`);
         break;
       default:
-        // Fallback for general search results
         router.push(`/userscreens/searchresults?query=${encodeURIComponent(item.title)}`);
         break;
     }
@@ -263,12 +273,17 @@ export default function TopNavbar() {
     { icon: <FaHospital />, label: "Hospital Booking", link: "/userscreens/hospitalappointment" },
     { icon: <FaUserMd />, label: "Doctor Appointment", link: "/userscreens/doctorappointment" },
     { icon: <FaAmbulance />, label: "Ambulance Booking", link: "/userscreens/ambulanceappointment" },
-    { icon: <FiMessageCircle />, label: "Chats", link: "/userscreens/mychats" },
+    { icon: < FaAmbulance/>, label: "Chats", link: "/userscreens/mychats" },
     { icon: <FaFilePrescription />, label: "My Prescriptions", link: "/userscreens/myprescriptions" },
     { icon: <FaWallet />, label: "Wallet", link: "/" },
     { icon: <FaTimes />, label: "Health Locker", link: "/userscreens/lockerScreens" },
     { icon: <FaTimes />, label: "Verify AHBA", link: "/userscreens/abhascreen" },
   ];
+
+  // Helper helper to generate initials safely
+  const getUserInitial = () => {
+    return user?.name ? user.name.charAt(0).toUpperCase() : "U";
+  };
 
   return (
     <>
@@ -341,13 +356,13 @@ export default function TopNavbar() {
                       onClick={() => handleSuggestionClick(item)}
                       className="flex items-center gap-4 px-4 py-3 cursor-pointer hover:bg-gray-50 border-b border-gray-50 last:border-none"
                     >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-lg">
+                      {/* <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-lg">
                         {item.image ? (
                           <img src={item.image} alt="" className="h-full w-full rounded-lg object-cover" />
                         ) : (
                           getIconByType(item.type)
                         )}
-                      </div>
+                      </div> */}
                       <div className="flex-1 overflow-hidden">
                         <p className="m-0 truncate text-sm font-bold text-gray-900">{item.title}</p>
                         <p className="m-0 truncate text-xs text-gray-500">{item.subtitle}</p>
@@ -372,7 +387,10 @@ export default function TopNavbar() {
               </div>
             ) : (
               <div className="flex items-center gap-2 rounded-full bg-white/10 p-1 pr-3 cursor-pointer hover:bg-white/20" onClick={() => setProfileOpen(true)}>
-                <div className="h-7 w-7 flex items-center justify-center rounded-full bg-white text-xs font-bold text-[#08b36a]">K</div>
+                {/* Dynamically loads profile pic if present, otherwise initials */}
+                  <div className="h-7 w-7 flex items-center justify-center rounded-full bg-white text-xs font-bold text-[#08b36a]">
+                    {getUserInitial()}
+                  </div>
                 <span className="hidden sm:inline text-sm font-semibold">Profile</span>
               </div>
             )}
@@ -412,10 +430,13 @@ export default function TopNavbar() {
           <div className="bg-[#08b36a] px-6 py-10 text-white relative">
             <FaTimes className="absolute right-5 top-5 cursor-pointer" onClick={() => setProfileOpen(false)} />
             <div className="flex items-center gap-4">
-              <div className="h-16 w-16 flex items-center justify-center rounded-full bg-white text-2xl font-bold text-[#08b36a]">K</div>
+   
+                <div className="h-16 w-16 flex items-center justify-center rounded-full bg-white text-2xl font-bold text-[#08b36a]">
+                  {getUserInitial()}
+                </div>
               <div>
-                <h3 className="font-bold">Khanday</h3>
-                <p className="text-sm opacity-80">+91 6006287541</p>
+                <h3 className="font-bold m-0">{user?.name || "Guest User"}</h3>
+                <p className="text-sm opacity-80 m-0 mt-1">{user?.email || "No email available"}</p>
               </div>
             </div>
           </div>

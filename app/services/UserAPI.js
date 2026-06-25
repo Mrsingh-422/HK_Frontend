@@ -304,7 +304,11 @@ const UserAPI = {
     },
 
     updateProfile: async (profileData) => {
-        const response = await authApi.put("/api/auth/user/update", profileData);
+        const response = await authApi.put("/api/auth/user/update", profileData, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
         return response.data;
     },
     //Family Members of user 

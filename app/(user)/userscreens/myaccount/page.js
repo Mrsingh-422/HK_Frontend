@@ -15,6 +15,7 @@ import UserAPI from "@/app/services/UserAPI";
 import UpdateUserInsurance from "./components/UpdateUserInsurance";
 import WorkDetailUser from "./components/WorkDetailUser";
 import ConditionAndAllergy from "./components/ConditionAndAllergy";
+import CostoumPopup from "@/lib/CostoumPopup";
 
 function MyAccount() {
     const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
@@ -90,20 +91,20 @@ function MyAccount() {
     };
 
     // ------------------ FETCH USER DATA ------------------
+    const fetchUserData = async () => {
+        setIsLoading(true);
+        try {
+            const res = await UserAPI.getProfile();
+            const data = res.data;
+            setUserData(data);
+            setTempProfile(data);
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
     useEffect(() => {
-        const fetchUserData = async () => {
-            setIsLoading(true);
-            try {
-                const res = await UserAPI.getProfile();
-                const data = res.data;
-                setUserData(data);
-                setTempProfile(data);
-            } catch (error) {
-                console.error("Error fetching data:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
         fetchUserData();
     }, []);
 
@@ -149,8 +150,11 @@ function MyAccount() {
 
             // D. Call API
             await UserAPI.updateProfile(payload);
+            fetchUserData();
 
-            alert("Profile updated successfully!");
+
+
+            CostoumPopup("Profile Updated Successfully", "success", 3000);
             setIsEditingProfile(false);
             // window.location.reload();
         } catch (error) {
@@ -407,7 +411,7 @@ function MyAccount() {
                 <SavedAddresses userPhone={userData.phone} />
                 <ViewMembers members={userData.familyMember || []} />
                 <UpdateUserInsurance insurance={userData.insuranceDetails || []} />
-                <EmergencyContacts/>
+                <EmergencyContacts />
                 <WorkDetailUser work={userData.workDetails || []} />
                 <ConditionAndAllergy userMedicalData={userData.conditionStatus || []} />
             </div>

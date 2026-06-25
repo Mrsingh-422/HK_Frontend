@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }) => {
     // Helper to get the correct storage key prefix
     const getProviderKey = (category) => {
         const cat = category?.toLowerCase();
-        if (cat === "nursing") return "nursing";
+        if (cat === "nurse") return "nurse";
         if (cat === "pharmacy") return "pharmacy";
         if (cat === "lab") return "lab";
         return "provider";
@@ -191,14 +191,14 @@ export const AuthProvider = ({ children }) => {
         try {
             setLoading(true);
             const response = await axios.post(`${API_URL}/api/auth/provider/register`, userData);
-            const { token, user } = response.data;
+            const { token, data } = response.data;
 
             // Determine key (nursingToken, pharmacyToken, or labToken)
             const key = getProviderKey(userData.category);
 
             // SAVE TO LOCAL STORAGE WITH DYNAMIC KEYS
             localStorage.setItem(`${key}Token`, token);
-            localStorage.setItem(`${key}User`, JSON.stringify(user));
+            localStorage.setItem(`${key}User`, JSON.stringify(data));
 
             setProvider(user);
             return response.data;
@@ -220,7 +220,7 @@ export const AuthProvider = ({ children }) => {
             return response.data;
         } catch (error) {
             return Promise.reject(error.response?.data?.message || "Login failed");
-        } 
+        }
     };
 
     const uploadLabDocuments = async (userData) => {
@@ -234,6 +234,7 @@ export const AuthProvider = ({ children }) => {
                 userData,
                 {
                     headers: {
+                        "Content-Type": "multipart/form-data",
                         'Authorization': `Bearer ${labToken}` // Send token as Bearer token
                     }
                 }
@@ -259,6 +260,7 @@ export const AuthProvider = ({ children }) => {
                 userData,
                 {
                     headers: {
+                        "Content-Type": "multipart/form-data",
                         'Authorization': `Bearer ${pharmacyToken}` // Send token as Bearer token
                     }
                 }
@@ -284,6 +286,7 @@ export const AuthProvider = ({ children }) => {
                 userData,
                 {
                     headers: {
+                        "Content-Type": "multipart/form-data",
                         'Authorization': `Bearer ${nurseToken}` // Send token as Bearer token
                     }
                 }
