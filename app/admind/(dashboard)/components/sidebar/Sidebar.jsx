@@ -193,12 +193,15 @@ export default function Sidebar() {
                     <>
                         <div className={`menu-item dropdown ${isParentActive("/admind/managepackages") ? "active" : ""}`} onClick={() => toggleMenu("managepackages")}>
                             <FaBoxes className="icon" />
-                            <span>Manage Packages</span>
+                            <span>Tests/Packages</span>
                             {openMenu === "managepackages" ? <FaChevronDown className="arrow rotate" /> : <FaChevronRight className="arrow" />}
                         </div>
                         {openMenu === "managepackages" && (
                             <div className="submenu fade-in">
                                 <Link href="/admind/managepackages/labtest" className={`submenu-link ${isActive("/admind/managepackages/labtest") ? "sub-active" : ""}`}>Lab Test</Link>
+                                <Link href="/admind/managepackages/approvetests" className={`submenu-link ${isActive("/admind/managepackages/approvetests") ? "sub-active" : ""}`}>Approve Tests</Link>
+                                <Link href="/admind/managepackages/labpackages" className={`submenu-link ${isActive("/admind/managepackages/labpackages") ? "sub-active" : ""}`}>Lab Package</Link>
+                                <Link href="/admind/managepackages/approvepackage" className={`submenu-link ${isActive("/admind/managepackages/approvepackage") ? "sub-active" : ""}`}>Approve Package</Link>
                                 <Link href="/admind/managepackages/nursingservices" className={`submenu-link ${isActive("/admind/managepackages/nursingservices") ? "sub-active" : ""}`}>Nursing Services</Link>
                             </div>
                         )}
@@ -497,9 +500,9 @@ export default function Sidebar() {
                 )}
 
                 <Link href="/admind/managelabreport" className={`menu-item ${isActive("/admind/managelabreport") ? "active" : ""}`}>
-                        <FaBan className="icon" />
-                        <span>Manage Lab Report </span>
-                    </Link>
+                    <FaBan className="icon" />
+                    <span>Manage Lab Report </span>
+                </Link>
             </div>
         </div>
     );

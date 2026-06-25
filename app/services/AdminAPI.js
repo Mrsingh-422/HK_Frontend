@@ -260,6 +260,76 @@ const AdminAPI = {
     adminDeleteMedicine: async (id) => {
         return (await api.delete(`/admin/pharmacy/medicine/delete/${id}`)).data;
     },
+    
+    getPendingMedicineRequests: async () => {
+        const response = await api.get('/admin/pharmacy/medicine/requests/pending');
+        return response.data;
+    },
+    approveMedicineRequest: async (requestId) => {
+        const response = await api.put(`/admin/pharmacy/medicine/requests/approve/${requestId}`);
+        return response.data;
+    },
+    rejectMedicineRequest: async (requestId, payload) => {
+        const response = await api.put(`/admin/pharmacy/medicine/requests/reject/${requestId}`, payload);
+        return response.data;
+    },
+
+    //Lab APIS 
+    getPaginatedMasterTests: async (page = 1) => {
+        const response = await api.get('/admin/lab/tests/list/test', {
+            params: { page }
+        });
+        return response.data;
+    },
+    getFilteredMasterTests: async ({ mainCategory = '', search = '' } = {}) => {
+        const response = await api.get('/admin/lab/tests/master-tests', {
+            params: { mainCategory, search }
+        });
+        return response.data;
+    },
+    editMasterTest: async (id, testData) => {
+        const response = await api.put(`/admin/lab/tests/edit/test/${id}`, testData);
+        return response.data;
+    },
+
+    deleteMasterTest: async (id) => {
+        const response = await api.delete(`/admin/lab/tests/delete/test/${id}`);
+        return response.data;
+    },
+
+
+
+    getPaginatedMasterPackages: async (page = 1) => {
+        const response = await api.get('/admin/lab/tests/list/package', {
+            params: { page }
+        });
+        return response.data;
+    },
+    getFilteredMasterPackages: async ({ category = '', search = '' } = {}) => {
+        const response = await api.get('/admin/lab/tests/master-packages', {
+            params: { category, search }
+        });
+        return response.data;
+    },
+    deleteMasterPackage: async (id) => {
+        const response = await api.delete(`/admin/lab/tests/delete/package/${id}`);
+        return response.data;
+    },
+    editMasterPackage: async (id, packageData) => {
+        const response = await api.put(`/admin/lab/tests/edit/package/${id}`, packageData);
+        return response.data;
+    },
+
+    //Lab Requests 
+    getPendingLabTestRequests: async () => {
+        const response = await api.get('/admin/lab/tests/requests/pending');
+        return response.data;
+    },
+    approveLabTestRequest: async (requestId) => {
+        const response = await api.put(`/admin/lab/tests/requests/approve/${requestId}`);
+        return response.data;
+    },
+
 
     //Manage Banners in Admin
     adminCreateBanner: async (formData) => {
