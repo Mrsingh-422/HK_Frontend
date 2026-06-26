@@ -64,6 +64,7 @@ export default function Sidebar() {
         if (pathname.includes("/vendors")) setOpenMenu("vendors");
         if (pathname.includes("/manageorders")) setOpenMenu("manageorders");
         if (pathname.includes("/managepackages")) setOpenMenu("managepackages");
+        if (pathname.includes("/managenurses")) setOpenMenu("/admind/managenurses");
         if (pathname.includes("/requests")) setOpenMenu("requests");
         if (pathname.includes("/appbanners")) setOpenMenu("appbanners");
         if (pathname.includes("/articles")) setOpenMenu("articles");
@@ -203,6 +204,23 @@ export default function Sidebar() {
                                 <Link href="/admind/managepackages/labpackages" className={`submenu-link ${isActive("/admind/managepackages/labpackages") ? "sub-active" : ""}`}>Lab Package</Link>
                                 <Link href="/admind/managepackages/approvepackage" className={`submenu-link ${isActive("/admind/managepackages/approvepackage") ? "sub-active" : ""}`}>Approve Package</Link>
                                 <Link href="/admind/managepackages/nursingservices" className={`submenu-link ${isActive("/admind/managepackages/nursingservices") ? "sub-active" : ""}`}>Nursing Services</Link>
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* Manage Nurses (Tab 6) */}
+                {hasAccess(6) && (
+                    <>
+                        <div className={`menu-item dropdown ${isParentActive("/admind/managenurses") ? "active" : ""}`} onClick={() => toggleMenu("managenurses")}>
+                            <FaBoxes className="icon" />
+                            <span>Manage Nurses</span>
+                            {openMenu === "managenurses" ? <FaChevronDown className="arrow rotate" /> : <FaChevronRight className="arrow" />}
+                        </div>
+                        {openMenu === "managenurses" && (
+                            <div className="submenu fade-in">
+                                <Link href="/admind/managenurses/manage" className={`submenu-link ${isActive("/admind/managenurses/manage") ? "sub-active" : ""}`}>All Nurses</Link>
+                                <Link href="/admind/managenurses/approvenurse" className={`submenu-link ${isActive("/admind/managenurses/approvenurse") ? "sub-active" : ""}`}>Approve Tests</Link>
                             </div>
                         )}
                     </>
