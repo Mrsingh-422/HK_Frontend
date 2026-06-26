@@ -143,7 +143,7 @@ function ProductDetailPage() {
         const vendor = selectedVendor || vendors[selectedVendorIndex] || vendors[0];
 
         if (!vendor) {
-            toast.error("No pharmacy available for this product");
+            CostoumPopup("No pharmacy available for this product", "success", 3000);
             return;
         }
 
@@ -162,7 +162,7 @@ function ProductDetailPage() {
 
             if (isAdded && !selectedVendor) {
                 await removePharmacyItem(id);
-                toast.success("Removed from cart");
+                CostoumPopup("Product removed from cart", "success", 3000);
             } else {
                 await addPharmacyToCart(
                     vendor.pharmacyId,
@@ -171,7 +171,7 @@ function ProductDetailPage() {
                     "Full Course"
                 );
                 // toast.success(`Added to cart from ${vendor.name}`);
-                CostoumPopup("Test added to cart", "success", 3000);
+                CostoumPopup("Product added to cart", "success", 3000);
                 router.push("/userscreens/usercart");
 
             }

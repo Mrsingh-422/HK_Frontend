@@ -7,6 +7,7 @@ import NursingOrders from './components/NursingOrders';
 import PharmacyOrders from './components/PharmacyOrders';
 import LabOrders from './components/LabOrders';
 import PrescriptionOrders from './components/PrescriptionOrders';
+import NursePrescriptionOrders from './components/NursePrescriptionOrders';
 
 function PreviousOrders() {
     const tabs = [
@@ -14,6 +15,7 @@ function PreviousOrders() {
         { id: 'pharmacy', label: 'Pharmacy', icon: MdOutlineLocalPharmacy },
         { id: 'lab', label: 'Lab Tests', icon: MdOutlineScience },
         { id: 'prescription', label: 'Prescriptions', icon: MdOutlineLocalPharmacy },
+        { id: 'nurseprescription', label: 'Nurse Prescriptions', icon: MdOutlineLocalPharmacy },
     ];
 
     const [activeTab, setActiveTab] = useState("nursing");
@@ -85,6 +87,7 @@ function PreviousOrders() {
                             {activeTab === "pharmacy" && <PharmacyOrders />}
                             {activeTab === "lab" && <LabOrders />}
                             {activeTab === "prescription" && <PrescriptionOrders />}
+                            {activeTab === "nurseprescription" && <NursePrescriptionOrders />}
                         </div>
                     </div>
                 </main>

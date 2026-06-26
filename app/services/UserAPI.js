@@ -543,6 +543,32 @@ const UserAPI = {
         return response.data;
     },
 
+    uploadNursePrescription: async (formData) => {
+        // formData should contain 'prescriptionImages'
+        const response = await authApi.post("/user/nurse/prescription/upload", formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+    broadcastNurseRequest:  async (data) => {
+        const response = await authApi.post("/user/nurse/prescription/broadcast", data);
+        return response.data;
+    },
+    getNurseProposals: async () => {
+        const response = await authApi.get("/user/nurse/prescription/history");
+        return response.data;
+    },
+    viewNurseProposalDetail: async(id)=> {
+        const response = await authApi.get(`/user/nurse/prescription/proposals/${id}`);
+        return response.data;
+    },
+    acceptNurseProposal: async(data)=> {
+        const response = await authApi.post(`/user/nurse/prescription/accept`, data);
+        return response.data;
+    },
+    
+
+
     // --- Cart Management ---
     getMyCart: async () => {
         const response = await authApi.get("/user/cart");
@@ -837,6 +863,11 @@ const UserAPI = {
 
     verifyPaymentNurse: async (paymentData) => {
         const response = await authApi.post(`/user/nurse/verify-payment`, paymentData);
+        return response.data;
+    },
+
+    verifyPaymentPriscription:async (paymentData) => {
+        const response = await authApi.post(`/user/nurse/prescription/verify-payment`, paymentData);
         return response.data;
     },
 

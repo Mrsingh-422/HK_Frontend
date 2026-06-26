@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   FaSearch, FaStar, FaHandHoldingHeart, FaShieldAlt,
   FaCheckCircle, FaCloudUploadAlt, FaFilePrescription, FaTimesCircle
 } from "react-icons/fa";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import Link from "next/link";
 
 const STATIC_FALLBACK = {
   headerTag: "Professional Home Healthcare",
@@ -17,13 +18,11 @@ const STATIC_FALLBACK = {
 
 const NurseHero = () => {
   const router = useRouter();
-  const fileInputRef = useRef(null);
   const { getNursePageData } = useGlobalContext();
 
   // Component Internal State
   const [pageData, setPageData] = useState(STATIC_FALLBACK);
   const [searchTerm, setSearchTerm] = useState("");
-  const [prescriptionFile, setPrescriptionFile] = useState(null);
 
   // 1. Fetch Dynamic Content Internally
   useEffect(() => {
@@ -38,25 +37,12 @@ const NurseHero = () => {
     fetchContent();
   }, [getNursePageData]);
 
-  // 2. Internal Handlers
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setPrescriptionFile(file);
-      // Logic for actual API upload could go here
-    }
-  };
-
-  const removeFile = (e) => {
-    e.stopPropagation();
-    setPrescriptionFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
 
   const handleSearchNavigation = () => {
     if (searchTerm.trim()) {
       router.push(`/nursingservice/seeallnurses?search=${encodeURIComponent(searchTerm)}`);
-    } else {
+    } 
+    else {
       router.push(`/nursingservice/seeallnurses`);
     }
   };
@@ -110,26 +96,12 @@ const NurseHero = () => {
               </button>
             </div>
 
-            {/* Internal File Logic */}
-            <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".jpg,.jpeg,.png,.pdf" />
-
-            <div className="flex flex-col sm:flex-row items-center gap-3">
-              <button
-                onClick={() => fileInputRef.current.click()}
-                className="w-full sm:w-auto flex items-center justify-center gap-3 bg-teal-50 text-teal-700 border border-teal-200 px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl sm:rounded-2xl font-bold hover:bg-teal-100 transition-all active:scale-95 text-sm"
-              >
+            <Link href="/nursingservice/prescriptionnurse" className="flex flex-col sm:flex-row items-center gap-3">
+              <button className="w-full sm:w-auto flex items-center justify-center gap-3 bg-teal-50 text-teal-700 border border-teal-200 px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl sm:rounded-2xl font-bold hover:bg-teal-100 transition-all active:scale-95 text-sm" >
                 <FaCloudUploadAlt className="text-lg sm:text-xl" />
-                {prescriptionFile ? "Change Prescription" : "Upload Prescription"}
+                {"Upload Prescription"}
               </button>
-
-              {prescriptionFile && (
-                <div className="w-full sm:w-auto flex items-center gap-3 bg-white border border-slate-200 px-4 py-3 rounded-xl shadow-sm">
-                  <FaFilePrescription className="text-teal-600" />
-                  <span className="text-xs sm:text-sm font-medium text-slate-600 truncate max-w-[150px]">{prescriptionFile.name}</span>
-                  <button onClick={removeFile} className="text-rose-500 hover:text-rose-700 ml-auto sm:ml-0"><FaTimesCircle /></button>
-                </div>
-              )}
-            </div>
+            </Link>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
