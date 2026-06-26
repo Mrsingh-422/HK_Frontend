@@ -201,7 +201,7 @@ function AppointmentSchedulingContent() {
                     prefill: {
                         name: bookingData.patients?.[0]?.name || "Patient Name",
                         email: "patient@example.com",
-                        contact: selectedAddress?.phone || "9876543210"
+                        contact: selectedAddress?.phone || ""
                     },
                     theme: {
                         color: "#3399cc"

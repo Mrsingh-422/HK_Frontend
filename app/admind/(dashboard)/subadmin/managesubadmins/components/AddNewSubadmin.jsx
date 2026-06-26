@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useUserContext } from "@/app/context/UserContext";
 import DiamondAPI from "@/app/services/DiamondAPI"; // Aapka original API import
-import axios from "axios"; // Sirf POST API ke liye
+import axios from "axios";
 import { toast, Toaster } from "react-hot-toast";
  
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
@@ -22,7 +22,7 @@ function AddNewSubadmin({ onSuccess }) {
         password: "",
         phone: "",
         address: "",
-        roleTypeId: "",
+        roleTypeId: [], // Multiple roles ke liye isko Array rakha hai
         country: "",
         state: "",
         city: "",
@@ -35,13 +35,13 @@ function AddNewSubadmin({ onSuccess }) {
     const [states, setStates] = useState([]);
     const [cities, setCities] = useState([]);
  
-    // --- 1. Real Roles Fetch Karein (100% AAPKA ORIGINAL CODE, KOI CHANGE NAHI) ---
+    // --- 1. Real Roles Fetch Karein (ORIGINAL CODE) ---
     useEffect(() => {
         const loadInitialData = async () => {
             try {
                 const [countryData, rolesRes] = await Promise.all([
                     getAllCountries(),
-                    DiamondAPI.getRolesList() // Pehle se bane roles templates
+                    DiamondAPI.getRolesList()
                 ]);
                 setCountries(countryData || []);
                 if (rolesRes.success) setDbRoles(rolesRes.data);
@@ -76,9 +76,30 @@ function AddNewSubadmin({ onSuccess }) {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
  
-    // --- 2. ASLI SUBMIT LOGIC (SIRF YAHAN AXIOS POST LAGAYA HAI) ---
+    // Checkbox Handle Karne Ka Logic
+    const handleRoleCheckboxChange = (roleId) => {
+        setFormData((prev) => {
+            const selectedRoles = Array.isArray(prev.roleTypeId) ? prev.roleTypeId : [];
+            if (selectedRoles.includes(roleId)) {
+                // Agar checked hai, toh hata do
+                return { ...prev, roleTypeId: selectedRoles.filter(id => id !== roleId) };
+            } else {
+                // Agar checked nahi hai, toh array mein daal do
+                return { ...prev, roleTypeId: [...selectedRoles, roleId] };
+            }
+        });
+    };
+ 
+    // --- 2. ASLI SUBMIT LOGIC ---
     const handleSubmit = async (e) => {
         e.preventDefault();
+ 
+        // Validation: Kam se kam 1 role select hona chahiye
+        if (!formData.roleTypeId || formData.roleTypeId.length === 0) {
+            toast.error("Please select at least one Authority Role.");
+            return;
+        }
+ 
         setSubmitting(true);
  
         try {
@@ -92,7 +113,7 @@ function AddNewSubadmin({ onSuccess }) {
                 email: formData.email,
                 password: formData.password,
                 phone: formData.phone,
-                roleTypeId: formData.roleTypeId,
+                roleTypeId: formData.roleTypeId, // Frontend se array bhej rahe hain
                 locationAccess: {
                     country: countryName,
                     state: stateName,
@@ -100,12 +121,11 @@ function AddNewSubadmin({ onSuccess }) {
                 }
             };
  
-            // Admin token nikal rahe hain taaki backend middleware bypass ho
             const adminToken = localStorage.getItem("token");
             const config = { headers: { Authorization: `Bearer ${adminToken}` } };
  
-            // YAHAN DIRECT AXIOS SE POST API HIT KI HAI SUBADMIN KE LIYE
-            const res = await axios.post(`${API_URL}/api/auth/admin`, payload, config);
+            // YAHAN NAYA URL '/subadmins' LAGA DIYA HAI
+            const res = await axios.post(`${API_URL}/api/auth/admin/subadmins`, payload, config);
            
             if (res.data.success) {
                 toast.success("Sub-Admin Deployed Successfully!");
@@ -160,16 +180,24 @@ function AddNewSubadmin({ onSuccess }) {
                             className="w-full p-4 bg-gray-50 border-none rounded-2xl outline-none focus:ring-2 ring-emerald-500/20 font-bold text-sm" />
                     </div>
  
-                    {/* Role Template Dropdown */}
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Authority Role</label>
-                        <select name="roleTypeId" required value={formData.roleTypeId} onChange={handleChange}
-                            className="w-full p-4 bg-gray-50 border-none rounded-2xl outline-none focus:ring-2 ring-emerald-500/20 font-bold text-sm cursor-pointer">
-                            <option value="">Select Permission Level</option>
+                    {/* MULTIPLE ROLES CHECKBOXES */}
+                    <div className="md:col-span-2 space-y-1 bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">
+                            Authority Roles (Select Multiple)
+                        </label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
                             {dbRoles.map((role) => (
-                                <option key={role._id} value={role._id}> {role.name} </option>
+                                <label key={role._id} className="flex items-center space-x-3 p-3 bg-white border border-gray-200 rounded-xl cursor-pointer hover:border-emerald-500 transition-all">
+                                    <input
+                                        type="checkbox"
+                                        checked={Array.isArray(formData.roleTypeId) && formData.roleTypeId.includes(role._id)}
+                                        onChange={() => handleRoleCheckboxChange(role._id)}
+                                        className="w-4 h-4 text-emerald-500 rounded border-gray-300 focus:ring-emerald-500 cursor-pointer"
+                                    />
+                                    <span className="font-bold text-sm text-gray-700">{role.name}</span>
+                                </label>
                             ))}
-                        </select>
+                        </div>
                     </div>
  
                     {/* Country */}

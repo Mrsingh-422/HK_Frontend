@@ -184,7 +184,8 @@ const LabCart = () => {
             if (deliveryConfig.taxPercentage > 0) {
                 taxAmount = (discountedAmount * deliveryConfig.taxPercentage) / 100;
             }
-            taxAmount += (deliveryConfig.taxInRupees || 0);
+            // taxAmount += (deliveryConfig.taxInRupees || 0);
+            taxAmount = 0;
         }
 
         const total = discountedAmount + extraFee + homeCollectionFee + distanceFee + fastReportFee + taxAmount;

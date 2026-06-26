@@ -1,14 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  FaStar, 
-  FaArrowRight, 
-  FaCheckCircle, 
-  FaMapMarkerAlt, 
-  FaAward, 
-  FaUserNurse 
+import {
+  FaStar,
+  FaArrowRight,
+  FaCheckCircle,
+  FaMapMarkerAlt,
+  FaAward,
+  FaUserNurse,
+  FaChevronLeft,
+  FaChevronRight
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 import { useGlobalContext } from "@/app/context/GlobalContext";
@@ -19,9 +21,10 @@ const BASE_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}/`;
 
 function NurseSection() {
   const router = useRouter();
+  const scrollRef = useRef(null);
   const [nurseServices, setNurseServices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const {openModal} = useGlobalContext()
+  const { openModal } = useGlobalContext();
 
   // Fetch Services List dynamically using active user coordinates
   useEffect(() => {
@@ -32,8 +35,8 @@ function NurseSection() {
         const coords = storedCoords ? JSON.parse(storedCoords) : { lat: 30.7380, lng: 76.6604 };
         const res = await UserAPI.getNurseServices(coords);
         if (res?.success) {
-          // Limit to exactly 6 cards as requested
-          setNurseServices(res.data.slice(0, 6));
+          // Limit to exactly 8 cards as requested
+          setNurseServices(res.data.slice(0, 8));
         }
       } catch (error) {
         console.error("Error fetching nurse services:", error);
@@ -46,10 +49,18 @@ function NurseSection() {
 
   const handleBooking = (id) => router.push(`/nursingservice/nurseservicedetail/${id}`);
 
+  const scroll = (direction) => {
+    if (scrollRef.current) {
+      const { scrollLeft, clientWidth } = scrollRef.current;
+      const scrollTo = direction === "left" ? scrollLeft - clientWidth : scrollLeft + clientWidth;
+      scrollRef.current.scrollTo({ left: scrollTo, behavior: "smooth" });
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50/50 font-sans py-12 md:py-24">
+    <div className="min-h-screen bg-slate-50/50 font-sans py-12 md:py-24 overflow-hidden">
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         {/* --- SECTION HEADER --- */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 sm:mb-16 gap-6">
           <div className="space-y-3">
@@ -61,46 +72,69 @@ function NurseSection() {
               Meet Our Specialized <span className="text-teal-500">Nurses</span>
             </h2>
           </div>
-          <button 
-            onClick={() => router.push("/nursingservice/seeallnurses")} 
-            className="flex items-center gap-3 font-bold text-slate-800 hover:text-teal-600 transition-all text-sm sm:text-base group"
-          >
-            Explore Directory
-            <div className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center group-hover:bg-slate-900 group-hover:border-slate-900 group-hover:text-white transition-all duration-300">
-              <FaArrowRight className="text-xs transition-transform group-hover:translate-x-0.5" />
+
+          <div className="flex items-center justify-between md:justify-end gap-4 w-full md:w-auto mt-2 md:mt-0">
+            {/* Scroll Navigation Controls */}
+            <div className="hidden md:flex gap-2">
+              <button
+                onClick={() => scroll('left')}
+                className="p-3 rounded-full border border-slate-200 hover:bg-white hover:shadow-md transition-all text-slate-600 cursor-pointer bg-white"
+              >
+                <FaChevronLeft size={14} />
+              </button>
+              <button
+                onClick={() => scroll('right')}
+                className="p-3 rounded-full border border-slate-200 hover:bg-white hover:shadow-md transition-all text-slate-600 cursor-pointer bg-white"
+              >
+                <FaChevronRight size={14} />
+              </button>
             </div>
-          </button>
+
+            <button
+              onClick={() => router.push("/nursingservice/seeallnurses")}
+              className="flex items-center gap-3 font-bold text-slate-800 hover:text-teal-600 transition-all text-sm sm:text-base group"
+            >
+              Explore Directory
+              <div className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center group-hover:bg-slate-900 group-hover:border-slate-900 group-hover:text-white transition-all duration-300">
+                <FaArrowRight className="text-xs transition-transform group-hover:translate-x-0.5" />
+              </div>
+            </button>
+          </div>
         </div>
 
-        {/* --- NURSE SERVICES GRID --- */}
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-            {[1, 2, 3, 4, 5, 6].map((n) => (
-              <div key={n} className="h-[420px] bg-white animate-pulse rounded-3xl border border-slate-100" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-            {nurseServices.map((nurse) => (
+        {/* --- HORIZONTAL SCROLL CONTAINER --- */}
+        <div
+          ref={scrollRef}
+          className="flex flex-nowrap overflow-x-auto gap-6 md:gap-8 pb-10 scrollbar-hide snap-x snap-mandatory -mx-4 px-4 sm:mx-0 sm:px-0"
+        >
+          {loading ? (
+            [1, 2, 3, 4].map((n) => (
+              <div
+                key={n}
+                className="flex-shrink-0 w-[280px] sm:w-[320px] h-[420px] bg-white animate-pulse rounded-3xl border border-slate-100 snap-start"
+              />
+            ))
+          ) : (
+            nurseServices.map((nurse) => (
               <div
                 key={nurse._id}
                 onClick={() => handleBooking(nurse._id)}
-                className="group relative bg-white rounded-3xl p-4 border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgba(15,118,110,0.08)] transition-all duration-500 cursor-pointer flex flex-col hover:-translate-y-1.5"
+                className="flex-shrink-0 w-[280px] sm:w-[320px] snap-start group relative bg-white rounded-3xl p-4 border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgba(15,118,110,0.08)] transition-all duration-500 cursor-pointer flex flex-col hover:-translate-y-1.5"
               >
-                {/* Verified Badge Icon (Repositioned to top-right beautifully) */}
+                {/* Verified Badge Icon */}
                 <div className="absolute top-6 right-6 z-10 bg-white/90 backdrop-blur-md rounded-full p-1.5 shadow-sm border border-slate-100">
                   <FaCheckCircle className="text-teal-500 text-base" />
                 </div>
 
                 {/* Image Section */}
                 <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-slate-50 mb-5">
-                  <img 
-                    src={nurse.profileImage ? `${BASE_URL}${nurse.profileImage.replace('public/', '')}` : STATIC_NURSE_IMAGE} 
-                    alt={nurse.name} 
+                  <img
+                    src={nurse.profileImage ? `${BASE_URL}${nurse.profileImage.replace('public/', '')}` : STATIC_NURSE_IMAGE}
+                    alt={nurse.name}
                     className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                     onError={(e) => { e.target.src = STATIC_NURSE_IMAGE; }}
                   />
-                  
+
                   {/* Experience Badge */}
                   <div className="absolute bottom-3 left-3">
                     <div className="bg-slate-900/70 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-1.5 border border-white/10">
@@ -135,7 +169,7 @@ function NurseSection() {
 
                   {/* Services tags */}
                   <div className="flex flex-wrap gap-1.5 mb-6">
-                    {nurse.topServices?.map((service, idx) => (
+                    {nurse.topServices?.slice(0, 3).map((service, idx) => (
                       <span key={idx} className="bg-teal-50/60 text-teal-700 text-[10px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wide border border-teal-100/50">
                         {service}
                       </span>
@@ -156,9 +190,9 @@ function NurseSection() {
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
 
         {/* --- EMPTY STATE --- */}
         {!loading && nurseServices.length === 0 && (
@@ -183,13 +217,20 @@ function NurseSection() {
             </p>
           </div>
           <button
-          onClick={()=> openModal('register')}
-          className="z-10 w-full lg:w-auto whitespace-nowrap bg-teal-500 text-white px-8 py-4 rounded-2xl font-bold text-base hover:bg-teal-400 transition-all duration-300 shadow-lg shadow-teal-500/20 hover:-translate-y-0.5">
+            onClick={() => openModal('register')}
+            className="z-10 w-full lg:w-auto whitespace-nowrap bg-teal-500 text-white px-8 py-4 rounded-2xl font-bold text-base hover:bg-teal-400 transition-all duration-300 shadow-lg shadow-teal-500/20 hover:-translate-y-0.5"
+          >
             Join Us As Professional
           </button>
         </div>
 
       </section>
+
+      {/* CSS to hide standard scrollbar rails */}
+      <style jsx>{`
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   );
 }

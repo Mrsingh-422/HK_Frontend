@@ -1,7 +1,7 @@
 "use client";
  
 import React, { useState, useEffect } from "react";
-import { FaEdit, FaTrash, FaSearch, FaUserShield, FaCheck, FaTimes } from "react-icons/fa";
+import { FaEdit, FaTrash, FaSearch, FaUserShield, FaCheck, FaTimes, FaPlus } from "react-icons/fa";
 import AddNewSubadmin from "./components/AddNewSubadmin";
 import EditSubadmin from "./components/EditSubadmin";
 import DiamondAPI from "@/app/services/DiamondAPI";
@@ -46,6 +46,7 @@ export default function Page() {
     try {
       const res = await DiamondAPI.assignRoleToAdmin({
         adminId: selectedUser._id,
+        // Dhyan dein: Agar backend array expect kar raha hai, toh isko array bana kar bhejein [selectedRoleId]
         roleId: selectedRoleId
       });
       if (res.success) {
@@ -60,8 +61,7 @@ export default function Page() {
  
   const filteredSubadmins = subadmins.filter((user) =>
     user.name?.toLowerCase().includes(search.toLowerCase()) ||
-    user.email?.toLowerCase().includes(search.toLowerCase()) ||
-    user.roleType?.name?.toLowerCase().includes(search.toLowerCase())
+    user.email?.toLowerCase().includes(search.toLowerCase())
   );
  
   return (
@@ -124,19 +124,39 @@ export default function Page() {
                         </div>
                       </td>
                       <td className="px-8 py-6 text-xs font-bold text-slate-500">{user.email}</td>
+                     
+                      {/* 🌟 YAHAN CHANGE HUA HAI: MULTIPLE ROLES + ASSIGN BUTTON 🌟 */}
                       <td className="px-8 py-6">
-                        <button
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setSelectedRoleId(user.roleType?._id || "");
-                            setAssignModalOpen(true);
-                          }}
-                   
-                          className="px-4 py-2 rounded-xl bg-emerald-50 text-[#08B36A] border border-emerald-100 text-[10px] font-black uppercase tracking-widest hover:bg-[#08B36A] hover:text-white transition-all flex items-center gap-2 cursor-pointer active:scale-95"
-                        >
-                          <FaUserShield /> {user.roleType?.name || "Assign Role"}
-                        </button>
+                        <div className="flex items-center gap-3">
+                          {/* Role Names Tags */}
+                          <div className="flex flex-wrap gap-2">
+                            {user.roleType && user.roleType.length > 0 ? (
+                              user.roleType.map((role, idx) => (
+                                <span key={idx} className="px-3 py-1.5 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                                  {role.name}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest">No Role Assigned</span>
+                            )}
+                          </div>
+ 
+                          {/* Assign Role Button (Right Side) */}
+                          <button
+                            onClick={() => {
+                              setSelectedUser(user);
+                              // Pre-fill the first role if exists, otherwise blank
+                              setSelectedRoleId(user.roleType && user.roleType.length > 0 ? user.roleType[0]._id : "");
+                              setAssignModalOpen(true);
+                            }}
+                            title="Assign New Role"
+                            className="p-2 rounded-xl bg-emerald-50 text-[#08B36A] border border-emerald-100 hover:bg-[#08B36A] hover:text-white transition-all cursor-pointer active:scale-95 flex-shrink-0"
+                          >
+                            <FaUserShield size={16} />
+                          </button>
+                        </div>
                       </td>
+ 
                       <td className="px-8 py-6">
                         <div className="flex justify-center gap-3">
                           <button className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all" onClick={() => { setSelectedUser(user); setOpenEdit(true); }}>
@@ -204,7 +224,10 @@ export default function Page() {
             <p className="text-gray-500 text-sm font-medium mb-8">Are you sure you want to delete <span className="font-bold text-red-500">{selectedUser?.name}</span>?</p>
             <div className="flex gap-4">
               <button onClick={() => setDeleteModalOpen(false)} className="flex-1 py-4 font-bold text-gray-400">Cancel</button>
-              <button onClick={() => fetchData()} className="flex-1 py-4 bg-red-500 text-white font-bold rounded-2xl active:scale-95">Delete</button>
+              <button onClick={() => {
+                // Yahan delete ki API lagayenge jab backend ready ho jaye
+                setDeleteModalOpen(false);
+              }} className="flex-1 py-4 bg-red-500 text-white font-bold rounded-2xl active:scale-95">Delete</button>
             </div>
           </div>
         </div>

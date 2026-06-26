@@ -198,7 +198,7 @@ const PharmacyCart = () => {
         }
 
         const currentSlotFee = (deliveryOption === 'slot') ? slotFee : 0;
-        const tax = deliveryChargesConfig?.taxInRupees || 0;
+        const tax = 0;
 
         return {
             subtotal,
