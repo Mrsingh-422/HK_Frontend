@@ -2,11 +2,14 @@
 import React, { useState, useEffect } from "react";
 import { FaFlask, FaUpload, FaBuilding, FaMicroscope } from "react-icons/fa";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+import { Router } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 function BookYourPrescriptionTest() {
     const { getPrescriptionPageData } = useGlobalContext();
+    const router = useRouter()
     
     const [fileName, setFileName] = useState("No file chosen");
     const [currentImg, setCurrentImg] = useState(0);
@@ -129,14 +132,14 @@ function BookYourPrescriptionTest() {
                                 </label>
 
                                 <div className="flex flex-col sm:flex-row items-stretch gap-4">
-                                    <div className="flex-1 relative">
-                                        <input type="file" id="prescription-upload" className="hidden" onChange={handleFileChange} />
+                                    {/* <div className="flex-1 relative">
+                                        <input type="file" id="prescription-upload" className="hidden" />
                                         <label htmlFor="prescription-upload" className="flex items-center justify-between w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl cursor-pointer hover:border-emerald-400 transition-all group">
                                             <span className="text-slate-500 text-sm truncate pr-2">{fileName}</span>
                                             <span className="bg-slate-100 group-hover:bg-emerald-50 text-slate-700 group-hover:text-emerald-700 text-xs font-bold py-1.5 px-3 rounded-lg">Choose File</span>
                                         </label>
-                                    </div>
-                                    <button className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-slate-900 text-white font-bold px-8 py-3 rounded-xl transition-all shadow-lg shadow-emerald-200 active:scale-95">
+                                    </div> */}
+                                    <button onClick={()=> router.push("/booklabtest/prescriptionorder")} className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-slate-900 text-white font-bold px-8 py-3 rounded-xl transition-all shadow-lg shadow-emerald-200 active:scale-95">
                                         <FaUpload className="text-sm" /> Upload
                                     </button>
                                 </div>

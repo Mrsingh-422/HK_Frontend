@@ -8,13 +8,15 @@ import PharmacyOrders from './components/PharmacyOrders';
 import LabOrders from './components/LabOrders';
 import PrescriptionOrders from './components/PrescriptionOrders';
 import NursePrescriptionOrders from './components/NursePrescriptionOrders';
+import LabPrescription from './components/LabPrescription';
 
 function PreviousOrders() {
     const tabs = [
-        { id: 'nursing', label: 'Nursing', icon: MdOutlineMedicalServices },
         { id: 'pharmacy', label: 'Pharmacy', icon: MdOutlineLocalPharmacy },
         { id: 'lab', label: 'Lab Tests', icon: MdOutlineScience },
-        { id: 'prescription', label: 'Prescriptions', icon: MdOutlineLocalPharmacy },
+        { id: 'nursing', label: 'Nursing', icon: MdOutlineMedicalServices },
+        { id: 'prescription', label: 'Pharmacy Prescriptions', icon: MdOutlineLocalPharmacy },
+        { id: 'labprescription', label: 'Lab Prescriptions', icon: MdOutlineLocalPharmacy },
         { id: 'nurseprescription', label: 'Nurse Prescriptions', icon: MdOutlineLocalPharmacy },
     ];
 
@@ -23,7 +25,7 @@ function PreviousOrders() {
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans antialiased selection:bg-emerald-100">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 md:py-20">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 md:py-6">
 
                 {/* --- PREMIUM MINIMALIST HEADER --- */}
                 <header className="mb-8 md:mb-12 relative">
@@ -88,6 +90,7 @@ function PreviousOrders() {
                             {activeTab === "lab" && <LabOrders />}
                             {activeTab === "prescription" && <PrescriptionOrders />}
                             {activeTab === "nurseprescription" && <NursePrescriptionOrders />}
+                            {activeTab === "labprescription" && <LabPrescription />}
                         </div>
                     </div>
                 </main>

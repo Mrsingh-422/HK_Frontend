@@ -50,15 +50,9 @@ const UserAPI = {
     },
 
     getNonPrescriptionProducts: async (category, page = 1, limit = 10) => {
-        const response = await authApi.get(
-            "/user/pharmacy/non-prescription-list",
-            {
-                params: {
-                    category,
-                    page,
-                    limit
-                }
-            }
+        const response = await authApi.get("/user/pharmacy/non-prescription-list", {
+            params: { category, page, limit }
+        }
         );
 
         return response.data;
@@ -178,6 +172,46 @@ const UserAPI = {
         return response.data;
     },
 
+    //Lab Prescription Upload 
+    scanLabPrescription: async (formData) => {
+        const response = await authApi.post("/user/labs/scan-rx", formData, {
+            headers: {
+                "Content-Type": 'multipart/form-data',
+            }
+        })
+        return response;
+    },
+    estimateLabPrices: async (formData) => {
+        const response = await authApi.post("/user/labs/prescription-request/estimate-prices", formData, {
+            headers: {
+                "Content-Type": 'multipart/form-data',
+            }
+        })
+        return response;
+    },
+
+    submitLabPrescriptionRequest: async (formData) => {
+        const response = await authApi.post("/user/labs/prescription-request", formData, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
+        return response.data;
+    },
+
+    getLabPrescriptionRequests: async () => {
+        const response = await authApi.get("/user/labs/prescription-request/list")
+        return response.data
+    },
+    initializeLabPrescriptionPayment: async(formData) => {
+        const response = await authApi.post("/user/labs/prescription-request/pay-confirm", formData)
+        return response.data
+    },
+    verifyLabPrescriptionPayment : async(paymentData)=> {
+        const response = await authApi.post("/user/labs/prescription-request/verify-payment", paymentData)
+        return response.data
+    },
+
     //Pharmacy apis all 
     getAllPharmacies: async (payload) => {
         // payload should be { lat, lng, search, etc. }
@@ -277,7 +311,6 @@ const UserAPI = {
             },
         }
         );
-
         return response.data;
     },
 
@@ -486,6 +519,8 @@ const UserAPI = {
         const response = await authApi.get("/user/labs/delivery-charges", { params });
         return response.data;
     },
+
+
     getPharmacyDeliveryCharges: async (params) => {
         const response = await authApi.get("/user/pharmacy/delivery-charges", { params });
         return response.data;
@@ -550,7 +585,7 @@ const UserAPI = {
         });
         return response.data;
     },
-    broadcastNurseRequest:  async (data) => {
+    broadcastNurseRequest: async (data) => {
         const response = await authApi.post("/user/nurse/prescription/broadcast", data);
         return response.data;
     },
@@ -558,15 +593,15 @@ const UserAPI = {
         const response = await authApi.get("/user/nurse/prescription/history");
         return response.data;
     },
-    viewNurseProposalDetail: async(id)=> {
+    viewNurseProposalDetail: async (id) => {
         const response = await authApi.get(`/user/nurse/prescription/proposals/${id}`);
         return response.data;
     },
-    acceptNurseProposal: async(data)=> {
+    acceptNurseProposal: async (data) => {
         const response = await authApi.post(`/user/nurse/prescription/accept`, data);
         return response.data;
     },
-    
+
 
 
     // --- Cart Management ---
@@ -866,7 +901,7 @@ const UserAPI = {
         return response.data;
     },
 
-    verifyPaymentPriscription:async (paymentData) => {
+    verifyPaymentPriscription: async (paymentData) => {
         const response = await authApi.post(`/user/nurse/prescription/verify-payment`, paymentData);
         return response.data;
     },

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Country, State, City } from "country-state-city";
 import axios from "axios";
 import { toast } from "react-hot-toast";
-import DiamondAPI from "@/app/services/DiamondAPI"; // ✅ DiamondAPI import kar liya
+import DiamondAPI from "@/app/services/DiamondAPI";
  
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
  
@@ -12,14 +12,14 @@ function EditSubadmin({ user, onClose, onSuccess }) {
     const [countries] = useState(Country.getAllCountries());
     const [states, setStates] = useState([]);
     const [cities, setCities] = useState([]);
-    const [dbRoles, setDbRoles] = useState([]); // Roles from DB
+    const [dbRoles, setDbRoles] = useState([]);
     const [submitting, setSubmitting] = useState(false);
  
     const [formData, setFormData] = useState({
         name: "",
         email: "",
         password: "",
-        roleTypeId: [], // Multiple roles ke liye array
+        roleTypeId: "", // Single role selection ke liye string rakha hai
         phone: "",
         address: "",
         country: "",
@@ -32,11 +32,9 @@ function EditSubadmin({ user, onClose, onSuccess }) {
  
     const [previewImage, setPreviewImage] = useState(null);
  
-    // ✅ Load existing user data and fetch roles via DiamondAPI
     useEffect(() => {
         const fetchRoles = async () => {
             try {
-                // ✅ Yahan aapki DiamondAPI use ki gayi hai
                 const rolesRes = await DiamondAPI.getRolesList();
                
                 if (rolesRes && rolesRes.success) {
@@ -49,7 +47,6 @@ function EditSubadmin({ user, onClose, onSuccess }) {
         fetchRoles();
  
         if (user) {
-            // User ki default location set karna
             const countryName = user.locationAccess?.country || user.country;
             const stateName = user.locationAccess?.state || user.state;
             const cityName = user.locationAccess?.city || user.city;
@@ -66,16 +63,18 @@ function EditSubadmin({ user, onClose, onSuccess }) {
             setStates(stateList);
             setCities(cityList);
  
-            // User ke pehle se selected roles nikalna (Agar backend populate karke bhej raha hai)
-            const userRoles = Array.isArray(user.roleType)
-                ? user.roleType.map(r => typeof r === 'object' ? r._id : r)
-                : [];
+            // Backward compatibility check: Agar database me roles abhi bhi array me hon toh safely pehla index uthayenge
+            const userRole = user.roleType
+                ? (Array.isArray(user.roleType)
+                    ? (user.roleType[0]?._id || user.roleType[0] || "")
+                    : (typeof user.roleType === 'object' ? user.roleType._id : user.roleType))
+                : "";
  
             setFormData({
                 name: user.name || "",
                 email: user.email || "",
-                password: "", // Password blank rakhenge, agar type karega toh update hoga
-                roleTypeId: userRoles,
+                password: "",
+                roleTypeId: userRole,
                 phone: user.phone || "",
                 address: user.address || "",
                 country: countryName || "",
@@ -90,24 +89,10 @@ function EditSubadmin({ user, onClose, onSuccess }) {
         }
     }, [user, countries]);
  
-    // ✅ Handle normal inputs
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
  
-    // ✅ Handle Checkboxes for Multiple Roles
-    const handleRoleCheckboxChange = (roleId) => {
-        setFormData((prev) => {
-            const selectedRoles = Array.isArray(prev.roleTypeId) ? prev.roleTypeId : [];
-            if (selectedRoles.includes(roleId)) {
-                return { ...prev, roleTypeId: selectedRoles.filter(id => id !== roleId) };
-            } else {
-                return { ...prev, roleTypeId: [...selectedRoles, roleId] };
-            }
-        });
-    };
- 
-    // ✅ Handle Country Change
     const handleCountryChange = (e) => {
         const countryCode = e.target.value;
         const selectedCountry = countries.find((c) => c.isoCode === countryCode);
@@ -126,7 +111,6 @@ function EditSubadmin({ user, onClose, onSuccess }) {
         });
     };
  
-    // ✅ Handle State Change
     const handleStateChange = (e) => {
         const stateCode = e.target.value;
         const selectedState = states.find((s) => s.isoCode === stateCode);
@@ -155,12 +139,11 @@ function EditSubadmin({ user, onClose, onSuccess }) {
         }
     };
  
-    // ✅ Submit Data to Edit API
     const handleSubmit = async (e) => {
         e.preventDefault();
  
-        if (formData.roleTypeId.length === 0) {
-            toast.error("Please select at least one Authority Role.");
+        if (!formData.roleTypeId) {
+            toast.error("Please select an Authority Role.");
             return;
         }
  
@@ -170,7 +153,7 @@ function EditSubadmin({ user, onClose, onSuccess }) {
                 name: formData.name,
                 email: formData.email,
                 phone: formData.phone,
-                password: formData.password, // Only updates if typed
+                password: formData.password,
                 roleTypeId: formData.roleTypeId,
                 locationAccess: {
                     country: formData.country,
@@ -186,8 +169,8 @@ function EditSubadmin({ user, onClose, onSuccess }) {
            
             if (res.data.success) {
                 toast.success("Subadmin updated successfully!");
-                if (onSuccess) onSuccess(); // Table ko refresh karne ke liye callback
-                onClose(); // Modal close kar do
+                if (onSuccess) onSuccess();
+                onClose();
             }
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to update subadmin");
@@ -226,31 +209,32 @@ function EditSubadmin({ user, onClose, onSuccess }) {
                         <label className="block text-sm text-gray-500 mb-2">Change Password (Optional)</label>
                         <input type="password" name="password" placeholder="Leave blank to keep current" value={formData.password} onChange={handleChange} className="w-full border-b border-gray-300 focus:border-emerald-500 focus:outline-none py-2 text-gray-700 bg-transparent placeholder-gray-300" />
                     </div>
-                </div>
  
-                {/* Multiple Roles Checkboxes */}
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-600 mb-3">Authority Roles (Select Multiple) *</label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {dbRoles.map((role) => (
-                            <label key={role._id} className="flex items-center space-x-3 p-2 bg-white border border-gray-200 rounded-lg cursor-pointer hover:border-emerald-500 transition-all">
-                                <input
-                                    type="checkbox"
-                                    checked={Array.isArray(formData.roleTypeId) && formData.roleTypeId.includes(role._id)}
-                                    onChange={() => handleRoleCheckboxChange(role._id)}
-                                    className="w-4 h-4 text-emerald-500 rounded border-gray-300 focus:ring-emerald-500 cursor-pointer"
-                                />
-                                <span className="font-semibold text-sm text-gray-700">{role.name}</span>
-                            </label>
-                        ))}
+                    {/* Single Select Dropdown for Role Template */}
+                    <div>
+                        <label className="block text-sm text-gray-500 mb-2">Authority Role *</label>
+                        <select
+                            name="roleTypeId"
+                            value={formData.roleTypeId}
+                            onChange={handleChange}
+                            required
+                            className="w-full border-b border-gray-300 focus:border-emerald-500 focus:outline-none py-2 bg-transparent text-gray-700"
+                        >
+                            <option value="">Select Permission Level</option>
+                            {dbRoles.map((role) => (
+                                <option key={role._id} value={role._id}>
+                                    {role.name}
+                                </option>
+                            ))}
+                        </select>
                     </div>
                 </div>
  
                 {/* Locations */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">Country</label>
-                        <select value={formData.countryCode} onChange={handleCountryChange} className="w-full border-b border-gray-300 focus:border-emerald-500 focus:outline-none py-2 bg-transparent">
+                        <label className="block text-sm text-gray-500 mb-2">Country *</label>
+                        <select value={formData.countryCode} onChange={handleCountryChange} required className="w-full border-b border-gray-300 focus:border-emerald-500 focus:outline-none py-2 bg-transparent text-gray-700">
                             <option value="">Select Country</option>
                             {countries.map((country) => (
                                 <option key={country.isoCode} value={country.isoCode}>{country.name}</option>
@@ -258,8 +242,8 @@ function EditSubadmin({ user, onClose, onSuccess }) {
                         </select>
                     </div>
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">State</label>
-                        <select value={formData.stateCode} onChange={handleStateChange} disabled={!formData.countryCode} className="w-full border-b border-gray-300 focus:border-emerald-500 focus:outline-none py-2 bg-transparent disabled:opacity-50">
+                        <label className="block text-sm text-gray-500 mb-2">State *</label>
+                        <select value={formData.stateCode} onChange={handleStateChange} disabled={!formData.countryCode} required className="w-full border-b border-gray-300 focus:border-emerald-500 focus:outline-none py-2 bg-transparent disabled:opacity-50 text-gray-700">
                             <option value="">Select State</option>
                             {states.map((state) => (
                                 <option key={state.isoCode} value={state.isoCode}>{state.name}</option>
@@ -267,8 +251,8 @@ function EditSubadmin({ user, onClose, onSuccess }) {
                         </select>
                     </div>
                     <div>
-                        <label className="block text-sm text-gray-500 mb-2">City</label>
-                        <select value={formData.city} onChange={handleCityChange} disabled={!formData.stateCode} className="w-full border-b border-gray-300 focus:border-emerald-500 focus:outline-none py-2 bg-transparent disabled:opacity-50">
+                        <label className="block text-sm text-gray-500 mb-2">City *</label>
+                        <select value={formData.city} onChange={handleCityChange} disabled={!formData.stateCode} required className="w-full border-b border-gray-300 focus:border-emerald-500 focus:outline-none py-2 bg-transparent disabled:opacity-50 text-gray-700">
                             <option value="">Select City</option>
                             {cities.map((city, index) => (
                                 <option key={index} value={city.name}>{city.name}</option>

@@ -1,7 +1,7 @@
 "use client";
  
 import React, { useState, useEffect } from "react";
-import { FaEdit, FaTrash, FaSearch, FaUserShield, FaCheck, FaTimes, FaPlus } from "react-icons/fa";
+import { FaEdit, FaTrash, FaSearch, FaUserShield, FaCheck, FaTimes } from "react-icons/fa";
 import AddNewSubadmin from "./components/AddNewSubadmin";
 import EditSubadmin from "./components/EditSubadmin";
 import DiamondAPI from "@/app/services/DiamondAPI";
@@ -40,13 +40,12 @@ export default function Page() {
  
   useEffect(() => { fetchData(); }, []);
  
-  // ✅ 2. ASSIGN ROLE SUBMIT
+  // ✅ 2. ASSIGN ROLE SUBMIT (Single Role ID send ho raha hai)
   const handleAssignSubmit = async () => {
     if (!selectedRoleId) return toast.error("Select a role first");
     try {
       const res = await DiamondAPI.assignRoleToAdmin({
         adminId: selectedUser._id,
-        // Dhyan dein: Agar backend array expect kar raha hai, toh isko array bana kar bhejein [selectedRoleId]
         roleId: selectedRoleId
       });
       if (res.success) {
@@ -61,7 +60,8 @@ export default function Page() {
  
   const filteredSubadmins = subadmins.filter((user) =>
     user.name?.toLowerCase().includes(search.toLowerCase()) ||
-    user.email?.toLowerCase().includes(search.toLowerCase())
+    user.email?.toLowerCase().includes(search.toLowerCase()) ||
+    user.roleType?.name?.toLowerCase().includes(search.toLowerCase()) // Filter by single role
   );
  
   return (
@@ -125,17 +125,15 @@ export default function Page() {
                       </td>
                       <td className="px-8 py-6 text-xs font-bold text-slate-500">{user.email}</td>
                      
-                      {/* 🌟 YAHAN CHANGE HUA HAI: MULTIPLE ROLES + ASSIGN BUTTON 🌟 */}
+                      {/* 🌟 SINGLE ROLE DISPLAY + ASSIGN BUTTON 🌟 */}
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-3">
-                          {/* Role Names Tags */}
+                          {/* Role Name Tag (Ab bina map ke chalega kyunki ye single object hai) */}
                           <div className="flex flex-wrap gap-2">
-                            {user.roleType && user.roleType.length > 0 ? (
-                              user.roleType.map((role, idx) => (
-                                <span key={idx} className="px-3 py-1.5 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest">
-                                  {role.name}
-                                </span>
-                              ))
+                            {user.roleType && user.roleType.name ? (
+                              <span className="px-3 py-1.5 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                                {user.roleType.name}
+                              </span>
                             ) : (
                               <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest">No Role Assigned</span>
                             )}
@@ -145,8 +143,7 @@ export default function Page() {
                           <button
                             onClick={() => {
                               setSelectedUser(user);
-                              // Pre-fill the first role if exists, otherwise blank
-                              setSelectedRoleId(user.roleType && user.roleType.length > 0 ? user.roleType[0]._id : "");
+                              setSelectedRoleId(user.roleType?._id || "");
                               setAssignModalOpen(true);
                             }}
                             title="Assign New Role"
@@ -176,7 +173,7 @@ export default function Page() {
         )}
       </div>
  
-      {/* 🌟 ROLE ASSIGNMENT MODAL 🌟 */}
+      {/* 🌟 ROLE ASSIGNMENT MODAL (Dropdown is preserved) 🌟 */}
       {assignModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[1000] p-4">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-10 animate-in zoom-in duration-300">
@@ -224,10 +221,7 @@ export default function Page() {
             <p className="text-gray-500 text-sm font-medium mb-8">Are you sure you want to delete <span className="font-bold text-red-500">{selectedUser?.name}</span>?</p>
             <div className="flex gap-4">
               <button onClick={() => setDeleteModalOpen(false)} className="flex-1 py-4 font-bold text-gray-400">Cancel</button>
-              <button onClick={() => {
-                // Yahan delete ki API lagayenge jab backend ready ho jaye
-                setDeleteModalOpen(false);
-              }} className="flex-1 py-4 bg-red-500 text-white font-bold rounded-2xl active:scale-95">Delete</button>
+              <button onClick={() => fetchData()} className="flex-1 py-4 bg-red-500 text-white font-bold rounded-2xl active:scale-95">Delete</button>
             </div>
           </div>
         </div>
