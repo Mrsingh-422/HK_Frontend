@@ -43,11 +43,10 @@ export default function LabVendorLayout({ children }) {
         { name: 'Availabilities', href: '/vendors/nursevendor/dashboard/availabilities', icon: FaCalendarCheck },
         { name: 'Promotions', href: '/vendors/nursevendor/dashboard/promotions', icon: FaBullhorn },
         { name: 'Order History', href: '/vendors/nursevendor/dashboard/orderhistory', icon: FaHistory },
-        { name: 'Manage Documents', href: '/vendors/nursevendor/dashboard/documents', icon: FaFileMedical },
+        // { name: 'Manage Documents', href: '/vendors/nursevendor/dashboard/documents', icon: FaFileMedical },
         { name: 'Manage Delivery Charges', href: '/vendors/nursevendor/dashboard/deliverycharges', icon: FaTruck },
         { name: 'Wallet & Earning', href: '/vendors/nursevendor/dashboard/wallet&earning', icon: FaWallet },
          { name: 'Manage Banking', href: '/vendors/nursevendor/dashboard/ManageBanking', icon: FaWallet },
-        { name: 'FAQ', href: '/vendors/nursevendor/dashboard/faq', icon: FaQuestionCircle },
     ];
  
     return (

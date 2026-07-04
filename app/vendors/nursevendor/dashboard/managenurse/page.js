@@ -3,24 +3,25 @@ import React, { useState, useRef, useEffect } from 'react'
 import {
     FaUserPlus, FaEdit, FaTrashAlt, FaPhoneAlt, FaCircle, FaUserCircle,
     FaTimesCircle, FaIdCard, FaBriefcase, FaInfoCircle, FaArrowLeft, FaPlus, FaCamera,
-    FaGlobe, FaStethoscope, FaEnvelope, FaSearch
+    FaGlobe, FaStethoscope, FaEnvelope, FaSearch, FaUserCheck
 } from 'react-icons/fa'
+import { toast } from 'react-hot-toast'
 
 // 👇 Ensure your NurseAPI is correctly imported
 import NurseAPI from '@/app/services/NurseAPI'
 
 export default function ManageNurseTable() {
     // --- MODAL & DATA STATES ---
-    const[isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-    const[isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [selectedNurse, setSelectedNurse] = useState(null);
     const [nurses, setNurses] = useState([]);
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
-    // --- SEARCH & EDIT STATES (NEWLY ADDED) ---
+    // --- SEARCH & EDIT STATES ---
     const [searchQuery, setSearchQuery] = useState("");
-    const[isEditMode, setIsEditMode] = useState(false);
+    const [isEditMode, setIsEditMode] = useState(false);
     const [editId, setEditId] = useState(null);
 
     // --- FORM TEXT STATE ---
@@ -32,7 +33,7 @@ export default function ManageNurseTable() {
     });
 
     // --- PHOTO UPLOAD STATES ---
-    const[uploadedImages, setUploadedImages] = useState({
+    const [uploadedImages, setUploadedImages] = useState({
         driver: null, certificate: null, license: null, rc: null, insurance: null
     });
     const [files, setFiles] = useState({}); // Actual files to send to API
@@ -70,7 +71,7 @@ export default function ManageNurseTable() {
 
     useEffect(() => {
         fetchNurses();
-    },[]);
+    }, []);
 
     // ==========================================
     // HANDLERS
@@ -114,7 +115,7 @@ export default function ManageNurseTable() {
     };
 
     // ==========================================
-    // 2. SEARCH API CALL (NEW)
+    // 2. SEARCH API CALL
     // ==========================================
     const handleSearch = async (e) => {
         const query = e.target.value;
@@ -143,24 +144,24 @@ export default function ManageNurseTable() {
     };
 
     // ==========================================
-    // 3. DELETE API CALL (NEW)
+    // 3. DELETE API CALL
     // ==========================================
     const handleDelete = async (e, id) => {
         e.stopPropagation(); // Stop row click from opening details modal
         if (window.confirm("Are you sure you want to delete this Nurse/Driver?")) {
             try {
                 await NurseAPI.deleteDriver(id);
-                alert("Deleted successfully!");
+                toast.success("Deleted successfully!");
                 fetchNurses(); // Refresh the table
             } catch (error) {
                 console.error("Error deleting nurse:", error);
-                alert(error.response?.data?.message || "Failed to delete.");
+                toast.error(error.response?.data?.message || "Failed to delete.");
             }
         }
     };
 
     // ==========================================
-    // 4. PREPARE EDIT (NEW)
+    // 4. PREPARE EDIT
     // ==========================================
     const handleEditClick = (e, nurse) => {
         e.stopPropagation();
@@ -199,7 +200,32 @@ export default function ManageNurseTable() {
     };
 
     // ==========================================
-    // 5. POST / PUT API CALL (Submit Form - Updated for Edit)
+    // 5. UPDATE NURSE STATUS INTERACTIVELY
+    // ==========================================
+    const handleStatusChange = async (id, newStatus, updateSelected = false) => {
+        try {
+            const response = await NurseAPI.toggleDriverStatus(id, newStatus);
+            if (response.success) {
+                toast.success(`Status updated to ${newStatus}`);
+                
+                // Update dynamic list state
+                setNurses(prev => prev.map(n => n._id === id ? { ...n, status: newStatus } : n));
+                
+                // Synchronize modal state if active
+                if (updateSelected && selectedNurse && selectedNurse._id === id) {
+                    setSelectedNurse(prev => ({ ...prev, status: newStatus }));
+                }
+            } else {
+                toast.error(response.message || "Failed to update status parameters");
+            }
+        } catch (error) {
+            console.error("Error updating status:", error);
+            toast.error(error.response?.data?.message || "Failed to update status parameters");
+        }
+    };
+
+    // ==========================================
+    // 6. POST / PUT API CALL (Submit Form)
     // ==========================================
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -222,23 +248,22 @@ export default function ManageNurseTable() {
             if (formData.licenseNumber) fd.append("licenseNumber", formData.licenseNumber);
             if (formData.insuranceNumber) fd.append("insuranceNumber", formData.insuranceNumber);
             if (formData.address) fd.append("address", formData.address);
-            if (formData.password) fd.append("password", formData.password); // Handled differently usually, but okay
+            if (formData.password) fd.append("password", formData.password); 
 
             // 👇 APPENDING EXACT FILE KEYS
             if (files.driver) fd.append("profilePic", files.driver);
             if (files.certificate) fd.append("certificate", files.certificate);
             if (files.license) fd.append("license", files.license);
             if (files.rc) fd.append("rcImage", files.rc);
-            // Assuming backend accepts 'insurance' file if provided
             if (files.insurance) fd.append("insurance", files.insurance);
 
             // Call Add or Update API depending on Mode
             if (isEditMode) {
                 await NurseAPI.updateDriver(editId, fd);
-                alert("Nurse updated successfully!");
+                toast.success("Nurse updated successfully!");
             } else {
                 await NurseAPI.addNurse(fd);
-                alert("Nurse registered successfully!");
+                toast.success("Nurse registered successfully!");
             }
 
             // Reset Form & Close Modal
@@ -250,7 +275,7 @@ export default function ManageNurseTable() {
 
         } catch (error) {
             console.error("Error submitting nurse form:", error);
-            alert(error.response?.data?.message || "Failed to save Nurse. Please check your data.");
+            toast.error(error.response?.data?.message || "Failed to save Nurse. Please check your data.");
         } finally {
             setSubmitting(false);
         }
@@ -298,7 +323,7 @@ export default function ManageNurseTable() {
                         <thead>
                             <tr className="bg-gray-50/80 border-b border-gray-100">
                                 <th className="px-6 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Nurse Profile</th>
-                                <th className="px-6 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest text-center">Status</th>
+                                <th className="px-6 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest text-center">Status (Click to toggle)</th>
                                 <th className="px-6 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
                             </tr>
                         </thead>
@@ -325,13 +350,28 @@ export default function ManageNurseTable() {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        
+                                        {/* INTERACTIVE STATUS BADGE DROPDOWN */}
+                                        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex justify-center">
-                                                <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border ${nurse.status === 'Available' ? 'bg-green-50 text-[#08B36A] border-green-100' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
-                                                    <FaCircle size={6} className={nurse.status === 'Available' ? 'animate-pulse' : ''} /> {nurse.status || "Offline"}
-                                                </span>
+                                                <select
+                                                    value={nurse.status || "Offline"}
+                                                    onChange={(e) => handleStatusChange(nurse._id, e.target.value)}
+                                                    className={`px-3 py-1.5 rounded-full text-[10px] font-black border outline-none cursor-pointer transition-all ${
+                                                        nurse.status === 'Available' 
+                                                            ? 'bg-green-50 text-[#08B36A] border-green-200 focus:ring-green-100' 
+                                                            : nurse.status === 'Busy'
+                                                            ? 'bg-orange-50 text-orange-600 border-orange-200 focus:ring-orange-100'
+                                                            : 'bg-gray-50 text-gray-500 border-gray-200 focus:ring-gray-100'
+                                                    }`}
+                                                >
+                                                    <option value="Available">🟢 Available</option>
+                                                    <option value="Busy">🟠 Busy</option>
+                                                    <option value="Offline">⚫ Offline</option>
+                                                </select>
                                             </div>
                                         </td>
+
                                         <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                                             <button 
                                                 onClick={(e) => handleEditClick(e, nurse)}
@@ -388,7 +428,7 @@ export default function ManageNurseTable() {
                                         { label: "Nursing Certificate", key: "certificate" },
                                         { label: "Driver License", key: "license" },
                                         { label: "RC Image", key: "rc" },
-                                        { label: "Vehicle Insurance (Optional)", key: "insurance" } // Kept in UI but ignored in API call
+                                        { label: "Vehicle Insurance (Optional)", key: "insurance" } 
                                     ].map((item) => (
                                         <div key={item.key} className="space-y-2">
                                             <label className="text-[12px] font-bold text-gray-500 ml-1">{item.label}</label>
@@ -427,7 +467,7 @@ export default function ManageNurseTable() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                                     {[
                                         { label: "Enter Full Name", name: "name", placeholder: "e.g. John Doe" },
-                                        { label: "Create Username", name: "username", placeholder: "e.g. john_nurse123" }, // ✅ Added Username Field
+                                        { label: "Create Username", name: "username", placeholder: "e.g. john_nurse123" }, 
                                         { label: "Enter Contact Number", name: "phone", placeholder: "+91 XXXXX XXXXX" },
                                         { label: "Enter email address", name: "email", placeholder: "example@mail.com" },
                                         { label: "Enter last qualification", name: "qualification", placeholder: "e.g. B.Sc Nursing" },
@@ -507,7 +547,7 @@ export default function ManageNurseTable() {
                             {/* Close Button */}
                             <button
                                 onClick={() => setIsDetailsModalOpen(false)}
-                                className="absolute top-8 right-8 text-white/90 hover:text-white transition-colors"
+                                className="absolute top-8 right-8 text-white/90 hover:text-white transition-colors animate-in duration-200"
                             >
                                 <FaTimesCircle size={32} />
                             </button>
@@ -526,7 +566,7 @@ export default function ManageNurseTable() {
                                 <div className="space-y-2">
                                     <h2 className="text-4xl font-black tracking-tight">{selectedNurse.name}</h2>
                                     <div className="bg-white px-4 py-1 rounded-full inline-flex items-center gap-2">
-                                        <div className={`w-2 h-2 rounded-full ${selectedNurse.status === 'Available' ? 'bg-[#08B36A]' : 'bg-gray-400'}`}></div>
+                                        <div className={`w-2 h-2 rounded-full ${selectedNurse.status === 'Available' ? 'bg-[#08B36A]' : selectedNurse.status === 'Busy' ? 'bg-orange-500' : 'bg-gray-400'}`}></div>
                                         <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                                             {selectedNurse.status || 'Offline'}
                                         </span>
@@ -587,6 +627,32 @@ export default function ManageNurseTable() {
                                         <FaEnvelope className="text-gray-400 size-3" />
                                         <span className="text-lg font-bold truncate">{selectedNurse.email || 'N/A'}</span>
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* INTERACTIVE STATUS CHANGERS FOR DETAILS MODAL */}
+                            <div className="md:col-span-2 space-y-4 pt-4 border-t border-gray-100">
+                                <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                    <FaUserCheck className="text-[#08B36A]" /> Update Deployment Status
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {[
+                                        { label: 'Available', color: 'bg-green-500 text-white shadow-sm border-green-500', inactiveColor: 'bg-green-50 text-[#08B36A] border-green-200 hover:bg-green-100/50' },
+                                        { label: 'Busy', color: 'bg-orange-500 text-white shadow-sm border-orange-500', inactiveColor: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100/50' },
+                                        { label: 'Offline', color: 'bg-gray-500 text-white shadow-sm border-gray-500', inactiveColor: 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100/50' }
+                                    ].map((st) => {
+                                        const isActive = (selectedNurse.status || 'Offline') === st.label;
+                                        return (
+                                            <button
+                                                key={st.label}
+                                                type="button"
+                                                onClick={() => handleStatusChange(selectedNurse._id, st.label, true)}
+                                                className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${isActive ? st.color : st.inactiveColor}`}
+                                            >
+                                                {st.label === 'Available' ? '🟢 Available' : st.label === 'Busy' ? '🟠 Busy' : '⚫ Offline'}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>

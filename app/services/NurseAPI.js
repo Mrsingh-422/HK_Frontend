@@ -21,7 +21,7 @@ const getAnyToken = () => {
 */
 const publicApi = axios.create({
     baseURL: BASE_URL,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
 });
  
 /**
@@ -29,7 +29,7 @@ const publicApi = axios.create({
 */
 const nurseVendorApi = axios.create({
     baseURL: BASE_URL,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' , 'ngrok-skip-browser-warning': 'true'},
 });
  
 /**
@@ -37,7 +37,7 @@ const nurseVendorApi = axios.create({
 */
 const anyOneApi = axios.create({
     baseURL: BASE_URL,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
 });
  
 /**
@@ -57,7 +57,7 @@ anyOneApi.interceptors.request.use((config) => {
  
 const NurseAPI = {
  
-    // ==========================================
+     // ==========================================
     // PROFILE SECTION
     // ==========================================
     getNurseProfile: async () => {
@@ -331,6 +331,41 @@ const NurseAPI = {
       };
     }
   },
+   // ==========================================
+    // PROVIDER PRESCRIPTION WORKFLOW ENDPOINTS
+    // ==========================================
+    getPrescriptionRequests: async () => {
+        const response = await nurseVendorApi.get('/provider/nurse/prescription/requests');
+        return response.data;
+    },
+
+    submitPrescriptionProposal: async (payload) => {
+        const response = await nurseVendorApi.post('/provider/nurse/prescription/respond', payload);
+        return response.data;
+    },
+
+    declinePrescriptionRequest: async (payload) => {
+        const response = await nurseVendorApi.post('/provider/nurse/prescription/decline', payload);
+        return response.data;
+    },
+
+    getPrescriptionBookings: async (status = '') => {
+        const query = status ? `?status=${status}` : '';
+        const response = await nurseVendorApi.get(`/provider/nurse/prescription/bookings${query}`);
+        return response.data;
+    },
+      // ==========================================
+    // STAFF REASSIGNMENT & LIVE TRACKING ENDPOINTS
+    // ==========================================
+    reassignStaffToBooking: async (payload) => {
+        const response = await nurseVendorApi.post('/provider/nurse/dash/staff/reassign', payload);
+        return response.data;
+    },
+
+    trackLiveNurse: async (bookingId) => {
+        const response = await nurseVendorApi.get(`/provider/nurse/dash/track/${bookingId}`);
+        return response.data;
+    },
  
 };
  

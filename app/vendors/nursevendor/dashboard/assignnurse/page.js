@@ -1,6 +1,6 @@
-'use client'
-import NurseAPI from '@/app/services/NurseAPI';
-import React, { useState, useEffect } from 'react'
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import { 
     FaUserNurse, 
     FaMapMarkerAlt, 
@@ -21,8 +21,50 @@ import {
     FaBoxOpen,
     FaClock,
     FaAward,
-    FaChevronRight
-} from 'react-icons/fa'
+    FaChevronRight,
+    FaChevronLeft // Added for pagination controls
+} from 'react-icons/fa';
+import { toast } from 'react-hot-toast';
+import NurseAPI from '@/app/services/NurseAPI';
+
+// =========================================================
+// GLOBAL HELPERS: ROBUST IMAGE RESOLVING & SELF-HEALING
+// =========================================================
+
+const getPrescriptionImageUrl = (imagePath, baseUrl) => {
+    if (!imagePath) return '';
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+        return imagePath;
+    }
+    
+    // Normalize path separators (replaces backslashes with forward slashes)
+    let cleanPath = imagePath.replace(/\\/g, '/');
+    
+    // Strip leading slash if present
+    if (cleanPath.startsWith('/')) {
+        cleanPath = cleanPath.substring(1);
+    }
+    
+    // Ensure base URL configuration is stripped of trailing slash
+    let base = baseUrl || '';
+    if (base.endsWith('/')) {
+        base = base.slice(0, -1);
+    }
+    
+    return `${base}/${cleanPath}`;
+};
+
+const handleImageError = (e) => {
+    const currentSrc = e.target.src;
+    // Fallback: If image fails to load with "/public/..." prefix, attempt to pull directly from root static path
+    if (currentSrc.includes('/public/')) {
+        e.target.src = currentSrc.replace('/public/', '/');
+    }
+};
+
+// =========================================================
+// MAIN COMPONENT
+// =========================================================
 
 export default function AssignNurseTable() {
     const [activeTab, setActiveTab] = useState('Assign Nurses');
@@ -41,6 +83,10 @@ export default function AssignNurseTable() {
     const [offlineNurses, setOfflineNurses] = useState([]); // Part of Tab 3
     const [availableNurses, setAvailableNurses] = useState([]); // Part of Tab 3 & Assignment Modal
     const [isLoading, setIsLoading] = useState(false);
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 5;
 
     const tabs = ['Assign Nurses', 'Assigned Nurses', 'Unassigned Nurses'];
 
@@ -81,6 +127,11 @@ export default function AssignNurseTable() {
         loadData();
     }, []);
 
+    // Reset pagination index whenever current active tab switches
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeTab]);
+
     // --- HANDLE ASSIGN ACTION ---
     const handleAssignNurse = async (nurseId) => {
         if (!selectedAppointment || !nurseId) return;
@@ -94,13 +145,13 @@ export default function AssignNurseTable() {
             const response = await NurseAPI.assignStaffToBooking(payload);
             
             if (response) {
-                alert("Staff Assigned Successfully!");
+                toast.success("Staff Assigned Successfully!");
                 setIsAssignModalOpen(false);
                 loadData(); 
             }
         } catch (error) {
             console.error("Assignment failed:", error);
-            alert(error.response?.data?.message || "Failed to assign staff");
+            toast.error(error.response?.data?.message || "Failed to assign staff");
         }
     };
 
@@ -122,6 +173,20 @@ export default function AssignNurseTable() {
 
     const allUnassignedNurses = [...availableNurses, ...offlineNurses];
 
+    // --- PAGINATION COMPILATION LOGIC ---
+    const getActiveDataset = () => {
+        if (activeTab === 'Assign Nurses') return confirmedBookings;
+        if (activeTab === 'Assigned Nurses') return busyNurses;
+        if (activeTab === 'Unassigned Nurses') return allUnassignedNurses;
+        return [];
+    };
+
+    const currentDataset = getActiveDataset();
+    const totalItems = currentDataset.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedData = currentDataset.slice(startIndex, startIndex + itemsPerPage);
+
     return (
         <div className="bg-[#F8FAFC] min-h-screen p-4 md:p-8">
             {/* --- HEADER --- */}
@@ -136,15 +201,15 @@ export default function AssignNurseTable() {
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
-                                className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
+                                className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 flex items-center gap-2 ${
                                     activeTab === tab
                                         ? 'bg-[#08B36A] text-white shadow-md'
                                         : 'text-gray-500 hover:bg-gray-50'
                                 }`}
                             >
-                                {tab}
+                                <span>{tab}</span>
                                 {tab === 'Assign Nurses' && confirmedBookings.length > 0 && (
-                                    <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] ${activeTab === tab ? 'bg-white text-[#08B36A]' : 'bg-green-100 text-[#08B36A]'}`}>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] ${activeTab === tab ? 'bg-white text-[#08B36A]' : 'bg-green-100 text-[#08B36A]'}`}>
                                         {confirmedBookings.length}
                                     </span>
                                 )}
@@ -169,7 +234,7 @@ export default function AssignNurseTable() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
-                                    {confirmedBookings.length === 0 ? (
+                                    {paginatedData.length === 0 ? (
                                         <tr><td colSpan="4" className="py-32 text-center">
                                             <div className="flex flex-col items-center opacity-40">
                                                 <FaClipboardList size={48} className="mb-4 text-gray-300" />
@@ -177,27 +242,43 @@ export default function AssignNurseTable() {
                                             </div>
                                         </td></tr>
                                     ) : (
-                                        confirmedBookings.map((item) => (
+                                        paginatedData.map((item) => (
                                             <tr key={item._id} onClick={() => handleRowClick(item, 'booking')} className="hover:bg-gray-50/80 transition-all cursor-pointer group">
                                                 <td className="px-8 py-6">
                                                     <div className="w-16 h-16 bg-white border-2 border-gray-100 rounded-2xl flex items-center justify-center overflow-hidden shadow-sm group-hover:border-[#08B36A]/30 transition-colors">
                                                         {item.prescriptionImage ? (
-                                                            <img src={`${IMAGE_BASE_URL}/${item.prescriptionImage}`} alt="Presc" className="w-full h-full object-cover" />
+                                                            <img 
+                                                                src={getPrescriptionImageUrl(item.prescriptionImage, IMAGE_BASE_URL)} 
+                                                                alt="Prescription" 
+                                                                onError={handleImageError}
+                                                                className="w-full h-full object-cover" 
+                                                            />
                                                         ) : (
-                                                            <div className="text-[9px] text-center text-gray-400 font-bold uppercase p-2"><FaImage className="mx-auto mb-1 text-gray-300" size={16} />No Image</div>
+                                                            <div className="text-[9px] text-center text-gray-400 font-bold uppercase p-2">
+                                                                <FaImage className="mx-auto mb-1 text-gray-300" size={16} />
+                                                                No Image
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <div className="font-bold text-gray-900 text-base group-hover:text-[#08B36A] transition-colors">{item.patients?.[0]?.name || item.address?.name || 'N/A'}</div>
+                                                    <div className="font-bold text-gray-900 text-base group-hover:text-[#08B36A] transition-colors">
+                                                        {item.userId?.name || item.patients?.[0]?.name || item.address?.name || 'N/A'}
+                                                    </div>
                                                     <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md font-mono">#{item.bookingId?.slice(-6)}</span>
+                                                        <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md font-mono">
+                                                            {item.bookingId || item._id?.slice(-8)}
+                                                        </span>
                                                         <span className="text-gray-300">•</span>
-                                                        <span className="text-xs text-gray-500 font-medium">{item.serviceDetails?.title}</span>
+                                                        <span className="text-xs text-gray-500 font-medium">
+                                                            {item.serviceDetails?.title || 'Prescription Support'}
+                                                        </span>
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6 text-center">
-                                                    <span className="text-lg font-black text-gray-900">₹{item.priceBreakdown?.totalPrice || item.totalPrice}</span>
+                                                    <span className="text-lg font-black text-gray-900">
+                                                        ₹{item.priceBreakdown?.totalPrice || item.totalPrice}
+                                                    </span>
                                                 </td>
                                                 <td className="px-8 py-6" onClick={(e) => e.stopPropagation()}>
                                                     <div className="flex items-center justify-end gap-3">
@@ -223,10 +304,10 @@ export default function AssignNurseTable() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
-                                    {busyNurses.length === 0 ? (
+                                    {paginatedData.length === 0 ? (
                                         <tr><td colSpan="3" className="py-32 text-center text-gray-400 italic font-medium">No nurses currently on active duty</td></tr>
                                     ) : (
-                                        busyNurses.map((nurse) => (
+                                        paginatedData.map((nurse) => (
                                             <tr key={nurse._id} onClick={() => handleRowClick(nurse, 'nurse')} className="hover:bg-gray-50 transition-all cursor-pointer group">
                                                 <td className="px-8 py-5">
                                                     <div className="flex items-center gap-4">
@@ -273,10 +354,10 @@ export default function AssignNurseTable() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
-                                    {allUnassignedNurses.length === 0 ? (
+                                    {paginatedData.length === 0 ? (
                                         <tr><td colSpan="4" className="py-32 text-center text-gray-400 italic font-medium">No medical staff found in registry</td></tr>
                                     ) : (
-                                        allUnassignedNurses.map((nurse) => {
+                                        paginatedData.map((nurse) => {
                                             const isOffline = offlineNurses.some(off => off._id === nurse._id);
                                             return (
                                                 <tr key={nurse._id} onClick={() => handleRowClick(nurse, 'nurse')} className="hover:bg-gray-50 transition-all cursor-pointer group">
@@ -323,6 +404,52 @@ export default function AssignNurseTable() {
                             </table>
                         )}
                     </div>
+
+                    {/* --- PAGINATION CONTROL BAR --- */}
+                    {totalItems > itemsPerPage && (
+                        <div className="p-6 bg-gray-50/50 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <span className="text-xs text-gray-500 font-medium">
+                                Showing <span className="font-bold text-gray-700">{Math.min(startIndex + 1, totalItems)}</span> to{' '}
+                                <span className="font-bold text-gray-700">{Math.min(startIndex + itemsPerPage, totalItems)}</span> of{' '}
+                                <span className="font-bold text-gray-700">{totalItems}</span> entries
+                            </span>
+                            
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="w-8 h-8 rounded-lg flex items-center justify-center border border-gray-200 bg-white hover:bg-gray-50 text-gray-500 disabled:opacity-40 transition-colors"
+                                >
+                                    <FaChevronLeft size={10} />
+                                </button>
+                                
+                                {Array.from({ length: totalPages }).map((_, index) => {
+                                    const pageNumber = index + 1;
+                                    return (
+                                        <button
+                                            key={pageNumber}
+                                            onClick={() => setCurrentPage(pageNumber)}
+                                            className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                                                currentPage === pageNumber
+                                                    ? 'bg-[#08B36A] text-white shadow-sm shadow-green-100'
+                                                    : 'border border-gray-200 bg-white hover:bg-gray-50 text-gray-600'
+                                            }`}
+                                        >
+                                            {pageNumber}
+                                        </button>
+                                    );
+                                })}
+
+                                <button
+                                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="w-8 h-8 rounded-lg flex items-center justify-center border border-gray-200 bg-white hover:bg-gray-50 text-gray-500 disabled:opacity-40 transition-colors"
+                                >
+                                    <FaChevronRight size={10} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -334,7 +461,9 @@ export default function AssignNurseTable() {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h2 className="text-2xl font-black text-gray-900">Select Nurse</h2>
-                                    <p className="text-[11px] text-gray-400 font-bold uppercase tracking-[2px] mt-1">FOR: {selectedAppointment?.patients?.[0]?.name}</p>
+                                    <p className="text-[11px] text-gray-400 font-bold uppercase tracking-[2px] mt-1">
+                                        FOR: {selectedAppointment?.userId?.name || selectedAppointment?.patients?.[0]?.name}
+                                    </p>
                                 </div>
                                 <button onClick={() => setIsAssignModalOpen(false)} className="w-10 h-10 flex items-center justify-center bg-white rounded-full text-gray-400 hover:text-red-500 shadow-sm border border-gray-100 transition-all"><FaTimes size={18} /></button>
                             </div>
@@ -445,27 +574,44 @@ export default function AssignNurseTable() {
                                         <div className="flex items-center gap-3 text-gray-900 font-black uppercase text-xs tracking-widest"><FaIdCard className="text-[#08B36A]" /> PATIENT DATA</div>
                                         {selectedItem.prescriptionImage && (
                                             <div className="w-full h-56 bg-gray-50 rounded-[32px] border-2 border-dashed border-gray-200 overflow-hidden relative group">
-                                                <img src={`${IMAGE_BASE_URL}/${selectedItem.prescriptionImage}`} className="w-full h-full object-contain p-4" alt="Prescription" />
-                                                <button onClick={() => window.open(`${IMAGE_BASE_URL}/${selectedItem.prescriptionImage}`, '_blank')} className="absolute inset-0 bg-gray-900/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center text-white font-black text-xs tracking-widest">VIEW FULL PRESCRIPTION</button>
+                                                <img 
+                                                    src={getPrescriptionImageUrl(selectedItem.prescriptionImage, IMAGE_BASE_URL)} 
+                                                    onError={handleImageError}
+                                                    className="w-full h-full object-contain p-4" 
+                                                    alt="Prescription" 
+                                                />
+                                                <button onClick={() => window.open(getPrescriptionImageUrl(selectedItem.prescriptionImage, IMAGE_BASE_URL), '_blank')} className="absolute inset-0 bg-gray-900/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center text-white font-black text-xs tracking-widest">VIEW FULL PRESCRIPTION</button>
                                             </div>
                                         )}
                                         <div className="bg-gray-50 p-6 rounded-[32px] border border-gray-100 space-y-4">
-                                            <div className="flex justify-between border-b border-gray-200/50 pb-3"><span className="text-xs font-bold text-gray-400 uppercase">Patient Name</span> <span className="font-black text-gray-900">{selectedItem.patients?.[0]?.name || selectedItem.address?.name}</span></div>
-                                            <div className="flex justify-between border-b border-gray-200/50 pb-3"><span className="text-xs font-bold text-gray-400 uppercase">Relation / Age</span> <span className="font-black text-gray-900">{selectedItem.patients?.[0]?.relation || 'Self'} • {selectedItem.patients?.[0]?.age || 'N/A'} Yrs</span></div>
-                                            <div className="flex justify-between"><span className="text-xs font-bold text-gray-400 uppercase">Height / Weight</span> <span className="font-black text-gray-900">{selectedItem.healthDetails?.height || 'N/A'} cm</span></div>
+                                            <div className="flex justify-between border-b border-gray-200/50 pb-3">
+                                                <span className="text-xs font-bold text-gray-400 uppercase">Patient Name</span> 
+                                                <span className="font-black text-gray-900">{selectedItem.userId?.name || selectedItem.patients?.[0]?.name || selectedItem.address?.name}</span>
+                                            </div>
+                                            <div className="flex justify-between border-b border-gray-200/50 pb-3">
+                                                <span className="text-xs font-bold text-gray-400 uppercase">Relation / Gender</span> 
+                                                <span className="font-black text-gray-900">{selectedItem.patients?.[0]?.relation || 'Self'} • {selectedItem.userId?.gender || selectedItem.patients?.[0]?.gender || 'N/A'}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-xs font-bold text-gray-400 uppercase font-sans">Contact Phone</span> 
+                                                <span className="font-black text-gray-900">{selectedItem.userId?.phone || selectedItem.address?.phone || 'N/A'}</span>
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="space-y-6">
                                         <div className="flex items-center gap-3 text-gray-900 font-black uppercase text-xs tracking-widest"><FaInfoCircle className="text-[#08B36A]" /> SERVICE DETAILS</div>
                                         <div className="bg-[#08B36A]/5 p-8 rounded-[32px] border border-[#08B36A]/10 space-y-6">
                                             <div>
-                                                <p className="text-[10px] font-black text-[#08B36A] uppercase tracking-[2px] mb-1">Service Category</p>
-                                                <p className="text-xl font-black text-gray-900">{selectedItem.serviceDetails?.type}</p>
+                                                <p className="text-[10px] font-black text-[#08B36A] uppercase tracking-[2px] mb-1">Service Type</p>
+                                                <p className="text-xl font-black text-gray-900">{selectedItem.serviceDetails?.title || selectedItem.serviceDetails?.type || 'Prescription Booking'}</p>
+                                                {selectedItem.serviceDetails?.duration && (
+                                                    <p className="text-xs text-gray-500 font-bold mt-1">Duration: {selectedItem.serviceDetails.duration}</p>
+                                                )}
                                             </div>
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div>
-                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Start Date</p>
-                                                    <p className="font-black text-gray-900">{formatDate(selectedItem.schedule?.startDate)}</p>
+                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Created At</p>
+                                                    <p className="font-black text-gray-900">{formatDate(selectedItem.createdAt)}</p>
                                                 </div>
                                                 <div>
                                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Fee</p>
@@ -475,16 +621,18 @@ export default function AssignNurseTable() {
                                         </div>
                                         <div className="bg-gray-50 p-6 rounded-[32px] border border-gray-100">
                                             <div className="flex items-center gap-2 text-gray-900 font-black text-[10px] uppercase mb-3 tracking-widest"><FaMapMarkerAlt className="text-red-500" /> SERVICE LOCATION</div>
-                                            <p className="text-sm text-gray-600 font-bold leading-relaxed">{selectedItem.address?.houseNo}, {selectedItem.address?.city}, {selectedItem.address?.addressType || 'Home'}</p>
+                                            <p className="text-sm text-gray-600 font-bold leading-relaxed">
+                                                {selectedItem.address?.houseNo}, {selectedItem.address?.landmark ? `${selectedItem.address.landmark}, ` : ''}{selectedItem.address?.city} ({selectedItem.address?.pincode || 'N/A'})
+                                            </p>
                                         </div>
                                     </div>
-                                    {selectedItem.selectedConsumables?.length > 0 && (
+                                    {(selectedItem.selectedConsumables?.length > 0 || selectedItem.consumablesUsed?.length > 0) && (
                                         <div className="md:col-span-2 space-y-4">
                                             <div className="flex items-center gap-3 text-gray-900 font-black uppercase text-xs tracking-widest"><FaBoxOpen className="text-orange-400" /> CONSUMABLES INCLUDED</div>
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                                {selectedItem.selectedConsumables.map((c, i) => (
+                                                {(selectedItem.selectedConsumables || selectedItem.consumablesUsed).map((c, i) => (
                                                     <div key={i} className="flex justify-between items-center p-4 bg-white rounded-2xl text-xs border border-gray-100 shadow-sm">
-                                                        <span className="font-bold text-gray-700">{c.itemName}</span>
+                                                        <span className="font-bold text-gray-700">{c.itemName || c.name}</span>
                                                         <span className="font-black text-[#08B36A]">₹{c.price || 0}</span>
                                                     </div>
                                                 ))}
@@ -522,5 +670,5 @@ export default function AssignNurseTable() {
                 }
             `}</style>
         </div>
-    )
+    );
 }

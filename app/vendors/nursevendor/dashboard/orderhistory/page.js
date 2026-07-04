@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react'
 import { 
     FaUser, FaPhone, FaMapMarkerAlt, FaCalendarAlt, 
     FaClock, FaEye, FaTimesCircle, FaHashtag, FaHistory, FaSyncAlt, FaStethoscope, FaWallet,
-    FaTag, FaBoxes, FaLanguage, FaNotesMedical, FaCheck, FaClipboardList
+    FaTag, FaBoxes, FaLanguage, FaNotesMedical, FaCheck, FaClipboardList,
+    FaChevronLeft, FaChevronRight, FaUserNurse, FaStickyNote
 } from 'react-icons/fa'
 import NurseAPI from '@/app/services/NurseAPI';
 
@@ -12,6 +13,19 @@ export default function OrderHistoryPage() {
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [orderData, setOrderData] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 8;
+
+    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5002';
+
+    const formatImagePath = (path) => {
+        if (!path) return null;
+        if (typeof path === 'string' && (path.startsWith('blob') || path.startsWith('http') || path.startsWith('https'))) return path;
+        const cleanPath = String(path).replace(/^public[\\/]/, '').replace(/\\/g, '/'); 
+        return `${BACKEND_URL}/${cleanPath}`;
+    };
 
     useEffect(() => {
         fetchOrderHistory();
@@ -22,7 +36,7 @@ export default function OrderHistoryPage() {
             setLoading(true);
             const res = await NurseAPI.getOrderHistory();
             if (res.success) {
-                setOrderData(res.data);
+                setOrderData(res.data || []);
             }
         } catch (error) {
             console.error("Failed to fetch history:", error);
@@ -42,6 +56,12 @@ export default function OrderHistoryPage() {
             <p className="text-gray-500 font-bold uppercase tracking-tighter">Loading History...</p>
         </div>
     );
+
+    // --- PAGINATION CALCULATION LOGIC ---
+    const totalItems = orderData.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedData = orderData.slice(startIndex, startIndex + itemsPerPage);
 
     return (
         <div className=" bg-[#F9FAFB] min-h-screen p-4 md:p-8 font-sans">
@@ -63,64 +83,142 @@ export default function OrderHistoryPage() {
                         <thead>
                             <tr className="bg-gray-50/80 border-b border-gray-100">
                                 <th className="px-6 py-5 text-[11px] font-black text-gray-400 uppercase tracking-widest">Order Info</th>
-                                <th className="px-6 py-5 text-[11px] font-black text-gray-400 uppercase tracking-widest">Patient</th>
+                                <th className="px-6 py-5 text-[11px] font-black text-gray-400 uppercase tracking-widest">Patient Details</th>
+                                <th className="px-6 py-5 text-[11px] font-black text-gray-400 uppercase tracking-widest">Completed By</th>
                                 <th className="px-6 py-5 text-[11px] font-black text-gray-400 uppercase tracking-widest text-center">Status</th>
                                 <th className="px-6 py-5 text-[11px] font-black text-gray-400 uppercase tracking-widest text-right">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                            {orderData.map((order) => (
-                                <tr 
-                                    key={order._id} 
-                                    onClick={() => handleViewDetails(order)}
-                                    className="hover:bg-gray-50/50 transition-colors group cursor-pointer"
-                                >
-                                    <td className="px-6 py-5">
-                                        <div className="flex flex-col gap-1">
-                                            <div className="font-black text-gray-800 text-sm flex items-center gap-1.5">
-                                                <FaHashtag size={10} className="text-[#08B36A]"/> {order.bookingId}
-                                            </div>
-                                            <div className="flex items-center gap-3 text-[10px] font-bold text-gray-400">
-                                                <span className="flex items-center gap-1 text-red-400">
-                                                    <FaCalendarAlt size={10}/> {new Date(order.createdAt).toLocaleDateString()}
-                                                </span>
-                                                <span className="flex items-center gap-1">
-                                                    <FaClock size={10}/> {order.schedule?.startTime || 'N/A'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center shrink-0">
-                                                <FaUser size={14} />
-                                            </div>
-                                            <div>
-                                                <div className="font-bold text-gray-700 text-sm">
-                                                    {order.patients?.[0]?.name || order.userId?.name}
-                                                </div>
-                                                <div className="text-[10px] font-bold text-gray-400">{order.serviceDetails?.title}</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5 text-center">
-                                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${order.status === 'Completed' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                            {order.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-5 text-right" onClick={(e) => e.stopPropagation()}>
-                                        <button 
-                                            onClick={() => handleViewDetails(order)}
-                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#08B36A] hover:bg-[#069a5a] text-white text-[11px] font-black uppercase tracking-tighter shadow-md shadow-green-100 transition-all active:scale-95"
-                                        >
-                                            <FaEye size={12} /> View
-                                        </button>
+                            {paginatedData.length === 0 ? (
+                                <tr>
+                                    <td colSpan="5" className="text-center py-10 text-gray-500 font-medium">
+                                        No order history records found.
                                     </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                paginatedData.map((order) => (
+                                    <tr 
+                                        key={order._id} 
+                                        onClick={() => handleViewDetails(order)}
+                                        className="hover:bg-gray-50/50 transition-colors group cursor-pointer"
+                                    >
+                                        <td className="px-6 py-5">
+                                            <div className="flex flex-col gap-1">
+                                                <div className="font-black text-gray-800 text-sm flex items-center gap-1.5">
+                                                    <FaHashtag size={10} className="text-[#08B36A]"/> {order.bookingId}
+                                                </div>
+                                                <div className="flex items-center gap-3 text-[10px] font-bold text-gray-400">
+                                                    <span className="bg-blue-50 text-[#1e40af] text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
+                                                        {order.bookingType || 'Regular'}
+                                                    </span>
+                                                    <span className="flex items-center gap-1 text-red-400">
+                                                        <FaCalendarAlt size={10}/> {new Date(order.createdAt).toLocaleDateString()}
+                                                    </span>
+                                                    <span className="flex items-center gap-1">
+                                                        <FaClock size={10}/> {order.schedule?.startTime || 'N/A'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <div className="flex items-center gap-3">
+                                                <div>
+                                                    <div className="font-bold text-gray-800">
+                                                        {order.patients?.[0]?.name || order.userId?.name || "N/A"}
+                                                    </div>
+                                                    <div className="text-[10px] font-bold text-gray-400">{order.serviceDetails?.title}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            {order.assignedStaffId ? (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-100 overflow-hidden flex items-center justify-center text-gray-400 shadow-sm shrink-0">
+                                                        {order.assignedStaffId.profilePic ? (
+                                                            <img 
+                                                                src={formatImagePath(order.assignedStaffId.profilePic)} 
+                                                                alt="Staff avatar" 
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <FaUserNurse size={14} />
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-gray-700 text-xs">{order.assignedStaffId.name}</div>
+                                                        <div className="text-[9px] text-[#08B36A] font-bold">{order.assignedStaffId.phone}</div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-gray-400 italic">Unassigned</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-5 text-center">
+                                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${order.status === 'Completed' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                                {order.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-5 text-right" onClick={(e) => e.stopPropagation()}>
+                                            <button 
+                                                onClick={() => handleViewDetails(order)}
+                                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#08B36A] hover:bg-[#069a5a] text-white text-[11px] font-black uppercase tracking-tighter shadow-md shadow-green-100 transition-all active:scale-95"
+                                            >
+                                                <FaEye size={12} /> View
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
+
+                {/* --- PAGINATION SYSTEM CONTROLS --- */}
+                {totalItems > itemsPerPage && (
+                    <div className="p-6 bg-gray-50/50 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <span className="text-xs text-gray-500 font-medium">
+                            Showing <span className="font-bold text-gray-700">{Math.min(startIndex + 1, totalItems)}</span> to{' '}
+                            <span className="font-bold text-gray-700">{Math.min(startIndex + itemsPerPage, totalItems)}</span> of{' '}
+                            <span className="font-bold text-gray-700">{totalItems}</span> entries
+                        </span>
+                        
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center border border-gray-200 bg-white hover:bg-gray-50 text-gray-500 disabled:opacity-40 transition-colors"
+                            >
+                                <FaChevronLeft size={10} />
+                            </button>
+                            
+                            {Array.from({ length: totalPages }).map((_, index) => {
+                                const pageNumber = index + 1;
+                                return (
+                                    <button
+                                        key={pageNumber}
+                                        onClick={() => setCurrentPage(pageNumber)}
+                                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                                            currentPage === pageNumber
+                                                ? 'bg-[#08B36A] text-white shadow-sm shadow-green-100'
+                                                : 'border border-gray-200 bg-white hover:bg-gray-50 text-gray-600'
+                                        }`}
+                                    >
+                                        {pageNumber}
+                                    </button>
+                                );
+                            })}
+
+                            <button
+                                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center border border-gray-200 bg-white hover:bg-gray-50 text-gray-500 disabled:opacity-40 transition-colors"
+                            >
+                                <FaChevronRight size={10} />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* --- VIEW DETAILS MODAL --- */}
@@ -147,6 +245,32 @@ export default function OrderHistoryPage() {
                         {/* Modal Body */}
                         <div className="p-8 space-y-6 overflow-y-auto flex-1">
                             
+                            {/* Assigned Nurse Details */}
+                            {selectedOrder.assignedStaffId && (
+                                <div className="p-4 rounded-2xl bg-green-50/50 border border-green-100 space-y-3">
+                                    <h3 className="text-xs font-black text-green-800 uppercase tracking-widest flex items-center gap-2">
+                                        <FaUserNurse size={12}/> Dispatched Staff Details
+                                    </h3>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center overflow-hidden border border-gray-100 shrink-0">
+                                            {selectedOrder.assignedStaffId.profilePic ? (
+                                                <img 
+                                                    src={formatImagePath(selectedOrder.assignedStaffId.profilePic)} 
+                                                    className="w-full h-full object-cover" 
+                                                    alt="Staff Avatar"
+                                                />
+                                            ) : (
+                                                <FaUserCircle size={28} className="text-gray-300" />
+                                            )}
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-black text-gray-800">{selectedOrder.assignedStaffId.name}</div>
+                                            <div className="text-[10px] text-[#08B36A] font-bold">Phone: {selectedOrder.assignedStaffId.phone}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Service Header */}
                             <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100 space-y-3">
                                 <div className="flex items-center gap-4">
@@ -162,7 +286,7 @@ export default function OrderHistoryPage() {
                                     <div>Type: <span className="text-gray-700">{selectedOrder.serviceDetails?.type}</span></div>
                                     <div>Duration: <span className="text-gray-700">{selectedOrder.serviceDetails?.duration}</span></div>
                                     <div>Base Price: <span className="text-gray-700">₹{selectedOrder.serviceDetails?.basePrice}</span></div>
-                                    <div>Assessment: <span className="text-gray-700">{selectedOrder.assessmentLocation || 'N/A'}</span></div>
+                                    <div>Assessment: <span className="text-gray-700">{selectedOrder.assessmentLocation || 'At Home'}</span></div>
                                 </div>
                             </div>
 
@@ -190,6 +314,39 @@ export default function OrderHistoryPage() {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Service Completion Timestamps */}
+                            {(selectedOrder.startedAt || selectedOrder.completedAt) && (
+                                <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 space-y-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Completion Timeline</label>
+                                    <div className="grid grid-cols-2 gap-2 text-xs font-semibold text-gray-600">
+                                        {selectedOrder.startedAt && (
+                                            <div>
+                                                <span className="block text-[9px] font-black text-gray-400 uppercase tracking-wider">Started At</span>
+                                                {new Date(selectedOrder.startedAt).toLocaleString()}
+                                            </div>
+                                        )}
+                                        {selectedOrder.completedAt && (
+                                            <div>
+                                                <span className="block text-[9px] font-black text-gray-400 uppercase tracking-wider">Completed At</span>
+                                                {new Date(selectedOrder.completedAt).toLocaleString()}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Service Notes */}
+                            {selectedOrder.serviceNotes && (
+                                <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100/50 space-y-2">
+                                    <h3 className="text-xs font-black text-blue-800 uppercase tracking-widest flex items-center gap-2">
+                                        <FaStickyNote size={12}/> Service Summary Notes
+                                    </h3>
+                                    <p className="text-xs text-gray-600 font-medium italic">
+                                        "{selectedOrder.serviceNotes}"
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Patient & Relationship Information */}
                             <div className="space-y-3">
@@ -246,7 +403,7 @@ export default function OrderHistoryPage() {
                                     <div className="flex-1">
                                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Location Details</label>
                                         <div className="text-[12px] font-bold text-gray-600 leading-relaxed mt-0.5">
-                                            House No. {selectedOrder.address?.houseNo}, {selectedOrder.address?.city} {selectedOrder.address?.pincode ? `- ${selectedOrder.address.pincode}` : ''}
+                                            House/Flat No. {selectedOrder.address?.houseNo}, {selectedOrder.address?.city} {selectedOrder.address?.pincode ? `- ${selectedOrder.address.pincode}` : ''}
                                         </div>
                                         <div className="flex items-center gap-4 mt-2 text-[10px] font-black uppercase text-gray-400 tracking-widest">
                                             <span>Type: <span className="text-gray-600">{selectedOrder.address?.addressType || 'N/A'}</span></span>

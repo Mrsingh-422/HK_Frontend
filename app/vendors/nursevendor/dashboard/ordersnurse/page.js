@@ -5,30 +5,209 @@ import {
     FaMapMarkerAlt, FaCalendarAlt, FaPhoneAlt, FaImage, FaEye, FaUserAlt, 
     FaTimesCircle, FaExclamationTriangle, FaIdCard, FaSpinner,
     FaStethoscope, FaBoxOpen, FaInfoCircle, FaTrashAlt, FaChevronLeft, FaChevronRight,
-    FaSyncAlt
+    FaSyncAlt, FaFileMedical, FaSearch, FaUserNurse, FaTimes, FaAward,
+    FaUserCircle // Added to resolve the ReferenceError
 } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import NurseAPI from '@/app/services/NurseAPI';
 
+// =========================================================
+// GLOBAL HELPERS: ROBUST IMAGE RESOLVING & SELF-HEALING
+// =========================================================
+
+const getPrescriptionImageUrl = (imagePath, baseUrl) => {
+    if (!imagePath) return '';
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+        return imagePath;
+    }
+    
+    // Normalize path separators (replaces backslashes with forward slashes)
+    let cleanPath = imagePath.replace(/\\/g, '/');
+    
+    // Strip leading slash if present
+    if (cleanPath.startsWith('/')) {
+        cleanPath = cleanPath.substring(1);
+    }
+    
+    // Ensure base URL configuration is stripped of trailing slash
+    let base = baseUrl || '';
+    if (base.endsWith('/')) {
+        base = base.slice(0, -1);
+    }
+    
+    return `${base}/${cleanPath}`;
+};
+
+const handleImageError = (e) => {
+    const currentSrc = e.target.src;
+    // Fallback: If image fails to load with "/public/..." prefix, attempt to pull directly from root static path
+    if (currentSrc.includes('/public/')) {
+        e.target.src = currentSrc.replace('/public/', '/');
+    }
+};
+
 // --- SUB-COMPONENT: UNIFIED ORDER DETAIL MODAL ---
-const UnifiedOrderDetailModal = ({ isOpen, order, activeTab, imageBaseUrl, formatDate, onClose }) => {
+const UnifiedOrderDetailModal = ({ 
+    isOpen, 
+    order, 
+    activeTab, 
+    prescriptionSubTab,
+    imageBaseUrl, 
+    formatDate, 
+    onClose,
+    onRefresh,
+    onAssignClick
+}) => {
+    const [servicePrices, setServicePrices] = useState({});
+    const [consumableSearch, setConsumableSearch] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [addedConsumables, setAddedConsumables] = useState([]);
+    const [taxAmount, setTaxAmount] = useState(50); 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDeclining, setIsDeclining] = useState(false);
+
+    useEffect(() => {
+        if (isOpen && order) {
+            setServicePrices({});
+            setAddedConsumables([]);
+            setTaxAmount(50);
+        }
+    }, [isOpen, order]);
+
     if (!isOpen || !order) return null;
 
+    const isIncomingPrescription = activeTab === 'Prescription Nursing' && prescriptionSubTab === 'Incoming';
     const isHistory = activeTab === 'Approved' || activeTab === 'Rejected';
     const isRejected = activeTab === 'Rejected';
 
+    // Normalize address rendering across dynamic schemas
+    const addressDetails = order.location?.address || order.address;
+    const formattedAddress = addressDetails 
+        ? `${addressDetails.houseNo || ''}${addressDetails.landmark ? `, Near ${addressDetails.landmark}` : ''}, ${addressDetails.city || ''}, ${addressDetails.state || ''} - ${addressDetails.pincode || ''}`
+        : 'Address information unavailable';
+
+    // Live search of consumables via API
+    const handleConsumableSearch = async (e) => {
+        const val = e.target.value;
+        setConsumableSearch(val);
+        if (val.trim().length > 1) {
+            try {
+                const res = await NurseAPI.searchConsumables(val);
+                if (res.success) {
+                    setSearchResults(res.data || []);
+                }
+            } catch (err) {
+                console.error("Error searching consumables:", err);
+            }
+        } else {
+            setSearchResults([]);
+        }
+    };
+
+    const addConsumable = (item) => {
+        const exists = addedConsumables.some(c => c.name === item.name);
+        if (exists) {
+            toast.error("Consumable already added");
+            return;
+        }
+        setAddedConsumables([...addedConsumables, { name: item.name, price: Number(item.price) || 0 }]);
+        setConsumableSearch('');
+        setSearchResults([]);
+    };
+
+    const removeConsumable = (index) => {
+        setAddedConsumables(addedConsumables.filter((_, i) => i !== index));
+    };
+
+    const handleServicePriceChange = (title, val) => {
+        setServicePrices({
+            ...servicePrices,
+            [title]: val === '' ? '' : Number(val)
+        });
+    };
+
+    // Live calculations ensuring numeric values
+    const baseServicePriceTotal = Object.values(servicePrices).reduce((acc, curr) => acc + (Number(curr) || 0), 0);
+    const consumablesTotal = addedConsumables.reduce((acc, curr) => acc + (Number(curr.price) || 0), 0);
+    const estimatedTotal = baseServicePriceTotal + consumablesTotal + (Number(taxAmount) || 0);
+
+    const handleProposalSubmit = async () => {
+        const targetServices = order.services || order.detectedServices || [];
+        
+        // Validate pricing is assigned for all targeted services
+        const missingPricing = targetServices.some(s => !servicePrices[s.title] || Number(servicePrices[s.title]) <= 0);
+        if (missingPricing) {
+            toast.error("Please specify a valid price for all parsed services");
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+
+            // Construct payload structured exactly as specified
+            const payload = {
+                requestId: order._id || order.requestId,
+                servicesPricing: targetServices.map(s => ({
+                    title: s.title,
+                    price: Number(servicePrices[s.title])
+                })),
+                consumablesUsed: addedConsumables.map(c => ({
+                    name: c.name,
+                    price: Number(c.price)
+                })),
+                taxAmount: Number(taxAmount) || 0
+            };
+
+            const res = await NurseAPI.submitPrescriptionProposal(payload);
+            if (res.success) {
+                toast.success("Proposal submitted successfully!");
+                onRefresh();
+                onClose();
+            } else {
+                toast.error(res.message || "Failed to submit proposal");
+            }
+        } catch (error) {
+            console.error("Proposal submission error:", error);
+            toast.error("Internal service error during proposal submission");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDeclineRequest = async () => {
+        try {
+            setIsDeclining(true);
+            const payload = { requestId: order._id || order.requestId };
+            const res = await NurseAPI.declinePrescriptionRequest(payload);
+            if (res.success) {
+                toast.success("Request declined successfully");
+                onRefresh();
+                onClose();
+            } else {
+                toast.error(res.message || "Failed to decline request");
+            }
+        } catch (error) {
+            console.error("Decline error:", error);
+            toast.error("Internal service error during action processing");
+        } finally {
+            setIsDeclining(false);
+        }
+    };
+
     return (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-white w-full max-w-3xl rounded-[40px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
-                <div className={`${isRejected ? 'bg-red-500' : 'bg-[#08B36A]'} p-6 text-white flex justify-between items-center`}>
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
+            <div className="bg-white w-full max-w-3xl my-8 rounded-[40px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+                
+                {/* Modal Header */}
+                <div className={`${isRejected ? 'bg-red-500' : isIncomingPrescription ? 'bg-indigo-600' : 'bg-[#08B36A]'} p-6 text-white flex justify-between items-center`}>
                     <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center border border-white/30 backdrop-blur-sm">
                             <FaIdCard size={24} />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold">{order.serviceDetails?.title || 'Request Details'}</h2>
+                            <h2 className="text-xl font-bold">{isIncomingPrescription ? 'Create Pricing Proposal' : (order.serviceDetails?.title || 'Prescription Details')}</h2>
                             <p className="text-xs text-white/90 mt-1 uppercase tracking-widest">
-                                Order ID: {order.bookingId || order._id?.slice(-8)}
+                                ID: {order.bookingId || order._id?.slice(-8)}
                             </p>
                         </div>
                     </div>
@@ -37,93 +216,206 @@ const UnifiedOrderDetailModal = ({ isOpen, order, activeTab, imageBaseUrl, forma
                     </button>
                 </div>
 
+                {/* Modal Content */}
                 <div className="p-8 max-h-[65vh] overflow-y-auto custom-scrollbar">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         
                         {/* Profile Details */}
                         <div className="space-y-4">
                             <div className="flex items-center gap-2 border-b pb-2">
-                                <FaUserAlt className={isRejected ? 'text-red-500' : 'text-[#08B36A]'} />
+                                <FaUserAlt className={isIncomingPrescription ? 'text-indigo-600' : isRejected ? 'text-red-500' : 'text-[#08B36A]'} />
                                 <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Patient Profile</h3>
                             </div>
                             <div className="space-y-3 text-sm">
                                 <div className="flex justify-between">
                                     <span className="text-gray-400">Name:</span> 
-                                    <span className="font-bold text-gray-800">{order.patients?.[0]?.name || order.address?.name}</span>
+                                    <span className="font-bold text-gray-800">
+                                        {order.userId?.name || order.patients?.[0]?.name || order.address?.name || 'N/A'}
+                                    </span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-gray-400">Relation:</span> 
-                                    <span className="font-bold text-gray-800">{order.patients?.[0]?.relation || 'Self'}</span>
+                                    <span className="text-gray-400">Gender / Age:</span> 
+                                    <span className="font-bold text-gray-800">
+                                        {order.userId?.gender || 'N/A'}{order.userId?.age ? ` / ${order.userId.age} yrs` : ''}
+                                    </span>
                                 </div>
-                                {order.healthDetails?.height && (
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-400">Height / Lang:</span> 
-                                        <span className="font-bold text-gray-800">{order.healthDetails?.height} cm / {order.healthDetails?.language || 'N/A'}</span>
-                                    </div>
-                                )}
-                                {(isHistory && activeTab === 'Approved') && (
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-400">Phone:</span> 
-                                        <span className="font-bold text-blue-600">{order.address?.phone || 'N/A'}</span>
-                                    </div>
-                                )}
                             </div>
                         </div>
 
-                        {/* Schedule Details */}
+                        {/* Prescription Extraction Details */}
                         <div className="space-y-4">
                             <div className="flex items-center gap-2 border-b pb-2">
-                                <FaCalendarAlt className={isRejected ? 'text-red-500' : 'text-[#08B36A]'} />
-                                <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Service Schedule</h3>
+                                <FaFileMedical className={isIncomingPrescription ? 'text-indigo-600' : 'text-[#08B36A]'} />
+                                <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Extracted Text</h3>
                             </div>
                             <div className="space-y-3 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-gray-400">Type:</span> 
-                                    <span className={`font-bold uppercase ${order.priceBreakdown?.fasterServiceCharge > 0 ? 'text-amber-600' : 'text-red-500'}`}>
-                                        {order.priceBreakdown?.fasterServiceCharge > 0 ? 'Express Priority' : (order.serviceDetails?.type || 'Standard')}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-400">Starts:</span> 
-                                    <span className="font-bold text-gray-800">{formatDate(order.schedule?.startDate)}</span>
-                                </div>
-                                {order.schedule?.endDate && (
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-400">Ends:</span> 
-                                        <span className="font-bold text-gray-800">{formatDate(order.schedule?.endDate)}</span>
-                                    </div>
-                                )}
-                                <div className="flex justify-between">
-                                    <span className="text-gray-400">Total Price:</span> 
-                                    <span className={`font-bold text-lg ${isRejected ? 'text-red-500' : 'text-[#08B36A]'}`}>
-                                        ₹{order.priceBreakdown?.totalPrice || order.totalPrice}
-                                    </span>
-                                </div>
+                                <p className="text-xs bg-gray-50 border p-3 rounded-xl text-gray-600 leading-relaxed italic">
+                                    {order.extractedText ? `"${order.extractedText}"` : "No instruction text extracted from prescription attachment."}
+                                </p>
                             </div>
                         </div>
+
+                        {/* Interactive Pricing Proposal Section */}
+                        {isIncomingPrescription && (
+                            <div className="md:col-span-2 space-y-6 bg-indigo-50/40 p-6 rounded-[32px] border border-indigo-100">
+                                <div className="flex items-center gap-2 border-b border-indigo-100 pb-2">
+                                    <FaFileMedical className="text-indigo-600" />
+                                    <h3 className="font-black text-indigo-900 uppercase text-xs tracking-wider">Configure Pricing & Services</h3>
+                                </div>
+
+                                {/* Services dynamic pricing mapping */}
+                                <div className="space-y-4">
+                                    <label className="block text-xs font-bold text-indigo-900 uppercase">Set Base Pricing per Service</label>
+                                    {(order.services || order.detectedServices || []).map((srv, idx) => (
+                                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-indigo-100">
+                                            <div>
+                                                <h4 className="font-bold text-sm text-gray-800">{srv.title}</h4>
+                                                <p className="text-xs text-gray-400 mt-0.5">{srv.description}</p>
+                                                {srv.notes && <p className="text-[10px] text-indigo-500 italic mt-1">Note: {srv.notes}</p>}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-bold text-gray-500">₹</span>
+                                                <input 
+                                                    type="number"
+                                                    placeholder="Rate"
+                                                    className="w-24 px-3 py-2 border rounded-xl text-sm font-bold focus:outline-indigo-500 text-right"
+                                                    value={servicePrices[srv.title] ?? ''}
+                                                    onChange={(e) => handleServicePriceChange(srv.title, e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Consumables selector system */}
+                                <div className="space-y-4 mt-6">
+                                    <label className="block text-xs font-bold text-indigo-900 uppercase">Select Consumables Utilized</label>
+                                    
+                                    <div className="relative">
+                                        <div className="flex items-center bg-white border border-indigo-100 rounded-xl px-3 py-1">
+                                            <FaSearch className="text-gray-400 mr-2" />
+                                            <input 
+                                                type="text" 
+                                                placeholder="Search consumables (e.g. Cotton, Gloves)"
+                                                className="w-full py-2 focus:outline-none text-sm bg-transparent"
+                                                value={consumableSearch}
+                                                onChange={handleConsumableSearch}
+                                            />
+                                        </div>
+
+                                        {searchResults.length > 0 && (
+                                            <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto z-10 divide-y">
+                                                {searchResults.map((item, idx) => (
+                                                    <button 
+                                                        key={idx}
+                                                        type="button"
+                                                        onClick={() => addConsumable(item)}
+                                                        className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-indigo-50 text-gray-700 transition-colors flex justify-between"
+                                                    >
+                                                        <span>{item.name}</span>
+                                                        <span className="text-indigo-600">₹{item.price}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Selected Consumables List */}
+                                    {addedConsumables.length > 0 && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                                            {addedConsumables.map((c, idx) => (
+                                                <div key={idx} className="flex justify-between items-center p-3 bg-white border border-indigo-50 rounded-xl text-xs font-bold shadow-sm">
+                                                    <div>
+                                                        <span className="text-gray-700">{c.name}</span>
+                                                        <span className="text-indigo-600 ml-2">₹{c.price}</span>
+                                                    </div>
+                                                    <button onClick={() => removeConsumable(idx)} className="text-red-500 hover:text-red-700 transition-colors p-1">
+                                                        <FaTrashAlt size={10} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Taxes Configure */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+                                    <div>
+                                        <label className="block text-xs font-bold text-indigo-900 uppercase mb-2">Taxes / Fees</label>
+                                        <div className="flex items-center bg-white border border-indigo-100 rounded-xl px-3 py-2">
+                                            <span className="text-sm font-bold text-gray-500 mr-2">₹</span>
+                                            <input 
+                                                type="number"
+                                                value={taxAmount}
+                                                className="w-full focus:outline-none text-sm font-bold"
+                                                onChange={(e) => setTaxAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Pricing breakdown overview */}
+                                    <div className="bg-white/60 rounded-2xl border p-4 text-xs space-y-2 font-bold text-gray-600">
+                                        <div className="flex justify-between">
+                                            <span>Base Services:</span>
+                                            <span>₹{baseServicePriceTotal}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Consumables:</span>
+                                            <span>₹{consumablesTotal}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Taxes:</span>
+                                            <span>₹{Number(taxAmount) || 0}</span>
+                                        </div>
+                                        <div className="flex justify-between text-indigo-900 font-extrabold text-sm border-t pt-2">
+                                            <span>Total Price:</span>
+                                            <span>₹{estimatedTotal}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Location Details */}
                         <div className="md:col-span-2 space-y-3">
                             <div className="flex items-center gap-2 border-b pb-2">
-                                <FaMapMarkerAlt className={isRejected ? 'text-red-500' : 'text-[#08B36A]'} />
+                                <FaMapMarkerAlt className={isIncomingPrescription ? 'text-indigo-600' : isRejected ? 'text-red-500' : 'text-[#08B36A]'} />
                                 <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Service Location</h3>
                             </div>
-                            <p className="bg-gray-50 p-4 rounded-2xl text-sm text-gray-600 leading-relaxed border border-gray-100">
-                                {order.address?.houseNo}, {order.address?.city} ({order.address?.addressType || 'Home'})
+                            <p className="bg-gray-50 p-4 rounded-2xl text-sm text-gray-600 leading-relaxed border border-gray-100 font-medium">
+                                {formattedAddress}
                             </p>
                         </div>
 
-                        {/* Consumables List */}
-                        {order.selectedConsumables?.length > 0 && (
+                        {/* Prescribed Services */}
+                        {!isIncomingPrescription && (order.servicesPricing?.length > 0 || order.services?.length > 0) && (
+                            <div className="md:col-span-2 space-y-3">
+                                <div className="flex items-center gap-2 border-b pb-2">
+                                    <FaFileMedical className="text-[#08B36A]" />
+                                    <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Mapped Services & Pricing</h3>
+                                </div>
+                                <div className="space-y-2">
+                                    {(order.servicesPricing || order.services).map((srv, i) => (
+                                        <div key={i} className="flex justify-between p-3 bg-gray-50 border rounded-xl text-xs font-bold text-gray-700">
+                                            <span>{srv.title}</span>
+                                            {srv.price && <span className="text-[#08B36A]">₹{srv.price}</span>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Consumables */}
+                        {!isIncomingPrescription && order.consumablesUsed?.length > 0 && (
                             <div className="md:col-span-2 space-y-3">
                                 <div className="flex items-center gap-2 border-b pb-2">
                                     <FaBoxOpen className="text-[#08B36A]" />
-                                    <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Consumables Needed</h3>
+                                    <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Consumables Details</h3>
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {order.selectedConsumables.map((c, i) => (
+                                    {order.consumablesUsed.map((c, i) => (
                                         <div key={i} className="flex justify-between p-3 bg-gray-50 rounded-xl text-xs border border-gray-100 font-bold">
-                                            <span>{c.itemName}</span>
+                                            <span>{c.name}</span>
                                             <span className="text-[#08B36A]">₹{c.price}</span>
                                         </div>
                                     ))}
@@ -131,71 +423,77 @@ const UnifiedOrderDetailModal = ({ isOpen, order, activeTab, imageBaseUrl, forma
                             </div>
                         )}
 
-                        {/* Prescription Media */}
+                        {/* Price Breakdown Preview */}
+                        {!isIncomingPrescription && order.priceBreakdown && (
+                            <div className="md:col-span-2 space-y-3">
+                                <div className="flex justify-between text-sm bg-gray-50 p-4 rounded-2xl border font-bold">
+                                    <span className="text-gray-400">Total Charged Price:</span>
+                                    <span className="text-[#08B36A] text-lg">₹{order.priceBreakdown?.totalPrice || order.totalPrice}</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Prescription Media (Resolves path and applies self-healing image loader) */}
                         {order.prescriptionImage && (
                             <div className="md:col-span-2 space-y-3">
                                 <div className="flex items-center gap-2 border-b pb-2">
-                                    <FaImage className="text-[#08B36A]" />
-                                    <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Prescription Photo</h3>
+                                    <FaImage className={isIncomingPrescription ? 'text-indigo-600' : 'text-[#08B36A]'} />
+                                    <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Prescription Attachment</h3>
                                 </div>
-                                <div className="rounded-2xl border-2 border-dashed border-gray-200 p-2 overflow-hidden">
+                                <div className="rounded-2xl border-2 border-dashed border-gray-200 p-2 overflow-hidden bg-gray-50">
                                     <img 
-                                        src={`${imageBaseUrl}/${order.prescriptionImage}`} 
+                                        src={getPrescriptionImageUrl(order.prescriptionImage, imageBaseUrl)} 
                                         alt="Prescription" 
-                                        className="w-full h-auto rounded-xl object-contain max-h-80 bg-gray-50" 
+                                        onError={handleImageError}
+                                        className="w-full h-auto rounded-xl object-contain max-h-80 mx-auto" 
                                     />
                                 </div>
                             </div>
                         )}
-
-                        {/* Instructions */}
-                        {order.healthDetails?.specialInstructions && (
-                            <div className="md:col-span-2 space-y-3">
-                                <div className="flex items-center gap-2 border-b pb-2">
-                                    <FaStethoscope className="text-[#08B36A]" />
-                                    <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Instructions</h3>
-                                </div>
-                                <div className="p-4 bg-blue-50/50 text-blue-800 rounded-2xl text-xs italic border border-blue-100">
-                                    "{order.healthDetails?.specialInstructions}"
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Rejection Logs */}
-                        {isRejected && (
-                            <div className="md:col-span-2 bg-red-50 p-6 rounded-[32px] border border-red-100">
-                                <div className="flex items-center gap-2 text-red-700 font-black text-[11px] uppercase mb-2 tracking-widest">
-                                    <FaExclamationTriangle /> Decline Reason
-                                </div>
-                                <p className="text-sm text-red-600 font-black italic">
-                                    "{order.rejectionReason || 'Staff Unavailable'}"
-                                </p>
-                            </div>
-                        )}
-
                     </div>
                 </div>
 
-                {/* Footer Actions */}
+                {/* Footer Action Buttons */}
                 <div className="p-6 bg-gray-50 flex flex-col sm:flex-row justify-end gap-3 border-t">
-                    {isHistory ? (
+                    {isIncomingPrescription ? (
                         <>
-                            {order.address?.phone && activeTab === 'Approved' && (
-                                <a 
-                                    href={`tel:${order.address.phone}`} 
-                                    className="flex items-center justify-center gap-2 px-8 py-3.5 rounded-2xl bg-blue-600 text-white font-bold text-xs shadow-md hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all uppercase tracking-wider"
-                                >
-                                    <FaPhoneAlt size={12} /> Contact Patient
-                                </a>
-                            )}
-                            <button onClick={onClose} className="px-8 py-3.5 rounded-2xl bg-gray-200 text-gray-700 font-bold hover:bg-gray-300 transition-colors uppercase text-xs tracking-wider">
-                                Dismiss Details
+                            <button 
+                                onClick={handleDeclineRequest}
+                                disabled={isDeclining || isSubmitting}
+                                className="px-6 py-3.5 rounded-2xl bg-red-100 text-red-600 hover:bg-red-200 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+                            >
+                                {isDeclining ? <FaSpinner className="animate-spin" /> : 'Decline Request'}
+                            </button>
+                            <button 
+                                onClick={handleProposalSubmit}
+                                disabled={isDeclining || isSubmitting}
+                                className="px-8 py-3.5 rounded-2xl bg-indigo-600 text-white hover:bg-indigo-700 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md"
+                            >
+                                {isSubmitting ? <FaSpinner className="animate-spin" /> : 'Submit Proposal'}
                             </button>
                         </>
                     ) : (
-                        <button onClick={onClose} className="px-8 py-3 rounded-2xl bg-gray-200 text-gray-700 font-bold hover:bg-gray-300 transition-colors uppercase text-xs tracking-wider">
-                            Close
-                        </button>
+                        <>
+                            {activeTab === 'Approved' && (
+                                <button 
+                                    onClick={() => { onClose(); onAssignClick(order); }}
+                                    className="px-6 py-3 rounded-2xl bg-[#08B36A] text-white font-bold hover:bg-green-700 transition-colors uppercase text-xs tracking-wider flex items-center gap-2"
+                                >
+                                    <FaUserNurse /> Assign Staff
+                                </button>
+                            )}
+                            {activeTab === 'Prescription Nursing' && prescriptionSubTab === 'Confirmed' && (
+                                <button 
+                                    onClick={() => { onClose(); onAssignClick(order); }}
+                                    className="px-6 py-3 rounded-2xl bg-[#08B36A] text-white font-bold hover:bg-green-700 transition-colors uppercase text-xs tracking-wider flex items-center gap-2"
+                                >
+                                    <FaUserNurse /> Assign Staff
+                                </button>
+                            )}
+                            <button onClick={onClose} className="px-8 py-3 rounded-2xl bg-gray-200 text-gray-700 font-bold hover:bg-gray-300 transition-colors uppercase text-xs tracking-wider">
+                                Close
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
@@ -204,7 +502,7 @@ const UnifiedOrderDetailModal = ({ isOpen, order, activeTab, imageBaseUrl, forma
 };
 
 // --- SUB-COMPONENT: ORDER HISTORY ROW ---
-const OrderHistoryRow = ({ order, activeTab, onRowClick, formatDate }) => {
+const OrderHistoryRow = ({ order, activeTab, onRowClick, onAssignClick, formatDate }) => {
     return (
         <tr 
             onClick={() => onRowClick(order)} 
@@ -271,6 +569,14 @@ const OrderHistoryRow = ({ order, activeTab, onRowClick, formatDate }) => {
                     >
                         <FaInfoCircle size={18} />
                     </button>
+                    {activeTab === 'Approved' && (
+                        <button 
+                            onClick={() => onAssignClick(order)}
+                            className="bg-[#08B36A] hover:bg-[#069a5a] text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                        >
+                            <FaUserNurse size={12} /> ASSIGN
+                        </button>
+                    )}
                     <button 
                         className="w-10 h-10 flex items-center justify-center text-red-400 bg-white border border-gray-100 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-90"
                     >
@@ -286,6 +592,7 @@ const OrderHistoryRow = ({ order, activeTab, onRowClick, formatDate }) => {
 export default function NurseOrdersPage() {
     const [activeTab, setActiveTab] = useState('Daily Nursing'); 
     const [approvedSubTab, setApprovedSubTab] = useState('General'); 
+    const [prescriptionSubTab, setPrescriptionSubTab] = useState('Incoming');
     const [fetching, setFetching] = useState(true);
 
     // Pagination State
@@ -297,10 +604,17 @@ export default function NurseOrdersPage() {
     const [priorityBookings, setPriorityBookings] = useState([]);
     const [approvedOrders, setApprovedOrders] = useState([]);
     const [rejectedOrders, setRejectedOrders] = useState([]);
+    const [availableNurses, setAvailableNurses] = useState([]);
     
+    // Prescription Flow specific states
+    const [prescriptionRequests, setPrescriptionRequests] = useState([]);
+    const [prescriptionBookings, setPrescriptionBookings] = useState([]);
+
     // Modals State
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState(null);
+    const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+    const [selectedAppointment, setSelectedAppointment] = useState(null);
 
     const tabs = [
         'Daily Nursing', 
@@ -321,18 +635,31 @@ export default function NurseOrdersPage() {
                 bookingsRes, 
                 priorityRes, 
                 approvedRes, 
-                rejectedRes
+                rejectedRes,
+                prescriptionReqsRes,
+                prescriptionBookingsRes,
+                staffRes
             ] = await Promise.all([
                 NurseAPI.getBookings('Pending'),
                 NurseAPI.getBookings('Pending', 'true'), 
                 NurseAPI.getBookings('Confirmed'),
-                NurseAPI.getBookings('Rejected')
+                NurseAPI.getBookings('Rejected'),
+                NurseAPI.getPrescriptionRequests(),
+                NurseAPI.getPrescriptionBookings('Confirmed'),
+                NurseAPI.getAvailableStaff()
             ]);
 
             if (bookingsRes.success) setAllBookings(bookingsRes.data || []);
             if (priorityRes.success) setPriorityBookings(priorityRes.data || []);
             if (approvedRes.success) setApprovedOrders(approvedRes.data || []);
             if (rejectedRes.success) setRejectedOrders(rejectedRes.data || []);
+            if (prescriptionReqsRes.success) setPrescriptionRequests(prescriptionReqsRes.data || []);
+            if (prescriptionBookingsRes.success) setPrescriptionBookings(prescriptionBookingsRes.data || []);
+            
+            const staffData = staffRes?.staff || staffRes?.data || staffRes;
+            if (Array.isArray(staffData)) {
+                setAvailableNurses(staffData);
+            }
         } catch (error) {
             console.error("Error loading nurse booking logs:", error);
             toast.error("Failed to load request records");
@@ -348,12 +675,16 @@ export default function NurseOrdersPage() {
     // Reset pagination index whenever tab configurations update
     useEffect(() => {
         setCurrentPage(1);
-    }, [activeTab, approvedSubTab]);
+    }, [activeTab, approvedSubTab, prescriptionSubTab]);
 
     // --- FILTER PARSER ---
     const getCurrentData = () => {
         if (activeTab === 'Rejected') return rejectedOrders;
         if (activeTab === 'Priority Requests') return priorityBookings;
+
+        if (activeTab === 'Prescription Nursing') {
+            return prescriptionSubTab === 'Incoming' ? prescriptionRequests : prescriptionBookings;
+        }
 
         if (activeTab === 'Approved') {
             return approvedOrders.filter(item => {
@@ -370,9 +701,6 @@ export default function NurseOrdersPage() {
             const duration = item.serviceDetails?.duration;
             const hasPrescription = !!item.prescriptionImage;
 
-            if (activeTab === 'Prescription Nursing') {
-                return hasPrescription;
-            }
             if (activeTab === 'Package Nursing') {
                 return !hasPrescription && duration === 'For Multiple Days';
             }
@@ -417,6 +745,29 @@ export default function NurseOrdersPage() {
         return new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     };
 
+    // --- HANDLE ASSIGN ACTION ---
+    const handleAssignNurse = async (nurseId) => {
+        if (!selectedAppointment || !nurseId) return;
+
+        try {
+            const payload = {
+                bookingId: selectedAppointment._id,
+                staffId: nurseId
+            };
+            
+            const response = await NurseAPI.assignStaffToBooking(payload);
+            
+            if (response) {
+                toast.success("Staff Assigned Successfully!");
+                setIsAssignModalOpen(false);
+                loadData(); 
+            }
+        } catch (error) {
+            console.error("Assignment failed:", error);
+            toast.error(error.response?.data?.message || "Failed to assign staff");
+        }
+    };
+
     const startIndex = (currentPage - 1) * itemsPerPage;
 
     if (fetching) return (
@@ -440,14 +791,15 @@ export default function NurseOrdersPage() {
                 {tabs.map((tab) => {
                     const isTabActive = activeTab === tab;
                     let badgeCount = 0;
-                    if (tab === 'Daily Nursing' || tab === 'Package Nursing' || tab === 'Prescription Nursing') {
+                    if (tab === 'Daily Nursing' || tab === 'Package Nursing') {
                         badgeCount = allBookings.filter(item => {
                             const duration = item.serviceDetails?.duration;
                             const hasPrescription = !!item.prescriptionImage;
-                            if (tab === 'Prescription Nursing') return hasPrescription;
                             if (tab === 'Package Nursing') return !hasPrescription && duration === 'For Multiple Days';
                             return !hasPrescription && (duration === 'One day One Time' || duration === 'Acc. To Per/Hours');
                         }).length;
+                    } else if (tab === 'Prescription Nursing') {
+                        badgeCount = prescriptionRequests.length + prescriptionBookings.length;
                     } else if (tab === 'Priority Requests') {
                         badgeCount = priorityBookings.length;
                     } else if (tab === 'Approved') {
@@ -517,6 +869,46 @@ export default function NurseOrdersPage() {
                 </div>
             )}
 
+            {/* Sub-Tabs for Prescription Orders */}
+            {activeTab === 'Prescription Nursing' && (
+                <div className="flex justify-center gap-4 mb-6 bg-gray-50 p-1.5 rounded-xl border border-gray-100 w-fit mx-auto">
+                    <button 
+                        onClick={() => setPrescriptionSubTab('Incoming')}
+                        className={`px-6 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                            prescriptionSubTab === 'Incoming' 
+                                ? 'bg-indigo-600 text-white shadow-sm' 
+                                : 'text-gray-500 hover:text-gray-800'
+                        }`}
+                    >
+                        <span>Incoming Broadcasts</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${
+                            prescriptionSubTab === 'Incoming' 
+                                ? 'bg-white/25 text-white' 
+                                : 'bg-gray-200 text-gray-600'
+                        }`}>
+                            {prescriptionRequests.length}
+                        </span>
+                    </button>
+                    <button 
+                        onClick={() => setPrescriptionSubTab('Confirmed')}
+                        className={`px-6 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                            prescriptionSubTab === 'Confirmed' 
+                                ? 'bg-[#08B36A] text-white shadow-sm' 
+                                : 'text-gray-500 hover:text-gray-800'
+                        }`}
+                    >
+                        <span>Confirmed Bookings</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${
+                            prescriptionSubTab === 'Confirmed' 
+                                ? 'bg-white/25 text-white' 
+                                : 'bg-gray-200 text-gray-600'
+                        }`}>
+                            {prescriptionBookings.length}
+                        </span>
+                    </button>
+                </div>
+            )}
+
             {/* Unified Table Structure */}
             <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden mb-10 max-w-6xl mx-auto flex flex-col min-h-[450px]">
                 {paginatedData.length > 0 ? (
@@ -528,7 +920,7 @@ export default function NurseOrdersPage() {
                                         <th className="px-8 py-5 text-xs font-bold text-gray-500 uppercase">Prescription</th>
                                     )}
                                     <th className="px-8 py-5 text-[11px] font-black text-gray-400 uppercase tracking-wider">Patient Details</th>
-                                    <th className="px-8 py-5 text-[11px] font-black text-gray-400 uppercase tracking-wider text-center">Price</th>
+                                    <th className="px-8 py-5 text-[11px] font-black text-gray-400 uppercase tracking-wider text-center">Price / Action State</th>
                                     {isHistoryTab ? (
                                         <>
                                             {activeTab === 'Approved' ? (
@@ -540,7 +932,7 @@ export default function NurseOrdersPage() {
                                             <th className="px-8 py-5 text-[11px] font-black text-gray-400 uppercase tracking-wider text-right">Actions</th>
                                         </>
                                     ) : (
-                                        <th className="px-8 py-5 text-[11px] font-black text-gray-400 uppercase tracking-wider text-center">Actions</th>
+                                        <th className="px-8 py-5 text-[11px] font-black text-gray-400 uppercase tracking-wider text-center font-sans">Details Action</th>
                                     )}
                                 </tr>
                             </thead>
@@ -553,23 +945,38 @@ export default function NurseOrdersPage() {
                                                 order={item}
                                                 activeTab={activeTab}
                                                 onRowClick={openDetails}
+                                                onAssignClick={(order) => { setSelectedAppointment(order); setIsAssignModalOpen(true); }}
                                                 formatDate={formatDate}
                                             />
                                         );
                                     }
 
+                                    const isIncomingPrescriptionItem = activeTab === 'Prescription Nursing' && prescriptionSubTab === 'Incoming';
+                                    const isConfirmedPrescriptionItem = activeTab === 'Prescription Nursing' && prescriptionSubTab === 'Confirmed';
+
                                     return (
-                                        <tr key={index} onClick={() => openDetails(item)} className="hover:bg-gray-50 transition-colors cursor-pointer group">
+                                        <tr key={item._id || index} onClick={() => openDetails(item)} className="hover:bg-gray-50 transition-colors cursor-pointer group">
                                             {activeTab === 'Prescription Nursing' && (
                                                 <td className="px-8 py-4">
-                                                    <div className="w-14 h-14 rounded-lg overflow-hidden border border-gray-200">
-                                                        <img src={`${IMAGE_BASE_URL}/${item.prescriptionImage}`} alt="Prescription" className="w-full h-full object-cover" />
+                                                    <div className="w-14 h-14 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                                                        {item.prescriptionImage ? (
+                                                            <img 
+                                                                src={getPrescriptionImageUrl(item.prescriptionImage, IMAGE_BASE_URL)} 
+                                                                alt="Prescription" 
+                                                                onError={handleImageError}
+                                                                className="w-full h-full object-cover" 
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                                                <FaImage />
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </td>
                                             )}
                                             <td className="px-8 py-4">
                                                 <div className="font-bold text-gray-800 group-hover:text-[#08B36A] transition-colors">
-                                                    {item.patients?.[0]?.name || item.address?.name}
+                                                    {item.userId?.name || item.patients?.[0]?.name || item.address?.name || 'N/A'}
                                                 </div>
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-green-50 text-[#08B36A]">
@@ -582,22 +989,38 @@ export default function NurseOrdersPage() {
                                                     )}
                                                 </div>
                                                 <div className="text-[12px] text-gray-500 mt-1">
-                                                    {item.serviceDetails?.title} • {item.patients?.[0]?.relation || 'Self'}
+                                                    {isIncomingPrescriptionItem ? 'Detected Prescribed Service' : (item.serviceDetails?.title || 'Prescription Service Booking')} • {item.userId?.gender || 'N/A'}{item.userId?.age ? `, ${item.userId.age} yrs` : ''}
                                                 </div>
                                             </td>
                                             <td className="px-8 py-4 font-bold text-gray-800 text-center">
-                                                ₹{item.priceBreakdown?.totalPrice || item.totalPrice}
+                                                {isIncomingPrescriptionItem ? (
+                                                    <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-xl border border-indigo-100 uppercase tracking-wider font-extrabold">
+                                                        Create Proposal
+                                                    </span>
+                                                ) : (
+                                                    `₹${item.priceBreakdown?.totalPrice || item.totalPrice || 'Estimating'}`
+                                                )}
                                             </td>
                                             <td className="px-8 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex items-center justify-center gap-3">
-                                                    <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-xl uppercase tracking-wider">
-                                                        Payment Pending
-                                                    </span>
+                                                    {!isIncomingPrescriptionItem && (
+                                                        <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-xl uppercase tracking-wider">
+                                                            {item.status || 'Confirmed'}
+                                                        </span>
+                                                    )}
+                                                    {isConfirmedPrescriptionItem && (
+                                                        <button 
+                                                            onClick={() => { setSelectedAppointment(item); setIsAssignModalOpen(true); }}
+                                                            className="bg-[#08B36A] hover:bg-[#069a5a] text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                                                        >
+                                                            <FaUserNurse size={12} /> ASSIGN STAFF
+                                                        </button>
+                                                    )}
                                                     <button 
                                                         onClick={() => openDetails(item)} 
-                                                        className="bg-blue-500 text-white px-4 py-2 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all hover:bg-blue-600 shadow-sm"
+                                                        className={`${isIncomingPrescriptionItem ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-blue-500 hover:bg-blue-600'} text-white px-4 py-2 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all hover:bg-blue-600 shadow-sm`}
                                                     >
-                                                        <FaEye /> VIEW
+                                                        <FaEye /> {isIncomingPrescriptionItem ? 'PROPOSE' : 'VIEW'}
                                                     </button>
                                                 </div>
                                             </td>
@@ -615,7 +1038,9 @@ export default function NurseOrdersPage() {
                         <h2 className="text-xl font-bold text-[#1e293b] mb-2">No {activeTab} Records</h2>
                         <p className="text-gray-400 text-sm mb-8 px-4">Latest incoming requests mapping to this status parameter appear here.</p>
                         <div className="w-full px-6">
-                            <button onClick={loadData} className="w-full flex items-center justify-center gap-2 border-2 border-[#08B36A] text-[#08B36A] font-bold py-3 rounded-2xl hover:bg-green-50"><FaSyncAlt className={`text-sm ${fetching ? 'animate-spin' : ''}`} /> Refresh Console</button>
+                            <button onClick={loadData} className="w-full flex items-center justify-center gap-2 border-2 border-[#08B36A] text-[#08B36A] font-bold py-3 rounded-2xl hover:bg-green-50">
+                                <FaSyncAlt className={`text-sm ${fetching ? 'animate-spin' : ''}`} /> Refresh Console
+                            </button>
                         </div>
                     </div>
                 )}
@@ -671,10 +1096,77 @@ export default function NurseOrdersPage() {
                 isOpen={isDetailsModalOpen}
                 order={selectedOrder}
                 activeTab={activeTab}
+                prescriptionSubTab={prescriptionSubTab}
                 imageBaseUrl={IMAGE_BASE_URL}
                 formatDate={formatDate}
                 onClose={closeAllModals}
+                onRefresh={loadData}
+                onAssignClick={(order) => { setSelectedAppointment(order); setIsAssignModalOpen(true); }}
             />
+
+            {/* --- SELECT NURSE MODAL --- */}
+            {isAssignModalOpen && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden relative border border-white/20 animate-in zoom-in-95 duration-300 font-sans">
+                        <div className="p-8 border-b border-gray-50 bg-gray-50/50">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-2xl font-black text-gray-900">Select Nurse</h2>
+                                    <p className="text-[11px] text-gray-400 font-bold uppercase tracking-[2px] mt-1">
+                                        FOR: {selectedAppointment?.userId?.name || selectedAppointment?.patients?.[0]?.name || selectedAppointment?.address?.name}
+                                    </p>
+                                </div>
+                                <button onClick={() => setIsAssignModalOpen(false)} className="w-10 h-10 flex items-center justify-center bg-white rounded-full text-gray-400 hover:text-red-500 shadow-sm border border-gray-100 transition-all">
+                                    <FaTimes size={18} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="p-6 max-h-[450px] overflow-y-auto space-y-3 custom-scrollbar">
+                            {availableNurses.length === 0 ? (
+                                <div className="text-center py-10 text-gray-400 italic text-sm">No available nurses found at this time</div>
+                            ) : (
+                                availableNurses.map((nurse) => (
+                                    <div key={nurse._id} className="flex items-center justify-between p-4 rounded-3xl border border-gray-100 hover:border-[#08B36A] hover:bg-green-50/30 transition-all group">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-2xl overflow-hidden bg-gray-100 ring-2 ring-white shadow-sm">
+                                                {nurse.profilePhoto ? <img src={`${IMAGE_BASE_URL}/${nurse.profilePhoto}`} className="w-full h-full object-cover" /> : <FaUserCircle size={48} className="text-gray-200" />}
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-gray-900 text-sm leading-tight">{nurse.name}</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <FaAward className="text-orange-400" size={10} />
+                                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">{nurse.experience || '2+ Years'} EXP</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => handleAssignNurse(nurse._id)} className="bg-gray-900 text-white hover:bg-[#08B36A] px-5 py-2 rounded-2xl text-[10px] font-black transition-all shadow-md active:scale-90">SELECT</button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        <div className="p-6 bg-gray-50 border-t border-gray-100 text-center">
+                            <button onClick={() => setIsAssignModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-xs font-black uppercase tracking-widest transition-colors">Cancel Assignment</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Custom CSS for hiding scrollbar but keeping functionality */}
+            <style jsx global>{`
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 6px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: #E2E8F0;
+                    border-radius: 10px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: #CBD5E1;
+                }
+            `}</style>
 
         </div>
     );

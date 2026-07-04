@@ -4,13 +4,15 @@ import React, { useState, useEffect } from 'react';
 import NurseAPI from '@/app/services/NurseAPI';
 import { 
     Camera, Mail, Phone, MapPin, Briefcase, Save, Loader2, 
-    FileText, CheckCircle, Info, Globe, Navigation, UploadCloud
+    FileText, CheckCircle, Info, Globe, Navigation, CreditCard
 } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast'; 
 import { useUserContext } from '@/app/context/UserContext'; 
 
 const ProfilePage = () => {
-    const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
+    // Gracefully handle undefined context if the provider is missing
+    const userContext = useUserContext() || {};
+    const { getAllCountries, getStatesByCountry, getCitiesByState } = userContext;
     
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(true);
@@ -20,21 +22,36 @@ const ProfilePage = () => {
     const [states, setStates] = useState([]);
     const [cities, setCities] = useState([]);
 
+    // Profile State
     const [profile, setProfile] = useState({
         name: '',
-        email: '',
-        about: '',
+        email: '',          // Read-only on UI
+        phone: '',          // Read-only on UI
+        alternatePhone: '', // Updatable
+        password: '',       // Updatable (optional)
+        gender: '',
         experienceYears: '',
-        country: '', // Stored as ID/Name for dropdown
-        state: '',   // Stored as ID/Name for dropdown
-        city: '',    // Stored as ID/Name for dropdown
+        speciality: '',
+        about: '',
         address: '',
-        lat: '',
-        lng: '',
-        phone: '',
-        profileStatus: ''
+        city: '',    
+        state: '',   
+        country: '', 
+        lat: '',            // Read-only coordinates
+        lng: '',            // Read-only coordinates
+        profileStatus: '',
+        
+        // Bank details fields
+        bankName: '',
+        accountHolderName: '',
+        accountNumber: '',
+        ifscCode: '',
+        upiId: '',
+        accountType: 'Savings',
+        isVerifiedBank: false
     });
 
+    // Read-only previews/documents loaded from GET
     const [previews, setPreviews] = useState({
         profile: null,
         nursingCertificates: [],
@@ -44,14 +61,8 @@ const ProfilePage = () => {
         otherCertificates: []
     });
 
-    const [files, setFiles] = useState({
-        profileImage: null,
-        nursingCertificates: [],
-        licensePhotos: [],
-        gstCertificates: [],
-        experienceCertificates: [],
-        otherCertificates: []
-    });
+    // Handle profile image file separate state
+    const [profileImageFile, setProfileImageFile] = useState(null);
 
     const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5002';
 
@@ -62,35 +73,58 @@ const ProfilePage = () => {
         return `${BACKEND_URL}/${cleanPath}`;
     };
 
-    // Helper to find ID by Name (since your API returns "India" instead of an ID)
+    const getDocSrc = (doc) => {
+        if (!doc) return "";
+        if (typeof doc === 'string') return doc;
+        return doc.path || doc.url || "";
+    };
+
     const findIdByName = (list, name) => {
+        if (!list || !Array.isArray(list)) return name;
         const item = list.find(i => i.name === name || i.id === name || i._id === name);
         return item ? (item.id || item._id) : name;
     };
 
+    const getSelectedName = (list, idOrName) => {
+        if (!list || !Array.isArray(list)) return idOrName;
+        const found = list.find(item => item.id === idOrName || item._id === idOrName || item.name === idOrName);
+        return found ? found.name : idOrName;
+    };
+
     const fetchProfile = async () => {
         try {
+            // First, fetch the nurse profile
             const res = await NurseAPI.getNurseProfile();
             if (res.success) {
                 const d = res.data;
                 
-                // Set initial profile state (Bank Details removed)
                 setProfile({
                     name: d.name || '',
                     email: d.email || '',
-                    about: d.about || '',
+                    phone: d.phone || '',
+                    alternatePhone: d.alternatePhone || '',
+                    password: '', 
+                    gender: d.gender || '',
                     experienceYears: d.experienceYears || '',
-                    country: d.country || '',
-                    state: d.state || '',
-                    city: d.city || '',
+                    speciality: d.speciality || '',
+                    about: d.about || '',
                     address: d.address || '',
+                    city: d.city || '',
+                    state: d.state || '',
+                    country: d.country || '',
                     lat: d.location?.lat || '',
                     lng: d.location?.lng || '',
-                    phone: d.phone || '',
-                    profileStatus: d.profileStatus || ''
+                    profileStatus: d.profileStatus || '',
+                    
+                    bankName: d.bankDetails?.bankName || '',
+                    accountHolderName: d.bankDetails?.accountHolderName || '',
+                    accountNumber: d.bankDetails?.accountNumber || '',
+                    ifscCode: d.bankDetails?.ifscCode || '',
+                    upiId: d.bankDetails?.upiId || '',
+                    accountType: d.bankDetails?.accountType || 'Savings',
+                    isVerifiedBank: d.bankDetails?.isVerified || false
                 });
 
-                // Load initial previews from documents object
                 setPreviews({
                     profile: d.profileImage || null,
                     nursingCertificates: d.documents?.nursingCertificates || [],
@@ -100,27 +134,59 @@ const ProfilePage = () => {
                     otherCertificates: d.documents?.otherCertificates || []
                 });
 
-                // Handle Cascading Dropdowns for existing data
-                if (d.country) {
-                    const countryList = await getAllCountries();
-                    setCountries(countryList);
+                // Isolate geography fetch in its own try/catch to avoid crashing profile display
+                let countryList = [];
+                try {
+                    if (getAllCountries) {
+                        countryList = await getAllCountries();
+                    }
+                } catch (countryError) {
+                    console.warn("Geography dropdown context failed. Falling back to text input inputs:", countryError);
+                }
+                setCountries(countryList || []);
+
+                if (d.country && countryList.length > 0) {
                     const cId = findIdByName(countryList, d.country);
-                    
                     if (cId) {
-                        const stateList = await getStatesByCountry(cId);
-                        setStates(stateList);
-                        const sId = findIdByName(stateList, d.state);
+                        let stateList = [];
+                        try {
+                            if (getStatesByCountry) {
+                                stateList = await getStatesByCountry(cId);
+                            }
+                        } catch (stateError) {
+                            console.warn("Failed to retrieve state list options:", stateError);
+                        }
+                        setStates(stateList || []);
                         
-                        if (sId) {
-                            const cityList = await getCitiesByState(sId);
-                            setCities(cityList);
+                        const sId = findIdByName(stateList, d.state);
+                        if (sId && stateList.length > 0) {
+                            let cityList = [];
+                            try {
+                                if (getCitiesByState) {
+                                    cityList = await getCitiesByState(sId);
+                                }
+                            } catch (cityError) {
+                                console.warn("Failed to retrieve city list options:", cityError);
+                            }
+                            setCities(cityList || []);
+                            
+                            const cityId = findIdByName(cityList, d.city);
+                            
+                            setProfile(prev => ({
+                                ...prev,
+                                country: cId,
+                                state: sId,
+                                city: cityId || d.city
+                            }));
+                        } else {
+                            setProfile(prev => ({ ...prev, country: cId }));
                         }
                     }
                 }
             }
         } catch (error) {
-            console.error(error);
-            toast.error("Failed to fetch profile data");
+            console.error("Critical error in fetchProfile sequence:", error);
+            toast.error("Failed to load profile data");
         } finally {
             setFetching(false);
         }
@@ -132,34 +198,40 @@ const ProfilePage = () => {
 
     const handleInputChange = async (e) => {
         const { name, value } = e.target;
-        setProfile(prev => ({ ...prev, [name]: value }));
 
         if (name === "country") {
-            setStates([]); setCities([]);
-            const data = await getStatesByCountry(value);
-            setStates(data || []);
-        }
-        if (name === "state") {
+            setProfile(prev => ({ ...prev, country: value, state: '', city: '' }));
+            setStates([]); 
             setCities([]);
-            const data = await getCitiesByState(value);
-            setCities(data || []);
+            if (value && getStatesByCountry) {
+                try {
+                    const data = await getStatesByCountry(value);
+                    setStates(data || []);
+                } catch (err) {
+                    console.warn("Failed loading states for selected country:", err);
+                }
+            }
+        } else if (name === "state") {
+            setProfile(prev => ({ ...prev, state: value, city: '' }));
+            setCities([]);
+            if (value && getCitiesByState) {
+                try {
+                    const data = await getCitiesByState(value);
+                    setCities(data || []);
+                } catch (err) {
+                    console.warn("Failed loading cities for selected state:", err);
+                }
+            }
+        } else {
+            setProfile(prev => ({ ...prev, [name]: value }));
         }
     };
 
-    const handleFileChange = (e, key, isMultiple = false) => {
-        const selectedFiles = Array.from(e.target.files);
-        if (selectedFiles.length === 0) return;
-
-        if (isMultiple) {
-            setFiles(prev => ({ ...prev, [key]: selectedFiles }));
-            const localPreviews = selectedFiles.map(file => URL.createObjectURL(file));
-            setPreviews(prev => ({ ...prev, [key]: localPreviews }));
-        } else {
-            setFiles(prev => ({ ...prev, [key]: selectedFiles[0] }));
-            setPreviews(prev => ({ 
-                ...prev, 
-                [key === 'profileImage' ? 'profile' : key]: URL.createObjectURL(selectedFiles[0]) 
-            }));
+    const handleProfileImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setProfileImageFile(file);
+            setPreviews(prev => ({ ...prev, profile: URL.createObjectURL(file) }));
         }
     };
 
@@ -169,39 +241,58 @@ const ProfilePage = () => {
         try {
             const formData = new FormData();
             
-            // Text fields
-            formData.append('name', profile.name);
-            formData.append('email', profile.email);
-            formData.append('about', profile.about);
-            formData.append('experienceYears', profile.experienceYears);
-            formData.append('city', profile.city);
-            formData.append('state', profile.state);
-            formData.append('country', profile.country);
-            formData.append('address', profile.address);
-            formData.append('lat', profile.lat);
-            formData.append('lng', profile.lng);
+            // Resolve selected dropdown IDs or handle text inputs if dropdowns failed to load
+            const countryName = countries.length > 0 ? getSelectedName(countries, profile.country) : profile.country;
+            const stateName = states.length > 0 ? getSelectedName(states, profile.state) : profile.state;
+            const cityName = cities.length > 0 ? getSelectedName(cities, profile.city) : profile.city;
 
-            // Single Image
-            if (files.profileImage) {
-                formData.append('profileImage', files.profileImage);
+            if (profileImageFile) {
+                formData.append('profileImage', profileImageFile);
+            }
+            
+            // 1. Core Profile Details
+            formData.append('name', profile.name);
+            formData.append('alternatePhone', profile.alternatePhone);
+            formData.append('gender', profile.gender);
+            formData.append('experienceYears', profile.experienceYears);
+            formData.append('speciality', profile.speciality);
+            formData.append('about', profile.about);
+            formData.append('address', profile.address);
+            formData.append('city', cityName);
+            formData.append('state', stateName);
+            formData.append('country', countryName);
+
+            // 2. Password updates
+            if (profile.password && profile.password.trim() !== '') {
+                formData.append('password', profile.password);
             }
 
-            // Multi Documents
-            const docKeys = ['nursingCertificates', 'licensePhotos', 'gstCertificates', 'experienceCertificates', 'otherCertificates'];
-            docKeys.forEach(key => {
-                if (files[key] && files[key].length > 0) {
-                    files[key].forEach(file => formData.append(key, file));
-                }
-            });
+            // 3. Geolocation coordinates
+            if (profile.lat) {
+                formData.append('location[lat]', profile.lat);
+            }
+            if (profile.lng) {
+                formData.append('location[lng]', profile.lng);
+            }
+
+            // 4. Bank Information fields
+            formData.append('bankDetails[bankName]', profile.bankName);
+            formData.append('bankDetails[accountHolderName]', profile.accountHolderName);
+            formData.append('bankDetails[accountNumber]', profile.accountNumber);
+            formData.append('bankDetails[ifscCode]', profile.ifscCode);
+            formData.append('bankDetails[upiId]', profile.upiId);
+            formData.append('bankDetails[accountType]', profile.accountType);
 
             const res = await NurseAPI.updateNurseProfile(formData);
             if (res.success) {
-                toast.success("Profile successfully updated!");
+                toast.success("Profile updated successfully!");
+                setProfileImageFile(null);
                 fetchProfile();
             } else {
                 toast.error(res.message || "Failed to update profile.");
             }
         } catch (error) {
+            console.error("Error submitting updated details:", error);
             toast.error("Error updating profile");
         } finally {
             setLoading(false);
@@ -232,17 +323,17 @@ const ProfilePage = () => {
                             </div>
                             <label className="absolute -bottom-2 -right-2 bg-[#08B36A] p-2.5 rounded-2xl text-white cursor-pointer hover:scale-110 transition-transform shadow-lg border-2 border-white">
                                 <Camera size={18} />
-                                <input type="file" hidden onChange={(e) => handleFileChange(e, 'profileImage')} accept="image/*" />
+                                <input type="file" hidden onChange={handleProfileImageChange} accept="image/*" />
                             </label>
                         </div>
                         <div className="flex-1 text-center md:text-left">
                             <div className="flex flex-col md:flex-row md:items-center gap-3">
-                                <h1 className="text-2xl font-black text-gray-800 uppercase tracking-tight">{profile.name}</h1>
+                                <h1 className="text-2xl font-black text-gray-800 uppercase tracking-tight">{profile.name || "Nurse Provider"}</h1>
                                 <span className="bg-green-50 text-[#08B36A] px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-green-100 w-fit self-center">
-                                    {profile.profileStatus}
+                                    {profile.profileStatus || "Pending"}
                                 </span>
                             </div>
-                            <p className="text-gray-400 font-bold text-sm mt-1">ID: {profile.email} • {profile.experienceYears} Years Experience</p>
+                            <p className="text-gray-400 font-bold text-sm mt-1">ID: {profile.email} • {profile.experienceYears || 0} Years Experience</p>
                         </div>
                         <button type="submit" disabled={loading} className="w-full md:w-auto flex items-center justify-center gap-3 px-10 py-4 bg-[#08B36A] text-white font-black rounded-[1.25rem] hover:bg-[#069c5c] transition-all shadow-xl shadow-green-100 uppercase tracking-widest text-xs">
                             {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
@@ -253,7 +344,7 @@ const ProfilePage = () => {
                     {/* Stats Dashboard */}
                     <div className="bg-[#1e3a8a] rounded-[2rem] p-6 text-white shadow-xl border-l-[12px] border-[#08B36A] flex flex-wrap gap-4 justify-between">
                         <StatBox label="Role" value="Professional Nurse" icon={<Briefcase size={14}/>} />
-                        <StatBox label="Region" value={`${profile.city}, ${profile.state}`} icon={<Globe size={14}/>} />
+                        <StatBox label="Region" value={profile.city ? `${getSelectedName(cities, profile.city)}, ${getSelectedName(states, profile.state)}` : 'Not Set'} icon={<Globe size={14}/>} />
                         <StatBox label="Rating" value="5.0 New" icon={<CheckCircle size={14}/>} />
                         <StatBox label="Status" value="Active" icon={<Info size={14}/>} />
                     </div>
@@ -267,47 +358,110 @@ const ProfilePage = () => {
                                     <Info className="text-[#08B36A]" size={20} /> Personal Details
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <FormInput label="Full Service Name" name="name" value={profile.name} onChange={handleInputChange} />
-                                    <FormInput label="Phone Number" name="phone" value={profile.phone} readOnly className="bg-gray-100 cursor-not-allowed" />
+                                    <FormInput label="Full Name" name="name" value={profile.name} onChange={handleInputChange} />
+                                    <FormInput label="Email Address (Read Only)" name="email" value={profile.email} readOnly className="bg-gray-100 cursor-not-allowed opacity-75" />
+                                    <FormInput label="Phone Number (Read Only)" name="phone" value={profile.phone} readOnly className="bg-gray-100 cursor-not-allowed opacity-75" />
+                                    <FormInput label="Alternate Phone" name="alternatePhone" value={profile.alternatePhone} onChange={handleInputChange} placeholder="e.g. +919999888877" />
+                                    <FormInput label="New Password (Optional)" name="password" type="password" value={profile.password} onChange={handleInputChange} placeholder="Leave blank to preserve current" />
+                                    
+                                    <FormSelect 
+                                        label="Gender" 
+                                        name="gender" 
+                                        value={profile.gender} 
+                                        options={[
+                                            { id: 'Male', name: 'Male' }, 
+                                            { id: 'Female', name: 'Female' }, 
+                                            { id: 'Other', name: 'Other' }
+                                        ]} 
+                                        onChange={handleInputChange} 
+                                    />
+                                    
+                                    <FormInput label="Speciality" name="speciality" value={profile.speciality} onChange={handleInputChange} placeholder="e.g. ICU, General Care" />
+                                    <FormInput label="Experience Years" name="experienceYears" type="number" value={profile.experienceYears} onChange={handleInputChange} />
+
                                     <div className="md:col-span-2">
                                         <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2">About / Bio</label>
                                         <textarea name="about" value={profile.about} onChange={handleInputChange} rows={4} className="w-full px-6 py-4 rounded-2xl border border-gray-100 outline-none focus:border-[#08B36A] bg-gray-50 font-medium text-gray-700 placeholder:text-gray-300" placeholder="Describe your nursing experience..." />
                                     </div>
-                                    <FormInput label="Experience Years" name="experienceYears" type="number" value={profile.experienceYears} onChange={handleInputChange} />
                                 </div>
                             </div>
 
-                            {/* Service Area */}
+                            {/* Bank Details Section */}
+                            <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-8">
+                                <h3 className="text-lg font-black text-[#1e3a8a] mb-8 flex items-center gap-3 uppercase tracking-wider">
+                                    <CreditCard className="text-[#08B36A]" size={20} /> Bank Credentials
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <FormInput label="Bank Name" name="bankName" value={profile.bankName} onChange={handleInputChange} placeholder="e.g. HDFC Bank" />
+                                    <FormInput label="Account Holder Name" name="accountHolderName" value={profile.accountHolderName} onChange={handleInputChange} placeholder="e.g. Jane Doe" />
+                                    <FormInput label="Account Number" name="accountNumber" value={profile.accountNumber} onChange={handleInputChange} placeholder="e.g. 5010045612345" />
+                                    <FormInput label="IFSC Code" name="ifscCode" value={profile.ifscCode} onChange={handleInputChange} placeholder="e.g. HDFC0001234" />
+                                    <FormInput label="UPI ID" name="upiId" value={profile.upiId} onChange={handleInputChange} placeholder="e.g. janedoe@upi" />
+                                    
+                                    <FormSelect 
+                                        label="Account Type" 
+                                        name="accountType" 
+                                        value={profile.accountType} 
+                                        options={[
+                                            { id: 'Savings', name: 'Savings' }, 
+                                            { id: 'Current', name: 'Current' }
+                                        ]} 
+                                        onChange={handleInputChange} 
+                                    />
+                                    
+                                    <div className="md:col-span-2 flex items-center gap-2 mt-2">
+                                        <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full border ${profile.isVerifiedBank ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+                                            {profile.isVerifiedBank ? "✓ Verified payout account" : "⚠ pending verification status"}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Service Area (Auto-Fallbacks added) */}
                             <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-8">
                                 <h3 className="text-lg font-black text-[#1e3a8a] mb-8 flex items-center gap-3 uppercase tracking-wider">
                                     <Navigation className="text-[#08B36A]" size={20} /> Service Area
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                                    <FormSelect label="Country" name="country" value={profile.country} options={countries} onChange={handleInputChange} />
-                                    <FormSelect label="State" name="state" value={profile.state} options={states} onChange={handleInputChange} disabled={!profile.country} />
-                                    <FormSelect label="City" name="city" value={profile.city} options={cities} onChange={handleInputChange} disabled={!profile.state} />
+                                    {countries && countries.length > 0 ? (
+                                        <FormSelect label="Country" name="country" value={profile.country} options={countries} onChange={handleInputChange} />
+                                    ) : (
+                                        <FormInput label="Country" name="country" value={profile.country} onChange={handleInputChange} placeholder="e.g. India" />
+                                    )}
+
+                                    {states && states.length > 0 ? (
+                                        <FormSelect label="State" name="state" value={profile.state} options={states} onChange={handleInputChange} disabled={!profile.country} />
+                                    ) : (
+                                        <FormInput label="State" name="state" value={profile.state} onChange={handleInputChange} placeholder="e.g. Punjab" />
+                                    )}
+
+                                    {cities && cities.length > 0 ? (
+                                        <FormSelect label="City" name="city" value={profile.city} options={cities} onChange={handleInputChange} disabled={!profile.state} />
+                                    ) : (
+                                        <FormInput label="City" name="city" value={profile.city} onChange={handleInputChange} placeholder="e.g. Ludhiana" />
+                                    )}
                                     
                                     <div className="md:col-span-3">
                                         <FormInput label="Detailed Address" name="address" value={profile.address} onChange={handleInputChange} />
                                     </div>
-                                    <FormInput label="Latitude" name="lat" value={profile.lat} onChange={handleInputChange} />
-                                    <FormInput label="Longitude" name="lng" value={profile.lng} onChange={handleInputChange} />
+                                    <FormInput label="Latitude (Read Only)" name="lat" value={profile.lat} readOnly className="bg-gray-100 cursor-not-allowed opacity-75" />
+                                    <FormInput label="Longitude (Read Only)" name="lng" value={profile.lng} readOnly className="bg-gray-100 cursor-not-allowed opacity-75" />
                                 </div>
                             </div>
                         </div>
 
-                        {/* Document Sidebar */}
+                        {/* Document Sidebar (Read-only fetched on GET) */}
                         <div className="space-y-6">
                             <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-8">
                                 <h3 className="text-lg font-black text-[#1e3a8a] mb-6 flex items-center gap-3 uppercase tracking-wider">
-                                    <FileText className="text-[#08B36A]" size={20} /> Documents
+                                    <FileText className="text-[#08B36A]" size={20} /> Documents (Read-Only)
                                 </h3>
                                 <div className="space-y-6">
-                                    <FileBox label="Nursing Certificates" previews={previews.nursingCertificates} onChange={(e) => handleFileChange(e, 'nursingCertificates', true)} formatImagePath={formatImagePath} />
-                                    <FileBox label="License Photos" previews={previews.licensePhotos} onChange={(e) => handleFileChange(e, 'licensePhotos', true)} formatImagePath={formatImagePath} />
-                                    <FileBox label="GST Certificates" previews={previews.gstCertificates} onChange={(e) => handleFileChange(e, 'gstCertificates', true)} formatImagePath={formatImagePath} />
-                                    <FileBox label="Experience Certificates" previews={previews.experienceCertificates} onChange={(e) => handleFileChange(e, 'experienceCertificates', true)} formatImagePath={formatImagePath} />
-                                    <FileBox label="Other Certificates" previews={previews.otherCertificates} onChange={(e) => handleFileChange(e, 'otherCertificates', true)} formatImagePath={formatImagePath} />
+                                    <ReadOnlyFileBox label="Nursing Certificates" previews={previews.nursingCertificates} getDocSrc={getDocSrc} formatImagePath={formatImagePath} />
+                                    <ReadOnlyFileBox label="License Photos" previews={previews.licensePhotos} getDocSrc={getDocSrc} formatImagePath={formatImagePath} />
+                                    <ReadOnlyFileBox label="GST Certificates" previews={previews.gstCertificates} getDocSrc={getDocSrc} formatImagePath={formatImagePath} />
+                                    <ReadOnlyFileBox label="Experience Certificates" previews={previews.experienceCertificates} getDocSrc={getDocSrc} formatImagePath={formatImagePath} />
+                                    <ReadOnlyFileBox label="Other Certificates" previews={previews.otherCertificates} getDocSrc={getDocSrc} formatImagePath={formatImagePath} />
                                 </div>
                             </div>
                         </div>
@@ -328,13 +482,13 @@ function FormInput({ label, className = "", ...props }) {
     );
 }
 
-function FormSelect({ label, options, ...props }) {
+function FormSelect({ label, options = [], ...props }) {
     return (
         <div className="w-full">
             <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2">{label}</label>
             <select {...props} className="w-full px-5 py-4 rounded-2xl border border-gray-100 outline-none focus:border-[#08B36A] bg-gray-50 font-bold text-gray-700 disabled:opacity-50 appearance-none">
                 <option value="">Select {label}</option>
-                {options.map((opt, i) => (
+                {options && options.map((opt, i) => (
                     <option key={opt.id || opt._id || i} value={opt.id || opt._id || opt.name}>
                         {opt.name}
                     </option>
@@ -355,24 +509,22 @@ function StatBox({ label, value, icon }) {
     );
 }
 
-function FileBox({ label, onChange, previews = [], formatImagePath }) {
+// Read-only visualization for uploaded items (exclusively from GET response)
+function ReadOnlyFileBox({ label, previews = [], getDocSrc, formatImagePath }) {
     return (
         <div className="space-y-3">
             <label className="block text-[10px] font-black uppercase text-gray-400 tracking-widest">{label}</label>
-            <label className="w-full flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-100 rounded-2xl hover:border-[#08B36A] hover:bg-green-50/50 cursor-pointer transition-all group">
-                <UploadCloud className="text-gray-300 mb-1 group-hover:text-[#08B36A] transition-colors" />
-                <span className="text-[10px] text-gray-500 font-black uppercase">Upload</span>
-                <input type="file" hidden multiple onChange={onChange} />
-            </label>
-
-            {previews && previews.length > 0 && (
+            
+            {previews && previews.length > 0 ? (
                 <div className="flex flex-wrap gap-2 pt-1">
                     {previews.map((src, i) => (
                         <div key={i} className="relative w-14 h-14 rounded-xl overflow-hidden border-2 border-white shadow-sm ring-1 ring-gray-100">
-                            <img src={formatImagePath(src)} alt="doc" className="w-full h-full object-cover" />
+                            <img src={formatImagePath(getDocSrc(src))} alt="doc" className="w-full h-full object-cover" />
                         </div>
                     ))}
                 </div>
+            ) : (
+                <div className="text-xs text-gray-400 italic">No document uploaded</div>
             )}
         </div>
     );

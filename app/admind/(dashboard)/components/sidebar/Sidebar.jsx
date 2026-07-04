@@ -466,11 +466,15 @@ export default function Sidebar() {
                         <span>Notifications</span>
                     </Link>
                 )}
+                { }
 
-                <Link href="/admind/managelabreport" className={`menu-item ${isActive("/admind/managelabreport") ? "active" : ""}`}>
-                    <FaBan className="icon" />
-                    <span>Manage Lab Report </span>
-                </Link>
+                {hasAccess(29) && (
+                    <Link href="/admind/managelabreport" className={`menu-item ${isActive("/admind/managelabreport") ? "active" : ""}`}>
+                        <FaBan className="icon" />
+                        <span>Manage Lab Report </span>
+                    </Link>
+                )}
+
             </div>
         </div>
     );
