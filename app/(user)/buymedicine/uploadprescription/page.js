@@ -8,6 +8,7 @@ import {
     FiMinus, FiMapPin, FiStar, FiChevronRight, FiArrowLeft, FiUser, FiHome, FiSend
 } from 'react-icons/fi';
 import { MdOutlineLocalPharmacy } from 'react-icons/md';
+import CostoumPopup from '../../../../lib/CostoumPopup';
 
 export default function PrescriptionFlow() {
     // 1: Upload, 2: Review, 3: Address Selection, 4: Pharmacy Selection
@@ -36,6 +37,14 @@ export default function PrescriptionFlow() {
 
     const fileInputRef = useRef(null);
     const router = useRouter();
+    useEffect(() => {
+        const token = localStorage.getItem('userToken');
+        if (!token) {
+            CostoumPopup("Please Login To Continue", "warning", 4000);
+            router.push('/');
+            return;
+        }
+    }, [])
 
     // Fetch addresses when moving toward address selection
     useEffect(() => {
@@ -490,9 +499,9 @@ export default function PrescriptionFlow() {
                                 <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm space-y-3">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Your Prescription</p>
                                     <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 flex items-center justify-center">
-                                        <img 
-                                            src={filePreview} 
-                                            className="max-h-full max-w-full object-contain cursor-zoom-in hover:opacity-95 transition-opacity" 
+                                        <img
+                                            src={filePreview}
+                                            className="max-h-full max-w-full object-contain cursor-zoom-in hover:opacity-95 transition-opacity"
                                             alt="Prescription preview"
                                             onClick={() => setZoomedImage(filePreview)}
                                         />
@@ -631,22 +640,22 @@ export default function PrescriptionFlow() {
 
             {/* LIGHTBOX FOR PRESCRIPTION PREVIEW */}
             {zoomedImage && (
-                <div 
+                <div
                     className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200 cursor-pointer"
                     onClick={() => setZoomedImage(null)}
                 >
                     <div className="relative max-w-4xl max-h-[85vh] w-full h-full flex items-center justify-center">
-                        <button 
+                        <button
                             onClick={() => setZoomedImage(null)}
                             className="absolute top-4 right-4 z-50 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors flex items-center justify-center"
                         >
                             <span className="text-white font-bold text-xl">×</span>
                         </button>
-                        <img 
-                            src={zoomedImage} 
-                            className="max-w-full max-h-full object-contain rounded-2xl animate-in zoom-in-95 duration-200 cursor-default" 
+                        <img
+                            src={zoomedImage}
+                            className="max-w-full max-h-full object-contain rounded-2xl animate-in zoom-in-95 duration-200 cursor-default"
                             alt="Zoomed Prescription"
-                            onClick={(e) => e.stopPropagation()} 
+                            onClick={(e) => e.stopPropagation()}
                         />
                     </div>
                 </div>

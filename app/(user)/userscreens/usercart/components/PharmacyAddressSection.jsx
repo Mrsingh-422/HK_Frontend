@@ -9,12 +9,12 @@ const PharmacyAddressSection = ({ addresses, selectedAddress, setSelectedAddress
         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Delivery Address</h3>
-                <button 
+                {/* <button 
                     onClick={() => router.push('/profile/addresses')} 
                     className="text-[10px] font-bold text-emerald-600 uppercase hover:underline"
                 >
                     + Add New
-                </button>
+                </button> */}
             </div>
 
             {isLoading ? (

@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   FaFlask, FaStar, FaSearch, FaMicroscope, FaCheckCircle,
-  FaArrowRight, FaShieldAlt, FaClock, FaVials, FaFileAlt, FaTimes, FaChevronRight
+  FaArrowRight, FaShieldAlt, FaClock, FaVials, FaFileAlt, FaTimes, FaChevronRight, FaFileMedical
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
@@ -75,16 +75,16 @@ function BookYourDiseaseTest() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleManualSearch = () => {
+    if (searchTerm.trim() !== "") {
+      router.push(`/booklabtest/seealltests?query=${encodeURIComponent(searchTerm)}`);
+    }
+  };
+
   const handleSuggestionClick = (item) => {
     setSearchTerm(item.title);
     setShowSuggestions(false);
     router.push(`/booklabtest/singlelabdetal/${item.id}`);
-  };
-
-  const handleManualSearch = () => {
-    if (searchTerm.trim()) {
-      router.push(`/booklabtest/seealltests?query=${encodeURIComponent(searchTerm)}`);
-    }
   };
 
   // --- DATA FETCHING ---
@@ -139,6 +139,8 @@ function BookYourDiseaseTest() {
         <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }}></div>
 
         <div className="max-w-7xl mx-auto relative z-10 grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+          
+          {/* Left Text Block */}
           <div className="text-white space-y-4 sm:space-y-6 text-center lg:text-left">
             <span className="inline-flex items-center gap-2 bg-black/15 border border-white/20 px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest">
               <FaShieldAlt className="text-emerald-300 animate-pulse" /> {pageData.miniTitle}
@@ -151,11 +153,30 @@ function BookYourDiseaseTest() {
             </p>
           </div>
 
-          <div className="hidden lg:flex justify-end opacity-20 lg:opacity-40 pointer-events-none">
-            <div className="bg-white/10 backdrop-blur-xl border border-white/10 p-8 rounded-[3rem] rotate-3">
-              <FaMicroscope className="text-[8rem] xl:text-[10rem] text-white" />
+          {/* Right Column: AI Prescription Onboarding Panel (New Interactive CTA Card) */}
+          <div className="flex justify-center lg:justify-end">
+            <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-6 sm:p-8 rounded-[2rem] shadow-xl text-white space-y-4 max-w-md w-full lg:ml-auto">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-emerald-300">
+                  <FaFileMedical size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm sm:text-base tracking-wide uppercase">Have a Prescription?</h3>
+                  <p className="text-[10px] sm:text-xs text-emerald-100 font-medium">Automatic medicine & test detection</p>
+                </div>
+              </div>
+              <p className="text-xs text-emerald-50 leading-relaxed font-semibold">
+                Upload your doctor's prescription image, and our AI scanner will automatically verify your diagnostic test list.
+              </p>
+              <button 
+                onClick={() => router.push('/booklabtest/prescriptionorder')}
+                className="w-full py-4 bg-white text-[#08B36A] hover:bg-slate-900 hover:text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                Upload Prescription <FaArrowRight size={10} />
+              </button>
             </div>
           </div>
+
         </div>
       </section>
 

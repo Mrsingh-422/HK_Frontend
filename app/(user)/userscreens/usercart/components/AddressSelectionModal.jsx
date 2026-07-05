@@ -155,11 +155,11 @@ const AddressSelectionModal = ({ isOpen, onClose, onConfirm, selectedId }) => {
                         Use Selected Address
                     </button>
 
-                    <button
+                    {/* <button
                         className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 font-black text-[10px] uppercase tracking-widest hover:border-emerald-400 hover:text-emerald-600 transition-all"
                     >
                         <FaPlus size={10} /> Add New Address
-                    </button>
+                    </button> */}
                 </div>
             </div>
 
