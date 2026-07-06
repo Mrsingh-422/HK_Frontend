@@ -399,9 +399,9 @@ export default function Sidebar() {
                         </div>
                         {openMenu === "/admind/manage-withdraw" && (
                             <div className="submenu fade-in">
-                                <Link href="/admind/withdraw-request/vendorwithdraw" className={`submenu-link ${isActive("/admind/withdraw-request/vendorwithdraw") ? "sub-active" : ""}`}>Vendor Withdraw Request</Link>
-                                <Link href="/admind/withdraw-request/hospitalwithdraw" className={`submenu-link ${isActive("/admind/withdraw-request/hospitalwithdraw") ? "sub-active" : ""}`}>Hospital Withdraw Request</Link>
-                                <Link href="/admind/withdraw-request/doctorwithdraw" className={`submenu-link ${isActive("/admind/withdraw-request/doctorwithdraw") ? "sub-active" : ""}`}>Doctor Withdraw Request</Link>
+                                <Link href="/admind/withdraw-request/vendorwithdraw" className={`submenu-link ${isActive("/admind/withdraw-request/vendorwithdraw") ? "sub-active" : ""}`}> Withdraw Request</Link>
+                                <Link href="/admind/withdraw-request/hospitalwithdraw" className={`submenu-link ${isActive("/admind/withdraw-request/hospitalwithdraw") ? "sub-active" : ""}`}> Withdraw History</Link>
+
                                 <Link href="/admind/withdraw-request/withdrawlimit" className={`submenu-link ${isActive("/admind/withdraw-request/withdrawlimit") ? "sub-active" : ""}`}>Withdraw Limit</Link>
                             </div>
                         )}
