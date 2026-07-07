@@ -1,14 +1,89 @@
 "use client";
-import React, { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import UserAPI from '../../../services/UserAPI'; // Adjust this path
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom'; // Required for screen centering
+import toast from 'react-hot-toast';
+import UserAPI from '../../../services/UserAPI';
 import {
-    FiUploadCloud, FiPlus, FiTrash2, FiFileText,
-    FiCheckCircle, FiLoader, FiClock,
-    FiMinus, FiMapPin, FiStar, FiChevronRight, FiArrowLeft, FiUser, FiHome, FiSend
+    FiX, FiActivity, FiLayers, FiHome,
+    FiDownload, FiSearch, FiRefreshCw, FiChevronLeft, FiChevronRight,
+    FiUser, FiMapPin, FiClock, FiCreditCard, FiStar, FiCheckCircle,
+    FiUploadCloud, FiTrash2, FiFileText, FiMinus, FiPlus, FiSend, FiArrowLeft, FiLoader
 } from 'react-icons/fi';
+import { HiStar } from 'react-icons/hi';
 import { MdOutlineLocalPharmacy } from 'react-icons/md';
 import CostoumPopup from '../../../../lib/CostoumPopup';
+import { useRouter } from 'next/navigation';
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5002";
+
+// Helper to resolve files and assets from the backend server
+const getReportFileUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+        return path;
+    }
+    const cleanedPath = path.replace(/^\/+/, '');
+    return `${BACKEND_URL}/${cleanedPath}`;
+};
+
+// --- SUB-COMPONENT: STEPPER ---
+const StatusStepper = ({ status }) => {
+    const statusMap = {
+        "Prescription Uploaded": 0,
+        "Under Review": 0,
+        "Tests Added": 0,
+        "Pending": 0,
+        "Confirmed": 0,
+        "Phlebotomist Assigned": 1,
+        "Sample Collected": 2,
+        "Sample Deposited": 2,
+        "Testing": 3,
+        "Report Generated": 4,
+        "Completed": 4
+    };
+
+    const currentStep = statusMap[status] ?? 0;
+    const steps = ["Booked", "Assigned", "Collected", "Testing", "Completed"];
+    const isCancelled = status === "Cancelled";
+
+    return (
+        <div className="w-full py-4 md:py-8 px-1 md:px-2">
+            <div className="relative flex items-center justify-between">
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-slate-100 -z-10"></div>
+                <div 
+                    className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 transition-all duration-700 z-10"
+                    style={{ 
+                        width: isCancelled ? "100%" : `${(currentStep / (steps.length - 1)) * 100}%`,
+                        backgroundColor: isCancelled ? "#f43f5e" : "#4f46e5"
+                    }}
+                ></div>
+                {steps.map((step, index) => {
+                    const isCompletedStep = !isCancelled && index <= currentStep;
+                    return (
+                        <div key={step} className="flex flex-col items-center gap-1.5 md:gap-2 relative z-20">
+                            <div className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full border-2 transition-all duration-500 ${
+                                isCancelled 
+                                    ? "bg-rose-500 border-rose-100 ring-2 md:ring-4 ring-rose-50" 
+                                    : isCompletedStep 
+                                        ? "bg-indigo-600 border-indigo-100 ring-2 md:ring-4 ring-indigo-50" 
+                                        : "bg-white border-slate-200"
+                            }`} />
+                            <span className={`text-[7.5px] md:text-[8px] font-black uppercase tracking-tighter whitespace-nowrap ${
+                                isCancelled 
+                                    ? "text-rose-500" 
+                                    : isCompletedStep 
+                                        ? "text-slate-900" 
+                                        : "text-slate-400"
+                            }`}>
+                                {isCancelled && index === steps.length - 1 ? "Cancelled" : step}
+                            </span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
 
 export default function PrescriptionFlow() {
     // 1: Upload, 2: Review, 3: Address Selection, 4: Pharmacy Selection
@@ -24,6 +99,12 @@ export default function PrescriptionFlow() {
     const [globalDays, setGlobalDays] = useState(7);
     const [zoomedImage, setZoomedImage] = useState(null); // State for fullscreen preview
 
+    // --- MANUAL MEDICINE AUTOCOMPLETE STATES ---
+    const [manualSuggestions, setManualSuggestions] = useState([]);
+    const [showManualSuggestions, setShowManualSuggestions] = useState(false);
+    const [isSearchingManual, setIsSearchingManual] = useState(false);
+    const manualSearchRef = useRef(null);
+
     // --- ADDRESS STATE ---
     const [addresses, setAddresses] = useState([]);
     const [selectedAddress, setSelectedAddress] = useState(null);
@@ -37,6 +118,8 @@ export default function PrescriptionFlow() {
 
     const fileInputRef = useRef(null);
     const router = useRouter();
+
+    // Verify user authorization on mount
     useEffect(() => {
         const token = localStorage.getItem('userToken');
         if (!token) {
@@ -44,14 +127,14 @@ export default function PrescriptionFlow() {
             router.push('/');
             return;
         }
-    }, [])
+    }, [router]);
 
     // Fetch addresses when moving toward address selection
     useEffect(() => {
         if (step === 3 && addresses.length === 0) {
             fetchAddresses();
         }
-    }, [step]);
+    }, [step, addresses.length]);
 
     // Fetch local pharmacies when arriving at step 4
     useEffect(() => {
@@ -59,6 +142,42 @@ export default function PrescriptionFlow() {
             fetchNearbyPharmacies();
         }
     }, [step]);
+
+    // --- DEBOUNCE AND FETCH MANUAL MEDICINE SUGGESTIONS ---
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(async () => {
+            if (manualInput.trim().length >= 2) {
+                setIsSearchingManual(true);
+                try {
+                    const res = await UserAPI.searchMedicineSuggestions({ query: manualInput });
+                    if (res?.success) {
+                        setManualSuggestions(res.data || []);
+                        setShowManualSuggestions(true);
+                    }
+                } catch (error) {
+                    console.error("Manual search suggestion fetch failed:", error);
+                } finally {
+                    setIsSearchingManual(false);
+                }
+            } else {
+                setManualSuggestions([]);
+                setShowManualSuggestions(false);
+            }
+        }, 400);
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [manualInput]);
+
+    // --- DISMISS AUTOCMPLETE ON OUTSIDE CLICK ---
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (manualSearchRef.current && !manualSearchRef.current.contains(event.target)) {
+                setShowManualSuggestions(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     const fetchAddresses = async () => {
         setIsLoadingAddresses(true);
@@ -499,9 +618,9 @@ export default function PrescriptionFlow() {
                                 <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm space-y-3">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Your Prescription</p>
                                     <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 flex items-center justify-center">
-                                        <img
-                                            src={filePreview}
-                                            className="max-h-full max-w-full object-contain cursor-zoom-in hover:opacity-95 transition-opacity"
+                                        <img 
+                                            src={filePreview} 
+                                            className="max-h-full max-w-full object-contain cursor-zoom-in hover:opacity-95 transition-opacity" 
                                             alt="Prescription preview"
                                             onClick={() => setZoomedImage(filePreview)}
                                         />
@@ -616,19 +735,58 @@ export default function PrescriptionFlow() {
                                 </div>
 
                                 {/* Form Sticky Footer inside content panel */}
-                                <div className="p-6 bg-slate-50 border-t border-slate-100">
-                                    <form onSubmit={addManualMedicine} className="flex items-center gap-3">
-                                        <input
-                                            type="text"
-                                            placeholder="Add more medicines manually..."
-                                            className="flex-1 bg-white border-none rounded-xl py-4 px-6 text-sm font-semibold outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-500 transition-all"
-                                            value={manualInput}
-                                            onChange={(e) => setManualInput(e.target.value)}
-                                        />
+                                <div className="p-6 bg-slate-50 border-t border-slate-100 relative" ref={manualSearchRef}>
+                                    <form onSubmit={addManualMedicine} className="flex items-center gap-3 relative">
+                                        <div className="flex-1 relative">
+                                            <input
+                                                type="text"
+                                                placeholder="Add more medicines manually..."
+                                                className="w-full bg-white border-none rounded-xl py-4 px-6 text-sm font-semibold outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-500 transition-all"
+                                                value={manualInput}
+                                                onChange={(e) => setManualInput(e.target.value)}
+                                                onFocus={() => manualSuggestions.length > 0 && setShowManualSuggestions(true)}
+                                            />
+                                            {isSearchingManual && (
+                                                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                                    <FiRefreshCw className="animate-spin text-emerald-600 text-xs" />
+                                                </div>
+                                            )}
+                                        </div>
                                         <button type="submit" className="w-14 h-14 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-emerald-600 transition-all shadow-md shrink-0">
                                             <FiPlus size={20} />
                                         </button>
                                     </form>
+
+                                    {/* AUTOCOMPLETE SUGGESTIONS OVERLAY */}
+                                    {showManualSuggestions && manualSuggestions.length > 0 && (
+                                        <div className="absolute bottom-[105%] left-6 right-20 bg-white rounded-2xl shadow-[0_-15px_40px_rgba(15,23,42,0.15)] border border-slate-100 overflow-hidden z-[100] animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                            <div className="max-h-[220px] overflow-y-auto custom-scrollbar py-1">
+                                                {manualSuggestions.map((item) => (
+                                                    <div
+                                                        key={item.id}
+                                                        onClick={() => {
+                                                            setMedicines(prev => [...prev, {
+                                                                id: `manual-${Date.now()}-${item.id}`,
+                                                                name: item.name,
+                                                                days: durationMode === "prescription" ? globalDays : 7,
+                                                                dosage: "1-0-1"
+                                                            }]);
+                                                            setManualInput("");
+                                                            setManualSuggestions([]);
+                                                            setShowManualSuggestions(false);
+                                                        }}
+                                                        className="px-5 py-3 hover:bg-slate-50 cursor-pointer transition-colors flex justify-between items-center border-b border-slate-50 last:border-0"
+                                                    >
+                                                        <div className="flex-1 min-w-0 pr-4">
+                                                            <p className="text-sm font-bold text-slate-800 truncate">{item.name}</p>
+                                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate mt-0.5">{item.salt || "Standard Formula"}</p>
+                                                        </div>
+                                                        <span className="text-xs font-black text-emerald-600 shrink-0">₹{item.price}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                             </div>
@@ -640,22 +798,22 @@ export default function PrescriptionFlow() {
 
             {/* LIGHTBOX FOR PRESCRIPTION PREVIEW */}
             {zoomedImage && (
-                <div
+                <div 
                     className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200 cursor-pointer"
                     onClick={() => setZoomedImage(null)}
                 >
                     <div className="relative max-w-4xl max-h-[85vh] w-full h-full flex items-center justify-center">
-                        <button
+                        <button 
                             onClick={() => setZoomedImage(null)}
                             className="absolute top-4 right-4 z-50 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors flex items-center justify-center"
                         >
                             <span className="text-white font-bold text-xl">×</span>
                         </button>
-                        <img
-                            src={zoomedImage}
-                            className="max-w-full max-h-full object-contain rounded-2xl animate-in zoom-in-95 duration-200 cursor-default"
+                        <img 
+                            src={zoomedImage} 
+                            className="max-w-full max-h-full object-contain rounded-2xl animate-in zoom-in-95 duration-200 cursor-default" 
                             alt="Zoomed Prescription"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()} 
                         />
                     </div>
                 </div>
