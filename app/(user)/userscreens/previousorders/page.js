@@ -1,6 +1,14 @@
 "use client";
-import React, { useState } from 'react';
-import { MdOutlineMedicalServices, MdOutlineLocalPharmacy, MdOutlineScience, MdHistory } from 'react-icons/md';
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  MdOutlineMedicalServices, 
+  MdOutlineLocalPharmacy, 
+  MdOutlineScience, 
+  MdHistory,
+  MdOutlineBiotech,
+  MdOutlineAssignment,
+  MdReceiptLong
+} from 'react-icons/md';
 
 // Components (Preserving your exact architecture)
 import NursingOrders from './components/NursingOrders';
@@ -11,23 +19,45 @@ import NursePrescriptionOrders from './components/NursePrescriptionOrders';
 import LabPrescription from './components/LabPrescription';
 
 function PreviousOrders() {
+    // Categorized distinct icons for each operational tab
     const tabs = [
         { id: 'pharmacy', label: 'Pharmacy', icon: MdOutlineLocalPharmacy },
         { id: 'lab', label: 'Lab Tests', icon: MdOutlineScience },
         { id: 'nursing', label: 'Nursing', icon: MdOutlineMedicalServices },
-        { id: 'prescription', label: 'Pharmacy Prescriptions', icon: MdOutlineLocalPharmacy },
-        { id: 'labprescription', label: 'Lab Prescriptions', icon: MdOutlineLocalPharmacy },
-        { id: 'nurseprescription', label: 'Nurse Prescriptions', icon: MdOutlineLocalPharmacy },
+        { id: 'prescription', label: 'Pharmacy Prescriptions', icon: MdReceiptLong },
+        { id: 'labprescription', label: 'Lab Prescriptions', icon: MdOutlineBiotech },
+        { id: 'nurseprescription', label: 'Nurse Prescriptions', icon: MdOutlineAssignment },
     ];
 
     const [activeTab, setActiveTab] = useState("nursing");
     const activeIndex = tabs.findIndex(tab => tab.id === activeTab);
 
+    // Dynamic slider bubble positioning refs & states
+    const tabsRef = useRef([]);
+    const [bubbleStyle, setBubbleStyle] = useState({ left: 0, width: 0 });
+
+    // Measure the active tab button dynamically to position the white highlight container
+    useEffect(() => {
+        const updateBubble = () => {
+            const activeTabElement = tabsRef.current[activeIndex];
+            if (activeTabElement) {
+                setBubbleStyle({
+                    left: activeTabElement.offsetLeft,
+                    width: activeTabElement.offsetWidth,
+                });
+            }
+        };
+
+        updateBubble();
+        window.addEventListener('resize', updateBubble);
+        return () => window.removeEventListener('resize', updateBubble);
+    }, [activeTab, activeIndex]);
+
     return (
         <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans antialiased selection:bg-emerald-100">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 md:py-6">
 
-                {/* --- PREMIUM MINIMALIST HEADER --- */}
+                {/* --- HEADER --- */}
                 <header className="mb-8 md:mb-12 relative">
                     <div className="flex items-center gap-3 mb-2 md:mb-3">
                         <div className="h-5 w-1 bg-emerald-500 rounded-full" />
@@ -43,37 +73,42 @@ function PreviousOrders() {
                     </p>
                 </header>
 
-                {/* --- PREMIUM NAVIGATION --- */}
+                {/* --- PREMIUM NAVIGATION TOP BAR --- */}
                 <div className="mb-6 md:mb-10 w-full overflow-hidden">
                     <div
-                        className="flex items-center p-1 bg-slate-200/50 rounded-xl md:rounded-2xl w-full md:w-fit backdrop-blur-sm overflow-x-auto no-scrollbar scroll-smooth relative"
+                        className="flex items-center p-1.5 bg-slate-100 border border-slate-200/40 rounded-2xl w-full md:w-max backdrop-blur-sm overflow-x-auto no-scrollbar scroll-smooth relative"
                         role="tablist"
                     >
-                        {/* Sliding Background Indicator - Hidden on Mobile, Enabled from MD upwards */}
+                        {/* Dynamic Sliding Background Indicator (Active on Desktop & Mobile Scroll) */}
                         <div
-                            className="hidden md:block absolute h-[calc(100%-8px)] top-1 bg-white rounded-xl shadow-sm transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] border border-slate-200/50"
+                            className="absolute bg-white rounded-xl shadow-xs transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] border border-slate-200/50"
                             style={{
-                                width: `calc(${100 / tabs.length}% - 4px)`,
-                                left: `calc(${(activeIndex * 100) / tabs.length}% + 0px)`,
+                                width: `${bubbleStyle.width}px`,
+                                left: `${bubbleStyle.left}px`,
+                                height: 'calc(100% - 12px)',
+                                top: '6px'
                             }}
                         />
 
-                        {tabs.map((tab) => {
+                        {tabs.map((tab, idx) => {
                             const Icon = tab.icon;
                             const isActive = activeTab === tab.id;
                             return (
                                 <button
                                     key={tab.id}
+                                    ref={(el) => { tabsRef.current[idx] = el; }} // Store ref for dynamic dimensions measurement
                                     role="tab"
                                     aria-selected={isActive}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`relative z-10 flex flex-1 md:flex-initial items-center justify-center gap-2 px-4 md:px-6 py-2.5 md:py-3 text-xs md:text-sm font-medium transition-all duration-300 outline-none whitespace-nowrap rounded-lg md:rounded-none
+                                    className={`relative z-10 flex flex-1 md:flex-initial items-center justify-center gap-2 px-5 py-3 text-xs md:text-sm font-semibold transition-all duration-300 outline-none whitespace-nowrap rounded-xl
                                         ${isActive
-                                            ? 'text-emerald-700 bg-white md:bg-transparent shadow-sm md:shadow-none'
+                                            ? 'text-emerald-700'
                                             : 'text-slate-500 hover:text-slate-800'
                                         }`}
                                 >
-                                    <Icon className={`text-base md:text-lg transition-transform duration-500 ${isActive ? 'scale-110' : 'opacity-70'}`} />
+                                    <Icon className={`text-sm md:text-base transition-all duration-500 ${
+                                        isActive ? 'scale-110 text-emerald-600' : 'opacity-70 text-slate-400'
+                                    }`} />
                                     <span>{tab.label}</span>
                                 </button>
                             );

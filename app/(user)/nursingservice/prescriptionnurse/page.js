@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import UserAPI from '@/app/services/UserAPI'; // Adjust this path to match your project structure
 import { 
   FaUpload, FaTimes, FaPlus, FaMapMarkerAlt, FaFileMedical, 
@@ -9,9 +9,22 @@ import {
 } from 'react-icons/fa';
 import { useRouter } from 'next/navigation';
 
+const IMAGE_BASE_URL = "http://localhost:5002";
+
+// Helper to construct accurate prescription image URLs from your backend server
+const getPrescriptionImageUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+        return path;
+    }
+    const cleanedPath = path.replace(/^public\//, '');
+    return `${IMAGE_BASE_URL}/${cleanedPath}`;
+};
+
 export default function NurseBookingPage() {
   const themeColor = "#08B36A";
   const router = useRouter();
+  const fileInputRef = useRef(null); // Ref to handle manual triggers of the file picker
 
   // ==========================================
   // 🌟 LOADING & NOTIFICATION STATES
@@ -29,6 +42,7 @@ export default function NurseBookingPage() {
   // 🌟 DATA STATES
   // ==========================================
   const [selectedFile, setSelectedFile] = useState(null);
+  const [localPreview, setLocalPreview] = useState(""); // Local client-side preview state
   const [uploadedImageSrc, setUploadedImageSrc] = useState("");
   const [extractedText, setExtractedText] = useState("");
   const [services, setServices] = useState([]);
@@ -69,7 +83,18 @@ export default function NurseBookingPage() {
   // --- STEP 1: SELECT LOCAL FILE ---
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
-      setSelectedFile(e.target.files[0]);
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      setLocalPreview(URL.createObjectURL(file)); // Generate browser preview URL
+    }
+  };
+
+  // --- STEP 1: REMOVE LOCAL FILE ---
+  const handleRemoveFile = () => {
+    setSelectedFile(null);
+    setLocalPreview("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""; // Clear file input buffer
     }
   };
 
@@ -216,7 +241,7 @@ export default function NurseBookingPage() {
               disabled={step === 3}
               className="p-2.5 hover:bg-slate-100 rounded-full transition-all text-slate-500 disabled:opacity-30"
             >
-              {/* <HiOutlineArrowLeft size={22}/> */}
+              <FaArrowLeft size={18} />
             </button>
             <div>
               <h1 className="text-xl font-extrabold tracking-tight text-slate-800">Nurse Care Broadcast</h1>
@@ -262,28 +287,62 @@ export default function NurseBookingPage() {
             </div>
 
             <form onSubmit={handleUploadAndParse} className="space-y-6">
-              <div className="border-2 border-dashed border-slate-200 rounded-[2rem] p-10 text-center hover:border-[#08B36A] transition-colors bg-[#fafafa]">
-                <div className="flex flex-col items-center">
-                  <FaUpload className="h-8 w-8 text-gray-400 mb-3" />
-                  <label className="block text-xs font-bold text-[#08B36A] hover:text-[#069356] cursor-pointer">
-                    <span>Browse Prescription File</span>
-                    <input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      onChange={handleFileChange}
-                      className="sr-only"
+              
+              {/* Dynamic Image Upload & Preview Card Container */}
+              {selectedFile ? (
+                <div className="relative border border-slate-100 rounded-[2rem] p-6 bg-slate-50 flex flex-col items-center justify-center max-h-80 overflow-hidden animate-in zoom-in-95 duration-200 shadow-inner">
+                  {localPreview ? (
+                    <img 
+                      src={localPreview} 
+                      alt="Prescription preview" 
+                      className="max-h-52 object-contain rounded-2xl border border-slate-150 shadow-xs" 
                     />
-                  </label>
-                  <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase tracking-wide">JPG, PNG, or PDF up to 10MB</p>
+                  ) : (
+                    <div className="flex flex-col items-center p-6 text-slate-400">
+                      <FaFileMedical size={40} className="mb-2" />
+                      <p className="text-xs font-bold truncate max-w-xs">{selectedFile.name}</p>
+                    </div>
+                  )}
+                  
+                  {/* File Selection Modification Controls */}
+                  <div className="mt-4 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-bold transition-all"
+                    >
+                      Change File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRemoveFile}
+                      className="px-4 py-2 bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-bold transition-all"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
-              </div>
-
-              {selectedFile && (
-                <div className="flex items-center justify-between p-4 bg-[#e6f7eb] border border-[#08B36A]/20 rounded-2xl text-xs text-[#08B36A] font-semibold">
-                  <span className="truncate max-w-xs">{selectedFile.name}</span>
-                  <button type="button" onClick={() => setSelectedFile(null)} className="text-red-500 font-bold hover:underline">Remove</button>
+              ) : (
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-slate-200 rounded-[2rem] p-10 text-center hover:border-[#08B36A] transition-colors bg-[#fafafa] cursor-pointer group shadow-sm"
+                >
+                  <div className="flex flex-col items-center">
+                    <FaUpload className="h-8 w-8 text-gray-400 mb-3 group-hover:scale-110 transition-transform" />
+                    <span className="block text-xs font-bold text-[#08B36A] hover:text-[#069356]">Browse Prescription File</span>
+                    <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase tracking-wide">JPG, PNG, or PDF up to 10MB</p>
+                  </div>
                 </div>
               )}
+
+              {/* Hidden File Input Reference */}
+              <input
+                type="file"
+                hidden
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="image/*,application/pdf"
+              />
 
               <button
                 type="submit"
@@ -311,7 +370,7 @@ export default function NurseBookingPage() {
         {/* ========================================= */}
         {step === 2 && (
           <div className="space-y-8">
-            
+
             {/* AI Extracted Text Card */}
             {extractedText && (
               <div className="bg-[#e6f7eb] border border-[#08B36A]/20 p-5 rounded-3xl">
@@ -470,7 +529,7 @@ export default function NurseBookingPage() {
                     </div>
                   ))
                 ) : (
-                  <div className="p-6 text-center text-xs text-slate-400 font-semibold col-span-2">
+                  <div className="p-6 text-center text-xs text-slate-400 font-bold col-span-2">
                     No addresses registered. Please configure a default profile delivery location first.
                   </div>
                 )}
