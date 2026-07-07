@@ -120,7 +120,46 @@ const DiamondAPI = {
             const res = await api.post('/admin/roles/assign', payload);
             return res.data;
         } catch (error) { throw error.response.data; }
-    }
+    },
+    // ==========================================
+    // 🚓 POLICE HEADQUARTER (ADMIN CRUD)
+    // ==========================================
+
+    // 1. Get All Police HQs
+    getPoliceHQs: async () => {
+        try {
+            const res = await api.get('/api/admin/police/list-policehq');
+            return res.data;
+        } catch (error) { throw error.response ? error.response.data : error; }
+    },
+
+    // 2. Create Police HQ (with Image)
+    createPoliceHQ: async (formData) => {
+        try {
+            const res = await api.post('/api/admin/police/create-policehq', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            return res.data;
+        } catch (error) { throw error.response ? error.response.data : error; }
+    },
+
+    // 3. Update Police HQ (with Image)
+    updatePoliceHQ: async (id, formData) => {
+        try {
+            const res = await api.put(`/api/admin/police/update-policehq/${id}`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            return res.data;
+        } catch (error) { throw error.response ? error.response.data : error; }
+    },
+
+    // 4. Toggle Police HQ Status
+    togglePoliceHQStatus: async (id) => {
+        try {
+            const res = await api.delete(`/api/admin/police/status-policehq/${id}`);
+            return res.data;
+        } catch (error) { throw error.response ? error.response.data : error; }
+    },
 
 }
 
