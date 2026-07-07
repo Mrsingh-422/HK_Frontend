@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   FaArrowLeft, FaArrowRight,
   FaCrown, FaTag, FaSpinner,
-  FaUserCircle, FaMapMarkerAlt, FaCheckCircle
+  FaUserCircle, FaMapMarkerAlt, FaCheckCircle, FaGem
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import UserAPI from "@/app/services/UserAPI";
@@ -52,6 +52,9 @@ export default function BookingConfirmation() {
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [loadingSelectionData, setLoadingSelectionData] = useState(true);
 
+  // --- SUBSCRIPTION STATE ---
+  const [subscription, setSubscription] = useState(null);
+
   // Visit Charges and Submission State
   const [visitCharges, setVisitCharges] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,7 +66,6 @@ export default function BookingConfirmation() {
     if (!token) {
       CostoumPopup("Please Login To Continue", "warning", 4000);
       router.push('/drappointment');
-      // openModal("login");
       return;
     }
 
@@ -83,12 +85,20 @@ export default function BookingConfirmation() {
   const fetchSelectionData = async () => {
     try {
       setLoadingSelectionData(true);
-      const [addrRes, familyRes] = await Promise.all([
+      // Added getMySubscriptionStatus to the parallel fetch
+      const [addrRes, familyRes, subRes] = await Promise.all([
         UserAPI.getUserAddresses(),
-        UserAPI.getFamilyMembers()
+        UserAPI.getFamilyMembers(),
+        UserAPI.getMySubscriptionStatus() // Fetching subscription status
       ]);
+      
       if (addrRes.success) setAddresses(addrRes.data);
       if (familyRes.success) setFamilyMembers(familyRes.data);
+      
+      // Check if user has an active plan
+      if (subRes.success && subRes.hasActivePlan) {
+        setSubscription(subRes.data);
+      }
     } catch (error) {
       console.error("Error fetching selection data", error);
     } finally {
@@ -131,16 +141,18 @@ export default function BookingConfirmation() {
     } catch (error) { console.error(error); }
   };
 
-  // Pricing Logic
+  // --- UPDATED PRICING LOGIC FOR SUBSCRIPTION ---
   const pricing = useMemo(() => {
-    const base = Number(bookingData?.fee || 0);
+    // If subscription exists, base fee becomes 0 as per documentation
+    const hasPlan = subscription !== null;
+    const base = hasPlan ? 0 : Number(bookingData?.fee || 0);
+    
     const premium = Number(selectedSlot?.premiumFee || 0);
     const platform = 0;
 
     let homeVisitFee = 0;
     let travelFee = 0;
 
-    // Only calculate visit/travel fees if it's Home Care
     if (bookingData?.selectedService === 'Home Care' && visitCharges) {
       homeVisitFee = Number(visitCharges.fixedPrice || 0);
       const distanceValue = Number(bookingData?.distance || 0);
@@ -160,9 +172,10 @@ export default function BookingConfirmation() {
 
     return {
       base, premium, platform, homeVisitFee, travelFee, subtotal, discount,
-      total: subtotal + platform - discount
+      total: subtotal + platform - discount,
+      isSubscriptionApplied: hasPlan
     };
-  }, [bookingData, selectedSlot, appliedCoupon, visitCharges]);
+  }, [bookingData, selectedSlot, appliedCoupon, visitCharges, subscription]);
 
   useEffect(() => {
     setDiscountAmount(pricing.discount);
@@ -209,7 +222,6 @@ export default function BookingConfirmation() {
     try {
       setIsSubmitting(true);
 
-      // 1. Load Razorpay script dynamically
       const isScriptLoaded = await loadRazorpayScript();
       if (!isScriptLoaded) {
         alert("Failed to load Razorpay SDK. Please check your network connection.");
@@ -219,7 +231,6 @@ export default function BookingConfirmation() {
 
       const dist = Number(bookingData.distance) || 0;
 
-      // Map UI types to Backend Enum types
       let mappedType = "Clinic Visit";
       if (bookingData.selectedService === "Virtual Consultation") {
         mappedType = "Video Consult";
@@ -263,7 +274,7 @@ export default function BookingConfirmation() {
         totalAmount: pricing.total
       };
 
-      // 2. Run backend checkout pre-validation summary
+      // 2. Run backend checkout summary
       const summaryRes = await UserAPI.doctorCheckoutSummary(payload);
       if (!summaryRes.success) {
         alert(summaryRes.message || "Validation failed");
@@ -271,7 +282,18 @@ export default function BookingConfirmation() {
         return;
       }
 
-      // 3. Initiate booking and retrieve Razorpay order creation details from backend
+      // --- HANDLE FREE BOOKING (TOTAL = 0) ---
+      if (pricing.total === 0) {
+        const bookingRes = await UserAPI.bookDoctorAppointment(payload);
+        if (bookingRes.success) {
+            localStorage.removeItem('pendingBooking');
+            setShowSuccessModal(true);
+            setIsSubmitting(false);
+            return;
+        }
+      }
+
+      // 3. Initiate booking
       const bookingRes = await UserAPI.bookDoctorAppointment(payload);
       if (!bookingRes.success) {
         alert(bookingRes.message || "Failed to initiate booking");
@@ -281,7 +303,7 @@ export default function BookingConfirmation() {
 
       const { key_id, amount, razorpayOrderId, appointmentId } = bookingRes;
 
-      // 4. Setup options for the Razorpay Checkout Modal
+      // 4. Setup Razorpay
       const options = {
         key: key_id,
         amount: amount,
@@ -294,16 +316,10 @@ export default function BookingConfirmation() {
           email: selectedMember.email || "patient@example.com",
           contact: selectedMember.phone,
         },
-        theme: {
-          color: "#3399cc"
-        },
-        // Handles close/dismiss events by user
+        theme: { color: "#10b981" },
         modal: {
-          ondismiss: function () {
-            setIsSubmitting(false);
-          }
+          ondismiss: function () { setIsSubmitting(false); }
         },
-        // Handles payment outcome verification
         handler: async function (response) {
           try {
             setIsSubmitting(true);
@@ -323,7 +339,6 @@ export default function BookingConfirmation() {
               alert(verificationRes.message || "Payment verification failed");
             }
           } catch (verificationError) {
-            console.error("Verification Error:", verificationError);
             alert("An error occurred during payment verification.");
           } finally {
             setIsSubmitting(false);
@@ -331,16 +346,10 @@ export default function BookingConfirmation() {
         }
       };
 
-      // 5. Open Razorpay widget
       const rzpInstance = new window.Razorpay(options);
-      rzpInstance.on('payment.failed', function (response) {
-        alert(`Payment failed: ${response.error.description}`);
-        setIsSubmitting(false);
-      });
       rzpInstance.open();
 
     } catch (error) {
-      console.error("Booking Error:", error);
       alert("An error occurred. Please try again.");
       setIsSubmitting(false);
     }
@@ -382,6 +391,16 @@ export default function BookingConfirmation() {
             <div>
               <h1 className="text-3xl font-bold text-slate-900 mb-2">Booking Details</h1>
               <p className="text-slate-500 text-sm">Select patient, date, and location for the session.</p>
+              
+              {/* --- SUBSCRIPTION BADGE --- */}
+              {subscription && (
+                <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-xl">
+                  <FaGem className="text-emerald-500" size={12} />
+                  <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">
+                    {subscription.planId.name} Active • Free Consultation Applied
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* FAMILY MEMBERS */}
@@ -494,7 +513,7 @@ export default function BookingConfirmation() {
             </section>
           </div>
 
-          {/* RIGHT: SUMMARY (Pricing and Coupon) */}
+          {/* RIGHT: SUMMARY */}
           <div className="lg:col-span-5">
             <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 sticky top-24">
               <div className="flex items-center gap-4 mb-8">
@@ -509,7 +528,14 @@ export default function BookingConfirmation() {
               <div className="space-y-3 mb-8">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Consultation Fee</span>
-                  <span className="font-bold">₹{pricing.base}</span>
+                  <div className="flex flex-col items-end">
+                    <span className={`font-bold ${pricing.isSubscriptionApplied ? 'line-through text-slate-300 text-xs' : ''}`}>
+                        ₹{bookingData?.fee}
+                    </span>
+                    {pricing.isSubscriptionApplied && (
+                        <span className="text-emerald-600 font-black text-xs uppercase tracking-tighter">Plan Benefit: ₹0</span>
+                    )}
+                  </div>
                 </div>
                 {pricing.premium > 0 && (
                   <div className="flex justify-between text-sm text-amber-600 font-bold">
@@ -572,14 +598,6 @@ export default function BookingConfirmation() {
                   </button>
                 </div>
                 {couponError && <p className="text-[10px] font-bold text-rose-500 ml-1">{couponError}</p>}
-
-                <div className="flex gap-2 overflow-x-auto no-scrollbar">
-                  {coupons.map((cp) => (
-                    <button key={cp._id} onClick={() => handleApplyCoupon(cp.couponName)} className="flex-shrink-0 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[9px] font-bold text-slate-500 hover:border-emerald-500">
-                      {cp.couponName}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <button
@@ -588,14 +606,8 @@ export default function BookingConfirmation() {
                   ${(selectedSlot && selectedMember && selectedAddress && !isSubmitting) ? 'bg-emerald-600 text-white shadow-lg hover:bg-emerald-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
                 onClick={handleFinalBooking}
               >
-                {isSubmitting ? <FaSpinner className="animate-spin" /> : 'Continue to Payment'} <FaArrowRight size={12} />
+                {isSubmitting ? <FaSpinner className="animate-spin" /> : pricing.total === 0 ? 'Confirm Free Booking' : 'Continue to Payment'} <FaArrowRight size={12} />
               </button>
-
-              {!selectedSlot || !selectedMember || !selectedAddress ? (
-                <p className="text-[9px] text-center text-slate-400 mt-4 uppercase font-bold tracking-tight">
-                  Please select {!selectedMember && 'Patient, '}{!selectedSlot && 'Slot, '}{!selectedAddress && 'Address'} to proceed
-                </p>
-              ) : null}
             </div>
           </div>
         </div>
@@ -611,7 +623,7 @@ export default function BookingConfirmation() {
             <div className="space-y-2">
               <h3 className="text-2xl font-black text-slate-900">Booking Confirmed!</h3>
               <p className="text-sm font-semibold text-slate-600 leading-relaxed">
-                Your appointment has been successfully booked and payment is confirmed.
+                Your appointment has been successfully booked. {pricing.isSubscriptionApplied && "One unit has been deducted from your plan benefits."}
               </p>
             </div>
             <button
