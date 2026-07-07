@@ -274,6 +274,7 @@ export default function TopNavbar() {
     { icon: <FaUserMd />, label: "Doctor Appointment", link: "/userscreens/doctorappointment" },
     { icon: <FaAmbulance />, label: "Ambulance Booking", link: "/userscreens/ambulanceappointment" },
     { icon: < FaAmbulance/>, label: "Chats", link: "/userscreens/mychats" },
+    { icon: < FaAmbulance/>, label: "My Plan", link: "/userscreens/myplan" },
     { icon: <FaFilePrescription />, label: "My Prescriptions", link: "/userscreens/myprescriptions" },
     { icon: <FaWallet />, label: "Wallet", link: "/" },
     { icon: <FaTimes />, label: "Health Locker", link: "/userscreens/lockerScreens" },

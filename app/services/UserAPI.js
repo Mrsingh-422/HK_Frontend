@@ -203,11 +203,11 @@ const UserAPI = {
         const response = await authApi.get("/user/labs/prescription-request/list")
         return response.data
     },
-    initializeLabPrescriptionPayment: async(formData) => {
+    initializeLabPrescriptionPayment: async (formData) => {
         const response = await authApi.post("/user/labs/prescription-request/pay-confirm", formData)
         return response.data
     },
-    verifyLabPrescriptionPayment : async(paymentData)=> {
+    verifyLabPrescriptionPayment: async (paymentData) => {
         const response = await authApi.post("/user/labs/prescription-request/verify-payment", paymentData)
         return response.data
     },
@@ -999,6 +999,70 @@ const UserAPI = {
 
     getComboOfferDetail: async (offerId) => {
         const response = await publicApi.get(`/user/pharmacy/combo-offers/details/${offerId}`)
+        return response.data;
+    },
+
+    // ==========================================
+    // SUBSCRIPTION SYSTEM APIS
+    // ==========================================
+
+    // 1. Subscription Plan Discovery & Status
+    getUserPlanDetail: async () => {
+        const response = await authApi.get('/user/subscriptions/my-status');
+        return response.data;
+    },
+    listAvailablePlans: async (type = "") => {
+        // type can be "Elder Care" or "Condition Management"
+        const response = await publicApi.get('/user/subscriptions/list', {
+            params: { type }
+        });
+        return response.data;
+    },
+
+    getMySubscriptionStatus: async () => {
+        const response = await authApi.get('/user/subscriptions/my-status');
+        return response.data;
+    },
+
+    // 2. Purchase Flow
+    buySubscriptionPlan: async (planId) => {
+        // This initiates the order and returns Razorpay order meta
+        const response = await authApi.post('/user/subscriptions/buy', { planId });
+        return response.data;
+    },
+
+    verifySubscriptionPayment: async (paymentData) => {
+        const response = await authApi.post('/user/subscriptions/verify-payment', paymentData);
+        return response.data;
+    },
+
+    // 3. Specialized Disease Care Booking
+    // Use this for Dementia, Cancer, or Dialysis specific flows
+    bookSpecializedAppointment: async (diseaseType, bookingData) => {
+        // diseaseType: "Dementia" | "Cancer" | "Dialysis"
+        const response = await authApi.post(`/user/doctors/book/specialist/${diseaseType}`, bookingData);
+        return response.data;
+    },
+
+    // 4. Cancellation & Benefit Restores
+    // These ensure that if a "Free" booking is cancelled, the benefit count is restored (+1)
+    cancelNurseBooking: async (bookingId) => {
+        const response = await authApi.patch(`/user/nurse/cancel/${bookingId}`);
+        return response.data;
+    },
+
+    cancelLabBooking: async (bookingId) => {
+        const response = await authApi.put(`/user/labs/cancel/${bookingId}`);
+        return response.data;
+    },
+
+    cancelPharmacyOrder: async (orderId) => {
+        const response = await authApi.post('/user/pharmacy/cancel-order', { orderId });
+        return response.data;
+    },
+
+    cancelAmbulanceBooking: async (bookingId) => {
+        const response = await authApi.patch(`/user/ambulance/cancel/${bookingId}`);
         return response.data;
     },
 
