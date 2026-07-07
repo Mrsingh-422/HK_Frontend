@@ -732,6 +732,29 @@ const AdminAPI = {
     deleteLabTestTemplate: async (id) => {
         const response = await api.delete(`/admin/lab/tests/delete-template/${id}`);
         return response.data;
+    },
+
+    //Heeras code 
+
+    toggleAmbulanceStatus: async (ambulanceId) => {
+        const response = await api.patch(`/admin/ambulance/status/active-inactive/${ambulanceId}`);
+        return response.data;
+    },
+    togglePharmacyStatus: async (pharmacyId) => {
+        const response = await api.patch(`/admin/pharmacy/status/active-inactive/${pharmacyId}`);
+        return response.data;
+    },
+    toggleNurseStatus: async (nurseId) => {
+        const response = await api.patch(`/admin/nurse/status/active-inactive/${nurseId}`);
+        return response.data;
+    },
+    toggleLabStatus: async (labId) => {
+        const response = await api.patch(`/admin/lab/status/active-inactive/${labId}`);
+        return response.data;
+    },
+    toggleHospitalStatus: async (hospitalId) => {
+        const response = await api.patch(`/admin/hospital/status/active-inactive/${hospitalId}`);
+        return response.data;
     }
 
 };

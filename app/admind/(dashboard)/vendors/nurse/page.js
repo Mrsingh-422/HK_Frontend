@@ -1,5 +1,6 @@
+//admind > (dashboard) > vendors > nurse > page.js
 "use client";
-
+ 
 import React, { useState, useMemo, useEffect } from "react";
 import {
   FaUserMd, FaEye, FaSearch, FaSpinner, FaMapMarkerAlt,
@@ -9,35 +10,36 @@ import { HiOutlineAdjustmentsHorizontal, HiChevronDown } from "react-icons/hi2";
 import { useUserContext } from "@/app/context/UserContext";
 import AdminAPI from "@/app/services/AdminAPI";
 import NurseDetailsModal from "./components/NurseDetailsModal";
-
+ 
 export default function NurseVendorManager() {
   const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
-
+ 
   const [vendors, setVendors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-
+  const [togglingId, setTogglingId] = useState(null); // 👈 टॉगलिंग स्टेट के लिए
+ 
   // Lists for dropdowns
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
-
+ 
   // Search & Status Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-
+ 
   // Location Filters
   const [locationFilter, setLocationFilter] = useState({
     country: "All",
     state: "All",
     city: "All"
   });
-
+ 
   // Modal States
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-
+ 
   const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
-
+ 
   useEffect(() => {
     const initPage = async () => {
       setIsLoading(true);
@@ -56,7 +58,7 @@ export default function NurseVendorManager() {
     };
     initPage();
   }, []);
-
+ 
   const handleCountryChange = async (countryName) => {
     if (countryName === "All") {
       setLocationFilter({ country: "All", state: "All", city: "All" });
@@ -72,7 +74,7 @@ export default function NurseVendorManager() {
       setCities([]);
     }
   };
-
+ 
   const handleStateChange = async (stateName) => {
     if (stateName === "All") {
       setLocationFilter(prev => ({ ...prev, state: "All", city: "All" }));
@@ -86,7 +88,7 @@ export default function NurseVendorManager() {
       setCities(cityData || []);
     }
   };
-
+ 
   const filteredVendors = useMemo(() => {
     return vendors.filter((vendor) => {
       const matchesSearch = vendor.name?.toLowerCase().includes(searchTerm.toLowerCase()) || vendor.phone?.includes(searchTerm);
@@ -97,7 +99,7 @@ export default function NurseVendorManager() {
       return matchesSearch && matchesStatus && matchesCountry && matchesState && matchesCity;
     });
   }, [searchTerm, statusFilter, locationFilter, vendors]);
-
+ 
   const handleApprove = async (id) => {
     try {
       const res = await AdminAPI.approveNurseByAdmin(id);
@@ -107,7 +109,7 @@ export default function NurseVendorManager() {
       }
     } catch (error) { alert("Approval failed"); }
   };
-
+ 
   const handleReject = async (id, reason) => {
     try {
       const res = await AdminAPI.rejectNurseByAdmin(id, reason);
@@ -117,23 +119,40 @@ export default function NurseVendorManager() {
       }
     } catch (error) { alert("Rejection failed"); }
   };
-
+ 
+  // 👇 ADDED: Nurse Status को toggle करने का फंक्शन
+  const handleToggleActiveStatus = async (id, currentStatus) => {
+    setTogglingId(id);
+    try {
+      const response = await AdminAPI.toggleNurseStatus(id);
+      if (response.success) {
+        // लोकल स्टेट को अपडेट करें ताकि UI तुरंत रिफ्लेक्ट हो
+        setVendors(prev => prev.map(v => v._id === id ? { ...v, isActive: !currentStatus } : v));
+      }
+    } catch (error) {
+      console.error("Failed to toggle nurse status:", error);
+      alert(error.response?.data?.message || "Failed to update nurse status.");
+    } finally {
+      setTogglingId(null);
+    }
+  };
+ 
   const getImgUrl = (path) => {
     if (!path) return null;
     const cleanPath = path.replace(/\\/g, '/').replace(/^public\//, '');
     return `${baseUrl}/${cleanPath}`;
   };
-
+ 
   if (isLoading) return (
     <div className="w-full h-screen flex flex-col items-center justify-center bg-white">
       <FaSpinner className="animate-spin text-[#08B36A] text-4xl" />
       <p className="text-slate-400 text-[10px] font-black mt-6 uppercase tracking-[0.3em]">Verifying Nurse Registry</p>
     </div>
   );
-
+ 
   return (
     <div className="min-h-screen bg-[#FDFDFD] p-4 md:p-8 font-sans">
-
+ 
       {/* Header Section */}
       <div className="max-w-7xl mx-auto mb-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -144,7 +163,7 @@ export default function NurseVendorManager() {
             </h1>
             <p className="text-slate-500 font-medium mt-1">Verify professional nursing credentials and applications</p>
           </div>
-
+ 
           <div className="relative w-full md:w-80">
             <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -157,11 +176,11 @@ export default function NurseVendorManager() {
           </div>
         </div>
       </div>
-
+ 
       {/* Advanced Filter Bar */}
       <div className="max-w-7xl mx-auto mb-6">
         <div className="bg-white border border-slate-100 rounded-[2rem] p-3 shadow-sm flex flex-wrap items-center gap-3">
-
+ 
           <DropdownSelect
             label="Profile Status"
             icon={<FaFilter className="text-emerald-500" />}
@@ -169,9 +188,9 @@ export default function NurseVendorManager() {
             options={["All", "Pending", "Approved", "Rejected", "Incomplete"]}
             onChange={setStatusFilter}
           />
-
+ 
           <div className="hidden md:block w-px h-8 bg-slate-100 mx-1"></div>
-
+ 
           <div className="flex flex-wrap items-center gap-3 flex-1">
             <CompactSelect
               icon={<FaGlobeAmericas />}
@@ -196,7 +215,7 @@ export default function NurseVendorManager() {
               disabled={locationFilter.state === "All"}
               onChange={(val) => setLocationFilter(prev => ({ ...prev, city: val }))}
             />
-
+ 
             {(statusFilter !== "All" || locationFilter.country !== "All") && (
               <button
                 onClick={() => {
@@ -212,7 +231,7 @@ export default function NurseVendorManager() {
           </div>
         </div>
       </div>
-
+ 
       {/* Table Results */}
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden">
@@ -223,6 +242,7 @@ export default function NurseVendorManager() {
                   <th className="px-8 py-5">Nurse Identity</th>
                   <th className="px-8 py-5">Location</th>
                   <th className="px-8 py-5 text-center">Status</th>
+                  <th className="px-8 py-5 text-center">Active Status</th> {/* 👈 Added header */}
                   <th className="px-8 py-5 text-right">Verification</th>
                 </tr>
               </thead>
@@ -265,6 +285,39 @@ export default function NurseVendorManager() {
                         {vendor.profileStatus}
                       </span>
                     </td>
+ 
+                    {/* 👇 DESIGNED: iOS Slider Toggle Switch for Nurses */}
+                    <td className="px-8 py-6">
+                      <div className="flex items-center justify-center gap-3">
+                        <label className="relative inline-flex items-center cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={vendor.isActive !== false} // डिफ़ॉल्ट रूप से active (true) रखने के लिए
+                            disabled={togglingId === vendor._id}
+                            onChange={() => handleToggleActiveStatus(vendor._id, vendor.isActive !== false)}
+                            className="sr-only peer"
+                          />
+                          <div className={`w-10 h-5.5 bg-slate-200 peer-focus:outline-none rounded-full peer
+                            peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full
+                            peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px]
+                            after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full
+                            after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-[#08B36A]
+                            ${togglingId === vendor._id ? 'opacity-40 cursor-not-allowed' : ''}`}
+                          ></div>
+                        </label>
+                       
+                        <span className={`text-[10px] font-extrabold uppercase tracking-widest w-12 text-left transition-colors ${
+                          vendor.isActive !== false ? 'text-[#08B36A]' : 'text-slate-400'
+                        }`}>
+                          {togglingId === vendor._id ? (
+                            <FaSpinner className="animate-spin text-slate-400" size={10} />
+                          ) : (
+                            vendor.isActive !== false ? 'Active' : 'Inactive'
+                          )}
+                        </span>
+                      </div>
+                    </td>
+ 
                     <td className="px-8 py-6 text-right">
                       <button
                         onClick={() => { setSelectedVendor(vendor); setIsViewModalOpen(true); }}
@@ -277,7 +330,7 @@ export default function NurseVendorManager() {
                 ))}
               </tbody>
             </table>
-
+ 
             {filteredVendors.length === 0 && (
               <div className="py-24 text-center">
                 <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -289,7 +342,7 @@ export default function NurseVendorManager() {
           </div>
         </div>
       </div>
-
+ 
       <NurseDetailsModal
         isOpen={isViewModalOpen}
         onClose={() => setIsViewModalOpen(false)}
@@ -300,7 +353,7 @@ export default function NurseVendorManager() {
     </div>
   );
 }
-
+ 
 // Reusable UI Components
 const DropdownSelect = ({ label, icon, value, options, onChange }) => (
   <div className="relative group min-w-[180px]">
@@ -317,7 +370,7 @@ const DropdownSelect = ({ label, icon, value, options, onChange }) => (
     <HiChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
   </div>
 )
-
+ 
 const CompactSelect = ({ icon, label, value, options, onChange, disabled }) => (
   <div className={`relative flex items-center min-w-[150px] transition-all ${disabled ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
     <div className="absolute left-3 text-slate-400 text-xs">{icon}</div>
@@ -337,3 +390,4 @@ const CompactSelect = ({ icon, label, value, options, onChange, disabled }) => (
     <HiChevronDown className="absolute right-3 text-slate-300 pointer-events-none" size={14} />
   </div>
 )
+ 

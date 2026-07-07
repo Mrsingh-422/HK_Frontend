@@ -1,3 +1,4 @@
+//admind > (dashboard) > vendors > pharmacy > page.js
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import { FaBuilding, FaEye, FaSearch, FaSpinner, FaMapMarkerAlt, FaGlobeAmericas, FaCity, FaFilter, FaTimes, FaBriefcaseMedical } from "react-icons/fa";
@@ -5,32 +6,33 @@ import { HiOutlineAdjustmentsHorizontal, HiChevronDown } from "react-icons/hi2";
 import { useUserContext } from "@/app/context/UserContext";
 import ViewPharmacyComponent from "./components/ViewPharmacyComponent";
 import AdminAPI from "@/app/services/AdminAPI";
-
+ 
 function PharmacyVendorsPage() {
   const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
-
+ 
   const [vendors, setVendors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+  const [togglingId, setTogglingId] = useState(null);
+ 
   // Lists for dropdowns
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
-
+ 
   // Search & Status Filters
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-
+ 
   // Location Filters
   const [locationFilter, setLocationFilter] = useState({
     country: "All",
     state: "All",
     city: "All"
   });
-
+ 
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-
+ 
   useEffect(() => {
     const initPage = async () => {
       setIsLoading(true);
@@ -49,7 +51,7 @@ function PharmacyVendorsPage() {
     };
     initPage();
   }, []);
-
+ 
   const handleCountryChange = async (countryName) => {
     if (countryName === "All") {
       setLocationFilter({ country: "All", state: "All", city: "All" });
@@ -65,7 +67,7 @@ function PharmacyVendorsPage() {
       setCities([]);
     }
   };
-
+ 
   const handleStateChange = async (stateName) => {
     if (stateName === "All") {
       setLocationFilter(prev => ({ ...prev, state: "All", city: "All" }));
@@ -79,7 +81,24 @@ function PharmacyVendorsPage() {
       setCities(cityData || []);
     }
   };
-
+ 
+  // 👇 ADDED: Pharmacy Status को toggle करने का फंक्शन
+  const handleToggleActiveStatus = async (id, currentStatus) => {
+    setTogglingId(id);
+    try {
+      const response = await AdminAPI.togglePharmacyStatus(id);
+      if (response.success) {
+        // लोकल स्टेट को अपडेट करें ताकि UI तुरंत रिफ्लेक्ट हो
+        setVendors(prev => prev.map(v => v._id === id ? { ...v, isActive: !currentStatus } : v));
+      }
+    } catch (error) {
+      console.error("Failed to toggle pharmacy status:", error);
+      alert(error.response?.data?.message || "Failed to update pharmacy status.");
+    } finally {
+      setTogglingId(null);
+    }
+  };
+ 
   const filteredData = useMemo(() => {
     return vendors.filter((item) => {
       const matchesSearch = item.name?.toLowerCase().includes(search.toLowerCase()) || item.phone?.includes(search);
@@ -90,7 +109,7 @@ function PharmacyVendorsPage() {
       return matchesSearch && matchesStatus && matchesCountry && matchesState && matchesCity;
     });
   }, [search, statusFilter, locationFilter, vendors]);
-
+ 
   if (isLoading) return (
     <div className="w-full h-screen flex flex-col items-center justify-center bg-white">
       <div className="relative flex items-center justify-center">
@@ -100,10 +119,10 @@ function PharmacyVendorsPage() {
       <p className="text-slate-400 text-[10px] font-black mt-6 uppercase tracking-[0.3em]">Loading Pharmacy Network</p>
     </div>
   );
-
+ 
   return (
     <div className="min-h-screen bg-[#FDFDFD] p-4 md:p-8 font-sans">
-      
+     
       {/* Header Section */}
       <div className="max-w-7xl mx-auto mb-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -114,7 +133,7 @@ function PharmacyVendorsPage() {
             </h1>
             <p className="text-slate-500 font-medium mt-1">Manage pharmaceutical inventory and distribution partners</p>
           </div>
-          
+         
           <div className="relative w-full md:w-80">
             <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -127,11 +146,11 @@ function PharmacyVendorsPage() {
           </div>
         </div>
       </div>
-
+ 
       {/* Advanced Filter Bar */}
       <div className="max-w-7xl mx-auto mb-6">
         <div className="bg-white border border-slate-100 rounded-[2rem] p-3 shadow-sm flex flex-wrap items-center gap-3">
-          
+         
           <DropdownSelect
             label="Audit Status"
             icon={<FaFilter className="text-emerald-500" />}
@@ -139,36 +158,36 @@ function PharmacyVendorsPage() {
             options={["All", "Pending", "Approved", "Rejected"]}
             onChange={setStatusFilter}
           />
-
+ 
           <div className="hidden md:block w-px h-8 bg-slate-100 mx-1"></div>
-
+ 
           <div className="flex flex-wrap items-center gap-3 flex-1">
-            <CompactSelect 
-              icon={<FaGlobeAmericas />} 
+            <CompactSelect
+              icon={<FaGlobeAmericas />}
               label="Country"
-              value={locationFilter.country} 
-              options={countries} 
-              onChange={handleCountryChange} 
+              value={locationFilter.country}
+              options={countries}
+              onChange={handleCountryChange}
             />
-            <CompactSelect 
-              icon={<FaMapMarkerAlt />} 
+            <CompactSelect
+              icon={<FaMapMarkerAlt />}
               label="State"
-              value={locationFilter.state} 
-              options={states} 
+              value={locationFilter.state}
+              options={states}
               disabled={locationFilter.country === "All"}
-              onChange={handleStateChange} 
+              onChange={handleStateChange}
             />
-            <CompactSelect 
-              icon={<FaCity />} 
+            <CompactSelect
+              icon={<FaCity />}
               label="City"
-              value={locationFilter.city} 
-              options={cities} 
+              value={locationFilter.city}
+              options={cities}
               disabled={locationFilter.state === "All"}
-              onChange={(val) => setLocationFilter(prev => ({ ...prev, city: val }))} 
+              onChange={(val) => setLocationFilter(prev => ({ ...prev, city: val }))}
             />
-
+ 
             {(statusFilter !== "All" || locationFilter.country !== "All") && (
-              <button 
+              <button
                 onClick={() => {
                   setStatusFilter("All");
                   setLocationFilter({ country: "All", state: "All", city: "All" });
@@ -182,7 +201,7 @@ function PharmacyVendorsPage() {
           </div>
         </div>
       </div>
-
+ 
       {/* Main Results Table */}
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden">
@@ -193,6 +212,7 @@ function PharmacyVendorsPage() {
                   <th className="px-10 py-6">Vendor Identity</th>
                   <th className="px-10 py-6">Geographic Details</th>
                   <th className="px-10 py-6">Audit Status</th>
+                  <th className="px-10 py-6 text-center">Active Status</th> {/* 👈 Added header */}
                   <th className="px-10 py-6 text-right">Actions</th>
                 </tr>
               </thead>
@@ -202,10 +222,10 @@ function PharmacyVendorsPage() {
                     <td className="px-10 py-7">
                       <div className="flex items-center gap-4">
                         <div className="relative w-12 h-12">
-                          <img 
-                            src={item.documents?.pharmacyImages?.[0] ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/${item.documents.pharmacyImages[0].replace(/\\/g, '/')}` : "https://via.placeholder.com/100"} 
-                            className="w-full h-full object-cover rounded-2xl shadow-sm border-2 border-white group-hover:scale-110 transition-transform" 
-                            alt={item.name} 
+                          <img
+                            src={item.documents?.pharmacyImages?.[0] ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/${item.documents.pharmacyImages[0].replace(/\\/g, '/')}` : "https://via.placeholder.com/100"}
+                            className="w-full h-full object-cover rounded-2xl shadow-sm border-2 border-white group-hover:scale-110 transition-transform"
+                            alt={item.name}
                           />
                         </div>
                         <div>
@@ -219,7 +239,7 @@ function PharmacyVendorsPage() {
                     <td className="px-10 py-7">
                       <div className="flex flex-col">
                         <p className="text-slate-700 font-bold text-xs flex items-center gap-1.5">
-                          <FaMapMarkerAlt className="text-emerald-500" size={10} /> 
+                          <FaMapMarkerAlt className="text-emerald-500" size={10} />
                           {item.city || 'N/A'}
                         </p>
                         <p className="text-[10px] text-slate-400 font-black uppercase mt-1 tracking-tighter">
@@ -236,9 +256,42 @@ function PharmacyVendorsPage() {
                         {item.profileStatus}
                       </span>
                     </td>
+ 
+                    {/* 👇 DESIGNED: iOS Slider Toggle Switch for Pharmacy */}
+                    <td className="px-10 py-7">
+                      <div className="flex items-center justify-center gap-3">
+                        <label className="relative inline-flex items-center cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={item.isActive !== false} // डिफ़ॉल्ट रूप से active (true) रखने के लिए
+                            disabled={togglingId === item._id}
+                            onChange={() => handleToggleActiveStatus(item._id, item.isActive !== false)}
+                            className="sr-only peer"
+                          />
+                          <div className={`w-10 h-5.5 bg-slate-200 peer-focus:outline-none rounded-full peer
+                            peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full
+                            peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px]
+                            after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full
+                            after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-[#08B36A]
+                            ${togglingId === item._id ? 'opacity-40 cursor-not-allowed' : ''}`}
+                          ></div>
+                        </label>
+                       
+                        <span className={`text-[10px] font-extrabold uppercase tracking-widest w-12 text-left transition-colors ${
+                          item.isActive !== false ? 'text-[#08B36A]' : 'text-slate-400'
+                        }`}>
+                          {togglingId === item._id ? (
+                            <FaSpinner className="animate-spin text-slate-400" size={10} />
+                          ) : (
+                            item.isActive !== false ? 'Active' : 'Inactive'
+                          )}
+                        </span>
+                      </div>
+                    </td>
+ 
                     <td className="px-10 py-7 text-right">
-                      <button 
-                        onClick={() => { setSelectedVendor(item); setIsModalOpen(true); }} 
+                      <button
+                        onClick={() => { setSelectedVendor(item); setIsModalOpen(true); }}
                         className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl hover:bg-emerald-600 transition-all shadow-md active:scale-95 text-xs font-bold"
                       >
                         <FaEye size={12} /> View File
@@ -248,7 +301,7 @@ function PharmacyVendorsPage() {
                 ))}
               </tbody>
             </table>
-            
+           
             {filteredData.length === 0 && (
               <div className="py-24 text-center bg-slate-50/20">
                 <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -260,24 +313,24 @@ function PharmacyVendorsPage() {
           </div>
         </div>
       </div>
-
+ 
       {isModalOpen && (
-        <ViewPharmacyComponent 
-          vendor={selectedVendor} 
-          onClose={() => setIsModalOpen(false)} 
-          onApprove={() => {}} 
-          onReject={() => {}} 
+        <ViewPharmacyComponent
+          vendor={selectedVendor}
+          onClose={() => setIsModalOpen(false)}
+          onApprove={() => {}}
+          onReject={() => {}}
         />
       )}
     </div>
   );
 }
-
+ 
 // Reusable Sub-components
 const DropdownSelect = ({ label, icon, value, options, onChange }) => (
   <div className="relative group min-w-[180px]">
     <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10">{icon}</div>
-    <select 
+    <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-black text-slate-700 uppercase tracking-tighter outline-none focus:ring-2 focus:ring-emerald-500/10 cursor-pointer appearance-none transition-all"
@@ -289,11 +342,11 @@ const DropdownSelect = ({ label, icon, value, options, onChange }) => (
     <HiChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
   </div>
 )
-
+ 
 const CompactSelect = ({ icon, label, value, options, onChange, disabled }) => (
   <div className={`relative flex items-center min-w-[150px] transition-all ${disabled ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
     <div className="absolute left-3 text-slate-400 text-xs">{icon}</div>
-    <select 
+    <select
       disabled={disabled}
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -309,5 +362,6 @@ const CompactSelect = ({ icon, label, value, options, onChange, disabled }) => (
     <HiChevronDown className="absolute right-3 text-slate-300 pointer-events-none" size={14} />
   </div>
 )
-
+ 
 export default PharmacyVendorsPage;
+ 

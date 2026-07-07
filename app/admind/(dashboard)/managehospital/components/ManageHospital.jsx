@@ -1,21 +1,22 @@
+//admind > (dashboard) > managehospital > components > ManageHospital.jsx
 'use client'
-
+ 
 import React, { useState, useEffect } from 'react'
-import { FaEye, FaUserMd, FaPhoneAlt, FaSpinner, FaStethoscope } from "react-icons/fa"
+import { FaEye, FaUserMd, FaPhoneAlt, FaSpinner } from "react-icons/fa"
 import HospitalDetailsModal from './othercomponents/HospitalDetailsModal';
 import AdminAPI from '@/app/services/AdminAPI';
-
+ 
 const ManageHospital = () => {
     const [doctors, setDoctors] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [togglingId, setTogglingId] = useState(null);
     const [selectedDoctor, setSelectedDoctor] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-
+ 
     const fetchDoctors = async () => {
         setIsLoading(true);
         try {
             const res = await AdminAPI.getAllHospitals();
-            // In your provided response JSON, the array is in res.data
             setDoctors(res.data || []);
         } catch (error) {
             console.error("Error fetching doctors:", error);
@@ -23,29 +24,27 @@ const ManageHospital = () => {
             setIsLoading(false);
         }
     };
-
+ 
     useEffect(() => {
         fetchDoctors();
     }, []);
-
+ 
     const handleView = (doc) => {
         setSelectedDoctor(doc);
         setIsModalOpen(true);
     };
-
+ 
     const handleVerifyStatus = async (id) => {
         try {
             const response = await AdminAPI.approveHospital(id);
-
+ 
             if (response.success) {
-                // Update local state immediately
                 setDoctors(prev => prev.map(d => d._id === id ? { ...d, profileStatus: 'Approved' } : d));
-
-                // If the currently viewed doctor was approved, update the modal's data too
+ 
                 if (selectedDoctor && selectedDoctor._id === id) {
                     setSelectedDoctor(prev => ({ ...prev, profileStatus: 'Approved' }));
                 }
-
+ 
                 setIsModalOpen(false);
                 alert("Hospital Approved successfully!");
             }
@@ -54,7 +53,24 @@ const ManageHospital = () => {
             alert(error.response?.data?.message || "Failed to approve.");
         }
     };
-
+ 
+    // Active Status Toggle Function
+    const handleToggleActiveStatus = async (id, currentStatus) => {
+        setTogglingId(id);
+        try {
+            const response = await AdminAPI.toggleHospitalStatus(id);
+            if (response.success) {
+                // लोकल स्टेट को तुरंत अपडेट करें
+                setDoctors(prev => prev.map(d => d._id === id ? { ...d, isActive: !currentStatus } : d));
+            }
+        } catch (error) {
+            console.error("Failed to toggle hospital status:", error);
+            alert(error.response?.data?.message || "Something went wrong.");
+        } finally {
+            setTogglingId(null);
+        }
+    };
+ 
     if (isLoading) {
         return (
             <div className="w-full h-64 flex flex-col items-center justify-center gap-4 bg-white rounded-3xl border border-slate-100">
@@ -63,7 +79,7 @@ const ManageHospital = () => {
             </div>
         );
     }
-
+ 
     return (
         <div className="w-full">
             <div className="overflow-x-auto bg-white rounded-2xl border border-slate-100 shadow-sm">
@@ -74,7 +90,8 @@ const ManageHospital = () => {
                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Hospital Identity</th>
                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Contact Details</th>
                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Speciality</th>
-                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
+                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Approval Status</th>
+                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Active Status</th>
                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
                         </tr>
                     </thead>
@@ -108,6 +125,40 @@ const ManageHospital = () => {
                                             {doc.profileStatus}
                                         </span>
                                     </td>
+                                   
+                                    {/* 👇 DESIGNED: Premium iOS Slider Toggle Switch */}
+                                    <td className="px-6 py-5">
+                                        <div className="flex items-center justify-center gap-3">
+                                            <label className="relative inline-flex items-center cursor-pointer select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={doc.isActive}
+                                                    disabled={togglingId === doc._id}
+                                                    onChange={() => handleToggleActiveStatus(doc._id, doc.isActive)}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className={`w-10 h-5.5 bg-slate-200 peer-focus:outline-none rounded-full peer
+                                                    peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full
+                                                    peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px]
+                                                    after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full
+                                                    after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-[#08B36A]
+                                                    ${togglingId === doc._id ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                                ></div>
+                                            </label>
+                                           
+                                            {/* Status Text with Dynamic Colors */}
+                                            <span className={`text-[10px] font-extrabold uppercase tracking-widest w-12 text-left transition-colors ${
+                                                doc.isActive ? 'text-[#08B36A]' : 'text-slate-400'
+                                            }`}>
+                                                {togglingId === doc._id ? (
+                                                    <FaSpinner className="animate-spin text-slate-400" size={10} />
+                                                ) : (
+                                                    doc.isActive ? 'Active' : 'Inactive'
+                                                )}
+                                            </span>
+                                        </div>
+                                    </td>
+ 
                                     <td className="px-6 py-5 text-right">
                                         <button onClick={() => handleView(doc)} className="p-2.5 bg-white border border-slate-200 text-slate-400 hover:text-[#08B36A] rounded-xl transition-all shadow-sm">
                                             <FaEye size={16} />
@@ -116,12 +167,12 @@ const ManageHospital = () => {
                                 </tr>
                             ))
                         ) : (
-                            <tr><td colSpan="6" className="px-6 py-10 text-center text-slate-400 text-sm font-medium">No records found.</td></tr>
+                            <tr><td colSpan="7" className="px-6 py-10 text-center text-slate-400 text-sm font-medium">No records found.</td></tr>
                         )}
                     </tbody>
                 </table>
             </div>
-
+ 
             <HospitalDetailsModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
@@ -131,5 +182,6 @@ const ManageHospital = () => {
         </div>
     )
 }
-
+ 
 export default ManageHospital
+ 
