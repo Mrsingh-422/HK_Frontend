@@ -12,7 +12,6 @@ import UserAPI from "@/app/services/UserAPI";
 import { useGlobalContext } from '@/app/context/GlobalContext';
 import CostoumPopup from '@/lib/CostoumPopup';
 
-// Utility to dynamically load the Razorpay SDK script
 const loadRazorpayScript = () => {
   return new Promise((resolve) => {
     if (window.Razorpay) {
@@ -32,7 +31,6 @@ export default function BookingConfirmation() {
   const router = useRouter();
   const { openModal, modalType, closeModal } = useGlobalContext();
 
-  // Existing States
   const [bookingData, setBookingData] = useState(null);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [coupons, setCoupons] = useState([]);
@@ -40,27 +38,24 @@ export default function BookingConfirmation() {
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
-  const [discountAmount, setDiscountAmount] = useState(0);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [couponError, setCouponError] = useState("");
 
-  // New States for Patients and Addresses
   const [familyMembers, setFamilyMembers] = useState([]);
   const [addresses, setAddresses] = useState([]);
   const [selectedMember, setSelectedMember] = useState(null);
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [loadingSelectionData, setLoadingSelectionData] = useState(true);
 
-  // --- SUBSCRIPTION STATE ---
-  const [subscription, setSubscription] = useState(null);
+  // --- NEW STATE FOR SERVER-SIDE PRICING & SUBSCRIPTION ---
+  const [serverPricing, setServerPricing] = useState(null);
+  const [isFetchingSummary, setIsFetchingSummary] = useState(false);
 
-  // Visit Charges and Submission State
   const [visitCharges, setVisitCharges] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // Initialize Data
   useEffect(() => {
     const token = localStorage.getItem('userToken');
     if (!token) {
@@ -85,20 +80,12 @@ export default function BookingConfirmation() {
   const fetchSelectionData = async () => {
     try {
       setLoadingSelectionData(true);
-      // Added getMySubscriptionStatus to the parallel fetch
-      const [addrRes, familyRes, subRes] = await Promise.all([
+      const [addrRes, familyRes] = await Promise.all([
         UserAPI.getUserAddresses(),
-        UserAPI.getFamilyMembers(),
-        UserAPI.getMySubscriptionStatus() // Fetching subscription status
+        UserAPI.getFamilyMembers()
       ]);
-      
       if (addrRes.success) setAddresses(addrRes.data);
       if (familyRes.success) setFamilyMembers(familyRes.data);
-      
-      // Check if user has an active plan
-      if (subRes.success && subRes.hasActivePlan) {
-        setSubscription(subRes.data);
-      }
     } catch (error) {
       console.error("Error fetching selection data", error);
     } finally {
@@ -115,7 +102,6 @@ export default function BookingConfirmation() {
     }
   };
 
-  // Fetching Slots
   const fetchSlots = useCallback(async (date) => {
     if (!bookingData?.doctorId) return;
     try {
@@ -141,45 +127,73 @@ export default function BookingConfirmation() {
     } catch (error) { console.error(error); }
   };
 
-  // --- UPDATED PRICING LOGIC FOR SUBSCRIPTION ---
-  const pricing = useMemo(() => {
-    // If subscription exists, base fee becomes 0 as per documentation
-    const hasPlan = subscription !== null;
-    const base = hasPlan ? 0 : Number(bookingData?.fee || 0);
-    
-    const premium = Number(selectedSlot?.premiumFee || 0);
-    const platform = 0;
-
-    let homeVisitFee = 0;
-    let travelFee = 0;
-
-    if (bookingData?.selectedService === 'Home Care' && visitCharges) {
-      homeVisitFee = Number(visitCharges.fixedPrice || 0);
-      const distanceValue = Number(bookingData?.distance || 0);
-      if (distanceValue > visitCharges.fixedDistance) {
-        const extraKm = distanceValue - visitCharges.fixedDistance;
-        travelFee = extraKm * (visitCharges.pricePerKM || 0);
-      }
-    }
-
-    const subtotal = base + premium + homeVisitFee + travelFee;
-    let discount = 0;
-    if (appliedCoupon) {
-      const pct = Number(appliedCoupon.discountPercentage || 0);
-      const max = Number(appliedCoupon.maxDiscount || Infinity);
-      discount = Math.min((subtotal * pct) / 100, max);
-    }
-
-    return {
-      base, premium, platform, homeVisitFee, travelFee, subtotal, discount,
-      total: subtotal + platform - discount,
-      isSubscriptionApplied: hasPlan
-    };
-  }, [bookingData, selectedSlot, appliedCoupon, visitCharges, subscription]);
-
+  // --- FETCH SERVER-SIDE PRICING SUMMARY ---
+  // This effect calls the checkout-summary API whenever dependencies change
   useEffect(() => {
-    setDiscountAmount(pricing.discount);
-  }, [pricing.discount]);
+    const fetchSummary = async () => {
+      if (!selectedSlot || !selectedMember) return;
+
+      try {
+        setIsFetchingSummary(true);
+        let mappedType = "Clinic Visit";
+        if (bookingData.selectedService === "Virtual Consultation") mappedType = "Video Consult";
+        else if (bookingData.selectedService === "Home Care") mappedType = "Home Visit";
+
+        const payload = {
+          doctorId: bookingData.doctorId,
+          consultationType: mappedType,
+          appointmentDate: selectedDate,
+          timeSlot: selectedSlot.time,
+          patients: [{
+            patientName: selectedMember.memberName,
+            patientAge: Number(selectedMember.patientAge || selectedMember.age || 20),
+            gender: selectedMember.gender || "Male",
+            relation: selectedMember.relation || "Self"
+          }]
+        };
+
+        const res = await UserAPI.doctorCheckoutSummary(payload);
+        if (res.success) {
+          setServerPricing(res.data);
+        }
+      } catch (error) {
+        console.error("Error fetching summary", error);
+      } finally {
+        setIsFetchingSummary(false);
+      }
+    };
+
+    fetchSummary();
+  }, [selectedSlot, selectedMember, selectedDate, bookingData]);
+
+  // Pricing Logic (Local calculation fallback + Server Data)
+  const pricing = useMemo(() => {
+    // If server pricing is available, use it (handles originalBaseFee and subscriptionDetails)
+    if (serverPricing) {
+      return {
+        base: serverPricing.baseFee,
+        originalBase: serverPricing.originalBaseFee,
+        premium: serverPricing.premiumFee,
+        platform: 0,
+        homeVisitFee: serverPricing.visitCharge,
+        travelFee: 0, // Backend usually combines this into visitCharge
+        subtotal: serverPricing.subtotal,
+        discount: serverPricing.discount,
+        total: serverPricing.totalPayable,
+        isSubscriptionApplied: serverPricing.subscriptionDetails?.isSubscriptionApplied,
+        planName: serverPricing.subscriptionDetails?.planName
+      };
+    }
+
+    // Fallback local calculation
+    const base = Number(bookingData?.fee || 0);
+    const premium = Number(selectedSlot?.premiumFee || 0);
+    const subtotal = base + premium;
+    return {
+      base, originalBase: base, premium, platform: 0, homeVisitFee: 0, travelFee: 0,
+      subtotal, discount: 0, total: subtotal, isSubscriptionApplied: false
+    };
+  }, [bookingData, selectedSlot, serverPricing]);
 
   const handleApplyCoupon = async (codeToApply) => {
     const code = codeToApply || couponCode;
@@ -196,6 +210,7 @@ export default function BookingConfirmation() {
         setAppliedCoupon(res.data);
         setCouponCode(code.toUpperCase());
         setCouponError("");
+        // Re-fetch summary to apply coupon on server side if needed
       } else {
         setAppliedCoupon(null);
         setCouponError(res.message || "Invalid coupon");
@@ -211,11 +226,9 @@ export default function BookingConfirmation() {
   const removeCoupon = () => {
     setAppliedCoupon(null);
     setCouponCode("");
-    setDiscountAmount(0);
     setCouponError("");
   };
 
-  // FINAL BOOKING AND PAYMENT HANDLER
   const handleFinalBooking = async () => {
     if (!selectedSlot || !selectedMember || !selectedAddress) return;
 
@@ -224,49 +237,39 @@ export default function BookingConfirmation() {
 
       const isScriptLoaded = await loadRazorpayScript();
       if (!isScriptLoaded) {
-        alert("Failed to load Razorpay SDK. Please check your network connection.");
+        alert("Failed to load Razorpay SDK.");
         setIsSubmitting(false);
         return;
       }
 
-      const dist = Number(bookingData.distance) || 0;
-
       let mappedType = "Clinic Visit";
-      if (bookingData.selectedService === "Virtual Consultation") {
-        mappedType = "Video Consult";
-      } else if (bookingData.selectedService === "Home Care") {
-        mappedType = "Home Visit";
-      }
+      if (bookingData.selectedService === "Virtual Consultation") mappedType = "Video Consult";
+      else if (bookingData.selectedService === "Home Care") mappedType = "Home Visit";
 
       const payload = {
         doctorId: bookingData.doctorId,
         consultationType: mappedType,
         appointmentDate: selectedDate,
         timeSlot: selectedSlot.time,
-        distance: dist,
         patients: [{
           patientName: selectedMember.memberName,
           patientAge: Number(selectedMember.patientAge || selectedMember.age || 20),
           gender: selectedMember.gender || "Male",
-          relation: selectedMember.relation || "Self",
-          reasonForVisit: "General Consultation"
+          relation: selectedMember.relation || "Self"
         }],
         address: {
-          name: selectedMember.memberName,
-          phone: selectedMember.phone || "0000000000",
           houseNo: selectedAddress.houseNo,
           sector: selectedAddress.sector,
-          landmark: selectedAddress.landmark || "",
           city: selectedAddress.city,
           state: selectedAddress.state,
-          country: selectedAddress.country || "India",
           pincode: selectedAddress.pincode,
           addressType: selectedAddress.addressType || "Home"
         },
-        couponCode: appliedCoupon ? couponCode : "",
+        // --- UPDATED PRICING BREAKDOWN AS PER NEW DOCS ---
         pricingBreakdown: {
-          baseFee: pricing.base + pricing.premium,
-          visitCharges: pricing.homeVisitFee + pricing.travelFee,
+          baseFee: pricing.base,
+          originalBaseFee: pricing.originalBase, // New Key
+          visitCharges: pricing.homeVisitFee,
           extraCharges: pricing.platform,
           discountAmount: pricing.discount,
           subtotal: pricing.subtotal
@@ -274,26 +277,6 @@ export default function BookingConfirmation() {
         totalAmount: pricing.total
       };
 
-      // 2. Run backend checkout summary
-      const summaryRes = await UserAPI.doctorCheckoutSummary(payload);
-      if (!summaryRes.success) {
-        alert(summaryRes.message || "Validation failed");
-        setIsSubmitting(false);
-        return;
-      }
-
-      // --- HANDLE FREE BOOKING (TOTAL = 0) ---
-      if (pricing.total === 0) {
-        const bookingRes = await UserAPI.bookDoctorAppointment(payload);
-        if (bookingRes.success) {
-            localStorage.removeItem('pendingBooking');
-            setShowSuccessModal(true);
-            setIsSubmitting(false);
-            return;
-        }
-      }
-
-      // 3. Initiate booking
       const bookingRes = await UserAPI.bookDoctorAppointment(payload);
       if (!bookingRes.success) {
         alert(bookingRes.message || "Failed to initiate booking");
@@ -301,9 +284,16 @@ export default function BookingConfirmation() {
         return;
       }
 
+      // Handle Free Booking
+      if (bookingRes.amount === 0) {
+        localStorage.removeItem('pendingBooking');
+        setShowSuccessModal(true);
+        setIsSubmitting(false);
+        return;
+      }
+
       const { key_id, amount, razorpayOrderId, appointmentId } = bookingRes;
 
-      // 4. Setup Razorpay
       const options = {
         key: key_id,
         amount: amount,
@@ -312,34 +302,29 @@ export default function BookingConfirmation() {
         description: "Doctor Consultation Fee",
         order_id: razorpayOrderId,
         prefill: {
-          name: selectedMember.memberName || "Patient Name",
-          email: selectedMember.email || "patient@example.com",
+          name: selectedMember.memberName,
           contact: selectedMember.phone,
         },
         theme: { color: "#10b981" },
-        modal: {
-          ondismiss: function () { setIsSubmitting(false); }
-        },
+        modal: { ondismiss: () => setIsSubmitting(false) },
         handler: async function (response) {
           try {
             setIsSubmitting(true);
-            const verificationPayload = {
+            const verificationRes = await UserAPI.verifyPaymentDoctor({
               appointmentId: appointmentId,
-              razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
+              razorpayOrderId: response.razorpay_order_id,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpaySignature: response.razorpay_signature
-            };
-
-            const verificationRes = await UserAPI.verifyPaymentDoctor(verificationPayload);
+            });
 
             if (verificationRes.success) {
               localStorage.removeItem('pendingBooking');
               setShowSuccessModal(true);
             } else {
-              alert(verificationRes.message || "Payment verification failed");
+              alert("Payment verification failed");
             }
-          } catch (verificationError) {
-            alert("An error occurred during payment verification.");
+          } catch (e) {
+            alert("An error occurred during verification.");
           } finally {
             setIsSubmitting(false);
           }
@@ -393,11 +378,11 @@ export default function BookingConfirmation() {
               <p className="text-slate-500 text-sm">Select patient, date, and location for the session.</p>
               
               {/* --- SUBSCRIPTION BADGE --- */}
-              {subscription && (
+              {pricing.isSubscriptionApplied && (
                 <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-xl">
                   <FaGem className="text-emerald-500" size={12} />
                   <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">
-                    {subscription.planId.name} Active • Free Consultation Applied
+                    {pricing.planName} Active • Free Consultation Applied
                   </span>
                 </div>
               )}
@@ -530,7 +515,7 @@ export default function BookingConfirmation() {
                   <span className="text-slate-500">Consultation Fee</span>
                   <div className="flex flex-col items-end">
                     <span className={`font-bold ${pricing.isSubscriptionApplied ? 'line-through text-slate-300 text-xs' : ''}`}>
-                        ₹{bookingData?.fee}
+                        ₹{pricing.originalBase}
                     </span>
                     {pricing.isSubscriptionApplied && (
                         <span className="text-emerald-600 font-black text-xs uppercase tracking-tighter">Plan Benefit: ₹0</span>
@@ -547,12 +532,6 @@ export default function BookingConfirmation() {
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">Home Visit Base Fee</span>
                     <span className="font-bold">+₹{pricing.homeVisitFee}</span>
-                  </div>
-                )}
-                {pricing.travelFee > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Travel Charge ({bookingData.distance || 0} km)</span>
-                    <span className="font-bold">+₹{pricing.travelFee.toFixed(2)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
@@ -601,12 +580,12 @@ export default function BookingConfirmation() {
               </div>
 
               <button
-                disabled={!selectedSlot || !selectedMember || !selectedAddress || isSubmitting}
+                disabled={!selectedSlot || !selectedMember || !selectedAddress || isSubmitting || isFetchingSummary}
                 className={`w-full py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2
                   ${(selectedSlot && selectedMember && selectedAddress && !isSubmitting) ? 'bg-emerald-600 text-white shadow-lg hover:bg-emerald-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
                 onClick={handleFinalBooking}
               >
-                {isSubmitting ? <FaSpinner className="animate-spin" /> : pricing.total === 0 ? 'Confirm Free Booking' : 'Continue to Payment'} <FaArrowRight size={12} />
+                {isSubmitting || isFetchingSummary ? <FaSpinner className="animate-spin" /> : pricing.total === 0 ? 'Confirm Free Booking' : 'Continue to Payment'} <FaArrowRight size={12} />
               </button>
             </div>
           </div>

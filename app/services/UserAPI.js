@@ -395,10 +395,42 @@ const UserAPI = {
         const response = await authApi.put("/api/auth/user/update-medical-conditions", data);
         return response.data;
     },
+    // --- 1. Security & PIN Management ---
+
+    // GET /api/user/locker/pin-status
+    getLockerPinStatus: async () => {
+        const response = await authApi.get("/api/user/locker/pin-status");
+        return response.data;
+    },
+
+    // POST /api/user/locker/setup-pin
+    setupLockerPin: async (pin) => {
+        const response = await authApi.post("/api/user/locker/setup-pin", { pin });
+        return response.data;
+    },
+
+    // POST /api/user/locker/verify-pin
     verifyLockerPin: async (pin) => {
         const response = await authApi.post("/api/user/locker/verify-pin", { pin });
         return response.data;
     },
+
+    // PATCH /api/user/locker/change-pin
+    changeLockerPin: async (oldPin, newPin) => {
+        const response = await authApi.patch("/api/user/locker/change-pin", { oldPin, newPin });
+        return response.data;
+    },
+
+    // PATCH /api/user/locker/reset-pin
+    resetLockerPin: async (password, newPin) => {
+        const response = await authApi.patch("/api/user/locker/reset-pin", { password, newPin });
+        return response.data;
+    },
+
+
+    // --- 2. Directory & Navigation ---
+
+    // GET /api/user/locker/content
     getLockerContent: async (parentId = null) => {
         const url = parentId
             ? `/api/user/locker/content?parentId=${parentId}`
@@ -406,12 +438,31 @@ const UserAPI = {
         const response = await authApi.get(url);
         return response.data;
     },
+
+    // GET /api/user/locker/folder-path/:folderId (Breadcrumbs)
+    getFolderPath: async (folderId) => {
+        const response = await authApi.get(`/api/user/locker/folder-path/${folderId}`);
+        return response.data;
+    },
+
+    // GET /api/user/locker/details/:id
+    getLockerItemDetails: async (id) => {
+        const response = await authApi.get(`/api/user/locker/details/${id}`);
+        return response.data;
+    },
+
+
+    // --- 3. Write & Upload Actions ---
+
+    // POST /api/user/locker/create-folder
     createFolder: async (data) => {
         const response = await authApi.post("/api/user/locker/create-folder", data);
         return response.data;
     },
+
+    // POST /api/user/locker/upload-file
     uploadLockerFile: async (formData) => {
-        // formData contains 'name', 'images', and optional 'parentId'
+        // Expects title, parentId, doctorName, notes, date, and images array
         const response = await authApi.post("/api/user/locker/upload-file", formData, {
             headers: {
                 "Content-Type": "multipart/form-data",
@@ -419,10 +470,38 @@ const UserAPI = {
         });
         return response.data;
     },
+    // --- 4. Modifications & Edits ---
+    // PATCH /api/user/locker/rename/:id
     renameLockerItem: async (id, newName) => {
         const response = await authApi.patch(`/api/user/locker/rename/${id}`, { newName });
         return response.data;
     },
+    // PATCH /api/user/locker/move
+    moveLockerItem: async (itemId, targetParentId) => {
+        const response = await authApi.patch("/api/user/locker/move", { itemId, targetParentId });
+        return response.data;
+    },
+    // PUT /api/user/locker/add-pages/:id
+    addPagesToRecord: async (id, formData) => {
+        const response = await authApi.put(`/api/user/locker/add-pages/${id}`, formData, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
+        return response.data;
+    },
+    // PATCH /api/user/locker/delete-page
+    deleteLockerPage: async (fileId, imageUrl) => {
+        const response = await authApi.patch("/api/user/locker/delete-page", { fileId, imageUrl });
+        return response.data;
+    },
+    // GET /api/user/locker/search?query=...
+    searchLocker: async (query) => {
+        const response = await authApi.get(`/api/user/locker/search?query=${query}`);
+        return response.data;
+    },
+    // --- 5. Deletion ---
+    // DELETE /api/user/locker/delete/:id
     deleteLockerItem: async (id) => {
         const response = await authApi.delete(`/api/user/locker/delete/${id}`);
         return response.data;
@@ -1048,6 +1127,11 @@ const UserAPI = {
     // These ensure that if a "Free" booking is cancelled, the benefit count is restored (+1)
     cancelNurseBooking: async (bookingId) => {
         const response = await authApi.patch(`/user/nurse/cancel/${bookingId}`);
+        return response.data;
+    },
+    // Add this to your UserAPI object
+    getNurseSearchSuggestions: async (query) => {
+        const response = await authApi.get(`/user/nurse/search-suggestions?q=${query}`);
         return response.data;
     },
 
