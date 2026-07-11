@@ -12,6 +12,7 @@ import UserAPI from "@/app/services/UserAPI";
 import { useGlobalContext } from '@/app/context/GlobalContext';
 import CostoumPopup from '@/lib/CostoumPopup';
 
+// Utility to dynamically load the Razorpay SDK script
 const loadRazorpayScript = () => {
   return new Promise((resolve) => {
     if (window.Razorpay) {
@@ -31,6 +32,7 @@ export default function BookingConfirmation() {
   const router = useRouter();
   const { openModal, modalType, closeModal } = useGlobalContext();
 
+  // Core States
   const [bookingData, setBookingData] = useState(null);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [coupons, setCoupons] = useState([]);
@@ -42,13 +44,14 @@ export default function BookingConfirmation() {
   const [isValidating, setIsValidating] = useState(false);
   const [couponError, setCouponError] = useState("");
 
+  // Selection States
   const [familyMembers, setFamilyMembers] = useState([]);
   const [addresses, setAddresses] = useState([]);
   const [selectedMember, setSelectedMember] = useState(null);
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [loadingSelectionData, setLoadingSelectionData] = useState(true);
 
-  // --- NEW STATE FOR SERVER-SIDE PRICING & SUBSCRIPTION ---
+  // --- SUBSCRIPTION & SERVER PRICING STATE ---
   const [serverPricing, setServerPricing] = useState(null);
   const [isFetchingSummary, setIsFetchingSummary] = useState(false);
 
@@ -56,6 +59,7 @@ export default function BookingConfirmation() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
+  // Initialize Data
   useEffect(() => {
     const token = localStorage.getItem('userToken');
     if (!token) {
@@ -127,8 +131,7 @@ export default function BookingConfirmation() {
     } catch (error) { console.error(error); }
   };
 
-  // --- FETCH SERVER-SIDE PRICING SUMMARY ---
-  // This effect calls the checkout-summary API whenever dependencies change
+  // --- FETCH SERVER-SIDE PRICING SUMMARY (Audit Tracker Integration) ---
   useEffect(() => {
     const fetchSummary = async () => {
       if (!selectedSlot || !selectedMember) return;
@@ -166,34 +169,30 @@ export default function BookingConfirmation() {
     fetchSummary();
   }, [selectedSlot, selectedMember, selectedDate, bookingData]);
 
-  // Pricing Logic (Local calculation fallback + Server Data)
+  // Pricing Logic (Mapping Server Keys to UI)
   const pricing = useMemo(() => {
-    // If server pricing is available, use it (handles originalBaseFee and subscriptionDetails)
     if (serverPricing) {
       return {
         base: serverPricing.baseFee,
-        originalBase: serverPricing.originalBaseFee,
+        originalBase: serverPricing.originalBaseFee, // From Audit Tracker
         premium: serverPricing.premiumFee,
         platform: 0,
         homeVisitFee: serverPricing.visitCharge,
-        travelFee: 0, // Backend usually combines this into visitCharge
         subtotal: serverPricing.subtotal,
         discount: serverPricing.discount,
         total: serverPricing.totalPayable,
         isSubscriptionApplied: serverPricing.subscriptionDetails?.isSubscriptionApplied,
-        planName: serverPricing.subscriptionDetails?.planName
+        planName: serverPricing.subscriptionDetails?.planName,
+        subscriptionId: serverPricing.subscriptionDetails?.userSubscriptionId
       };
     }
 
-    // Fallback local calculation
     const base = Number(bookingData?.fee || 0);
-    const premium = Number(selectedSlot?.premiumFee || 0);
-    const subtotal = base + premium;
     return {
-      base, originalBase: base, premium, platform: 0, homeVisitFee: 0, travelFee: 0,
-      subtotal, discount: 0, total: subtotal, isSubscriptionApplied: false
+      base, originalBase: base, premium: 0, platform: 0, homeVisitFee: 0,
+      subtotal: base, discount: 0, total: base, isSubscriptionApplied: false
     };
-  }, [bookingData, selectedSlot, serverPricing]);
+  }, [bookingData, serverPricing]);
 
   const handleApplyCoupon = async (codeToApply) => {
     const code = codeToApply || couponCode;
@@ -210,7 +209,6 @@ export default function BookingConfirmation() {
         setAppliedCoupon(res.data);
         setCouponCode(code.toUpperCase());
         setCouponError("");
-        // Re-fetch summary to apply coupon on server side if needed
       } else {
         setAppliedCoupon(null);
         setCouponError(res.message || "Invalid coupon");
@@ -229,18 +227,12 @@ export default function BookingConfirmation() {
     setCouponError("");
   };
 
+  // FINAL BOOKING HANDLER (Handles Zero-Payment Skip)
   const handleFinalBooking = async () => {
     if (!selectedSlot || !selectedMember || !selectedAddress) return;
 
     try {
       setIsSubmitting(true);
-
-      const isScriptLoaded = await loadRazorpayScript();
-      if (!isScriptLoaded) {
-        alert("Failed to load Razorpay SDK.");
-        setIsSubmitting(false);
-        return;
-      }
 
       let mappedType = "Clinic Visit";
       if (bookingData.selectedService === "Virtual Consultation") mappedType = "Video Consult";
@@ -265,10 +257,10 @@ export default function BookingConfirmation() {
           pincode: selectedAddress.pincode,
           addressType: selectedAddress.addressType || "Home"
         },
-        // --- UPDATED PRICING BREAKDOWN AS PER NEW DOCS ---
+        // --- AUDIT TRACKER PAYLOAD ---
         pricingBreakdown: {
           baseFee: pricing.base,
-          originalBaseFee: pricing.originalBase, // New Key
+          originalBaseFee: pricing.originalBase,
           visitCharges: pricing.homeVisitFee,
           extraCharges: pricing.platform,
           discountAmount: pricing.discount,
@@ -284,23 +276,29 @@ export default function BookingConfirmation() {
         return;
       }
 
-      // Handle Free Booking
-      if (bookingRes.amount === 0) {
+      // --- SKIP RAZORPAY IF TOTAL IS 0 ---
+      if (bookingRes.amount === 0 || pricing.total === 0) {
         localStorage.removeItem('pendingBooking');
         setShowSuccessModal(true);
         setIsSubmitting(false);
         return;
       }
 
-      const { key_id, amount, razorpayOrderId, appointmentId } = bookingRes;
+      // --- STANDARD RAZORPAY FLOW ---
+      const isScriptLoaded = await loadRazorpayScript();
+      if (!isScriptLoaded) {
+        alert("Failed to load Razorpay SDK.");
+        setIsSubmitting(false);
+        return;
+      }
 
       const options = {
-        key: key_id,
-        amount: amount,
+        key: bookingRes.key_id,
+        amount: bookingRes.amount,
         currency: "INR",
-        name: "HK Healthcare App",
-        description: "Doctor Consultation Fee",
-        order_id: razorpayOrderId,
+        name: "HK Healthcare",
+        description: "Doctor Consultation",
+        order_id: bookingRes.razorpayOrderId,
         prefill: {
           name: selectedMember.memberName,
           contact: selectedMember.phone,
@@ -311,7 +309,7 @@ export default function BookingConfirmation() {
           try {
             setIsSubmitting(true);
             const verificationRes = await UserAPI.verifyPaymentDoctor({
-              appointmentId: appointmentId,
+              appointmentId: bookingRes.appointmentId,
               razorpayOrderId: response.razorpay_order_id,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpaySignature: response.razorpay_signature
@@ -324,7 +322,7 @@ export default function BookingConfirmation() {
               alert("Payment verification failed");
             }
           } catch (e) {
-            alert("An error occurred during verification.");
+            alert("Verification error occurred.");
           } finally {
             setIsSubmitting(false);
           }
@@ -530,7 +528,7 @@ export default function BookingConfirmation() {
                 )}
                 {pricing.homeVisitFee > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Home Visit Base Fee</span>
+                    <span className="text-slate-500">Home Visit Fee</span>
                     <span className="font-bold">+₹{pricing.homeVisitFee}</span>
                   </div>
                 )}

@@ -9,12 +9,12 @@ const PharmacyAddressSection = ({ addresses, selectedAddress, setSelectedAddress
         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Delivery Address</h3>
-                {/* <button 
-                    onClick={() => router.push('/profile/addresses')} 
+                <button 
+                    onClick={() => router.push('/userscreens/myaccount')} 
                     className="text-[10px] font-bold text-emerald-600 uppercase hover:underline"
                 >
                     + Add New
-                </button> */}
+                </button>
             </div>
 
             {isLoading ? (
@@ -25,7 +25,7 @@ const PharmacyAddressSection = ({ addresses, selectedAddress, setSelectedAddress
                 <div className="text-center py-6 border-2 border-dashed border-gray-100 rounded-xl">
                     <p className="text-[11px] text-gray-400 font-bold uppercase">No addresses found</p>
                     <button 
-                        onClick={() => router.push('/profile/addresses')}
+                        onClick={() => router.push('/userscreens/myaccount')}
                         className="mt-2 text-[10px] bg-emerald-600 text-white px-4 py-1.5 rounded-lg font-black"
                     >
                         Create Address

@@ -370,7 +370,7 @@ export default function NurseBookingPage() {
         {/* ========================================= */}
         {step === 2 && (
           <div className="space-y-8">
-
+            
             {/* AI Extracted Text Card */}
             {extractedText && (
               <div className="bg-[#e6f7eb] border border-[#08B36A]/20 p-5 rounded-3xl">
@@ -400,7 +400,7 @@ export default function NurseBookingPage() {
 
               {/* Add Custom Service Form */}
               {showAddCustomForm && (
-                <form onSubmit={handleAddCustomService} className="p-5 bg-slate-50 border border-slate-150 rounded-2xl space-y-4 animate-in slide-in-from-top-4 duration-200">
+                <form onSubmit={handleAddCustomService} className="p-5 bg-slate-50 border border-slate-150 rounded-2xl space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[11px] font-bold text-gray-500 mb-1">Service Title *</label>
@@ -490,47 +490,76 @@ export default function NurseBookingPage() {
 
             {/* Address Selector Card (getUserAddresses API) */}
             <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
-              <div>
-                <h3 className="text-base font-bold text-slate-800">Select Delivery Address</h3>
-                <p className="text-xs text-slate-500">Where should the nurse partner deliver treatment?</p>
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">Select Delivery Address</h3>
+                  <p className="text-xs text-slate-500">Where should the nurse partner deliver treatment?</p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => router.push('/userscreens/myaccount')}
+                  className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-xs"
+                >
+                  <FaPlus size={10} /> Add Address
+                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {addresses.length > 0 ? (
-                  addresses.map((addr) => (
-                    <div 
-                      key={addr._id}
-                      onClick={() => setSelectedAddress(addr)}
-                      className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between relative ${
-                        selectedAddress?._id === addr._id 
-                          ? 'border-[#08B36A] bg-green-50/10' 
-                          : 'border-slate-100 bg-white hover:border-slate-200'
-                      }`}
-                    >
-                      {selectedAddress?._id === addr._id && (
-                        <span className="absolute top-4 right-4 text-[#08B36A] bg-[#e6f7eb] p-1 rounded-full border border-[#08B36A]/10">
-                          <FaCheck size={8} />
-                        </span>
-                      )}
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f7eb] text-[#08B36A] uppercase">
-                            {addr.addressType || "Home"}
+                  <>
+                    {addresses.map((addr) => (
+                      <div 
+                        key={addr._id}
+                        onClick={() => setSelectedAddress(addr)}
+                        className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between relative ${
+                          selectedAddress?._id === addr._id 
+                            ? 'border-[#08B36A] bg-green-50/10' 
+                            : 'border-slate-100 bg-white hover:border-slate-200'
+                        }`}
+                      >
+                        {selectedAddress?._id === addr._id && (
+                          <span className="absolute top-4 right-4 text-[#08B36A] bg-[#e6f7eb] p-1 rounded-full border border-[#08B36A]/10">
+                            <FaCheck size={8} />
                           </span>
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f7eb] text-[#08B36A] uppercase">
+                              {addr.addressType || "Home"}
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-bold text-slate-800">{addr.name}</h4>
+                          <p className="text-xs text-slate-400 font-semibold mt-1 leading-relaxed">
+                            House No. {addr.houseNo}, Sector {addr.sector}, {addr.city}, {addr.state} - {addr.pincode}
+                          </p>
                         </div>
-                        <h4 className="text-sm font-bold text-slate-800">{addr.name}</h4>
-                        <p className="text-xs text-slate-400 font-semibold mt-1 leading-relaxed">
-                          House No. {addr.houseNo}, Sector {addr.sector}, {addr.city}, {addr.state} - {addr.pincode}
+                        <p className="text-xs font-bold text-slate-600 mt-4 flex items-center gap-1.5">
+                          <FaMapMarkerAlt className="text-slate-400" size={11} /> {addr.phone}
                         </p>
                       </div>
-                      <p className="text-xs font-bold text-slate-600 mt-4 flex items-center gap-1.5">
-                        <FaMapMarkerAlt className="text-slate-400" size={11} /> {addr.phone}
-                      </p>
+                    ))}
+                    
+                    {/* DASHED GRID CARD: ADD NEW ADDRESS */}
+                    <div
+                      onClick={() => router.push('/userscreens/myaccount')}
+                      className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-5 hover:border-[#08B36A] hover:bg-green-50/10 transition-all cursor-pointer flex flex-col items-center justify-center min-h-[160px] group text-center"
+                    >
+                      <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-slate-400 group-hover:text-[#08B36A] group-hover:scale-110 transition-all shadow-sm border border-slate-100 mb-2">
+                        <FaPlus size={16} />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-800">Add New Address</h4>
+                      <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide max-w-[180px]">Manage locations in your profile</p>
                     </div>
-                  ))
+                  </>
                 ) : (
-                  <div className="p-6 text-center text-xs text-slate-400 font-bold col-span-2">
-                    No addresses registered. Please configure a default profile delivery location first.
+                  <div className="p-8 text-center text-xs text-slate-400 font-bold col-span-2 flex flex-col items-center justify-center gap-3">
+                    <p>No addresses registered.</p>
+                    <button 
+                      onClick={() => router.push('/userscreens/myaccount')}
+                      className="px-4 py-2 bg-[#08B36A] hover:bg-[#069356] text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                    >
+                      Add Your First Address
+                    </button>
                   </div>
                 )}
               </div>

@@ -6,7 +6,7 @@ import UserAPI from '@/app/services/UserAPI'; // Adjust this import path to matc
 import { 
   FaFlask, FaUpload, FaUserCircle, FaMapMarkerAlt, FaFileMedical, 
   FaClinicMedical, FaCheckCircle, FaTimes, FaChevronRight,
-  FaChevronLeft, FaStar, FaRegClock, FaChevronDown
+  FaChevronLeft, FaStar, FaRegClock, FaChevronDown,FaPlus
 } from 'react-icons/fa';
 import { FiLoader, FiUploadCloud, FiTrash2, FiUser, FiClock, FiPlus, FiChevronRight as FiChevronRightIcon } from 'react-icons/fi';
 
@@ -618,7 +618,7 @@ export default function LabPrescriptionBookingPage() {
           {/* ========================================= */}
           {/* 🌟 STEP 4: ADDRESS & CONFIRM              */}
           {/* ========================================= */}
-          {step === 4 && (
+{step === 4 && (
             <div className="space-y-8">
               <div className="bg-white rounded-2xl space-y-6">
                 <div>
@@ -654,41 +654,71 @@ export default function LabPrescriptionBookingPage() {
                 {/* Saved Address list (Visible only if Home Collection is active) */}
                 {collectionType === 'Home Collection' && (
                   <div className="space-y-4 pt-4 border-t border-slate-100">
-                    <h4 className="text-xs font-bold text-slate-700">Select Home Visit Location</h4>
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                      <h4 className="text-xs font-bold text-slate-700">Select Home Visit Location</h4>
+                      <button 
+                        type="button"
+                        onClick={() => router.push('/userscreens/myaccount')}
+                        className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-xs"
+                      >
+                        <FaPlus size={10} /> Add Address
+                      </button>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {addresses.length > 0 ? (
-                        addresses.map((addr) => (
-                          <div 
-                            key={addr._id}
-                            onClick={() => setSelectedAddress(addr)}
-                            className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between relative ${
-                              selectedAddress?._id === addr._id 
-                                ? 'border-[#08B36A] bg-green-50/10' 
-                                : 'border-slate-100 bg-white hover:border-slate-200'
-                            }`}
-                          >
-                            {selectedAddress?._id === addr._id && (
-                              <span className="absolute top-4 right-4 text-[#08B36A] bg-[#e6f7eb] p-1 rounded-full border border-[#08B36A]/10">
-                                <FaCheckCircle size={14} />
-                              </span>
-                            )}
-                            <div>
-                              <span className="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f7eb] text-[#08B36A] uppercase mb-2">
-                                {addr.addressType || "Home"}
-                              </span>
-                              <h4 className="text-sm font-bold text-slate-800">{addr.name}</h4>
-                              <p className="text-xs text-slate-400 font-semibold mt-1 leading-relaxed">
-                                House No. {addr.houseNo}, Sector {addr.sector}, {addr.city}, {addr.state} - {addr.pincode}
+                        <>
+                          {addresses.map((addr) => (
+                            <div 
+                              key={addr._id}
+                              onClick={() => setSelectedAddress(addr)}
+                              className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between relative ${
+                                selectedAddress?._id === addr._id 
+                                  ? 'border-[#08B36A] bg-green-50/10' 
+                                  : 'border-slate-100 bg-white hover:border-slate-200'
+                              }`}
+                            >
+                              {selectedAddress?._id === addr._id && (
+                                <span className="absolute top-4 right-4 text-[#08B36A] bg-[#e6f7eb] p-1 rounded-full border border-[#08B36A]/10">
+                                  <FaCheckCircle size={14} />
+                                </span>
+                              )}
+                              <div>
+                                <span className="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-[#e6f7eb] text-[#08B36A] uppercase mb-2">
+                                  {addr.addressType || "Home"}
+                                </span>
+                                <h4 className="text-sm font-bold text-slate-800">{addr.name}</h4>
+                                <p className="text-xs text-slate-400 font-semibold mt-1 leading-relaxed">
+                                  House No. {addr.houseNo}, Sector {addr.sector}, {addr.city}, {addr.state} - {addr.pincode}
+                                </p>
+                              </div>
+                              <p className="text-xs font-bold text-slate-600 mt-4 flex items-center gap-1.5">
+                                <FaMapMarkerAlt className="text-slate-400" size={11} /> {addr.phone}
                               </p>
                             </div>
-                            <p className="text-xs font-bold text-slate-600 mt-4 flex items-center gap-1.5">
-                              <FaMapMarkerAlt className="text-slate-400" size={11} /> {addr.phone}
-                            </p>
+                          ))}
+                          
+                          {/* DASHED GRID CARD: ADD NEW ADDRESS */}
+                          <div
+                            onClick={() => router.push('/userscreens/myaccount')}
+                            className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-5 hover:border-[#08B36A] hover:bg-green-50/10 transition-all cursor-pointer flex flex-col items-center justify-center min-h-[160px] group text-center"
+                          >
+                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-slate-400 group-hover:text-[#08B36A] group-hover:scale-110 transition-all shadow-sm border border-slate-100 mb-2">
+                              <FaPlus size={16} />
+                            </div>
+                            <h4 className="text-sm font-bold text-slate-800">Add New Address</h4>
+                            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide max-w-[180px]">Manage locations in your profile</p>
                           </div>
-                        ))
+                        </>
                       ) : (
-                        <div className="p-6 text-center text-xs text-slate-400 font-bold col-span-2">
-                          No addresses registered. Please configure a default profile delivery location first.
+                        <div className="p-8 text-center text-xs text-slate-400 font-bold col-span-2 flex flex-col items-center justify-center gap-3">
+                          <p>No addresses registered.</p>
+                          <button 
+                            onClick={() => router.push('/userscreens/myaccount')}
+                            className="px-4 py-2 bg-[#08B36A] hover:bg-[#069356] text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                          >
+                            Add Your First Address
+                          </button>
                         </div>
                       )}
                     </div>

@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, Suspense, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { FaArrowLeft, FaShieldAlt } from "react-icons/fa";
+import { FaArrowLeft, FaShieldAlt, FaGem } from "react-icons/fa";
 import AddressSelector from "../othercomponents/AddressSelector";
 import BookingSummary from "../othercomponents/BookingSummary";
 import SlotPicker from "../othercomponents/SlotPicker";
@@ -34,6 +34,10 @@ function AppointmentSchedulingContent() {
     const [availableConsumables, setAvailableConsumables] = useState([]);
     const [consumablesLoading, setConsumablesLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // --- SUBSCRIPTION STATE ---
+    const [subscription, setSubscription] = useState(null);
+
     const [slotInfo, setSlotInfo] = useState({
         mode: "One day One Time",
         startDate: "",
@@ -46,38 +50,62 @@ function AppointmentSchedulingContent() {
     });
 
     useEffect(() => {
-        const savedData = sessionStorage.getItem("pendingNurseBooking");
-        if (savedData) {
-            const parsedData = JSON.parse(savedData);
-            setBookingData(parsedData);
-            fetchConsumables(parsedData);
-        } else {
-            router.push("/nursingservice");
-        }
-        setLoading(false);
+        const initData = async () => {
+            const savedData = sessionStorage.getItem("pendingNurseBooking");
+            if (savedData) {
+                const parsedData = JSON.parse(savedData);
+                setBookingData(parsedData);
+                
+                // Parallel fetch for consumables and subscription status
+                const [detailsRes, subRes] = await Promise.all([
+                    UserAPI.nurseServiceDetail(parsedData.nurseId),
+                    UserAPI.getMySubscriptionStatus()
+                ]);
+
+                // Handle Consumables
+                if (detailsRes?.success) {
+                    let consumables = [];
+                    if (parsedData.serviceId && detailsRes.data.services) {
+                        const selectedService = detailsRes.data.services.find(s => s._id === parsedData.serviceId);
+                        if (selectedService?.consumablesUsed) consumables = selectedService.consumablesUsed;
+                    } else if (parsedData.packageId && detailsRes.data.packages) {
+                        const selectedPackage = detailsRes.data.packages.find(p => p._id === parsedData.packageId);
+                        if (selectedPackage?.includedServices && detailsRes.data.services) {
+                            const packageServices = detailsRes.data.services.filter(s => selectedPackage.includedServices.includes(s.title));
+                            packageServices.forEach(s => { if (s.consumablesUsed) consumables.push(...s.consumablesUsed); });
+                            consumables = consumables.filter((item, index, self) => index === self.findIndex(i => i.masterItemId?._id === item.masterItemId?._id));
+                        }
+                    }
+                    setAvailableConsumables(consumables);
+                }
+
+                // Handle Subscription
+                if (subRes?.success && subRes?.hasActivePlan) {
+                    setSubscription(subRes.data);
+                }
+
+            } else {
+                router.push("/nursingservice");
+            }
+            setLoading(false);
+        };
+
+        initData();
     }, [router]);
 
-    const fetchConsumables = async (data) => {
-        try {
-            setConsumablesLoading(true);
-            const response = await UserAPI.nurseServiceDetail(data.nurseId);
-            if (response?.success) {
-                let consumables = [];
-                if (data.serviceId && response.data.services) {
-                    const selectedService = response.data.services.find(s => s._id === data.serviceId);
-                    if (selectedService?.consumablesUsed) consumables = selectedService.consumablesUsed;
-                } else if (data.packageId && response.data.packages) {
-                    const selectedPackage = response.data.packages.find(p => p._id === data.packageId);
-                    if (selectedPackage?.includedServices && response.data.services) {
-                        const packageServices = response.data.services.filter(s => selectedPackage.includedServices.includes(s.title));
-                        packageServices.forEach(s => { if (s.consumablesUsed) consumables.push(...s.consumablesUsed); });
-                        consumables = consumables.filter((item, index, self) => index === self.findIndex(i => i.masterItemId?._id === item.masterItemId?._id));
-                    }
-                }
-                setAvailableConsumables(consumables);
-            }
-        } catch (error) { console.error(error); } finally { setConsumablesLoading(false); }
-    };
+    // Pricing Logic for UI and Payload
+    const pricingLogic = useMemo(() => {
+        const hasPlan = subscription !== null;
+        const dynamicBasePrice = slotInfo.basePrice || (bookingData?.basePrice || 0);
+        
+        return {
+            isSubscriptionApplied: hasPlan,
+            baseServicePrice: hasPlan ? 0 : dynamicBasePrice,
+            originalBasePrice: dynamicBasePrice,
+            planName: subscription?.planId?.name || "",
+            subscriptionId: subscription?._id || null
+        };
+    }, [subscription, slotInfo, bookingData]);
 
     const handleToggleConsumable = (consumable) => {
         const consumableId = consumable.masterItemId?._id || consumable._id;
@@ -98,18 +126,7 @@ function AppointmentSchedulingContent() {
         try {
             setIsSubmitting(true);
 
-            // Load Razorpay script dynamically before proceeding
-            const isScriptLoaded = await loadRazorpayScript();
-            if (!isScriptLoaded) {
-                alert("Failed to load Razorpay SDK. Please check your network connection.");
-                setIsSubmitting(false);
-                return;
-            }
-
             const { isExpress, expressCharge, appliedCoupon, discountAmount, finalTotal } = summaryData;
-
-            // Use dynamic price from SlotPicker for the specific mode (Single/Multi/Hourly)
-            const dynamicBasePrice = slotInfo.basePrice || bookingData.basePrice;
 
             const finalPayload = {
                 userId: bookingData.userId,
@@ -121,7 +138,7 @@ function AppointmentSchedulingContent() {
                     title: bookingData.serviceDetails?.title || "",
                     type: bookingData.serviceDetails?.type || "",
                     duration: bookingData.serviceDetails?.duration || "",
-                    basePrice: dynamicBasePrice,
+                    basePrice: pricingLogic.originalBasePrice,
                     procedureIncluded: bookingData.serviceDetails?.procedureIncluded || "",
                     servicesOffered: bookingData.serviceDetails?.servicesOffered || ""
                 },
@@ -150,8 +167,10 @@ function AppointmentSchedulingContent() {
                     duration: slotInfo.mode
                 },
 
+                // --- UPDATED PRICE BREAKDOWN WITH AUDIT TRACKER ---
                 priceBreakdown: {
-                    baseServicePrice: dynamicBasePrice,
+                    baseServicePrice: pricingLogic.baseServicePrice, // 0 if sub active
+                    originalBasePrice: pricingLogic.originalBasePrice, // Actual cost
                     slotSurcharge: slotInfo.extraFee,
                     consumableTotal: selectedConsumables.reduce((sum, item) => sum + (item.price || 0), 0),
                     couponDiscount: Math.round(discountAmount || 0),
@@ -160,13 +179,14 @@ function AppointmentSchedulingContent() {
                     totalPrice: Math.round(finalTotal)
                 },
 
-                couponCode: appliedCoupon?.couponName || "",
-                appliedCoupon: appliedCoupon ? {
-                    couponId: appliedCoupon._id,
-                    discountAmount: Math.round(discountAmount || 0),
-                    couponName: appliedCoupon.couponName
-                } : null,
+                // --- NEW SUBSCRIPTION DETAILS KEY ---
+                subscriptionDetails: {
+                    isSubscriptionApplied: pricingLogic.isSubscriptionApplied,
+                    userSubscriptionId: pricingLogic.subscriptionId,
+                    planName: pricingLogic.planName
+                },
 
+                couponCode: appliedCoupon?.couponName || "",
                 address: {
                     name: selectedAddress.name,
                     phone: selectedAddress.phone,
@@ -180,17 +200,32 @@ function AppointmentSchedulingContent() {
                     addressType: selectedAddress.addressType || "Home"
                 },
 
-                basePrice: dynamicBasePrice,
                 totalPrice: Math.round(finalTotal),
                 selectedConsumables: selectedConsumables,
                 needConsumable: selectedConsumables.length > 0,
             };
 
             const processRes = await UserAPI.processBooking(finalPayload);
+            
             if (processRes?.success) {
+                // --- SKIP RAZORPAY IF TOTAL IS 0 ---
+                if (processRes.totalAmount === 0 || Math.round(finalTotal) === 0) {
+                    sessionStorage.removeItem("pendingNurseBooking");
+                    alert(processRes.message || "Booking confirmed using subscription benefit!");
+                    router.push('/userscreens/previousorders');
+                    return;
+                }
+
+                // Load Razorpay script for paid bookings
+                const isScriptLoaded = await loadRazorpayScript();
+                if (!isScriptLoaded) {
+                    alert("Failed to load Razorpay SDK.");
+                    setIsSubmitting(false);
+                    return;
+                }
+
                 const { key_id, amount, razorpayOrderId, appointmentId } = processRes;
 
-                // Configure SDK options
                 const options = {
                     key: key_id,
                     amount: amount,
@@ -200,60 +235,43 @@ function AppointmentSchedulingContent() {
                     order_id: razorpayOrderId,
                     prefill: {
                         name: bookingData.patients?.[0]?.name || "Patient Name",
-                        email: "patient@example.com",
                         contact: selectedAddress?.phone || ""
                     },
-                    theme: {
-                        color: "#3399cc"
-                    },
-                    // Handle client outcome tracking
-                    modal: {
-                        ondismiss: function () {
-                            setIsSubmitting(false);
-                        }
-                    },
+                    theme: { color: "#10b981" },
+                    modal: { ondismiss: () => setIsSubmitting(false) },
                     handler: async function (response) {
                         try {
                             setIsSubmitting(true);
-                            const verificationPayload = {
+                            const verificationRes = await UserAPI.verifyPaymentNurse({
                                 appointmentId: appointmentId,
-                                razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
+                                razorpayOrderId: response.razorpay_order_id,
                                 razorpayPaymentId: response.razorpay_payment_id,
                                 razorpaySignature: response.razorpay_signature
-                            };
-
-                            const verificationRes = await UserAPI.verifyPaymentNurse(verificationPayload);
+                            });
 
                             if (verificationRes?.success) {
                                 sessionStorage.removeItem("pendingNurseBooking");
-                                alert(verificationRes.message || "Payment verified successfully. Booking is now Confirmed!");
+                                alert("Booking Confirmed!");
                                 router.push('/userscreens/previousorders');
                             } else {
-                                alert(verificationRes?.message || "Signature verification failed. Invalid transaction token.");
+                                alert("Verification failed.");
                             }
-                        } catch (verificationError) {
-                            console.error("Payment Verification Error:", verificationError);
-                            alert("Something went wrong during payment verification.");
+                        } catch (e) {
+                            alert("Something went wrong during verification.");
                         } finally {
                             setIsSubmitting(false);
                         }
                     }
                 };
 
-                // Open dynamic Razorpay payment window
                 const rzpInstance = new window.Razorpay(options);
-                rzpInstance.on('payment.failed', function (response) {
-                    alert(`Payment failed: ${response.error.description}`);
-                    setIsSubmitting(false);
-                });
                 rzpInstance.open();
 
             } else {
-                alert(processRes?.message || "Booking validation process failed");
+                alert(processRes?.message || "Booking failed");
                 setIsSubmitting(false);
             }
         } catch (error) {
-            console.error("Booking Error:", error);
             alert("Something went wrong");
             setIsSubmitting(false);
         }
@@ -273,6 +291,22 @@ function AppointmentSchedulingContent() {
             <div className="max-w-7xl mx-auto px-6 mt-8">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
                     <div className="lg:col-span-8 space-y-10">
+                        
+                        {/* --- SUBSCRIPTION BADGE --- */}
+                        {pricingLogic.isSubscriptionApplied && (
+                            <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-[2rem] flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-emerald-500 flex-shrink-0">
+                                    <FaGem size={20} />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-black text-emerald-800">Subscription Benefit Applied</h4>
+                                    <p className="text-xs text-emerald-600 mt-1">
+                                        Your <strong>{pricingLogic.planName}</strong> covers the base service price for this booking.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
                         <AddressSelector selectedAddress={selectedAddress} onSelect={setSelectedAddress} />
                         <SlotPicker
                             nurseId={bookingData.nurseId}
@@ -300,6 +334,8 @@ function AppointmentSchedulingContent() {
                             selectedConsumables={selectedConsumables}
                             onProceed={handleFinalBooking}
                             isSubmitting={isSubmitting}
+                            // Pass subscription info to summary if needed for display
+                            subscriptionInfo={pricingLogic} 
                         />
                     </div>
                 </div>

@@ -2,11 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { FaTimes, FaMapMarkerAlt, FaCheckCircle, FaSpinner, FaPlus, FaHome, FaBriefcase, FaPhoneAlt } from 'react-icons/fa';
 import UserAPI from '@/app/services/UserAPI';
+import { useRouter } from 'next/navigation';
 
 const AddressSelectionModal = ({ isOpen, onClose, onConfirm, selectedId }) => {
     const [addresses, setAddresses] = useState([]);
     const [loading, setLoading] = useState(false);
     const [tempSelectedAddress, setTempSelectedAddress] = useState(null);
+    const navigation = useRouter();
 
     useEffect(() => {
         if (isOpen) {
@@ -91,14 +93,14 @@ const AddressSelectionModal = ({ isOpen, onClose, onConfirm, selectedId }) => {
                                     key={addr._id}
                                     onClick={() => setTempSelectedAddress(addr)}
                                     className={`group relative p-5 rounded-[2rem] border-2 transition-all duration-300 cursor-pointer flex items-start gap-4 ${tempSelectedAddress?._id === addr._id
-                                            ? "border-emerald-500 bg-white shadow-[0_10px_25px_-5px_rgba(16,185,129,0.1)] translate-y-[-2px]"
-                                            : "border-white bg-white/50 hover:border-emerald-200"
+                                        ? "border-emerald-500 bg-white shadow-[0_10px_25px_-5px_rgba(16,185,129,0.1)] translate-y-[-2px]"
+                                        : "border-white bg-white/50 hover:border-emerald-200"
                                         }`}
                                 >
                                     {/* Icon based on Type */}
                                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 flex-shrink-0 ${tempSelectedAddress?._id === addr._id
-                                            ? "bg-emerald-500 text-white rotate-6"
-                                            : "bg-slate-100 text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-500"
+                                        ? "bg-emerald-500 text-white rotate-6"
+                                        : "bg-slate-100 text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-500"
                                         }`}>
                                         {addr.addressType === 'Home' ? <FaHome size={20} /> : <FaBriefcase size={20} />}
                                     </div>
@@ -107,7 +109,7 @@ const AddressSelectionModal = ({ isOpen, onClose, onConfirm, selectedId }) => {
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2">
                                             <p className={`text-sm font-black transition-colors ${tempSelectedAddress?._id === addr._id ? "text-emerald-900" : "text-slate-800"}`}>
-                                                {addr.name} 
+                                                {addr.name}
                                             </p>
                                             <span className={`text-[9px] px-2 py-0.5 rounded-md font-black uppercase ${tempSelectedAddress?._id === addr._id ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
                                                 {addr.addressType}
@@ -116,7 +118,7 @@ const AddressSelectionModal = ({ isOpen, onClose, onConfirm, selectedId }) => {
                                                 <span className="text-[8px] bg-slate-900 text-white px-1.5 py-0.5 rounded-md font-black uppercase">Default</span>
                                             )}
                                         </div>
-                                        
+
                                         <div className="mt-2 space-y-0.5">
                                             <p className="text-[11px] font-bold text-slate-600 leading-relaxed">
                                                 H.No {addr.houseNo}, Sector {addr.sector}, {addr.landmark && `${addr.landmark},`}
@@ -148,18 +150,19 @@ const AddressSelectionModal = ({ isOpen, onClose, onConfirm, selectedId }) => {
                         onClick={handleConfirmSelection}
                         disabled={!tempSelectedAddress}
                         className={`w-full py-5 rounded-3xl font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-xl flex items-center justify-center gap-2 ${tempSelectedAddress
-                                ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-100"
-                                : "bg-slate-100 text-slate-300 cursor-not-allowed shadow-none"
+                            ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-100"
+                            : "bg-slate-100 text-slate-300 cursor-not-allowed shadow-none"
                             }`}
                     >
                         Use Selected Address
                     </button>
 
-                    {/* <button
+                    <button
+                        onClick={() => navigation.push("/userscreens/myaccount")}
                         className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 font-black text-[10px] uppercase tracking-widest hover:border-emerald-400 hover:text-emerald-600 transition-all"
                     >
                         <FaPlus size={10} /> Add New Address
-                    </button> */}
+                    </button>
                 </div>
             </div>
 

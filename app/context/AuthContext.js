@@ -348,26 +348,11 @@ export const AuthProvider = ({ children }) => {
 
 
     const logout = () => {
-        // Clear Local Storage
-        const keys = [
-            "token", "admin", "user", "userToken",
-            "hospitalToken", "hospital",
-            "labToken", "labProvider",
-            "nursingToken", "nursingProvider",
-            "pharmacyToken", "pharmacyProvider"
-        ];
-        keys.forEach(k => localStorage.removeItem(k));
+        localStorage.removeItem("userToken");
+        localStorage.removeItem("user");
 
-        // Clear State
-        setAdmin(null);
         setUser(null);
         setUserToken(null);
-        setHospital(null);
-        setHospitalToken(null);
-        setProvider(null);
-        setLabToken(null);
-        setNursingToken(null);
-        setPharmacyToken(null);
     };
 
 

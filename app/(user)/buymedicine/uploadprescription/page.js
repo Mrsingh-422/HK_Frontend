@@ -345,6 +345,7 @@ export default function PrescriptionFlow() {
 
 
     // --- RENDER STEP 3: ADDRESS SELECTION ---
+    // --- RENDER STEP 3: ADDRESS SELECTION ---
     if (step === 3) return (
         <div className="min-h-screen bg-slate-50 pb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <header className="bg-white px-8 py-6 border-b border-slate-200 sticky top-0 z-10 shadow-sm">
@@ -367,7 +368,17 @@ export default function PrescriptionFlow() {
                     </div>
                 ) : (
                     <div className="space-y-6">
-                        <div className="font-black text-slate-400 text-[10px] uppercase tracking-[0.3em] mb-2">Select From Saved Locations</div>
+                        
+                        {/* Header Section with Quick Add Button */}
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                            <div className="font-black text-slate-400 text-[10px] uppercase tracking-[0.3em]">Select From Saved Locations</div>
+                            <button 
+                                onClick={() => router.push('/userscreens/myaccount')}
+                                className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-xs"
+                            >
+                                <FiPlus size={12} /> Add New Address
+                            </button>
+                        </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {addresses.map((address) => {
@@ -407,6 +418,18 @@ export default function PrescriptionFlow() {
                                     </div>
                                 );
                             })}
+
+                            {/* DASHED GRID CARD: ADD NEW ADDRESS */}
+                            <div
+                                onClick={() => router.push('/userscreens/myaccount')}
+                                className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[28px] p-6 hover:border-emerald-500 hover:bg-emerald-50/10 transition-all cursor-pointer flex flex-col items-center justify-center min-h-[220px] group text-center"
+                            >
+                                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-slate-400 group-hover:text-emerald-500 group-hover:scale-110 transition-all shadow-sm border border-slate-100 mb-3">
+                                    <FiPlus size={20} />
+                                </div>
+                                <h3 className="font-black text-slate-800 text-sm mb-1 uppercase tracking-wider">Add New Address</h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest max-w-[180px]">Manage locations inside your account profile</p>
+                            </div>
                         </div>
 
                         <div className="pt-6 flex justify-end">

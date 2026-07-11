@@ -72,7 +72,7 @@ export const CartProvider = ({ children }) => {
         }
     };
 
-    const addItem = async (labId, itemId, productType, forceReplace = false) => {
+    const addItem = async (labId, itemId, productType, forceReplace) => {
         if (!labId || !itemId || !productType) return;
         try {
             const payload = { labId: String(labId), itemId: String(itemId), productType, forceReplace };
