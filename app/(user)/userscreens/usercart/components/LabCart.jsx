@@ -4,7 +4,7 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     FaPlus, FaMinus, FaShieldAlt,
-    FaPrescriptionBottleAlt, FaTag, FaSpinner, FaArrowLeft, FaCheckCircle, FaTicketAlt, FaUserCircle, FaWalking, FaHome, FaBolt, FaMapMarkerAlt, FaTrash
+    FaPrescriptionBottleAlt, FaTag, FaSpinner, FaArrowLeft, FaCheckCircle, FaTicketAlt, FaUserCircle, FaWalking, FaHome, FaBolt, FaMapMarkerAlt, FaTrash, FaGem
 } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
@@ -38,6 +38,9 @@ const LabCart = () => {
     const [serverDiscount, setServerDiscount] = useState(0);
     const [isValidating, setIsValidating] = useState(false);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
+
+    // --- NEW SUBSCRIPTION STATE ---
+    const [subscription, setSubscription] = useState(null);
 
     // Collection Method State
     const [collectionMethod, setCollectionMethod] = useState('Walk-in'); // 'Walk-in' or 'Home'
@@ -124,11 +127,24 @@ const LabCart = () => {
         }
     }, []);
 
+    // --- NEW: FETCH SUBSCRIPTION STATUS ---
+    const fetchSubscriptionStatus = useCallback(async () => {
+        try {
+            const res = await UserAPI.getMySubscriptionStatus();
+            if (res.success && res.hasActivePlan) {
+                setSubscription(res.data);
+            }
+        } catch (error) {
+            console.error("Error fetching subscription:", error);
+        }
+    }, []);
+
     useEffect(() => {
         fetchSuggested();
         fetchDeliveryCharges();
         fetchAddresses();
-    }, [fetchSuggested, fetchDeliveryCharges, fetchAddresses]);
+        fetchSubscriptionStatus(); // Call subscription check
+    }, [fetchSuggested, fetchDeliveryCharges, fetchAddresses, fetchSubscriptionStatus]);
 
     const handleApplyCoupon = async (name) => {
         const codeToApply = name || couponCode;
@@ -174,9 +190,13 @@ const LabCart = () => {
                 fastReportFee = deliveryConfig.fastDeliveryExtra;
             }
             if (collectionMethod === 'Home') {
-                if (subtotal < deliveryConfig.freeDeliveryThreshold) {
+                // --- SUBSCRIPTION LOGIC: Home Collection Fee becomes 0 ---
+                if (subscription) {
+                    homeCollectionFee = 0;
+                } else if (subtotal < deliveryConfig.freeDeliveryThreshold) {
                     homeCollectionFee = deliveryConfig.fixedPrice;
                 }
+
                 if (userDistance > deliveryConfig.fixedDistance) {
                     distanceFee = (userDistance - deliveryConfig.fixedDistance) * deliveryConfig.pricePerKM;
                 }
@@ -184,7 +204,6 @@ const LabCart = () => {
             if (deliveryConfig.taxPercentage > 0) {
                 taxAmount = (discountedAmount * deliveryConfig.taxPercentage) / 100;
             }
-            // taxAmount += (deliveryConfig.taxInRupees || 0);
             taxAmount = 0;
         }
 
@@ -200,9 +219,10 @@ const LabCart = () => {
             distanceFee,
             fastReportFee,
             taxAmount,
-            total
+            total,
+            isSubscriptionApplied: !!subscription && collectionMethod === 'Home'
         };
-    }, [subtotal, baseSubtotal, selectedMembers, serverDiscount, selectedAppointment, collectionMethod, deliveryConfig, userDistance, isFastDelivery]);
+    }, [subtotal, baseSubtotal, selectedMembers, serverDiscount, selectedAppointment, collectionMethod, deliveryConfig, userDistance, isFastDelivery, subscription]);
 
     const handleQtyChange = (itemId, currentQty, action) => {
         if (action === 'dec' && currentQty <= 1) return toast.error("Quantity cannot be less than 1");
@@ -232,7 +252,6 @@ const LabCart = () => {
         } else {
             setIsCheckingOut(true);
             try {
-                // Load Razorpay script dynamically
                 const isScriptLoaded = await loadRazorpayScript();
                 if (!isScriptLoaded) {
                     toast.error("Failed to load Razorpay SDK. Please check your network connection.");
@@ -269,14 +288,19 @@ const LabCart = () => {
 
                     isRapid: isFastDelivery,
                     couponCode: appliedCouponName || "",
-                    // paymentMethod: "Online" // Changed from COD to Online
                 };
 
                 const res = await UserAPI.checkoutLabCart(payload);
                 if (res.success) {
+                    // --- SKIP RAZORPAY IF TOTAL IS 0 ---
+                    if (res.amount === 0 || Math.round(totals.total) === 0) {
+                        toast.success(res.message || "Booking confirmed successfully!");
+                        router.push('/userscreens/previousorders');
+                        return;
+                    }
+
                     const { key_id, amount, razorpayOrderId, appointmentId, orderId } = res;
 
-                    // Setup options for Razorpay Checkout Modal
                     const options = {
                         key: key_id,
                         amount: amount,
@@ -286,11 +310,10 @@ const LabCart = () => {
                         order_id: razorpayOrderId,
                         prefill: {
                             name: selectedMembers?.[0]?.memberName || "Patient Name",
-                            email: "patient@example.com",
                             contact: selectedAddress?.phone || "9876543210"
                         },
                         theme: {
-                            color: "#059669" // Emerald green to match Lab UI theme
+                            color: "#059669"
                         },
                         modal: {
                             ondismiss: function () {
@@ -301,7 +324,7 @@ const LabCart = () => {
                             try {
                                 setIsCheckingOut(true);
                                 const verificationPayload = {
-                                    appointmentId: appointmentId || orderId, // Accommodates both variable name returns safely
+                                    appointmentId: appointmentId || orderId,
                                     razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
                                     razorpayPaymentId: response.razorpay_payment_id,
                                     razorpaySignature: response.razorpay_signature
@@ -310,13 +333,12 @@ const LabCart = () => {
                                 const verificationRes = await UserAPI.verifyPaymentLab(verificationPayload);
 
                                 if (verificationRes?.success) {
-                                    toast.success(verificationRes.message || "Payment verified successfully. Order Confirmed!");
+                                    toast.success(verificationRes.message || "Order Confirmed!");
                                     router.push('/userscreens/previousorders');
                                 } else {
                                     toast.error(verificationRes?.message || "Payment verification failed.");
                                 }
                             } catch (verificationError) {
-                                console.error("Payment Verification Error:", verificationError);
                                 toast.error("An error occurred during payment verification.");
                             } finally {
                                 setIsCheckingOut(false);
@@ -325,10 +347,6 @@ const LabCart = () => {
                     };
 
                     const rzpInstance = new window.Razorpay(options);
-                    rzpInstance.on('payment.failed', function (response) {
-                        toast.error(`Payment failed: ${response.error.description}`);
-                        setIsCheckingOut(false);
-                    });
                     rzpInstance.open();
 
                 } else {
@@ -364,6 +382,17 @@ const LabCart = () => {
 
                     {/* LEFT: LAB ITEMS */}
                     <div className="flex-1 w-full space-y-4">
+                        
+                        {/* --- SUBSCRIPTION BADGE --- */}
+                        {subscription && (
+                            <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex items-center gap-3">
+                                <FaGem className="text-emerald-500" />
+                                <p className="text-xs font-bold text-emerald-800 uppercase tracking-tight">
+                                    {subscription.planId.name} Active: Free Home Collection Applied
+                                </p>
+                            </div>
+                        )}
+
                         {/* COLLECTION METHOD SELECTION */}
                         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
                             <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Choose Collection Method</h3>
@@ -425,7 +454,7 @@ const LabCart = () => {
                                 </div>
                             )}
 
-                            {/* RESTORED: FAST DELIVERY OPTION */}
+                            {/* FAST DELIVERY OPTION */}
                             {deliveryConfig && (
                                 <div className="mt-6 pt-6 border-t border-gray-100">
                                     <div
@@ -498,8 +527,6 @@ const LabCart = () => {
                                         </div>
                                     </div>
                                     <div className="mt-4 flex items-center justify-between w-full">
-
-                                        {/* Left Side: Quantity Controls */}
                                         <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
                                             <button
                                                 onClick={() => handleQtyChange(item.itemId, item.quantity, 'dec')}
@@ -507,11 +534,7 @@ const LabCart = () => {
                                             >
                                                 <FaMinus size={14} />
                                             </button>
-
-                                            <span className="px-4 text-sm font-bold">
-                                                {item.quantity}
-                                            </span>
-
+                                            <span className="px-4 text-sm font-bold">{item.quantity}</span>
                                             <button
                                                 onClick={() => handleQtyChange(item.itemId, item.quantity, 'inc')}
                                                 className="px-3 py-1 bg-gray-50 hover:bg-gray-100 transition"
@@ -519,8 +542,6 @@ const LabCart = () => {
                                                 <FaPlus size={14} />
                                             </button>
                                         </div>
-
-                                        {/* Right Side: Remove Button */}
                                         <button
                                             onClick={() => removeItem(item.itemId)}
                                             className="flex items-center gap-1 text-rose-500 hover:text-rose-600 transition"
@@ -528,7 +549,6 @@ const LabCart = () => {
                                             <FaTrash size={12} />
                                             <span className="text-xs font-semibold">Remove</span>
                                         </button>
-
                                     </div>
                                 </div>
                             </div>
@@ -538,7 +558,7 @@ const LabCart = () => {
                     {/* RIGHT: BILLING & COUPONS */}
                     <div className="w-full lg:w-[400px] space-y-6">
 
-                        {/* COUPON SECTION (PRESERVED) */}
+                        {/* COUPON SECTION */}
                         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                             <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2"><FaTicketAlt className="text-emerald-500" /> Apply Coupon</h3>
                             <div className="flex gap-2 mb-4">
@@ -576,7 +596,7 @@ const LabCart = () => {
                             </div>
                         </div>
 
-                        {/* ORDER SUMMARY (CLEAN & DETAILED) */}
+                        {/* ORDER SUMMARY */}
                         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                             <h2 className="text-lg font-black text-gray-900 mb-5">Order Summary</h2>
                             <div className="space-y-3 pb-5 border-b border-gray-100 text-sm">
@@ -596,7 +616,17 @@ const LabCart = () => {
                                 {totals.discount > 0 && <div className="flex justify-between text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg"><span>Coupon Discount</span><span>-₹{totals.discount.toLocaleString()}</span></div>}
 
                                 <div className="pt-2 space-y-2">
-                                    <div className="flex justify-between text-gray-500 text-xs"><span>Collection ({collectionMethod})</span><span className="font-semibold text-gray-900">{totals.homeCollectionFee === 0 ? 'FREE' : `+₹${totals.homeCollectionFee}`}</span></div>
+                                    <div className="flex justify-between text-gray-500 text-xs">
+                                        <span>Collection ({collectionMethod})</span>
+                                        <div className="flex flex-col items-end">
+                                            <span className={`font-semibold ${totals.isSubscriptionApplied ? 'line-through text-gray-300' : 'text-gray-900'}`}>
+                                                {totals.homeCollectionFee === 0 && !totals.isSubscriptionApplied ? 'FREE' : `+₹${totals.homeCollectionFee}`}
+                                            </span>
+                                            {totals.isSubscriptionApplied && (
+                                                <span className="text-emerald-600 font-black text-[9px] uppercase">Plan Benefit: ₹0</span>
+                                            )}
+                                        </div>
+                                    </div>
                                     {totals.fastReportFee > 0 && <div className="flex justify-between text-amber-600 text-xs font-bold"><span>Fast Report Delivery</span><span>+₹{totals.fastReportFee}</span></div>}
                                     <div className="flex justify-between text-gray-500 text-xs"><span>Taxes & Service Fees</span><span className="font-semibold text-gray-900">+₹{Math.round(totals.taxAmount).toLocaleString()}</span></div>
                                     {totals.extraFee > 0 && <div className="flex justify-between text-amber-600 text-xs font-bold"><span>Urgent Slot Fee</span><span>+₹{totals.extraFee.toLocaleString()}</span></div>}
@@ -609,7 +639,7 @@ const LabCart = () => {
                             </div>
 
                             <button onClick={handleProceed} disabled={isCheckingOut} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-bold text-sm transition-all shadow-lg flex items-center justify-center gap-2 uppercase">
-                                {isCheckingOut ? <FaSpinner className="animate-spin" /> : selectedMembers.length === 0 ? "Select Patients" : !selectedAppointment ? "Select Time Slot" : "Confirm & Pay Online"} <FaShieldAlt />
+                                {isCheckingOut ? <FaSpinner className="animate-spin" /> : selectedMembers.length === 0 ? "Select Patients" : !selectedAppointment ? "Select Time Slot" : totals.total === 0 ? "Confirm Free Booking" : "Confirm & Pay Online"} <FaShieldAlt />
                             </button>
                         </div>
                     </div>

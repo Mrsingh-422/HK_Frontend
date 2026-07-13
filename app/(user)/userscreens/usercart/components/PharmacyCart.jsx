@@ -6,7 +6,7 @@ import {
     FaPills, FaSpinner, FaTruck, FaFilePrescription,
     FaPrescriptionBottleAlt, FaMinus, FaPlus, FaClock,
     FaCalendarAlt, FaChevronRight, FaCamera, FaTrash,
-    FaCheckCircle, FaStore, FaShieldAlt, FaGift, FaTimes
+    FaCheckCircle, FaStore, FaShieldAlt, FaGift, FaTimes, FaGem
 } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
@@ -50,6 +50,9 @@ const PharmacyCart = () => {
     const [selectedAddress, setSelectedAddress] = useState(null);
     const [isAddressLoading, setIsAddressLoading] = useState(false);
 
+    // --- NEW SUBSCRIPTION STATE ---
+    const [subscription, setSubscription] = useState(null);
+
     // Delivery & Slot States
     const [deliveryOption, setDeliveryOption] = useState('fast');
     const [collectionType] = useState('Home Delivery'); // Hardcoded to Home Delivery only
@@ -74,7 +77,6 @@ const PharmacyCart = () => {
         return pharmacyCart?.billSummary?.comboSavings || 0;
     }, [pharmacyCart]);
 
-    // Detect if any cart item has a BOGO combo applied
     const activeComboItem = useMemo(() => {
         return pharmacyItems.find(item => item.isComboApplied === true);
     }, [pharmacyItems]);
@@ -95,13 +97,8 @@ const PharmacyCart = () => {
         if (validFiles.length !== files.length) {
             toast.error("Only image files are allowed");
         }
-
         setPrescriptionFiles(prev => [...prev, ...validFiles]);
         e.target.value = null;
-
-        if (validFiles.length > 0) {
-            toast.success(`${validFiles.length} file(s) added to prescription list`);
-        }
     };
 
     const removeFile = (index) => {
@@ -137,11 +134,24 @@ const PharmacyCart = () => {
         finally { setIsAddressLoading(false); }
     }, []);
 
+    // --- NEW: FETCH SUBSCRIPTION STATUS ---
+    const fetchSubscriptionStatus = useCallback(async () => {
+        try {
+            const res = await UserAPI.getMySubscriptionStatus();
+            if (res.success && res.hasActivePlan) {
+                setSubscription(res.data);
+            }
+        } catch (error) {
+            console.error("Error fetching subscription:", error);
+        }
+    }, []);
+
     useEffect(() => {
         fetchSuggested();
         fetchAddresses();
         fetchDeliveryCharges();
-    }, [fetchSuggested, fetchAddresses, fetchDeliveryCharges]);
+        fetchSubscriptionStatus(); // Check for active plan
+    }, [fetchSuggested, fetchAddresses, fetchDeliveryCharges, fetchSubscriptionStatus]);
 
     const handleApplyCoupon = async (name) => {
         const codeToApply = name || couponCode;
@@ -181,7 +191,6 @@ const PharmacyCart = () => {
         let shippingFee = 0;
         let fastFee = 0;
 
-        // Dynamic threshold and pricing configuration based on fetched data
         const freeThreshold = deliveryChargesConfig?.freeDeliveryThreshold ?? 500;
         const defaultFixedPrice = deliveryChargesConfig?.fixedPrice ?? 40;
 
@@ -190,11 +199,16 @@ const PharmacyCart = () => {
                 fastFee = deliveryChargesConfig.fastDeliveryExtra || 0;
                 shippingFee = 0;
             } else {
-                shippingFee = subtotal >= freeThreshold ? 0 : defaultFixedPrice;
+                // --- SUBSCRIPTION LOGIC: deliveryCharge becomes 0 ---
+                if (subscription) {
+                    shippingFee = 0;
+                } else {
+                    shippingFee = subtotal >= freeThreshold ? 0 : defaultFixedPrice;
+                }
                 fastFee = 0;
             }
         } else {
-            shippingFee = subtotal >= freeThreshold ? 0 : defaultFixedPrice;
+            shippingFee = subscription ? 0 : (subtotal >= freeThreshold ? 0 : defaultFixedPrice);
         }
 
         const currentSlotFee = (deliveryOption === 'slot') ? slotFee : 0;
@@ -209,15 +223,15 @@ const PharmacyCart = () => {
             slotFee: currentSlotFee,
             tax,
             freeThreshold,
-            total: discountedAmount + shippingFee + fastFee + currentSlotFee + tax
+            total: discountedAmount + shippingFee + fastFee + currentSlotFee + tax,
+            isSubscriptionApplied: !!subscription
         };
-    }, [subtotal, serverDiscount, comboSavings, slotFee, deliveryOption, deliveryChargesConfig]);
+    }, [subtotal, serverDiscount, comboSavings, slotFee, deliveryOption, deliveryChargesConfig, subscription]);
 
     const onConfirmCheckout = async () => {
         if (!selectedAddress) {
             return toast.error("Please select a delivery address");
         }
-
         if (needsPrescription && prescriptionFiles.length === 0) {
             return toast.error("One or more medicines require a prescription. Please upload it.");
         }
@@ -225,15 +239,6 @@ const PharmacyCart = () => {
         setIsSubmitting(true);
 
         try {
-            // Load Razorpay script dynamically
-            const isScriptLoaded = await loadRazorpayScript();
-            if (!isScriptLoaded) {
-                toast.error("Failed to load Razorpay SDK. Please check your network connection.");
-                setIsSubmitting(false);
-                return;
-            }
-
-            // 1. Prepare Date and Time
             let appDate = new Date().toISOString();
             let appTime = new Date().toLocaleTimeString('en-US', {
                 hour: '2-digit',
@@ -246,21 +251,16 @@ const PharmacyCart = () => {
                 appTime = rawSlotData.time;
             }
 
-            // 2. Prepare Form Data
             const formData = new FormData();
-
             formData.append('pharmacyId', pharmacyId);
             formData.append('collectionType', collectionType);
             formData.append('appointmentDate', appDate);
             formData.append('appointmentTime', appTime);
-            formData.append('isRapid', String(deliveryOption === 'fast')); // Cast boolean to string for robust parser compatibility
-            formData.append('paymentMethod', 'Online'); // Changed from COD to Online
-
-            // Append Root-level Combo Offers metadata keys directly to FormData
+            formData.append('isRapid', String(deliveryOption === 'fast'));
+            formData.append('paymentMethod', 'Online');
             formData.append('isComboApplied', String(hasComboApplied));
             formData.append('comboOfferId', activeComboOfferId || "");
 
-            // 3. Address Object
             const addressData = {
                 name: selectedAddress.name,
                 phone: selectedAddress.phone,
@@ -275,7 +275,6 @@ const PharmacyCart = () => {
             };
             formData.append('address', JSON.stringify(addressData));
 
-            // 4. Bill Summary (Now including dynamic 'tax' and 'comboSavings' to ensure alignment)
             const billSummary = {
                 itemTotal: totals.subtotal,
                 deliveryCharge: totals.shippingFee,
@@ -289,7 +288,6 @@ const PharmacyCart = () => {
             };
             formData.append('billSummary', JSON.stringify(billSummary));
 
-            // 5. Items (Preserving and forwarding BOGO attributes in payload items)
             const itemsToSend = pharmacyItems.map(item => ({
                 medicineId: item.medicineId._id || item.medicineId,
                 name: item.name,
@@ -301,18 +299,30 @@ const PharmacyCart = () => {
             }));
             formData.append('items', JSON.stringify(itemsToSend));
 
-            // 6. Prescription Images
             prescriptionFiles.forEach((file) => {
                 formData.append('prescriptionImages', file);
             });
 
-            // 7. API Call
             const res = await UserAPI.placePharmacyOrder(formData);
 
             if (res.success) {
+                // --- SKIP RAZORPAY IF TOTAL IS 0 ---
+                if (res.amount === 0 || Math.round(totals.total) === 0) {
+                    toast.success(res.message || "Order Confirmed!");
+                    await clearFullCart();
+                    router.push('/userscreens/previousorders');
+                    return;
+                }
+
+                const isScriptLoaded = await loadRazorpayScript();
+                if (!isScriptLoaded) {
+                    toast.error("Failed to load Razorpay SDK.");
+                    setIsSubmitting(false);
+                    return;
+                }
+
                 const { key_id, amount, razorpayOrderId, appointmentId, orderId } = res;
 
-                // Setup options for Razorpay Checkout Modal
                 const options = {
                     key: key_id,
                     amount: amount,
@@ -322,17 +332,10 @@ const PharmacyCart = () => {
                     order_id: razorpayOrderId,
                     prefill: {
                         name: selectedAddress?.name || "Patient Name",
-                        email: "patient@example.com",
                         contact: selectedAddress?.phone || "9876543210"
                     },
-                    theme: {
-                        color: "#059669" // Matches the application theme color
-                    },
-                    modal: {
-                        ondismiss: function () {
-                            setIsSubmitting(false);
-                        }
-                    },
+                    theme: { color: "#059669" },
+                    modal: { ondismiss: () => setIsSubmitting(false) },
                     handler: async function (response) {
                         try {
                             setIsSubmitting(true);
@@ -346,14 +349,13 @@ const PharmacyCart = () => {
                             const verificationRes = await UserAPI.verifyPaymentPharmacy(verificationPayload);
 
                             if (verificationRes?.success) {
-                                toast.success(verificationRes.message || "Payment verified successfully. Order Confirmed!");
+                                toast.success(verificationRes.message || "Order Confirmed!");
                                 await clearFullCart();
                                 router.push('/userscreens/previousorders');
                             } else {
                                 toast.error(verificationRes?.message || "Payment verification failed.");
                             }
                         } catch (verificationError) {
-                            console.error("Payment Verification Error:", verificationError);
                             toast.error("An error occurred during payment verification.");
                         } finally {
                             setIsSubmitting(false);
@@ -362,10 +364,6 @@ const PharmacyCart = () => {
                 };
 
                 const rzpInstance = new window.Razorpay(options);
-                rzpInstance.on('payment.failed', function (response) {
-                    toast.error(`Payment failed: ${response.error.description}`);
-                    setIsSubmitting(false);
-                });
                 rzpInstance.open();
 
             } else {
@@ -374,7 +372,6 @@ const PharmacyCart = () => {
             }
 
         } catch (error) {
-            console.error("Checkout Error:", error);
             toast.error(error.response?.data?.message || "Failed to place order");
             setIsSubmitting(false);
         }
@@ -398,13 +395,22 @@ const PharmacyCart = () => {
                 <div className="flex flex-col lg:flex-row gap-8 items-start">
                     <div className="flex-1 w-full space-y-6">
 
+                        {/* --- SUBSCRIPTION BADGE --- */}
+                        {subscription && (
+                            <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex items-center gap-3">
+                                <FaGem className="text-emerald-500" />
+                                <p className="text-xs font-bold text-emerald-800 uppercase tracking-tight">
+                                    {subscription.planId.name} Active: Free Home Delivery Applied
+                                </p>
+                            </div>
+                        )}
+
                         <div className="space-y-4">
                             <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
                                 <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">1</span>
                                 Review Items ({pharmacyItems.length})
                             </h2>
 
-                            {/* ADD MORE MEDICINES BUTTON */}
                             {pharmacyId && (
                                 <div className="flex justify-between items-center bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
                                     <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Need to add more?</span>
@@ -429,8 +435,6 @@ const PharmacyCart = () => {
                                                     <div>
                                                         <h3 className="font-bold text-slate-900 text-md leading-tight">{item.name}</h3>
                                                         <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter mt-1">{item.medicineId?.manufacturers}</p>
-
-                                                        {/* BOGO Promo badge mapping active metadata keys */}
                                                         {item.isComboApplied && (
                                                             <span className="inline-flex items-center gap-1 text-emerald-600 bg-emerald-50 text-[9px] font-black uppercase px-2 py-0.5 rounded border border-emerald-100 mt-1">
                                                                 <FaGift size={8} /> BOGO Deal Applied
@@ -474,12 +478,10 @@ const PharmacyCart = () => {
                                         </div>
                                         <h3 className="text-sm font-black text-slate-800 mb-1">Prescription Needed</h3>
                                         <p className="text-[11px] text-slate-400 font-medium mb-4">Please upload a clear image of your doctor's prescription to proceed.</p>
-
                                         <label className="inline-flex items-center justify-center px-6 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer hover:bg-slate-800 transition-colors">
                                             <span>Select File</span>
                                             <input type="file" hidden accept="image/*" multiple onChange={handleFileChange} />
                                         </label>
-
                                         {prescriptionFiles.length > 0 && (
                                             <div className="mt-6 pt-6 border-t border-slate-50">
                                                 <div className="flex flex-wrap gap-3 justify-center">
@@ -496,7 +498,6 @@ const PharmacyCart = () => {
                                                                             removeFile(idx);
                                                                         }}
                                                                         className="absolute top-1 right-1 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-md transition-colors"
-                                                                        title="Delete"
                                                                     >
                                                                         <FaTrash size={8} />
                                                                     </button>
@@ -563,7 +564,6 @@ const PharmacyCart = () => {
                 }}
             />
 
-            {/* LIGHTBOX / ZOOMED PRESCRIPTION MODAL */}
             {zoomedImage && (
                 <div
                     className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in duration-200 cursor-pointer"
@@ -579,7 +579,6 @@ const PharmacyCart = () => {
                         <img
                             src={zoomedImage}
                             className="max-w-full max-h-full object-contain rounded-2xl animate-in zoom-in-95 duration-200"
-                            alt="Zoomed Prescription"
                             onClick={(e) => e.stopPropagation()}
                         />
                     </div>
