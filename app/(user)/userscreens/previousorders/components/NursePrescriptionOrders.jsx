@@ -485,15 +485,6 @@ function NursePrescriptionOrders() {
                                         <div className="flex gap-2">
                                             <button
                                                 disabled={actionLoading}
-                                                onClick={() => handleAcceptProposal(proposal, "COD")}
-                                                className="flex-1 py-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold rounded-xl uppercase tracking-widest shadow-xs transition"
-                                            >
-                                                <span className="flex items-center justify-center gap-1.5">
-                                                    <FaMoneyBillWave /> COD Checkout
-                                                </span>
-                                            </button>
-                                            <button
-                                                disabled={actionLoading}
                                                 onClick={() => handleAcceptProposal(proposal, "Online")}
                                                 className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-xl uppercase tracking-widest shadow-lg shadow-indigo-100 transition"
                                             >

@@ -676,21 +676,23 @@ function MyHospitalAppointments() {
                       </div>
 
                       <div className="flex gap-2">
-                        {/* CANCEL BUTTON WITH LIMIT LOGIC */}
-                        {selectedAppt.cancellationCount < maxCancellationLimit ? (
-                          <button
-                            onClick={() => setIsCancelModalOpen(true)}
-                            className="flex-1 bg-red-500 text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 transition-all active:scale-95"
-                          >
-                            Cancel Booking
-                          </button>
-                        ) : (
-                          <button
-                            disabled
-                            className="flex-1 bg-gray-200 text-gray-400 cursor-not-allowed px-6 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2"
-                          >
-                            Limit Reached <FaInfoCircle />
-                          </button>
+                        {/* CANCEL BUTTON WITH LIMIT LOGIC (HIDDEN IF COMPLETED) */}
+                        {selectedAppt.status !== "Completed" && (
+                          selectedAppt.cancellationCount < maxCancellationLimit ? (
+                            <button
+                              onClick={() => setIsCancelModalOpen(true)}
+                              className="flex-1 bg-red-500 text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 transition-all active:scale-95"
+                            >
+                              Cancel Booking
+                            </button>
+                          ) : (
+                            <button
+                              disabled
+                              className="flex-1 bg-gray-200 text-gray-400 cursor-not-allowed px-6 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2"
+                            >
+                              Limit Reached <FaInfoCircle />
+                            </button>
+                          )
                         )}
 
                         {/* RESCHEDULE BUTTON WITH LIMIT LOGIC */}
