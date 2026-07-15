@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
     FaArrowLeft, FaHospital, FaProcedures,
     FaShieldAlt, FaCheck, FaTimes, FaTag, FaReceipt,
@@ -64,7 +64,8 @@ export default function CheckoutPage() {
         companyName: "",
         issueDate: "",
         expiryDate: "",
-        insuranceImage: null
+        insuranceDocument: null, // Holds the binary file upload
+        bookingReason: ""        // Maps to bookingReason/reasonForVisit
     });
 
     // Coupon State
@@ -80,7 +81,6 @@ export default function CheckoutPage() {
         if (!token) {
             CostoumPopup("Please Login To Continue", "warning", 4000);
             router.push('/hospital');
-            // openModal("login")
             return;
         }
         const savedData = sessionStorage.getItem("activeBooking");
@@ -145,7 +145,8 @@ export default function CheckoutPage() {
                 fullName: "", dob: "", phoneNumber: "", gender: "",
                 address: "", city: "", pincode: "", spokenLanguage: "",
                 haveInsurance: "No", insuranceNo: "", companyName: "",
-                issueDate: "", expiryDate: "", insuranceImage: null
+                issueDate: "", expiryDate: "", insuranceDocument: null,
+                bookingReason: ""
             });
         } else {
             setSelectedMemberId(member._id);
@@ -169,6 +170,7 @@ export default function CheckoutPage() {
                 address: patientDetails.address || "",
                 city: patientDetails.city || "",
                 pincode: patientDetails.pincode || "",
+                insuranceDocument: null
             });
         }
     };
@@ -232,9 +234,25 @@ export default function CheckoutPage() {
         setPatientDetails(prev => ({ ...prev, [name]: value }));
     };
 
+    // Handle Local File Selection
+    const handleFileChange = (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+            setPatientDetails(prev => ({
+                ...prev,
+                insuranceDocument: e.target.files[0]
+            }));
+        }
+    };
+
+    // --- FORM SUBMISSION (MULTIPART FORMDATA) ---
     const handlePayment = async () => {
         if (!patientDetails.fullName || !patientDetails.phoneNumber) {
             alert("Please fill in the required patient details.");
+            return;
+        }
+
+        if (patientDetails.haveInsurance === "Yes" && !patientDetails.insuranceDocument) {
+            alert("Please upload your insurance card/document to proceed.");
             return;
         }
 
@@ -249,45 +267,55 @@ export default function CheckoutPage() {
                 return;
             }
 
-            const formattedServices = services
-                .filter(s => selectedServiceIds.includes(s._id))
-                .map(s => ({
-                    serviceName: s.serviceName,
-                    price: s.price
-                }));
+            // Construct Multipart Form-Data payload matching backend API requirements
+            const fd = new FormData();
 
-            const payload = {
-                hospitalId: booking.hospitalId,
-                doctorId: selectedDoctorId || null,
-                bedId: booking.bedId,
-                bookingType: "Admission",
-                bedBookingType: bedBookingType,
-                triageLevel: "Emergency",
-                startDate: booking.startDate,
-                endDate: booking.endDate,
-                appointmentDate: booking.startDate,
-                appointmentTime: "Admission",
-                patients: [{
+            // 1. Text Fields
+            fd.append("hospitalId", booking.hospitalId);
+            fd.append("bedId", booking.bedId);
+            fd.append("startDate", booking.startDate);
+            fd.append("endDate", booking.endDate);
+            fd.append("hasInsurance", patientDetails.haveInsurance === "Yes" ? "true" : "false");
+            fd.append("bookingReason", patientDetails.bookingReason || "");
+            fd.append("paymentMethod", "Online");
+            if (appliedCoupon) {
+                fd.append("couponCode", appliedCoupon.couponName);
+            }
+
+            // 2. Serialized JSON Array for patients
+            const patientArray = [
+                {
                     patientName: patientDetails.fullName,
                     patientAge: calculateAge(patientDetails.dob),
                     gender: patientDetails.gender,
                     relation: selectedMemberId === "self" ? "Self" : "Family Member",
+                    reasonForVisit: patientDetails.bookingReason || "",
                     isMainUser: true
-                }],
-                specialServices: formattedServices,
-                pricing: {
-                    baseFee: booking.totalPrice,
-                    visitCharges: 0,
-                    extraCharges: 0,
-                    discountAmount: discountAmount,
-                    subtotal: subtotal,
-                    totalPayable: finalTotal
-                },
-                couponId: appliedCoupon ? (appliedCoupon._id || appliedCoupon.id || null) : null,
-                couponCode: appliedCoupon ? appliedCoupon.couponName : null
-            };
+                }
+            ];
+            fd.append("patients", JSON.stringify(patientArray));
 
-            const response = await UserAPI.bookHospitalBed(payload);
+            // 3. Serialized JSON Object for address
+            const addressObj = {
+                name: patientDetails.fullName,
+                phone: patientDetails.phoneNumber,
+                houseNo: patientDetails.address || "",
+                sector: patientDetails.city || "", // Fallback mapping city/sector fields
+                city: patientDetails.city || "",
+                state: "Punjab", // Default fallback operational state
+                pincode: patientDetails.pincode || "",
+                addressType: "Home"
+            };
+            fd.append("address", JSON.stringify(addressObj));
+
+            // 4. File Parameter
+            if (patientDetails.haveInsurance === "Yes" && patientDetails.insuranceDocument) {
+                fd.append("insuranceDocument", patientDetails.insuranceDocument);
+            }
+
+            // 5. Submit to Backend API
+            const response = await UserAPI.bookHospitalBed(fd);
+            
             if (response.success) {
                 const { key_id, amount, razorpayOrderId, appointmentId, orderId } = response;
 
@@ -477,6 +505,28 @@ export default function CheckoutPage() {
                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Address</label>
                                     <input type="text" name="address" value={patientDetails.address} onChange={handleInputChange} placeholder="Residential Address" className="w-full bg-slate-50 px-4 py-4 rounded-xl border border-slate-100 outline-none font-bold text-sm text-slate-700" />
                                 </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">City</label>
+                                    <input type="text" name="city" value={patientDetails.city} onChange={handleInputChange} placeholder="City" className="w-full bg-slate-50 px-4 py-4 rounded-xl border border-slate-100 outline-none font-bold text-sm text-slate-700" />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Pincode</label>
+                                    <input type="text" name="pincode" value={patientDetails.pincode} onChange={handleInputChange} placeholder="Pincode" className="w-full bg-slate-50 px-4 py-4 rounded-xl border border-slate-100 outline-none font-bold text-sm text-slate-700" />
+                                </div>
+                                
+                                {/* BOOKING REASON / CLINICAL SYMPTOMS */}
+                                <div className="md:col-span-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Clinical Reason / Symptoms</label>
+                                    <input 
+                                        type="text" 
+                                        name="bookingReason" 
+                                        value={patientDetails.bookingReason} 
+                                        onChange={handleInputChange} 
+                                        placeholder="e.g., Severe chest pain, shortness of breath" 
+                                        className="w-full bg-slate-50 px-4 py-4 rounded-xl border border-slate-100 outline-none font-bold text-sm text-slate-700" 
+                                    />
+                                </div>
+
                                 <div className="md:col-span-2 pt-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 block">Insurance Coverage?</label>
                                     <div className="flex gap-6">
@@ -492,6 +542,23 @@ export default function CheckoutPage() {
                                     <div className="md:col-span-2 bg-amber-50/30 p-4 md:p-6 rounded-2xl border border-amber-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <input type="text" name="insuranceNo" value={patientDetails.insuranceNo} onChange={handleInputChange} placeholder="Policy No." className="w-full bg-white px-4 py-3 rounded-xl border-none outline-none font-bold text-sm" />
                                         <input type="text" name="companyName" value={patientDetails.companyName} onChange={handleInputChange} placeholder="Insurance Provider" className="w-full bg-white px-4 py-3 rounded-xl border-none outline-none font-bold text-sm" />
+                                        
+                                        {/* INSURANCE DOCUMENT FILE UPLOAD CARD */}
+                                        <div className="sm:col-span-2 border-2 border-dashed border-slate-200 rounded-xl p-4 bg-white text-center hover:border-emerald-500 transition-colors cursor-pointer relative group">
+                                            <input 
+                                                type="file" 
+                                                onChange={handleFileChange} 
+                                                accept="image/*,application/pdf"
+                                                className="absolute inset-0 opacity-0 cursor-pointer"
+                                            />
+                                            <div className="flex flex-col items-center justify-center gap-1">
+                                                <FaUpload className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                                                <span className="text-xs font-bold text-slate-500">
+                                                    {patientDetails.insuranceDocument ? patientDetails.insuranceDocument.name : "Upload Insurance Card/Document *"}
+                                                </span>
+                                                <span className="text-[9px] text-slate-400 font-bold uppercase">PNG, JPG, PDF up to 10MB</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </div>

@@ -814,6 +814,10 @@ const UserAPI = {
         const response = await authApi.post("/user/doctors/checkout-summary", data);
         return response.data
     },
+    getHospitalCheckoutSummary: async (data) => {
+        const response = await authApi.post("/user/hospital/checkout-summary", data);
+        return response.data
+    },
 
     bookDoctorAppointment: async (data) => {
         const response = await authApi.post("/user/doctors/book", data);
@@ -869,7 +873,9 @@ const UserAPI = {
     },
 
     bookHospitalBed: async (data) => {
-        const response = await authApi.post("/user/hospital/book", data);
+        const response = await authApi.post("/user/hospital/book", data, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
         return response.data;
     },
 
