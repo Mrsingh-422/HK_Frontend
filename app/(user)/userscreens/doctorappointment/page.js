@@ -12,6 +12,38 @@ import {
 import UserAPI from "@/app/services/UserAPI";
 import { Toaster, toast } from 'react-hot-toast';
 
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+// --- Helper Functions for Date calculations ---
+const getUtcDate = (dateStr) => {
+  if (!dateStr) return 0;
+  const d = new Date(dateStr);
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+};
+
+const formatDateString = (y, m, d) => {
+  const mm = String(m + 1).padStart(2, '0');
+  const dd = String(d).padStart(2, '0');
+  return `${y}-${mm}-${dd}`;
+};
+
+const getDatesInRange = (startDate, endDate) => {
+  if (!startDate || !endDate) return [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const dates = [];
+  let current = new Date(start);
+
+  while (current <= end) {
+    const y = current.getFullYear();
+    const m = current.getMonth();
+    const d = current.getDate();
+    dates.push(formatDateString(y, m, d));
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+};
+
 // --- SUB-COMPONENT: SPECIALIST REVIEW MODAL ---
 const DoctorReviewModal = ({ isOpen, onClose, data, onReviewSubmitted }) => {
     const [rating, setRating] = useState(5);
@@ -213,6 +245,10 @@ export default function MedicalHistoryPage() {
     const [activeDetailReview, setActiveDetailReview] = useState(null);
     const [loadingDetailReview, setLoadingDetailReview] = useState(false);
 
+    // Rescheduling Selection States
+    const [isRescheduling, setIsRescheduling] = useState(false);
+    const [rescheduleData, setRescheduleData] = useState({ date: "", timeSlot: "" });
+
     const fetchRecords = async () => {
         try {
             setLoading(true);
@@ -300,11 +336,45 @@ export default function MedicalHistoryPage() {
         }
     };
 
+    // Reschedule Request Submission (API: rescheduleDoctorAppointment)
+    const handleRescheduleSubmit = async () => {
+        if (!rescheduleData.date || !rescheduleData.timeSlot) {
+            toast.error("Please select both a date and time slot.");
+            return;
+        }
+
+        setIsActionLoading(true);
+        try {
+            const payload = {
+                appointmentId: selectedRecord._id,
+                newDate: rescheduleData.date,
+                newTimeSlot: rescheduleData.timeSlot
+            };
+            const response = await UserAPI.rescheduleDoctorAppointment(payload);
+            if (response.success) {
+                toast.success("Appointment rescheduled successfully!");
+                setIsRescheduling(false);
+                setIsDetailModalOpen(false);
+                setRescheduleData({ date: "", timeSlot: "" });
+                fetchRecords(); // Refresh list
+            } else {
+                toast.error(response.message || "Reschedule failed");
+            }
+        } catch (error) {
+            console.error("Reschedule Error:", error);
+            toast.error("Something went wrong during rescheduling.");
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
     // Review Actions
     const handleOpenReview = (record) => {
         setSelectedRecord(record);
         setIsReviewModalOpen(true);
     };
+
+    const mounted = true; // Set directly to prevent hydrations in Next.js
 
     if (loading) return <LoadingSkeleton />;
 
@@ -390,62 +460,225 @@ export default function MedicalHistoryPage() {
                                 </h2>
                                 <p className="text-slate-400 text-[10px] font-bold tracking-widest uppercase mt-1">Booked on: {new Date(selectedRecord.createdAt).toLocaleDateString()}</p>
                             </div>
-                            <button onClick={() => setIsDetailModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X size={20} /></button>
+                            <button onClick={() => { setIsDetailModalOpen(false); setIsRescheduling(false); setRescheduleData({ date: "", timeSlot: "" }); }} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X size={20} /></button>
                         </div>
 
                         {/* Modal Content */}
                         <div className="p-8 overflow-y-auto space-y-8 no-scrollbar">
-                            {/* Patient Info */}
-                            <section>
-                                <div className="flex items-center gap-2 mb-4 text-emerald-600">
-                                    <UserCheck size={18} />
-                                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Patient Information</h4>
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    {[
-                                        { label: "Name", value: selectedRecord.patients[0]?.patientName },
-                                        { label: "Age", value: `${selectedRecord.patients[0]?.patientAge} Yrs` },
-                                        { label: "Gender", value: selectedRecord.patients[0]?.gender },
-                                        { label: "Relation", value: selectedRecord.patients[0]?.relation },
-                                    ].map((item, i) => (
-                                        <div key={i} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">{item.label}</p>
-                                            <p className="text-xs font-bold text-slate-800">{item.value}</p>
+                            {!isRescheduling ? (
+                                <>
+                                    {/* Patient Info */}
+                                    <section>
+                                        <div className="flex items-center gap-2 mb-4 text-emerald-600">
+                                            <UserCheck size={18} />
+                                            <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Patient Information</h4>
                                         </div>
-                                    ))}
-                                </div>
-                            </section>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            {[
+                                                { label: "Name", value: selectedRecord.patients[0]?.patientName },
+                                                { label: "Age", value: `${selectedRecord.patients[0]?.patientAge} Yrs` },
+                                                { label: "Gender", value: selectedRecord.patients[0]?.gender },
+                                                { label: "Relation", value: selectedRecord.patients[0]?.relation },
+                                            ].map((item, i) => (
+                                                <div key={i} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">{item.label}</p>
+                                                    <p className="text-xs font-bold text-slate-800">{item.value}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
 
-                            {/* Appointment Timing & Specialist */}
-                            <section className="bg-slate-50 p-6 rounded-[24px] border border-slate-100 grid md:grid-cols-2 gap-6">
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm"><Calendar size={18}/></div>
-                                        <div><p className="text-[9px] uppercase font-black text-slate-400">Scheduled Date</p><p className="font-bold text-sm text-slate-800">{new Date(selectedRecord.appointmentDate).toLocaleDateString()}</p></div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-600 shadow-sm"><Clock size={18}/></div>
-                                        <div><p className="text-[9px] uppercase font-black text-slate-400">Time / Slot</p><p className="font-bold text-sm text-slate-800">{selectedRecord.appointmentTime}</p></div>
-                                    </div>
-                                </div>
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-purple-600 shadow-sm"><Activity size={18}/></div>
-                                        <div><p className="text-[9px] uppercase font-black text-slate-400">Specialist</p><p className="font-bold text-sm text-slate-800">{selectedRecord.doctorId?.name}</p></div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-amber-600 shadow-sm"><ConsultationIcon type={selectedRecord.consultationType} /></div>
-                                        <div><p className="text-[9px] uppercase font-black text-slate-400">Consultation</p><p className="font-bold text-sm text-slate-800">{selectedRecord.consultationType}</p></div>
-                                    </div>
-                                </div>
-                            </section>
+                                    {/* Appointment Timing & Specialist */}
+                                    <section className="bg-slate-50 p-6 rounded-[24px] border border-slate-100 grid md:grid-cols-2 gap-6">
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm"><Calendar size={18}/></div>
+                                                <div><p className="text-[9px] uppercase font-black text-slate-400">Scheduled Date</p><p className="font-bold text-sm text-slate-800">{new Date(selectedRecord.appointmentDate).toLocaleDateString()}</p></div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-600 shadow-sm"><Clock size={18}/></div>
+                                                <div><p className="text-[9px] uppercase font-black text-slate-400">Time / Slot</p><p className="font-bold text-sm text-slate-800">{selectedRecord.appointmentTime}</p></div>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-purple-600 shadow-sm"><Activity size={18}/></div>
+                                                <div><p className="text-[9px] uppercase font-black text-slate-400">Specialist</p><p className="font-bold text-sm text-slate-800">{selectedRecord.doctorId?.name}</p></div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-amber-600 shadow-sm"><ConsultationIcon type={selectedRecord.consultationType} /></div>
+                                                <div><p className="text-[9px] uppercase font-black text-slate-400">Consultation</p><p className="font-bold text-sm text-slate-800">{selectedRecord.consultationType}</p></div>
+                                            </div>
+                                        </div>
+                                    </section>
 
-                            {/* Billing */}
+                                    {/* Rating & Review Summary (Loaded Dynamically inside Details Modal) */}
+                                    {selectedRecord.status === "Completed" && (
+                                        <section className="space-y-4">
+                                            <div className="flex items-center gap-2 mb-4 text-emerald-600">
+                                                <Star size={18} />
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Appointment Feedback</h4>
+                                            </div>
+                                            {loadingDetailReview ? (
+                                                <div className="flex items-center gap-2 bg-slate-50 p-6 rounded-[2rem] text-xs text-gray-400">
+                                                    <RotateCcw className="animate-spin text-slate-400" size={14} />
+                                                    <span>Syncing feedback details...</span>
+                                                </div>
+                                            ) : activeDetailReview ? (
+                                                <div className="bg-amber-50/50 border border-amber-100/70 p-6 rounded-[2rem] space-y-3">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-[10px] font-black uppercase text-amber-600 tracking-wider">Submitted Feedback</span>
+                                                        <div className="flex gap-0.5">
+                                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                                <Star
+                                                                    key={star}
+                                                                    className={`w-4 h-4 ${star <= activeDetailReview.rating ? "text-amber-400 fill-amber-400" : "text-slate-200"}`}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-xs font-bold text-gray-700 italic">"{activeDetailReview.comment}"</p>
+                                                    <p className="text-[8px] font-bold text-gray-400 uppercase font-bold">
+                                                        Date: {new Date(activeDetailReview.updatedAt || activeDetailReview.createdAt).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <div className="bg-slate-50 border border-slate-100 p-6 rounded-[2rem] text-center">
+                                                    <p className="text-xs font-bold text-gray-400">You have not submitted any feedback for this appointment yet.</p>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setIsDetailModalOpen(false);
+                                                            handleOpenReview(selectedRecord);
+                                                        }}
+                                                        className="mt-2 text-[10px] font-black uppercase text-emerald-600 hover:text-green-600"
+                                                    >
+                                                        Add Rating Now
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </section>
+                                    )}
+
+                                    {/* Action buttons (Cancellation & Rescheduling) */}
+                                    {selectedRecord.status !== "Cancelled" && (
+                                        <div className="flex flex-col bg-green-50/50 p-6 rounded-3xl border border-green-100 gap-6">
+                                            <div className="flex justify-between items-center">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-[#08b36a] shadow-sm"><Building2 size={24} /></div>
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-[#08b36a] uppercase">Booking Type</p>
+                                                        <p className="font-bold text-gray-800">{selectedRecord.bookingType}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[9px] font-black text-gray-400 uppercase">Reschedule Status</p>
+                                                    <p className={`text-xs font-bold ${selectedRecord.rescheduleCount >= maxRescheduleLimit ? 'text-red-500' : 'text-gray-700'}`}>
+                                                        {selectedRecord.rescheduleCount} / {maxRescheduleLimit} Used
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                                {/* Cancellation Button Logic */}
+                                                {selectedRecord.status !== "Completed" && (
+                                                    selectedRecord.cancellationCount < 1 ? (
+                                                        <button 
+                                                            onClick={() => setIsCancelModalOpen(true)}
+                                                            className="flex-1 bg-rose-50 text-rose-600 border border-rose-100 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all flex items-center justify-center gap-2"
+                                                        >
+                                                            <Trash2 size={16} /> Cancel Booking
+                                                        </button>
+                                                    ) : (
+                                                        <button disabled className="flex-1 bg-slate-50 text-slate-400 border border-slate-200 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-not-allowed opacity-60">
+                                                            Cancellation Limit Reached
+                                                        </button>
+                                                    )
+                                                )}
+
+                                                {/* Reschedule Button Logic */}
+                                                {selectedRecord.rescheduleCount < maxRescheduleLimit ? (
+                                                    <button 
+                                                        className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
+                                                        onClick={() => {
+                                                            setRescheduleData({ date: "", timeSlot: "" });
+                                                            setIsRescheduling(true);
+                                                        }}
+                                                    >
+                                                        <RotateCcw size={16} /> Reschedule
+                                                    </button>
+                                                ) : (
+                                                    <button disabled className="flex-1 bg-slate-50 text-slate-400 border border-slate-200 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-not-allowed opacity-60">
+                                                        Reschedule Limit Reached
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <section className="space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-3">
+                                            <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest">Select New Schedule</h4>
+                                        </div>
+                                        <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">
+                                            Reschedule count: {selectedRecord.rescheduleCount} / {maxRescheduleLimit}
+                                        </span>
+                                    </div>
+
+                                    <div className="space-y-4 bg-slate-50 p-6 rounded-[24px] border border-slate-100">
+                                        {/* Date Input */}
+                                        <div>
+                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">New Appointment Date *</label>
+                                            <input 
+                                                type="date"
+                                                min={new Date().toISOString().split('T')[0]} // Restrict past dates
+                                                value={rescheduleData.date}
+                                                onChange={(e) => setRescheduleData({ ...rescheduleData, date: e.target.value })}
+                                                className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all text-slate-700"
+                                            />
+                                        </div>
+
+                                        {/* Time Slot Selector */}
+                                        <div>
+                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Select Time Slot *</label>
+                                            <div className="grid grid-cols-4 gap-2">
+                                                {["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00"].map((slot) => {
+                                                    const isSelected = rescheduleData.timeSlot === slot;
+                                                    return (
+                                                        <button
+                                                            type="button"
+                                                            key={slot}
+                                                            onClick={() => setRescheduleData({ ...rescheduleData, timeSlot: slot })}
+                                                            className={`py-3 rounded-xl text-xs font-bold transition-all border ${
+                                                                isSelected 
+                                                                    ? "bg-emerald-600 border-emerald-600 text-white font-black scale-105 shadow-md shadow-emerald-100" 
+                                                                    : "bg-white border-slate-250 text-slate-700 hover:bg-slate-50"
+                                                            }`}
+                                                        >
+                                                            {slot}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-4">
+                                        <button onClick={() => { setIsRescheduling(false); setRescheduleData({ date: "", timeSlot: "" }); }} className="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-gray-100 text-gray-600">Back</button>
+                                        <button 
+                                            disabled={isActionLoading}
+                                            onClick={handleRescheduleSubmit} 
+                                            className="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-gray-900 text-white hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            {isActionLoading ? "Processing..." : "Confirm Reschedule"}
+                                        </button>
+                                    </div>
+                                </section>
+                            )}
+
                             <section>
-                                <div className="flex items-center gap-2 mb-4 text-emerald-600">
-                                    <Wallet size={18} />
-                                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Payment Summary</h4>
-                                </div>
+                                <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><Wallet size={18} className="text-[#08b36a]" /><h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Billing Summary</h4></div></div>
                                 <div className="border border-slate-100 rounded-3xl overflow-hidden bg-slate-50/30">
                                     <table className="w-full text-left">
                                         <tbody className="divide-y divide-slate-100">
@@ -459,97 +692,32 @@ export default function MedicalHistoryPage() {
                                 </div>
                             </section>
 
-                            {/* Rating & Review Display inside Detail Modal */}
-                            {selectedRecord.status === "Completed" && (
-                                <section className="space-y-4 pt-4 border-t border-slate-100">
-                                    <div className="flex items-center gap-2 mb-4 text-emerald-600">
-                                        <Star size={18} />
-                                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Appointment Feedback</h4>
+                            {selectedRecord.specialServices?.length > 0 && (
+                                <section>
+                                    <div className="flex items-center gap-2 mb-4"><Stethoscope size={18} className="text-[#08b36a]" /><h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Special Services</h4></div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {selectedRecord.specialServices.map((svc) => (<span key={svc._id} className="bg-gray-100 px-4 py-2 rounded-xl text-[10px] font-black text-gray-600 uppercase">{svc.serviceName} (+₹{svc.price})</span>))}
                                     </div>
-                                    {loadingDetailReview ? (
-                                        <div className="flex items-center gap-2 bg-slate-50 p-6 rounded-3xl border border-slate-100 text-xs font-semibold text-slate-400">
-                                            <RotateCcw className="animate-spin text-slate-400" size={14} />
-                                            <span>Syncing feedback details...</span>
-                                        </div>
-                                    ) : activeDetailReview ? (
-                                        <div className="bg-amber-50/50 border border-amber-100/70 p-6 rounded-3xl space-y-3">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[9px] font-black uppercase text-amber-600 tracking-wider flex items-center gap-1.5">
-                                                    <Star size={14} className="fill-amber-400 text-amber-400" /> Submitted Review
-                                                </span>
-                                                <div className="flex gap-0.5">
-                                                    {[1, 2, 3, 4, 5].map((star) => (
-                                                        <Star
-                                                            key={star}
-                                                            size={16}
-                                                            className={star <= activeDetailReview.rating ? "text-amber-400 fill-amber-400" : "text-slate-200"}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            <p className="text-xs font-semibold text-slate-700 italic leading-relaxed">
-                                                "{activeDetailReview.comment}"
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <div className="bg-slate-50 border border-slate-100 p-6 rounded-3xl text-center">
-                                            <p className="text-xs font-bold text-slate-400">You have not submitted any feedback for this appointment yet.</p>
-                                            <button 
-                                                onClick={() => {
-                                                    setIsDetailModalOpen(false);
-                                                    handleOpenReview(selectedRecord);
-                                                }}
-                                                className="mt-2 text-[10px] font-black uppercase text-emerald-600 hover:text-emerald-700"
-                                            >
-                                                Submit Review
-                                            </button>
-                                        </div>
-                                    )}
                                 </section>
                             )}
+                        </div>
 
-                            {/* Action Buttons */}
-                            {selectedRecord.status !== "Cancelled" && (
-                                <div className="flex flex-col gap-4 pt-4">
-                                    <div className="flex justify-between items-center px-2">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-2">
-                                            <RotateCcw size={14} className="text-emerald-500" /> Reschedules: {selectedRecord.rescheduleCount} / {maxRescheduleLimit}
-                                        </p>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-2">
-                                            <Trash2 size={14} className="text-rose-500" /> Cancellations Used: {selectedRecord.cancellationCount}
-                                        </p>
-                                    </div>
-                                    <div className="flex gap-4">
-                                        {/* Cancellation Button Logic */}
-                                        {selectedRecord.cancellationCount < 1 ? (
-                                            <button 
-                                                onClick={() => setIsCancelModalOpen(true)}
-                                                className="flex-1 bg-rose-50 text-rose-600 border border-rose-100 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all flex items-center justify-center gap-2"
-                                            >
-                                                <Trash2 size={16} /> Cancel Booking
-                                            </button>
-                                        ) : (
-                                            <button disabled className="flex-1 bg-slate-50 text-slate-400 border border-slate-200 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-not-allowed opacity-60">
-                                                Cancellation Limit Reached
-                                            </button>
-                                        )}
-
-                                        {/* Reschedule Button Logic */}
-                                        {selectedRecord.rescheduleCount < maxRescheduleLimit ? (
-                                            <button 
-                                                className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
-                                                onClick={() => toast.error("Please navigate to Booking page to select new slot")}
-                                            >
-                                                <RotateCcw size={16} /> Reschedule
-                                            </button>
-                                        ) : (
-                                            <button disabled className="flex-1 bg-slate-50 text-slate-400 border border-slate-200 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-not-allowed opacity-60">
-                                                Reschedule Limit Reached
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
+                        {/* Modal Footer actions */}
+                        <div className="p-6 md:p-8 bg-gray-50 border-t flex gap-3 shrink-0">
+                            {selectedRecord.status === "Completed" && (
+                                <button 
+                                    onClick={() => {
+                                        setIsDetailModalOpen(false);
+                                        setIsReviewModalOpen(true);
+                                    }}
+                                    className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-amber-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                                >
+                                    <Star className="fill-white text-white" size={16} /> {activeDetailReview ? "Edit Review & Rating" : "Add Review & Rating"}
+                                </button>
                             )}
+                            <button className="flex-1 py-4 bg-gray-900 hover:bg-gray-850 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+                                Download invoice
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -599,7 +767,7 @@ export default function MedicalHistoryPage() {
                 </div>
             )}
 
-            {/* --- REVIEW / RATING MODAL --- */}
+            {/* --- RATING & REVIEW PORTAL MODAL --- */}
             {isReviewModalOpen && selectedRecord && (
                 <DoctorReviewModal 
                     isOpen={isReviewModalOpen} 

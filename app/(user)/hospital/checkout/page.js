@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     FaArrowLeft, FaHospital, FaProcedures,
     FaShieldAlt, FaCheck, FaTimes, FaTag, FaReceipt,
     FaUser, FaPhone, FaCalendarDay, FaVenusMars, FaCreditCard,
     FaMapMarkerAlt, FaGlobe, FaPlus, FaUpload, FaUserMd, FaStethoscope,
-    FaSpinner
+    FaSpinner, FaGem
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import UserAPI from "@/app/services/UserAPI";
@@ -43,6 +43,11 @@ export default function CheckoutPage() {
     const [coupons, setCoupons] = useState([]);
     const [familyMembers, setFamilyMembers] = useState([]);
 
+    // --- NEW SUBSCRIPTION & SERVER PRICING STATE ---
+    const [subscription, setSubscription] = useState(null);
+    const [serverPricing, setServerPricing] = useState(null);
+    const [isFetchingSummary, setIsFetchingSummary] = useState(false);
+
     // Selection State
     const [selectedMemberId, setSelectedMemberId] = useState("self");
     const [selectedDoctorId, setSelectedDoctorId] = useState(null);
@@ -64,8 +69,8 @@ export default function CheckoutPage() {
         companyName: "",
         issueDate: "",
         expiryDate: "",
-        insuranceDocument: null, // Holds the binary file upload
-        bookingReason: ""        // Maps to bookingReason/reasonForVisit
+        insuranceDocument: null,
+        bookingReason: ""
     });
 
     // Coupon State
@@ -91,8 +96,47 @@ export default function CheckoutPage() {
             setBooking(parsedBooking);
             fetchHospitalData(parsedBooking.hospitalId);
             fetchFamilyData();
+            fetchSubscriptionStatus(); // Fetch subscription on load
         }
     }, [router]);
+
+    const fetchSubscriptionStatus = async () => {
+        try {
+            const res = await UserAPI.getMySubscriptionStatus();
+            if (res.success && res.hasActivePlan) {
+                setSubscription(res.data);
+            }
+        } catch (error) {
+            console.error("Subscription fetch error", error);
+        }
+    };
+
+    // --- FETCH SERVER-SIDE PRICING SUMMARY ---
+    useEffect(() => {
+        const fetchSummary = async () => {
+            if (!booking) return;
+            try {
+                setIsFetchingSummary(true);
+                const payload = {
+                    hospitalId: booking.hospitalId,
+                    bedId: booking.bedId,
+                    doctorId: selectedDoctorId,
+                    startDate: booking.startDate,
+                    endDate: booking.endDate,
+                    triageLevel: bedBookingType === "Emergency-Bed" ? "Emergency" : "Routine"
+                };
+                const res = await UserAPI.getHospitalCheckoutSummary(payload);
+                if (res.success) {
+                    setServerPricing(res.data);
+                }
+            } catch (error) {
+                console.error("Error fetching pricing summary", error);
+            } finally {
+                setIsFetchingSummary(false);
+            }
+        };
+        fetchSummary();
+    }, [booking, selectedDoctorId, bedBookingType]);
 
     const fetchHospitalData = async (hospitalId) => {
         try {
@@ -175,10 +219,28 @@ export default function CheckoutPage() {
         }
     };
 
-    const selectedServices = services.filter(s => selectedServiceIds.includes(s._id));
-    const servicesTotal = selectedServices.reduce((sum, s) => sum + s.price, 0);
-    const bedPrice = booking?.totalPrice || 0;
-    const subtotal = bedPrice + servicesTotal;
+    // --- UPDATED PRICING LOGIC ---
+    const totals = useMemo(() => {
+        const selectedServices = services.filter(s => selectedServiceIds.includes(s._id));
+        const servicesTotal = selectedServices.reduce((sum, s) => sum + s.price, 0);
+        
+        // Use server pricing if available, otherwise fallback to local
+        const bedPrice = serverPricing?.baseFee || booking?.totalPrice || 0;
+        const visitCharge = serverPricing?.visitCharge ?? 0; // Will be 0 if subscription active
+        
+        const subtotal = bedPrice + servicesTotal + visitCharge;
+        const finalTotal = subtotal - discountAmount;
+
+        return {
+            bedPrice,
+            servicesTotal,
+            visitCharge,
+            subtotal,
+            finalTotal,
+            selectedServices,
+            isSubscriptionApplied: !!subscription && visitCharge === 0 && selectedDoctorId !== null
+        };
+    }, [services, selectedServiceIds, booking, serverPricing, discountAmount, subscription, selectedDoctorId]);
 
     const handleApplyCoupon = async (codeToApply = couponCode) => {
         setCouponError("");
@@ -187,7 +249,7 @@ export default function CheckoutPage() {
             const response = await UserAPI.validateHospitalCoupon({
                 hospitalId: booking.hospitalId,
                 couponCode: codeToApply,
-                subtotal: subtotal
+                subtotal: totals.subtotal
             });
 
             if (response.success) {
@@ -216,8 +278,6 @@ export default function CheckoutPage() {
         setCouponError("");
     };
 
-    const finalTotal = subtotal - discountAmount;
-
     const toggleService = (serviceId) => {
         setSelectedServiceIds((prev) =>
             prev.includes(serviceId) ? prev.filter(id => id !== serviceId) : [...prev, serviceId]
@@ -234,7 +294,6 @@ export default function CheckoutPage() {
         setPatientDetails(prev => ({ ...prev, [name]: value }));
     };
 
-    // Handle Local File Selection
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files.length > 0) {
             setPatientDetails(prev => ({
@@ -244,7 +303,6 @@ export default function CheckoutPage() {
         }
     };
 
-    // --- FORM SUBMISSION (MULTIPART FORMDATA) ---
     const handlePayment = async () => {
         if (!patientDetails.fullName || !patientDetails.phoneNumber) {
             alert("Please fill in the required patient details.");
@@ -259,20 +317,10 @@ export default function CheckoutPage() {
         setIsSubmitting(true);
 
         try {
-            // Load Razorpay script dynamically
-            const isScriptLoaded = await loadRazorpayScript();
-            if (!isScriptLoaded) {
-                alert("Failed to load Razorpay SDK. Please check your network connection.");
-                setIsSubmitting(false);
-                return;
-            }
-
-            // Construct Multipart Form-Data payload matching backend API requirements
             const fd = new FormData();
-
-            // 1. Text Fields
             fd.append("hospitalId", booking.hospitalId);
             fd.append("bedId", booking.bedId);
+            fd.append("doctorId", selectedDoctorId || "");
             fd.append("startDate", booking.startDate);
             fd.append("endDate", booking.endDate);
             fd.append("hasInsurance", patientDetails.haveInsurance === "Yes" ? "true" : "false");
@@ -282,44 +330,52 @@ export default function CheckoutPage() {
                 fd.append("couponCode", appliedCoupon.couponName);
             }
 
-            // 2. Serialized JSON Array for patients
-            const patientArray = [
-                {
-                    patientName: patientDetails.fullName,
-                    patientAge: calculateAge(patientDetails.dob),
-                    gender: patientDetails.gender,
-                    relation: selectedMemberId === "self" ? "Self" : "Family Member",
-                    reasonForVisit: patientDetails.bookingReason || "",
-                    isMainUser: true
-                }
-            ];
+            const patientArray = [{
+                patientName: patientDetails.fullName,
+                patientAge: calculateAge(patientDetails.dob),
+                gender: patientDetails.gender,
+                relation: selectedMemberId === "self" ? "Self" : "Family Member",
+                reasonForVisit: patientDetails.bookingReason || "",
+                isMainUser: true
+            }];
             fd.append("patients", JSON.stringify(patientArray));
 
-            // 3. Serialized JSON Object for address
             const addressObj = {
                 name: patientDetails.fullName,
                 phone: patientDetails.phoneNumber,
                 houseNo: patientDetails.address || "",
-                sector: patientDetails.city || "", // Fallback mapping city/sector fields
+                sector: patientDetails.city || "",
                 city: patientDetails.city || "",
-                state: "Punjab", // Default fallback operational state
+                state: "Punjab",
                 pincode: patientDetails.pincode || "",
                 addressType: "Home"
             };
             fd.append("address", JSON.stringify(addressObj));
 
-            // 4. File Parameter
             if (patientDetails.haveInsurance === "Yes" && patientDetails.insuranceDocument) {
                 fd.append("insuranceDocument", patientDetails.insuranceDocument);
             }
 
-            // 5. Submit to Backend API
             const response = await UserAPI.bookHospitalBed(fd);
             
             if (response.success) {
+                // --- SKIP RAZORPAY IF TOTAL IS 0 ---
+                if (response.amount === 0 || totals.finalTotal === 0) {
+                    alert(response.message || "Booking Confirmed Successfully!");
+                    sessionStorage.removeItem("activeBooking");
+                    router.push("/userscreens/hospitalappointment");
+                    return;
+                }
+
+                const isScriptLoaded = await loadRazorpayScript();
+                if (!isScriptLoaded) {
+                    alert("Failed to load Razorpay SDK.");
+                    setIsSubmitting(false);
+                    return;
+                }
+
                 const { key_id, amount, razorpayOrderId, appointmentId, orderId } = response;
 
-                // Setup options for Razorpay Checkout Modal
                 const options = {
                     key: key_id,
                     amount: amount,
@@ -328,40 +384,30 @@ export default function CheckoutPage() {
                     description: "Hospital Bed Admission Booking",
                     order_id: razorpayOrderId,
                     prefill: {
-                        name: patientDetails.fullName || "Patient Name",
-                        email: "patient@example.com",
-                        contact: patientDetails.phoneNumber || "9876543210"
+                        name: patientDetails.fullName,
+                        contact: patientDetails.phoneNumber
                     },
-                    theme: {
-                        color: "#10b981" // Match layout emerald styling theme
-                    },
-                    modal: {
-                        ondismiss: function () {
-                            setIsSubmitting(false);
-                        }
-                    },
+                    theme: { color: "#10b981" },
+                    modal: { ondismiss: () => setIsSubmitting(false) },
                     handler: async function (paymentResponse) {
                         try {
                             setIsSubmitting(true);
-                            const verificationPayload = {
-                                appointmentId: appointmentId || orderId || response.appointmentId || response.orderId,
-                                razorpayOrderId: paymentResponse.razorpay_order_id || razorpayOrderId,
+                            const verificationRes = await UserAPI.verifyPaymentHospital({
+                                appointmentId: appointmentId || orderId,
+                                razorpayOrderId: paymentResponse.razorpay_order_id,
                                 razorpayPaymentId: paymentResponse.razorpay_payment_id,
                                 razorpaySignature: paymentResponse.razorpay_signature
-                            };
-
-                            const verificationRes = await UserAPI.verifyPaymentHospital(verificationPayload);
+                            });
 
                             if (verificationRes?.success) {
-                                alert(verificationRes.message || "Booking Confirmed Successfully!");
+                                alert("Booking Confirmed Successfully!");
                                 sessionStorage.removeItem("activeBooking");
                                 router.push("/userscreens/hospitalappointment");
                             } else {
-                                alert(verificationRes?.message || "Signature verification failed. Invalid transaction token.");
+                                alert("Verification failed.");
                             }
-                        } catch (verificationError) {
-                            console.error("Payment Verification Error:", verificationError);
-                            alert("Something went wrong during payment verification.");
+                        } catch (e) {
+                            alert("Something went wrong during verification.");
                         } finally {
                             setIsSubmitting(false);
                         }
@@ -369,10 +415,6 @@ export default function CheckoutPage() {
                 };
 
                 const rzpInstance = new window.Razorpay(options);
-                rzpInstance.on('payment.failed', function (paymentFailResponse) {
-                    alert(`Payment failed: ${paymentFailResponse.error.description}`);
-                    setIsSubmitting(false);
-                });
                 rzpInstance.open();
 
             } else {
@@ -380,7 +422,6 @@ export default function CheckoutPage() {
                 setIsSubmitting(false);
             }
         } catch (error) {
-            console.error("Booking Error:", error);
             alert("An error occurred during booking.");
             setIsSubmitting(false);
         }
@@ -411,6 +452,21 @@ export default function CheckoutPage() {
                 <div className="grid lg:grid-cols-12 gap-6 md:gap-8 lg:gap-10 items-start">
 
                     <div className="lg:col-span-8 space-y-6 md:space-y-8">
+
+                        {/* --- SUBSCRIPTION BADGE --- */}
+                        {subscription && (
+                            <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-[1.5rem] md:rounded-[2.5rem] flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-emerald-500 flex-shrink-0">
+                                    <FaGem size={20} />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-black text-emerald-800">Subscription Benefit Active</h4>
+                                    <p className="text-xs text-emerald-600 mt-1">
+                                        Your <strong>{subscription.planId.name}</strong> covers the specialist consultation fee for this admission.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
                         {/* 01. ADMISSION OVERVIEW */}
                         <section className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-10 shadow-sm border border-slate-100 overflow-hidden">
@@ -513,18 +569,9 @@ export default function CheckoutPage() {
                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Pincode</label>
                                     <input type="text" name="pincode" value={patientDetails.pincode} onChange={handleInputChange} placeholder="Pincode" className="w-full bg-slate-50 px-4 py-4 rounded-xl border border-slate-100 outline-none font-bold text-sm text-slate-700" />
                                 </div>
-                                
-                                {/* BOOKING REASON / CLINICAL SYMPTOMS */}
                                 <div className="md:col-span-2">
                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Clinical Reason / Symptoms</label>
-                                    <input 
-                                        type="text" 
-                                        name="bookingReason" 
-                                        value={patientDetails.bookingReason} 
-                                        onChange={handleInputChange} 
-                                        placeholder="e.g., Severe chest pain, shortness of breath" 
-                                        className="w-full bg-slate-50 px-4 py-4 rounded-xl border border-slate-100 outline-none font-bold text-sm text-slate-700" 
-                                    />
+                                    <input type="text" name="bookingReason" value={patientDetails.bookingReason} onChange={handleInputChange} placeholder="e.g., Severe chest pain, shortness of breath" className="w-full bg-slate-50 px-4 py-4 rounded-xl border border-slate-100 outline-none font-bold text-sm text-slate-700" />
                                 </div>
 
                                 <div className="md:col-span-2 pt-2">
@@ -542,20 +589,11 @@ export default function CheckoutPage() {
                                     <div className="md:col-span-2 bg-amber-50/30 p-4 md:p-6 rounded-2xl border border-amber-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <input type="text" name="insuranceNo" value={patientDetails.insuranceNo} onChange={handleInputChange} placeholder="Policy No." className="w-full bg-white px-4 py-3 rounded-xl border-none outline-none font-bold text-sm" />
                                         <input type="text" name="companyName" value={patientDetails.companyName} onChange={handleInputChange} placeholder="Insurance Provider" className="w-full bg-white px-4 py-3 rounded-xl border-none outline-none font-bold text-sm" />
-                                        
-                                        {/* INSURANCE DOCUMENT FILE UPLOAD CARD */}
                                         <div className="sm:col-span-2 border-2 border-dashed border-slate-200 rounded-xl p-4 bg-white text-center hover:border-emerald-500 transition-colors cursor-pointer relative group">
-                                            <input 
-                                                type="file" 
-                                                onChange={handleFileChange} 
-                                                accept="image/*,application/pdf"
-                                                className="absolute inset-0 opacity-0 cursor-pointer"
-                                            />
+                                            <input type="file" onChange={handleFileChange} accept="image/*,application/pdf" className="absolute inset-0 opacity-0 cursor-pointer" />
                                             <div className="flex flex-col items-center justify-center gap-1">
                                                 <FaUpload className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
-                                                <span className="text-xs font-bold text-slate-500">
-                                                    {patientDetails.insuranceDocument ? patientDetails.insuranceDocument.name : "Upload Insurance Card/Document *"}
-                                                </span>
+                                                <span className="text-xs font-bold text-slate-500">{patientDetails.insuranceDocument ? patientDetails.insuranceDocument.name : "Upload Insurance Card/Document *"}</span>
                                                 <span className="text-[9px] text-slate-400 font-bold uppercase">PNG, JPG, PDF up to 10MB</span>
                                             </div>
                                         </div>
@@ -617,7 +655,6 @@ export default function CheckoutPage() {
 
                     {/* RIGHT COLUMN: BILL SUMMARY */}
                     <div className="lg:col-span-4 space-y-6">
-                        {/* OFFERS */}
                         <div className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-6 shadow-sm border border-slate-100">
                             <h2 className="text-[10px] font-black text-slate-900 uppercase tracking-widest mb-5 flex items-center gap-2">
                                 <FaTag className="text-emerald-500" /> Apply Coupon
@@ -640,7 +677,6 @@ export default function CheckoutPage() {
                             </div>
                         </div>
 
-                        {/* BILL SUMMARY */}
                         <div className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-6 md:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 lg:sticky lg:top-24 overflow-hidden">
                             <h2 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
                                 <FaReceipt className="text-slate-400" /> Bill Summary
@@ -648,11 +684,27 @@ export default function CheckoutPage() {
                             <div className="space-y-4 text-[11px] md:text-xs">
                                 <div className="flex justify-between items-center">
                                     <span className="font-bold text-slate-400 uppercase tracking-tighter">Base Admission</span>
-                                    <span className="font-black text-slate-800">₹{bedPrice}</span>
+                                    <span className="font-black text-slate-800">₹{totals.bedPrice}</span>
                                 </div>
-                                {selectedServices.length > 0 && (
+                                
+                                {/* --- DYNAMIC DOCTOR CONSULTATION CHARGE --- */}
+                                {selectedDoctorId && (
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-bold text-slate-400 uppercase tracking-tighter">Specialist Consult</span>
+                                        <div className="flex flex-col items-end">
+                                            <span className={`font-black text-slate-800 ${totals.isSubscriptionApplied ? 'line-through text-slate-300 text-[10px]' : ''}`}>
+                                                ₹{serverPricing?.visitCharge ?? 600}
+                                            </span>
+                                            {totals.isSubscriptionApplied && (
+                                                <span className="text-emerald-600 font-black text-[9px] uppercase tracking-tighter">Plan Benefit: ₹0</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {totals.selectedServices.length > 0 && (
                                     <div className="pt-3 space-y-2 border-t border-slate-50">
-                                        {selectedServices.map(s => (
+                                        {totals.selectedServices.map(s => (
                                             <div key={s._id} className="flex justify-between items-center italic text-slate-500 text-[10px]">
                                                 <span>• {s.serviceName}</span>
                                                 <span>₹{s.price}</span>
@@ -662,7 +714,7 @@ export default function CheckoutPage() {
                                 )}
                                 <div className="flex justify-between items-center pt-3 border-t border-slate-100 font-black">
                                     <span className="text-slate-400 uppercase">Subtotal</span>
-                                    <span className="text-slate-800">₹{subtotal}</span>
+                                    <span className="text-slate-800">₹{totals.subtotal}</span>
                                 </div>
                                 {appliedCoupon && (
                                     <div className="flex justify-between items-center text-emerald-600 bg-emerald-50 p-2.5 rounded-lg border border-emerald-100 font-black text-[10px] uppercase">
@@ -673,18 +725,18 @@ export default function CheckoutPage() {
                                 <div className="pt-6 border-t-4 border-slate-50 mt-6">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Payable</p>
                                     <div className="flex items-baseline gap-1">
-                                        <span className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter">₹{finalTotal}</span>
+                                        <span className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter">₹{totals.finalTotal}</span>
                                         <span className="text-[10px] font-bold text-slate-300 uppercase italic">Inc. Taxes</span>
                                     </div>
                                 </div>
                             </div>
                             <button
                                 onClick={handlePayment}
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || isFetchingSummary}
                                 className="w-full bg-slate-900 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs md:text-sm uppercase tracking-widest mt-8 flex items-center justify-center gap-3 transition-all duration-300 shadow-xl active:scale-95 disabled:bg-slate-300 disabled:cursor-not-allowed"
                             >
-                                {isSubmitting ? <FaSpinner className="animate-spin text-white" /> : <FaCreditCard />}
-                                {isSubmitting ? "Processing..." : "Confirm Booking"}
+                                {isSubmitting || isFetchingSummary ? <FaSpinner className="animate-spin text-white" /> : <FaCreditCard />}
+                                {isSubmitting ? "Processing..." : totals.finalTotal === 0 ? "Confirm Free Booking" : "Confirm Booking"}
                             </button>
                             <p className="text-[8px] text-center text-slate-400 mt-6 font-bold uppercase tracking-widest">Secure SSL Encrypted Transaction</p>
                         </div>
@@ -692,7 +744,6 @@ export default function CheckoutPage() {
                 </div>
             </main>
 
-            {/* STYLES */}
             <style jsx global>{`
                 .no-scrollbar::-webkit-scrollbar { display: none; }
                 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
