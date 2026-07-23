@@ -111,7 +111,6 @@ const DoctorTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) => {
     const handleLogout = () => {
         setIsDropdownOpen(false);
         localStorage.removeItem('hospitalDoctorToken');
-        localStorage.removeItem('doctorToken');
         localStorage.removeItem('token');
         window.location.href = '/'; 
     };
@@ -216,16 +215,15 @@ export default function DoctorVendorLayout({ children }) {
     // Sidebar Menu Items with Settings Nested List
     const menuItems = [
         { name: 'Dashboard', href: '/vendors/hospitaldoctor/doctordashboard', icon: FaChartLine },
-        { name: 'Consultation History', href: '/vendors/hospitaldoctor/doctordashboard/consultation-history', icon: FaHistory },
         { name: 'Emergency Case', href: '/vendors/hospitaldoctor/doctordashboard/emergency-case', icon: FaAmbulance },
         { name: 'Admission Case', href: '/vendors/hospitaldoctor/doctordashboard/admission-case', icon: FaHospital },
+        { name: 'Consultation History', href: '/vendors/hospitaldoctor/doctordashboard/consultation-history', icon: FaHistory },
         {
             name: 'Settings',
             icon: FaCog,
             isSubmenu: true,
             submenuItems: [
                 { name: 'Profile', href: '/vendors/hospitaldoctor/doctordashboard/profile', icon: FaUserCircle },
-                { name: 'About', href: '/vendors/hospitaldoctor/doctordashboard/about', icon: FaInfoCircle },
                 { name: 'Terms & Conditions', href: '/vendors/hospitaldoctor/doctordashboard/terms-and-conditions', icon: FaFileContract }
             ]
         }

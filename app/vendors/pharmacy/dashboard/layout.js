@@ -184,7 +184,7 @@ export default function PharmacyVendorLayout({ children }) {
         { name: 'Schedule', href: '/vendors/pharmacy/dashboard/schedule', icon: FaCalendarAlt },
         { name: 'Promotion', href: '/vendors/pharmacy/dashboard/coupon', icon: FaBullhorn },
         { name: 'Combo Offers', href: '/vendors/pharmacy/dashboard/combo-offers', icon: FaBullhorn },
-        { name: 'Manage Documents', href: '/vendors/pharmacy/dashboard/document', icon: FaFileAlt },
+        // { name: 'Manage Documents', href: '/vendors/pharmacy/dashboard/document', icon: FaFileAlt },
         { name: 'Manage Banking', href: '/vendors/pharmacy/dashboard/ManageBanking', icon: FaUniversity },
         { name: 'Manage Delivery Charges', href: '/vendors/pharmacy/dashboard/delivery-charges', icon: FaMoneyBillWave },
         { name: 'Wallet & Earning', href: '/vendors/pharmacy/dashboard/wallet', icon: FaWallet },

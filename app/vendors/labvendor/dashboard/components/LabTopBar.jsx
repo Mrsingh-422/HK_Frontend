@@ -37,8 +37,7 @@ export default function LabTopBar({ onMobileMenuClick }) {
   // 2. Real Sign Out Logic
   const handleSignOut = () => {
     localStorage.removeItem('labToken');
-    localStorage.removeItem('pharmacyToken');
-    localStorage.removeItem('nurseToken');
+  
     // Add any other local storage keys you use for auth
     router.push('/'); // Redirect to your login page
   };

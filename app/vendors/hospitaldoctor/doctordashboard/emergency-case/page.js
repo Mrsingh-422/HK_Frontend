@@ -58,23 +58,23 @@ export default function DoctorEmergencyCasesPage() {
     const [prescriptionSource, setPrescriptionSource] = useState('discharge'); 
 
     const [isDischargeOpen, setIsDischargeOpen] = useState(false);
+    const [clinicalReports, setClinicalReports] = useState([]);
+    const [stagedMedicines, setStagedMedicines] = useState([]);
     const [dischargeForm, setDischargeForm] = useState({
+        chiefComplaints: '',
         diagnosis: '',
-        investigation: '',
-        advice: '',
-        specialInstruction: '',
-        treatmentResult: ''
+        advisedInvestigations: '',
+        adviceGiven: '',
+        specialInstructions: '',
+        nextAppointment: '',
+        clinicalNotes: '',
+        dateOfSurgery: '',
+        conditionDuringAdmission: '',
+        conditionDuringDischarge: ''
     });
 
     const [isPrescriptionOpen, setIsPrescriptionOpen] = useState(false);
     const [medicinesList, setMedicinesList] = useState([]);
-    const [selectedMedicine, setSelectedMedicine] = useState('');
-    const [prescriptionFrequency, setPrescriptionFrequency] = useState({
-        morning: false,
-        afternoon: false,
-        evening: false
-    });
-    const [prescriptionDays, setPrescriptionDays] = useState('3 days');
 
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [feedbackForm, setFeedbackForm] = useState({
@@ -359,51 +359,48 @@ export default function DoctorEmergencyCasesPage() {
         }
     };
 
-    const handleDischargeSubmitDirect = async () => {
-        try {
-            setActionLoading(true);
+    const buildDischargeFormData = () => {
+        const formData = new FormData();
+        formData.append('appointmentId', selectedCaseId);
+        formData.append('chiefComplaints', dischargeForm.chiefComplaints || "");
+        formData.append('diagnosis', dischargeForm.diagnosis || "");
+        formData.append('advisedInvestigations', dischargeForm.advisedInvestigations || "");
+        formData.append('adviceGiven', dischargeForm.adviceGiven || "");
+        formData.append('specialInstructions', dischargeForm.specialInstructions || "");
+        formData.append('nextAppointment', dischargeForm.nextAppointment || "");
+        formData.append('clinicalNotes', dischargeForm.clinicalNotes || "");
 
-            const dischargeBody = {
-                appointmentId: selectedCaseId,
-                diagnosis: dischargeForm.diagnosis || "Undisclosed Diagnosis",
-                investigation: dischargeForm.investigation || "Standard followups",
-                treatmentResult: dischargeForm.treatmentResult || "Standard summary submitted",
-                dischargeNote: dischargeForm.specialInstruction || "N/A"
-            };
+        // Additional specifications matching modern 9-key API updates
+        formData.append('investigation', dischargeForm.advisedInvestigations || "");
+        formData.append('treatmentResult', dischargeForm.clinicalNotes || "");
+        formData.append('dischargeNote', dischargeForm.adviceGiven || "");
+        formData.append('dateOfSurgery', dischargeForm.dateOfSurgery || "");
+        formData.append('conditionDuringAdmission', dischargeForm.conditionDuringAdmission || "");
+        formData.append('conditionDuringDischarge', dischargeForm.conditionDuringDischarge || "");
 
-            const response = await HospitalDoctorAPI.submitDischargeSummary(dischargeBody);
-            if (response.success) {
-                alert("Patient discharged successfully!");
-                setIsDischargeOpen(false);
-                setIsDetailsOpen(false);
-                setActiveStatus('Discharged');
-                fetchEmergencyCases();
-            }
-        } catch (err) {
-            alert(getErrorMessage(err));
-        } finally {
-            setActionLoading(false);
-        }
+        // Mapping to correct files parameter arrays to cover standard and customized structures
+        clinicalReports.forEach((file) => {
+            formData.append('clinicalReports', file); 
+            formData.append('reports', file); 
+        });
+
+        return formData;
     };
 
     const handleFinalizeDischarge = async () => {
         try {
             setActionLoading(true);
 
-            const dischargeBody = {
-                appointmentId: selectedCaseId,
-                diagnosis: dischargeForm.diagnosis || "Undisclosed Diagnosis",
-                investigation: dischargeForm.investigation || "Standard followups",
-                treatmentResult: dischargeForm.treatmentResult || "Standard summary submitted",
-                dischargeNote: dischargeForm.specialInstruction || "N/A"
-            };
-
-            const response = await HospitalDoctorAPI.submitDischargeSummary(dischargeBody);
+            const formData = buildDischargeFormData();
+            const response = await HospitalDoctorAPI.submitDischargeSummary(formData);
             if (response.success) {
                 alert("Patient discharged successfully!");
                 setIsPrescriptionPreviewOpen(false);
+                setIsDischargeOpen(false);
                 setIsDetailsOpen(false);
                 setActiveStatus('Discharged');
+                setClinicalReports([]);
+                setStagedMedicines([]);
                 fetchEmergencyCases();
             }
         } catch (err) {
@@ -433,15 +430,20 @@ export default function DoctorEmergencyCasesPage() {
     const handleProcessPrescriptionSubmit = async (finalMedicines, dietPlanFile) => {
         try {
             setActionLoading(true);
+            setStagedMedicines(finalMedicines);
 
-            const diagnosisText = dischargeForm.diagnosis || (prescriptionSource === 'bedside' ? "Specialist Bedside Treatment" : "Undisclosed Diagnosis");
+            const diagnosisText = dischargeForm.diagnosis || (prescriptionSource === 'bedside' ? "Specialist Bedside Treatment" : "");
             const diagnosisArray = [diagnosisText];
 
             const formData = new FormData();
             formData.append('appointmentId', selectedCaseId);
             formData.append('diagnosis', JSON.stringify(diagnosisArray));
             formData.append('medicines', JSON.stringify(finalMedicines));
-            formData.append('advice', dischargeForm.advice || "Take prescription medicines on time");
+            formData.append('advice', dischargeForm.adviceGiven || "");
+            formData.append('advisedInvestigations', dischargeForm.advisedInvestigations || "");
+            formData.append('adviceGiven', dischargeForm.adviceGiven || "");
+            formData.append('specialInstructions', dischargeForm.specialInstructions || "");
+            formData.append('nextAppointment', dischargeForm.nextAppointment || "");
             if (dietPlanFile) {
                 formData.append('dietPlanPdf', dietPlanFile);
             }
@@ -450,6 +452,7 @@ export default function DoctorEmergencyCasesPage() {
 
             const activePatientObj = caseDetails?.patients?.[0] || {};
             
+            // Map live preview variables for instant view (pre-submission)
             const previewPayload = {
                 _id: selectedCaseId || caseDetails?._id, 
                 appointmentId: caseDetails?.bookingId || "N/A",
@@ -459,7 +462,7 @@ export default function DoctorEmergencyCasesPage() {
                 gender: activePatientObj.gender || caseDetails?.userId?.gender || "N/A",
                 age: activePatientObj.patientAge || caseDetails?.userId?.age || "N/A",
                 address: caseDetails?.address?.addressType || "N/A",
-                chiefComplaints: caseDetails?.chiefComplaints || "N/A",
+                chiefComplaints: dischargeForm.chiefComplaints || caseDetails?.chiefComplaints || "N/A",
                 diagnosis: diagnosisText,
                 medicines: finalMedicines.map(m => ({
                     name: m.name,
@@ -467,11 +470,22 @@ export default function DoctorEmergencyCasesPage() {
                     time: m.frequency,
                     duration: m.duration
                 })),
-                investigations: dischargeForm.investigation || "Standard followups",
-                advice: dischargeForm.advice || "Take prescription medicines on time",
-                specialInstructions: dischargeForm.specialInstruction || "N/A",
-                nextAppointment: "After 1 week",
+                investigations: dischargeForm.advisedInvestigations || "",
+                advice: dischargeForm.adviceGiven || "",
+                specialInstructions: dischargeForm.specialInstructions || "",
+                nextAppointment: dischargeForm.nextAppointment || "",
                 
+                // Mapped parameters to live state values
+                dateOfAdmission: caseDetails?.startDate ? new Date(caseDetails.startDate).toLocaleDateString('en-GB') : "N/A",
+                department: caseDetails?.doctorId?.speciality || "Department of Medicine, Unit - 1",
+                dateOfDischarge: new Date().toLocaleDateString('en-GB'),
+                dateOfSurgery: dischargeForm.dateOfSurgery || "",
+                insuranceStatus: caseDetails?.hasInsurance ? "Verified (Cashless)" : "N/A",
+                paymentStatus: caseDetails?.paymentStatus || "Paid",
+                paymentType: caseDetails?.paymentMethod || "UPI",
+                conditionDuringAdmission: dischargeForm.conditionDuringAdmission || "",
+                conditionDuringDischarge: dischargeForm.conditionDuringDischarge || "",
+
                 hospitalName: caseDetails?.hospitalId?.name || "Fortis Hospital Mohali",
                 hospitalAddress: caseDetails?.hospitalId?.address || "Sector 62, Sahibzada Ajit Singh Nagar, Punjab 160062",
                 mainDoctorName: caseDetails?.doctorId?.name || "Dr. Deepak Joshi",
@@ -506,7 +520,6 @@ export default function DoctorEmergencyCasesPage() {
     const offDutyColleagues = colleagues.filter(doc => doc.dutyStatus !== 'On Duty');
 
     const filteredCases = cases.filter(cs => {
-        // STRICT RULE: If ambulanceId has no value, exclude it from Emergency Cases
         if (cs.ambulanceId === null || cs.ambulanceId === undefined || cs.ambulanceId === '') {
             return false;
         }
@@ -714,12 +727,19 @@ export default function DoctorEmergencyCasesPage() {
                     }}
                     onDischargeClick={() => {
                         setDischargeForm({
+                            chiefComplaints: '',
                             diagnosis: '',
-                            investigation: '',
-                            advice: '',
-                            specialInstruction: '',
-                            treatmentResult: ''
+                            advisedInvestigations: '',
+                            adviceGiven: '',
+                            specialInstructions: '',
+                            nextAppointment: '',
+                            clinicalNotes: '',
+                            dateOfSurgery: '',
+                            conditionDuringAdmission: '',
+                            conditionDuringDischarge: ''
                         });
+                        setClinicalReports([]);
+                        setStagedMedicines([]);
                         setPrescriptionSource('discharge');
                         setIsDischargeOpen(true);
                     }}
@@ -730,9 +750,6 @@ export default function DoctorEmergencyCasesPage() {
                     onStartBedsideShift={handleStartBedsideShift}
                     onCompleteBedsideShift={(caseId) => {
                         setPrescriptionSource('bedside'); 
-                        setSelectedMedicine('');
-                        setPrescriptionFrequency({ morning: false, afternoon: false, evening: false });
-                        setPrescriptionDays('3 days');
                         setIsPrescriptionOpen(true);
                     }}
                 />
@@ -762,23 +779,19 @@ export default function DoctorEmergencyCasesPage() {
 
                 <DischargeModal 
                     isOpen={isDischargeOpen}
-                    onClose={setIsDischargeOpen}
+                    onClose={() => setIsDischargeOpen(false)}
                     dischargeForm={dischargeForm}
                     setDischargeForm={setDischargeForm}
                     onAddMedicineDetail={() => setIsPrescriptionOpen(true)}
-                    onDirectSubmit={handleDischargeSubmitDirect}
+                    clinicalReports={clinicalReports}
+                    setClinicalReports={setClinicalReports}
+                    addedMedicinesCount={stagedMedicines.length}
                 />
 
                 <PrescriptionModal 
                     isOpen={isPrescriptionOpen}
                     onClose={handleClosePrescription}
-                    selectedMedicine={selectedMedicine}
-                    setSelectedMedicine={setSelectedMedicine}
                     medicinesList={medicinesList}
-                    prescriptionFrequency={prescriptionFrequency}
-                    setPrescriptionFrequency={setPrescriptionFrequency}
-                    prescriptionDays={prescriptionDays}
-                    setPrescriptionDays={setPrescriptionDays}
                     actionLoading={actionLoading}
                     onSubmit={handleProcessPrescriptionSubmit}
                 />
@@ -800,6 +813,8 @@ export default function DoctorEmergencyCasesPage() {
                     onCompleteDischarge={handleFinalizeDischarge}
                     isBedsideFlow={prescriptionSource === 'bedside'}
                     onCompleteBedside={handleFinalizeBedsideShift}
+                    dischargeForm={dischargeForm}
+                    medicines={stagedMedicines}
                 />
 
             </div>

@@ -131,37 +131,62 @@ export default function ManagePhlebotomist() {
       toast.error("Delete failed");
     }
   };
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+  try {
+    const data = new FormData();
 
-    try {
-      const data = new FormData();
-      Object.keys(formData).forEach(key => {
-        if (formData[key] !== null && formData[key] !== '') {
-          // If editing and password is empty, don't append it
-          if (key === 'password' && modalMode === 'edit' && formData[key] === '') return;
-          data.append(key, formData[key]);
+    Object.keys(formData).forEach((key) => {
+      if (formData[key] !== null && formData[key] !== "") {
+        if (
+          key === "password" &&
+          modalMode === "edit" &&
+          formData[key] === ""
+        ) {
+          return;
         }
-      });
 
-      if (modalMode === 'add') {
-        await LabVendorAPI.addDriver(data);
-        toast.success("Phlebotomist added successfully!");
-      } else {
-        await LabVendorAPI.updateDriver(selectedId, data);
-        toast.success("Phlebotomist updated successfully!");
+        data.append(key, formData[key]);
       }
+    });
 
-      setIsModalOpen(false);
-      fetchDrivers();
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Operation failed");
-    } finally {
-      setLoading(false);
+    let response;
+
+    if (modalMode === "add") {
+      response = await LabVendorAPI.addDriver(data);
+      toast.success("Phlebotomist added successfully!");
+    } else {
+      response = await LabVendorAPI.updateDriver(selectedId, data);
+      toast.success("Phlebotomist updated successfully!");
     }
-  };
+
+    setIsModalOpen(false);
+    fetchDrivers();
+  } catch (error) {
+    console.log("Full Error:", error);
+    console.log("Response:", error?.response);
+    console.log("Data:", error?.response?.data);
+
+    const message =
+      error?.response?.data?.message ||
+      error?.response?.data?.error ||
+      error?.message ||
+      "Operation failed";
+
+    toast.dismiss();
+    toast.error(message, {
+      duration: 4000,
+      position: "top-right",
+    });
+
+    // If you want an alert instead of toast:
+    // alert(message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="w-full relative p-4 md:p-8">

@@ -94,7 +94,7 @@ const ManageAdmissions = () => {
 
   // Modals / Control Panel State
   const [selectedAdmission, setSelectedAdmission] = useState(null);
-  const [activeAction, setActiveAction] = useState(null); // 'doctor' | 'bed' | 'ambulance' | 'discharge' | null
+  const [activeAction, setActiveAction] = useState(null); // 'doctor' | 'reassign-doctor' | 'bed' | 'ambulance' | 'discharge' | null
 
   // Embedded Form States
   const [driverList, setDriverList] = useState([]);
@@ -102,6 +102,7 @@ const ManageAdmissions = () => {
   
   const [doctorList, setDoctorList] = useState([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
+  const [reassignReason, setReassignReason] = useState('');
 
   const [billingItems, setBillingItems] = useState([{ name: 'Medicines', price: '' }]);
 
@@ -135,6 +136,26 @@ const ManageAdmissions = () => {
       setLoading(false);
     }
   };
+
+  // Helper to safely fetch current doctor ID & Name
+  const currentDocId = useMemo(() => {
+    if (!selectedAdmission?.doctorId) return null;
+    return selectedAdmission.doctorId._id || selectedAdmission.doctorId;
+  }, [selectedAdmission]);
+
+  const currentDocName = useMemo(() => {
+    if (!selectedAdmission?.doctorId) return 'Unassigned';
+    if (selectedAdmission.doctorId.name) return selectedAdmission.doctorId.name;
+    // Fallback search in general list if doctorId is returned as ID string
+    const found = doctorList.find(d => d._id === selectedAdmission.doctorId);
+    return found ? found.name : 'Assigned Doctor';
+  }, [selectedAdmission, doctorList]);
+
+  // Filter out the active doctor so they don't appear in the reassignment roster
+  const availableReplacementDoctors = useMemo(() => {
+    if (!currentDocId) return doctorList;
+    return doctorList.filter(doc => doc._id !== currentDocId);
+  }, [doctorList, currentDocId]);
 
   // ---------------------------------------------------------
   // 📁 ADMISSIONS MEMOIZED SUB-TAB FILTERS
@@ -279,6 +300,46 @@ const ManageAdmissions = () => {
         fetchAdmissions(); 
       } else { alert('Error: ' + response.message); }
     } catch (error) { alert('Something went wrong while assigning doctor!'); } 
+    finally { setIsProcessing(false); }
+  };
+
+  // ---------------------------------------------------------
+  // 🔄 ACTION: REASSIGN DOCTOR INLINE FLOW
+  // ---------------------------------------------------------
+  const startReassignDoctorFlow = async () => {
+    setIsProcessing(true);
+    try {
+      const response = await HospitalAPI.getHospitalDoctors();
+      if (response?.success) {
+        setDoctorList(response.data || []);
+        setSelectedDoctorId('');
+        setReassignReason('');
+        setActiveAction('reassign-doctor');
+      } else {
+        alert(response?.message || 'Could not fetch doctors list.');
+      }
+    } catch (error) { alert('Error fetching doctors.'); } 
+    finally { setIsProcessing(false); }
+  };
+
+  const handleReassignDoctor = async (e) => {
+    e.preventDefault();
+    if (!selectedDoctorId) return alert('Please select a new doctor!');
+    setIsProcessing(true);
+    try {
+      const payload = { 
+        appointmentId: selectedAdmission._id, 
+        newDoctorId: selectedDoctorId,
+        reason: reassignReason || 'Reassigned from Hospital Admin Panel'
+      };
+      const response = await HospitalAPI.reassignDoctor(payload);
+      if (response?.success) {
+        alert('Doctor reassigned successfully!');
+        setActiveAction(null);
+        setSelectedAdmission(null); 
+        fetchAdmissions(); 
+      } else { alert('Error: ' + response.message); }
+    } catch (error) { alert('Something went wrong while reassigning doctor!'); } 
     finally { setIsProcessing(false); }
   };
 
@@ -605,7 +666,7 @@ const ManageAdmissions = () => {
 
                   <InfoSection title="📅 Schedule & Staff">
                      <InfoItem label="Appointment Date" value={displayDate(selectedAdmission.appointmentDate)} />
-                     <InfoItem label="Doctor Assignee" value={selectedAdmission.doctorId?.name ? `Dr. ${selectedAdmission.doctorId.name}` : 'Unassigned'} />
+                     <InfoItem label="Doctor Assignee" value={currentDocName} />
                      <InfoItem label="Primary Speciality" value={selectedAdmission.doctorId?.speciality || 'N/A'} />
                   </InfoSection>
                </div>
@@ -621,8 +682,8 @@ const ManageAdmissions = () => {
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-auto py-4">
-                           {/* Doctor assignment action */}
-                           {(!selectedAdmission.doctorId || selectedAdmission.status === 'Hospital-Pending') && (
+                           {/* Doctor assignment / reassignment action */}
+                           {(!selectedAdmission.doctorId || selectedAdmission.status === 'Hospital-Pending') ? (
                               <button onClick={startAssignDoctorFlow} className="p-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-2xl border border-emerald-200 flex items-center gap-4 transition-all hover:scale-[1.02] text-left">
                                  <span className="text-2xl">👨‍⚕️</span>
                                  <div>
@@ -630,6 +691,16 @@ const ManageAdmissions = () => {
                                     <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Clinical Authorization</p>
                                  </div>
                               </button>
+                           ) : (
+                              selectedAdmission.status !== 'Discharged' && (
+                                 <button onClick={startReassignDoctorFlow} className="p-4 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-2xl border border-amber-200 flex items-center gap-4 transition-all hover:scale-[1.02] text-left">
+                                    <span className="text-2xl">🔄</span>
+                                    <div>
+                                       <h4 className="font-black text-sm uppercase">Reassign Doctor</h4>
+                                       <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Transfer Patient Care</p>
+                                    </div>
+                                 </button>
+                              )
                            )}
 
                            {/* Transport Driver Assignment */}
@@ -696,6 +767,67 @@ const ManageAdmissions = () => {
                               className="w-full bg-[#08B36A] hover:bg-[#08B36A]/90 disabled:bg-slate-200 text-white font-black py-4 rounded-xl transition-all uppercase text-[10px] tracking-[0.2em] flex justify-center items-center gap-2"
                            >
                               {isProcessing ? <SpinnerIcon className="w-4 h-4 animate-spin" /> : 'Authorize Assignment'}
+                           </button>
+                        </div>
+                     </div>
+                  ) : activeAction === 'reassign-doctor' ? (
+                     /* INLINE ACTION: REASSIGN DOCTOR */
+                     <div className="space-y-6 flex-grow flex flex-col justify-between">
+                        <div>
+                           <div className="flex items-center justify-between border-b pb-4">
+                              <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">Reassign Physician</h3>
+                              <button onClick={() => setActiveAction(null)} className="text-xs font-bold text-slate-400 hover:text-slate-600">&larr; Back to Actions</button>
+                           </div>
+
+                           <div className="mt-4 space-y-3">
+                              <div className="bg-amber-50 border border-amber-100 p-3 rounded-xl flex items-center justify-between text-xs font-bold text-amber-800">
+                                 <span>Present Doctor:</span>
+                                 <span className="font-black">Dr. {currentDocName}</span>
+                              </div>
+
+                              <div>
+                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">Reason for Reassignment</label>
+                                 <input 
+                                    type="text" 
+                                    placeholder="e.g., Previous doctor shift ended" 
+                                    value={reassignReason}
+                                    onChange={(e) => setReassignReason(e.target.value)}
+                                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs focus:outline-none focus:border-[#08B36A] font-semibold bg-slate-50"
+                                 />
+                              </div>
+                           </div>
+
+                           <div className="grid grid-cols-1 gap-2.5 mt-4 max-h-[200px] overflow-y-auto pr-1">
+                              {availableReplacementDoctors.length === 0 ? (
+                                 <p className="text-center py-6 text-slate-400 text-xs font-bold uppercase">No alternative doctors available</p>
+                              ) : (
+                                 availableReplacementDoctors.map(doc => (
+                                    <div 
+                                       key={doc._id}
+                                       onClick={() => setSelectedDoctorId(doc._id)}
+                                       className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center justify-between
+                                          ${selectedDoctorId === doc._id ? 'bg-[#08B36A] border-[#08B36A] text-white shadow-md' : 'bg-slate-50 border-slate-100 hover:border-slate-300'}`}
+                                    >
+                                       <div>
+                                          <h4 className="font-black text-xs uppercase">Dr. {doc.name}</h4>
+                                          <p className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${selectedDoctorId === doc._id ? 'text-white/80' : 'text-slate-400'}`}>{doc.speciality || 'General Medicine'}</p>
+                                       </div>
+                                       <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedDoctorId === doc._id ? 'bg-white border-white' : 'border-slate-300'}`}>
+                                          {selectedDoctorId === doc._id && <div className="w-1.5 h-1.5 bg-[#08B36A] rounded-full"></div>}
+                                       </div>
+                                    </div>
+                                 ))
+                              )}
+                           </div>
+                        </div>
+
+                        <div className="pt-4 border-t">
+                           <button 
+                              onClick={handleReassignDoctor}
+                              disabled={isProcessing || !selectedDoctorId} 
+                              className="w-full bg-[#08B36A] hover:bg-[#08B36A]/90 disabled:bg-slate-200 text-white font-black py-4 rounded-xl transition-all uppercase text-[10px] tracking-[0.2em] flex justify-center items-center gap-2"
+                           >
+                              {isProcessing ? <SpinnerIcon className="w-4 h-4 animate-spin" /> : 'Confirm Care Transfer'}
                            </button>
                         </div>
                      </div>

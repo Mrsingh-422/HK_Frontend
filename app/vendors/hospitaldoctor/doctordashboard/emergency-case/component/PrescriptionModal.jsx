@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { 
-    FaArrowLeft, FaFileSignature, FaCapsules, FaCheckCircle, 
-    FaSpinner, FaPlus, FaTrash, FaFilePdf, FaTimes, FaUtensils 
+import {
+    FaArrowLeft, FaFileSignature, FaCapsules, FaCheckCircle,
+    FaSpinner, FaPlus, FaTrash, FaFilePdf, FaTimes, FaUtensils
 } from 'react-icons/fa';
 
 export default function PrescriptionModal({
@@ -13,14 +13,11 @@ export default function PrescriptionModal({
     actionLoading,
     onSubmit
 }) {
-    // staged medications list [4]
     const [addedMedicines, setAddedMedicines] = useState([]);
 
-    // Mode Toggle: select from list vs write custom medicine
     const [isCustomMedicine, setIsCustomMedicine] = useState(false);
     const [customMedicineName, setCustomMedicineName] = useState('');
 
-    // current medication configuration form state
     const [selectedMedicine, setSelectedMedicine] = useState('');
     const [prescriptionFrequency, setPrescriptionFrequency] = useState({
         morning: false,
@@ -30,23 +27,22 @@ export default function PrescriptionModal({
     const [prescriptionDays, setPrescriptionDays] = useState('3 days');
     const [specialInstructions, setSpecialInstructions] = useState('As directed by physician');
 
-    // Optional diet plan upload states [4]
     const [dietPlanFile, setDietPlanFile] = useState(null);
     const [dietPlanName, setDietPlanName] = useState('');
     const fileInputRef = useRef(null);
 
     if (!isOpen) return null;
 
-    // Adds configured medication to staging list [4]
-    const handleAddMedicine = () => {
-        const activeMedicineName = isCustomMedicine ? customMedicineName.trim() : selectedMedicine;
+    const resetMedicineForm = () => {
+        setSelectedMedicine('');
+        setCustomMedicineName('');
+        setIsCustomMedicine(false);
+        setPrescriptionFrequency({ morning: false, afternoon: false, evening: false });
+        setPrescriptionDays('3 days');
+        setSpecialInstructions('As directed by physician');
+    };
 
-        if (!activeMedicineName) {
-            alert("Please select or type a medicine first.");
-            return;
-        }
-
-        // Figma morning-afternoon-evening mapping [4]
+    const buildMedicineFromForm = (activeMedicineName) => {
         const dosageString = [
             prescriptionFrequency.morning ? "1" : "0",
             prescriptionFrequency.afternoon ? "1" : "0",
@@ -59,35 +55,38 @@ export default function PrescriptionModal({
             prescriptionFrequency.evening ? "Evening" : ""
         ].filter(Boolean).join(" ");
 
-        const newMedicine = {
+        return {
             name: activeMedicineName,
             dosage: dosageString,
             frequency: frequencyString,
             duration: prescriptionDays,
             instructions: specialInstructions
         };
+    };
 
+    const handleAddMedicine = () => {
+        const activeMedicineName = isCustomMedicine ? customMedicineName.trim() : selectedMedicine;
+
+        if (!activeMedicineName) {
+            alert("Please select or type a medicine first.");
+            return;
+        }
+
+        const newMedicine = buildMedicineFromForm(activeMedicineName);
         setAddedMedicines(prev => [...prev, newMedicine]);
-
-        // Reset medicine inputs & return back to list selection by default
-        setSelectedMedicine('');
-        setCustomMedicineName('');
-        setIsCustomMedicine(false);
-        setPrescriptionFrequency({ morning: false, afternoon: false, evening: false });
-        setPrescriptionDays('3 days');
-        setSpecialInstructions('As directed by physician');
+        resetMedicineForm();
     };
 
     const handleRemoveMedicine = (indexToRemove) => {
         setAddedMedicines(prev => prev.filter((_, idx) => idx !== indexToRemove));
     };
 
-    // Handles optional PDF diet plan selection [4]
     const handleDietPlanChange = (e) => {
         const file = e.target.files[0];
         if (file) {
             if (file.type !== 'application/pdf') {
                 alert("Only PDF format is supported for diet plans.");
+                e.target.value = '';
                 return;
             }
             setDietPlanFile(file);
@@ -104,32 +103,12 @@ export default function PrescriptionModal({
         }
     };
 
-    // Prepares unified payload for submission [4]
     const handleProcessPrescription = () => {
         let finalMedicines = [...addedMedicines];
         const activeMedicineName = isCustomMedicine ? customMedicineName.trim() : selectedMedicine;
 
-        // Guard: Stash current un-added selections automatically if populated [4]
         if (activeMedicineName) {
-            const dosageString = [
-                prescriptionFrequency.morning ? "1" : "0",
-                prescriptionFrequency.afternoon ? "1" : "0",
-                prescriptionFrequency.evening ? "1" : "0"
-            ].join("-");
-
-            const frequencyString = [
-                prescriptionFrequency.morning ? "Morning" : "",
-                prescriptionFrequency.afternoon ? "Afternoon" : "",
-                prescriptionFrequency.evening ? "Evening" : ""
-            ].filter(Boolean).join(" ");
-
-            finalMedicines.push({
-                name: activeMedicineName,
-                dosage: dosageString,
-                frequency: frequencyString,
-                duration: prescriptionDays,
-                instructions: specialInstructions
-            });
+            finalMedicines.push(buildMedicineFromForm(activeMedicineName));
         }
 
         if (finalMedicines.length === 0) {
@@ -140,14 +119,21 @@ export default function PrescriptionModal({
         if (onSubmit) {
             onSubmit(finalMedicines, dietPlanFile);
         }
+
+        setAddedMedicines([]);
+        resetMedicineForm();
+        setDietPlanFile(null);
+        setDietPlanName('');
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
     };
 
     return (
         <div className="fixed inset-0 z-[140] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
             <div className="absolute inset-0" onClick={onClose}></div>
             <div className="relative bg-white w-full max-w-5xl rounded-3xl p-6 md:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.15)] flex flex-col justify-between max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100 z-10">
-                
-                {/* Header */}
+
                 <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                     <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-50 rounded-full transition-colors">
                         <FaArrowLeft size={14} />
@@ -158,13 +144,10 @@ export default function PrescriptionModal({
                     </div>
                 </div>
 
-                {/* Main Modal Grid */}
                 <div className="flex-1 overflow-y-auto py-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                    
-                    {/* Left Grid Section: Formulation Inputs & Diet Plan Upload */}
+
                     <div className="lg:col-span-7 space-y-6">
-                        
-                        {/* Medication Form */}
+
                         <div className="bg-orange-50/20 p-5 md:p-6 rounded-3xl border border-orange-100/75 space-y-4 shadow-sm">
                             <h4 className="text-xs font-black text-orange-800 uppercase tracking-wider flex items-center gap-1.5">
                                 <FaCapsules />
@@ -174,7 +157,7 @@ export default function PrescriptionModal({
                             <div>
                                 <div className="flex justify-between items-center mb-1.5">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Select Medicine</label>
-                                    <button 
+                                    <button
                                         type="button"
                                         onClick={() => {
                                             setIsCustomMedicine(!isCustomMedicine);
@@ -188,7 +171,7 @@ export default function PrescriptionModal({
                                 </div>
 
                                 {isCustomMedicine ? (
-                                    <input 
+                                    <input
                                         type="text"
                                         value={customMedicineName}
                                         onChange={(e) => setCustomMedicineName(e.target.value)}
@@ -196,7 +179,7 @@ export default function PrescriptionModal({
                                         className="w-full px-3 py-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 text-slate-700 shadow-sm"
                                     />
                                 ) : (
-                                    <select 
+                                    <select
                                         value={selectedMedicine}
                                         onChange={(e) => setSelectedMedicine(e.target.value)}
                                         className="w-full px-3 py-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 text-slate-700"
@@ -234,8 +217,8 @@ export default function PrescriptionModal({
                                                 [key]: !isActive
                                             })}
                                             className={`flex-1 py-3 rounded-xl text-[11px] font-black border transition-all flex flex-col items-center gap-1 ${
-                                                isActive 
-                                                ? 'bg-amber-500 border-amber-500 text-white shadow-sm shadow-amber-100' 
+                                                isActive
+                                                ? 'bg-amber-500 border-amber-500 text-white shadow-sm shadow-amber-100'
                                                 : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
                                             }`}
                                         >
@@ -249,7 +232,7 @@ export default function PrescriptionModal({
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Duration</label>
-                                    <select 
+                                    <select
                                         value={prescriptionDays}
                                         onChange={(e) => setPrescriptionDays(e.target.value)}
                                         className="w-full px-3 py-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 text-slate-700"
@@ -263,7 +246,7 @@ export default function PrescriptionModal({
 
                                 <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Instructions</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         value={specialInstructions}
                                         onChange={(e) => setSpecialInstructions(e.target.value)}
@@ -283,22 +266,21 @@ export default function PrescriptionModal({
                             </button>
                         </div>
 
-                        {/* Optional Diet Plan File Upload [4] */}
                         <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 md:p-6 space-y-3">
                             <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                                 <FaUtensils className="text-emerald-500" />
                                 Diet Plan Profile (Optional)
                             </h4>
 
-                            <div 
+                            <div
                                 onClick={() => fileInputRef.current?.click()}
                                 className={`border-2 border-dashed rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
-                                    dietPlanFile 
-                                    ? 'border-emerald-500 bg-emerald-50/10' 
+                                    dietPlanFile
+                                    ? 'border-emerald-500 bg-emerald-50/10'
                                     : 'border-slate-350 hover:border-emerald-400 bg-white'
                                 }`}
                             >
-                                <input 
+                                <input
                                     type="file"
                                     ref={fileInputRef}
                                     accept="application/pdf"
@@ -315,7 +297,7 @@ export default function PrescriptionModal({
                                                 <p className="text-[9px] text-slate-400 uppercase font-black tracking-wider">PDF File Ready</p>
                                             </div>
                                         </div>
-                                        <button 
+                                        <button
                                             type="button"
                                             onClick={handleRemoveDietPlan}
                                             className="p-1.5 bg-slate-200/50 hover:bg-slate-200 text-slate-500 hover:text-slate-800 rounded-lg transition-colors"
@@ -335,10 +317,9 @@ export default function PrescriptionModal({
 
                     </div>
 
-                    {/* Right Grid Section: Prescribed Medicine Ledger List [4] */}
                     <div className="lg:col-span-5 flex flex-col h-full self-stretch bg-slate-50/50 rounded-3xl border border-slate-100 p-5 md:p-6">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-3">Prescription Queue</span>
-                        
+
                         <div className="flex-1 overflow-y-auto space-y-3 min-h-[220px] max-h-[380px] pr-1 scrollbar-thin">
                             {addedMedicines.length === 0 ? (
                                 <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
@@ -358,7 +339,7 @@ export default function PrescriptionModal({
                                             <span className="px-2 py-0.5 bg-orange-50 border border-orange-100 text-orange-700 text-[9px] font-black rounded-full whitespace-nowrap">
                                                 {med.frequency}
                                             </span>
-                                            <button 
+                                            <button
                                                 type="button"
                                                 onClick={() => handleRemoveMedicine(idx)}
                                                 className="p-1.5 text-slate-350 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
@@ -371,7 +352,6 @@ export default function PrescriptionModal({
                             )}
                         </div>
 
-                        {/* Summary Header info if medicines are present */}
                         {addedMedicines.length > 0 && (
                             <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between text-[10px] font-black text-slate-400 uppercase">
                                 <span>Medications: {addedMedicines.length}</span>
@@ -382,7 +362,6 @@ export default function PrescriptionModal({
 
                 </div>
 
-                {/* Footer Process Trigger */}
                 <div className="pt-4 border-t border-slate-100 font-sans">
                     <button
                         disabled={actionLoading}

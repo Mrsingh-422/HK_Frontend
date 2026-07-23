@@ -65,6 +65,19 @@ const HospitalAPI = {
     console.log("Hospital Profile API Response:", response.data);
     return response.data;
   },
+
+  // Track status of submitted staged changes
+  getHospitalProfileUpdateStatus: async () => {
+    try {
+      const response = await hospitalVendorApi.get('/api/auth/hospital/profile/update-status');
+      return response.data;
+    } catch (error) {
+      console.warn("Hospital profile status tracking endpoint returned an error or is inactive:", error);
+      // Fallback clean state
+      return { success: true, data: null };
+    }
+  },
+
   updateHospitalProfile: async (formData) => {
     const response = await hospitalVendorApi.put('/api/auth/hospital/profile/update', formData, {
       headers: {
@@ -211,22 +224,7 @@ const HospitalAPI = {
     }
   },
 
-  // 5. Reassign Ambulance on Breakdown (POST)
-  reassignAmbulanceBreakdown: async (bookingId, newAmbulanceId, reason) => {
-    try {
-      const response = await hospitalVendorApi.post('/hospital/panel/ambulance/reassign-breakdown', {
-        bookingId,
-        newAmbulanceId,
-        reason
-      });
-      return response.data;
-    } catch (error) {
-      return {
-        success: false,
-        message: error.response?.data?.message || "Failed to reassign ambulance on breakdown"
-      };
-    }
-  },
+  
   // ==========================================
   // WARD MANAGEMENT APIs
   // ==========================================
@@ -369,6 +367,22 @@ const HospitalAPI = {
       return { success: false, message: error.response?.data?.message || "Failed to assign driver" };
     }
   },
+  // 5. Reassign Ambulance on Breakdown (POST)
+  reassignAmbulanceBreakdown: async (bookingId, newAmbulanceId, reason) => {
+    try {
+      const response = await hospitalVendorApi.post('/hospital/panel/ambulance/reassign-breakdown', {
+        bookingId,
+        newAmbulanceId,
+        reason
+      });
+      return response.data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to reassign ambulance on breakdown"
+      };
+    }
+  },
 
   // 3. Finalize Discharge & Billing
   finalizeDischarge: async (data) => {
@@ -410,6 +424,19 @@ const HospitalAPI = {
       return response.data;
     } catch (error) {
       return { success: false, message: error.response?.data?.message || "Failed to assign doctor" };
+    }
+  },
+
+    // NEW METHOD: Reassign Doctor (Handover/Transfer patient care)
+  reassignDoctor: async (data) => {
+    try {
+      const response = await hospitalVendorApi.post('/hospital/panel/reassign-doctor', data);
+      return response.data;
+    } catch (error) {
+      return { 
+        success: false, 
+        message: error.response?.data?.message || "Failed to reassign doctor" 
+      };
     }
   },
   // ==========================================
@@ -627,4 +654,3 @@ const HospitalAPI = {
 
 }
 export default HospitalAPI;
-

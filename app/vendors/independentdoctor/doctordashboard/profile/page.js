@@ -5,7 +5,7 @@ import {
   FaInfoCircle, FaSave, FaSyncAlt, FaPlus, FaTrash, FaUserMd,
   FaGraduationCap, FaIdCard, FaMapMarkerAlt, FaPhone, FaEnvelope, 
   FaClock, FaCheckCircle, FaVideo, FaHospital, FaHome, FaChevronDown,
-  FaAward, FaMicroscope
+  FaAward, FaMicroscope, FaExclamationTriangle
 } from 'react-icons/fa'
 import { toast, Toaster } from 'react-hot-toast'
 import DoctorAPI from '@/app/services/DoctorAPI';
@@ -14,18 +14,24 @@ export default function DoctorProfilePage() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [previewImage, setPreviewImage] = useState(null);
-  const [travelCharges, setTravelCharges] = useState(0); // Added state for travel expenses
-  const [qualificationsList, setQualificationsList] = useState([]); // State for qualifications dropdown
-  const [specialitiesList, setSpecialitiesList] = useState([]); // State for specialities dropdown
+  const [previewSignature, setPreviewSignature] = useState(null); // Digital signature preview
+  const [travelCharges, setTravelCharges] = useState(0); 
+  const [qualificationsList, setQualificationsList] = useState([]); 
+  const [specialitiesList, setSpecialitiesList] = useState([]); 
   const fileInputRef = useRef(null);
+  const signatureInputRef = useRef(null); // Signature input reference
+
+  // Staged request status state
+  const [stagedRequest, setStagedRequest] = useState(null);
 
   const [profileData, setProfileData] = useState({
     name: '',
-    email: '',
-    phone: '',
+    email: '',           // Blocked field - Read-Only in UI
+    phone: '',           // Blocked field - Read-Only in UI
+    alternatePhone: '',  // Supported New Field
     about: '',
     experienceYears: '',
-    qualification: [], // Initialized as an array for managing tags
+    qualification: [],   
     speciality: '',
     licenseNumber: '',
     councilNumber: '',
@@ -39,11 +45,13 @@ export default function DoctorProfilePage() {
     fees: { online: 0, clinic: 0, home: 0 },
     consultationStatus: { online: false, clinic: false, home: false },
     profileImage: null,
+    signatureImage: null, // Appended Signature Image payload
     profileStatus: '',
     dutyStatus: '',
     competencies: [],
     treatedConditions: [],
-    location: { lat: 0, lng: 0 }
+    location: { lat: 0, lng: 0 },
+    availability: []     // Supported field
   });
 
   const [newLang, setNewLang] = useState('');
@@ -58,8 +66,11 @@ export default function DoctorProfilePage() {
     try {
       setFetching(true);
       
-      // Fetch Profile, Visit Charges, Qualifications, and Specializations concurrently
-      const [profileRes, chargesRes, qualificationsRes, specialitiesRes] = await Promise.all([
+      const [statusRes, profileRes, chargesRes, qualificationsRes, specialitiesRes] = await Promise.all([
+        DoctorAPI.getProfileUpdateStatus().catch(err => {
+          console.error("Staged update status load error:", err);
+          return null;
+        }),
         DoctorAPI.getProfile(),
         DoctorAPI.getMyVisitCharges(),
         DoctorAPI.getQualifications().catch(err => {
@@ -71,8 +82,11 @@ export default function DoctorProfilePage() {
           return null;
         })
       ]);
+
+      if (statusRes && statusRes.success) {
+        setStagedRequest(statusRes.data);
+      }
       
-      // Handle Qualifications dropdown list mapping
       if (qualificationsRes && qualificationsRes.success && Array.isArray(qualificationsRes.data)) {
         const quals = qualificationsRes.data.map(item => {
           if (typeof item === 'object' && item !== null) {
@@ -85,7 +99,6 @@ export default function DoctorProfilePage() {
         setQualificationsList(qualificationsRes);
       }
 
-      // Handle Specialities dropdown list mapping
       if (specialitiesRes && specialitiesRes.success && Array.isArray(specialitiesRes.data)) {
         const specs = specialitiesRes.data.map(item => {
           if (typeof item === 'object' && item !== null) {
@@ -98,11 +111,9 @@ export default function DoctorProfilePage() {
         setSpecialitiesList(specialitiesRes);
       }
       
-      // Handle Profile Data
       if (profileRes && profileRes.success && profileRes.data) {
         const d = profileRes.data;
         
-        // Safely parse the incoming qualification field (handles strings, commas, or arrays)
         let parsedQualifications = [];
         if (d.qualification) {
           if (Array.isArray(d.qualification)) {
@@ -112,10 +123,23 @@ export default function DoctorProfilePage() {
           }
         }
 
+        // Parse availability safely
+        let parsedAvailability = [];
+        if (d.availability) {
+          try {
+            parsedAvailability = typeof d.availability === 'string' 
+              ? JSON.parse(d.availability) 
+              : d.availability;
+          } catch (e) {
+            parsedAvailability = [];
+          }
+        }
+
         setProfileData({
           name: d.name || '',
           email: d.email || '',
           phone: d.phone || '',
+          alternatePhone: d.alternatePhone || '',
           about: d.about || '',
           experienceYears: d.experienceYears || 0,
           qualification: parsedQualifications,
@@ -140,6 +164,7 @@ export default function DoctorProfilePage() {
             home: d.consultationStatus?.home ?? false
           },
           profileImage: null,
+          signatureImage: null,
           profileStatus: d.profileStatus || 'Pending',
           dutyStatus: d.dutyStatus || 'Off Duty',
           competencies: d.competencies || [],
@@ -147,11 +172,14 @@ export default function DoctorProfilePage() {
           location: {
             lat: d.location?.lat || 0,
             lng: d.location?.lng || 0
-          }
+          },
+          availability: Array.isArray(parsedAvailability) ? parsedAvailability : []
         });
 
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+
+        // Set Profile Image Preview
         if (d.profileImage) {
-          const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
           if (d.profileImage.startsWith('http')) {
             setPreviewImage(d.profileImage);
           } else {
@@ -166,9 +194,25 @@ export default function DoctorProfilePage() {
         } else {
           setPreviewImage(null);
         }
+
+        // Set Digital Signature Image Preview
+        if (d.signatureImage) {
+          if (d.signatureImage.startsWith('http')) {
+            setPreviewSignature(d.signatureImage);
+          } else {
+            let cleanPath = d.signatureImage.replace(/\\/g, '/');
+            if (cleanPath.startsWith('public/')) {
+              cleanPath = cleanPath.replace('public/', '');
+            }
+            cleanPath = cleanPath.replace(/^\/+/, '');
+            const cleanBase = backendUrl.replace(/\/+$/, '');
+            setPreviewSignature(`${cleanBase}/${cleanPath}`);
+          }
+        } else {
+          setPreviewSignature(null);
+        }
       }
 
-      // Handle Travel Charges Data
       if (chargesRes && chargesRes.success && chargesRes.data) {
           setTravelCharges(chargesRes.data.fixedPrice || 0);
       }
@@ -250,16 +294,6 @@ export default function DoctorProfilePage() {
       }
     } catch (error) {
       console.error("Duty status update error:", error);
-      try {
-        const resSettings = await DoctorAPI.updateSettings({ dutyStatus: nextStatus });
-        if (resSettings) {
-          toast.success(`Duty status changed to ${nextStatus}`);
-          setProfileData(prev => ({ ...prev, dutyStatus: nextStatus }));
-          return;
-        }
-      } catch (innerError) {
-        console.error("Duty status fallback error:", innerError);
-      }
       toast.error("Failed to update duty status");
     }
   };
@@ -272,7 +306,14 @@ export default function DoctorProfilePage() {
     }
   };
 
-  // Helper functions for Array tags
+  const handleSignatureChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setProfileData(prev => ({ ...prev, signatureImage: file }));
+      setPreviewSignature(URL.createObjectURL(file));
+    }
+  };
+
   const addLanguage = () => {
     if (newLang.trim() && !profileData.languages.includes(newLang.trim())) {
       setProfileData(prev => ({ ...prev, languages: [...prev.languages, newLang.trim()] }));
@@ -312,42 +353,57 @@ export default function DoctorProfilePage() {
       if (profileData.profileImage instanceof File) {
         formData.append('profileImage', profileData.profileImage);
       }
+
+      if (profileData.signatureImage instanceof File) {
+        formData.append('signatureImage', profileData.signatureImage);
+      }
       
-      Object.keys(profileData).forEach(key => {
-        if (key === 'fees') {
-            formData.append('fees[online]', String(profileData.fees.online || 0));
-            formData.append('fees[clinic]', String(profileData.fees.clinic || 0));
-            formData.append('fees[home]', String(profileData.fees.home || 0));
-        } else if (key === 'consultationStatus') {
-            formData.append('consultationStatus[online]', String(profileData.consultationStatus.online));
-            formData.append('consultationStatus[clinic]', String(profileData.consultationStatus.clinic));
-            formData.append('consultationStatus[home]', String(profileData.consultationStatus.home));
-        } else if (key === 'location') {
-            formData.append('location[lat]', String(profileData.location.lat));
-            formData.append('location[lng]', String(profileData.location.lng));
-        } else if (key === 'languages') {
-            profileData.languages.forEach((lang, index) => {
-                formData.append(`languages[${index}]`, lang);
-            });
-        } else if (key === 'competencies') {
-            profileData.competencies.forEach((item, index) => {
-                formData.append(`competencies[${index}]`, item);
-            });
-        } else if (key === 'treatedConditions') {
-            profileData.treatedConditions.forEach((item, index) => {
-                formData.append(`treatedConditions[${index}]`, item);
-            });
-        } else if (key === 'qualification') {
-            formData.append('qualification', profileData.qualification.join(', '));
-        } else if (key !== 'profileImage' && key !== 'profileStatus' && key !== 'bankDetails') {
-            formData.append(key, profileData[key]);
+      // Allowed fields according to Independent Doctor specifications
+      const allowedTextFields = [
+        'name', 'country', 'state', 'city', 'address', 
+        'speciality', 'about', 'alternatePhone'
+      ];
+
+      allowedTextFields.forEach(key => {
+        if (profileData[key] !== null && profileData[key] !== undefined) {
+          formData.append(key, profileData[key]);
         }
       });
 
+      // Sanitize experienceYears to guarantee an Integer payload (no empty string crashing)
+      const experience = parseInt(profileData.experienceYears, 10);
+      formData.append('experienceYears', isNaN(experience) ? '0' : String(experience));
+
+      // Format qualification to academic degree as string
+      if (Array.isArray(profileData.qualification)) {
+        formData.append('qualification', profileData.qualification.join(', '));
+      }
+
+      // Format nested configurations strictly to JSON stringified format
+      formData.append('fees', JSON.stringify({
+        online: Number(profileData.fees.online) || 0,
+        clinic: Number(profileData.fees.clinic) || 0,
+        home: Number(profileData.fees.home) || 0
+      }));
+
+      formData.append('consultationStatus', JSON.stringify({
+        online: !!profileData.consultationStatus.online,
+        clinic: !!profileData.consultationStatus.clinic,
+        home: !!profileData.consultationStatus.home
+      }));
+
+      // Conditionally append availability only when it actually contains slots
+      if (Array.isArray(profileData.availability) && profileData.availability.length > 0) {
+        formData.append('availability', JSON.stringify(profileData.availability));
+      }
+
       const res = await DoctorAPI.updateProfile(formData);
-      if (res) {
-        toast.success("Profile Updated Successfully!");
-        await loadCurrentProfile();
+      if (res && res.success) {
+        toast.success(res.message || "Profile updates submitted to Admin for review.");
+        setStagedRequest(res.data);
+        setProfileData(prev => ({ ...prev, profileImage: null, signatureImage: null }));
+      } else {
+        toast.error("Profile update failed");
       }
     } catch (error) {
       console.error("Update Error:", error);
@@ -365,8 +421,37 @@ export default function DoctorProfilePage() {
   );
 
   return (
-    <div className="w-full max-w-6xl mx-auto pb-20 px-4">
+    <div className="w-full max-w-6xl mx-auto pb-20 px-4 space-y-6">
       <Toaster position="top-right" />
+
+      {/* Staged Update Banners */}
+      {stagedRequest && stagedRequest.status === 'Pending' && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-[2rem] p-6 flex items-start gap-4 shadow-sm">
+          <FaClock className="text-amber-500 mt-1 flex-shrink-0 animate-pulse" size={24} />
+          <div>
+            <h4 className="font-bold text-sm uppercase tracking-wider">Modifications Pending Verification</h4>
+            <p className="text-xs text-amber-700 mt-1 font-medium leading-relaxed">
+              Your profile changes submitted on {new Date(stagedRequest.createdAt).toLocaleDateString()} are currently awaiting administrative review. 
+              Active bookings and public profiles will continue to reflect your current verified records until this request is approved.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {stagedRequest && stagedRequest.status === 'Rejected' && (
+        <div className="bg-red-50 border border-red-200 text-red-800 rounded-[2rem] p-6 flex items-start gap-4 shadow-sm">
+          <FaExclamationTriangle className="text-red-500 mt-1 flex-shrink-0" size={24} />
+          <div>
+            <h4 className="font-bold text-sm uppercase tracking-wider">Modifications Rejected</h4>
+            <p className="text-xs text-red-700 mt-1 font-medium leading-relaxed">
+              Your modification request could not be processed. <strong className="text-red-950">Reason:</strong> {stagedRequest.rejectionReason || "No details provided."}
+            </p>
+            <p className="text-xs text-red-600 mt-1 font-black uppercase tracking-wider">
+              Please adjust your values below and re-submit for review.
+            </p>
+          </div>
+        </div>
+      )}
       
       <div className="mb-12 flex flex-col items-center text-center">
         <div className="p-4 bg-[#08B36A] text-white rounded-[2rem] shadow-xl shadow-green-100 mb-4">
@@ -415,6 +500,44 @@ export default function DoctorProfilePage() {
                 <h3 className="mt-6 font-black text-gray-900 uppercase tracking-tighter">Profile Photo</h3>
             </div>
 
+            {/* Signature Section */}
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 flex flex-col items-center hover:shadow-lg transition-shadow">
+                <div className="relative">
+                    <div className="w-64 h-32 rounded-[2rem] border-4 border-white shadow-xl overflow-hidden bg-gray-50 flex items-center justify-center p-4">
+                        {previewSignature ? (
+                            <img 
+                                src={previewSignature} 
+                                alt="Digital Signature" 
+                                className="max-h-full max-w-full object-contain mix-blend-multiply" 
+                                onError={(e) => {
+                                    e.target.style.display = 'none';
+                                }} 
+                            />
+                        ) : (
+                            <div className="text-gray-300 text-center text-[10px] font-black uppercase tracking-wider">
+                                No Signature Uploaded
+                            </div>
+                        )}
+                    </div>
+                    <button 
+                        type="button" 
+                        onClick={() => signatureInputRef.current.click()} 
+                        className="absolute -bottom-2 -right-2 p-3 bg-[#08B36A] text-white rounded-xl shadow-xl hover:scale-110 transition-all active:scale-95"
+                    >
+                        <FaCamera size={16} />
+                    </button>
+                    <input 
+                        type="file" 
+                        ref={signatureInputRef} 
+                        className="hidden" 
+                        onChange={handleSignatureChange} 
+                        accept="image/*" 
+                    />
+                </div>
+                <h3 className="mt-4 font-black text-gray-900 uppercase tracking-tighter">Digital Signature</h3>
+                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-1">Renders on printed cards</p>
+            </div>
+
             {/* Languages */}
             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
                 <div className="flex items-center gap-3 mb-6">
@@ -442,17 +565,24 @@ export default function DoctorProfilePage() {
                 </div>
                 <div className="space-y-4">
                     <div>
-                        <label className="label-style">Email Address</label>
+                        <label className="label-style">Email Address (Read-Only)</label>
                         <div className="relative">
                             <FaEnvelope className="absolute right-4 top-5 text-gray-300"/>
                             <input name="email" value={profileData.email} disabled className="input-style pl-12 bg-gray-50 opacity-70 cursor-not-allowed" />
                         </div>
                     </div>
                     <div>
-                        <label className="label-style">Phone Number</label>
+                        <label className="label-style">Primary Phone (Read-Only)</label>
                         <div className="relative">
                             <FaPhone className="absolute right-4 top-5 text-gray-300 rotate-90"/>
-                            <input name="phone" value={profileData.phone} onChange={handleTextChange} className="input-style pl-12" />
+                            <input name="phone" value={profileData.phone} disabled className="input-style pl-12 bg-gray-50 opacity-70 cursor-not-allowed" />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="label-style">Alternate Phone</label>
+                        <div className="relative">
+                            <FaPhone className="absolute right-4 top-5 text-gray-300 rotate-90"/>
+                            <input name="alternatePhone" value={profileData.alternatePhone} onChange={handleTextChange} placeholder="e.g., +919876543214" className="input-style pl-12" />
                         </div>
                     </div>
                 </div>
@@ -567,10 +697,10 @@ export default function DoctorProfilePage() {
                     )}
 
                     <div className="space-y-2">
-                        <label className="label-style">License Number</label>
+                        <label className="label-style">License Number (Read-Only)</label>
                         <div className="relative">
                             <FaIdCard className="absolute right-4 top-5 text-gray-300"/>
-                            <input name="licenseNumber" value={profileData.licenseNumber} onChange={handleTextChange} className="input-style" />
+                            <input name="licenseNumber" value={profileData.licenseNumber} disabled className="input-style bg-gray-50 opacity-75 cursor-not-allowed" />
                         </div>
                     </div>
 
@@ -747,7 +877,7 @@ export default function DoctorProfilePage() {
                         </div>
                     </div>
 
-                    {/* Home Visit Card - UPDATED WITH TRAVEL EXPENSES */}
+                    {/* Home Visit Card */}
                     <div className="group relative bg-white border border-gray-100 rounded-[2rem] p-6 hover:border-orange-200 hover:shadow-md transition-all duration-300">
                         <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
                             <div className="flex items-center gap-4">

@@ -6,12 +6,10 @@ import {
   FaWallet, 
   FaMoneyBillWave, 
   FaRupeeSign, 
-  FaUniversity, 
   FaPlus, 
   FaArrowDown, 
   FaArrowUp, 
-  FaClock, 
-  FaTimes
+  FaClock
 } from 'react-icons/fa';
 
 export default function WalletDashboard() {
@@ -30,9 +28,6 @@ export default function WalletDashboard() {
   const [stats, setStats] = useState(null);
   const [bankAccounts, setBankAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
-
-  // Modal State for Adding/Updating Bank
-  const [isAddBankModalOpen, setIsAddBankModalOpen] = useState(false);
 
   // Load Wallet Statistics and Ledger Logs
   const loadWalletData = useCallback(async () => {
@@ -140,29 +135,6 @@ export default function WalletDashboard() {
     }
   };
 
-  const handleAddBank = (e) => {
-    e.preventDefault();
-    const form = e.target;
-    const holder = form.elements[0].value;
-    const accNo = form.elements[1].value;
-    const bankName = form.elements[2].value;
-    const ifsc = form.elements[3].value;
-
-    const newBank = {
-      id: Date.now().toString(),
-      holder,
-      accNo: `XXXXXX${accNo.slice(-4)}`,
-      bankName,
-      ifsc,
-      isVerified: true
-    };
-
-    setBankAccounts([newBank]);
-    setSelectedBank(newBank.id);
-    setIsAddBankModalOpen(false);
-    alert("Settlement bank details assigned successfully!");
-  };
-
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 pb-10 min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
       
@@ -265,12 +237,6 @@ export default function WalletDashboard() {
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 h-fit">
           <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
             <h3 className="font-bold text-slate-900 text-sm">Settlement Account</h3>
-            <button 
-              onClick={() => setIsAddBankModalOpen(true)}
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1"
-            >
-              Update
-            </button>
           </div>
           {bankAccounts.length > 0 ? (
             <div className="space-y-3 text-xs font-semibold">
@@ -280,7 +246,7 @@ export default function WalletDashboard() {
               <div className="flex justify-between"><span className="text-slate-400">IFSC Code:</span><span className="text-slate-700 font-mono uppercase">{bankAccounts[0].ifsc}</span></div>
             </div>
           ) : (
-            <p className="text-xs text-slate-400">No settlement account mapped. Please update details.</p>
+            <p className="text-xs text-slate-400">No settlement account mapped. Please contact administration.</p>
           )}
         </div>
 
@@ -329,51 +295,6 @@ export default function WalletDashboard() {
         </div>
 
       </div>
-
-      {/* ========================================= */}
-      {/* 🌟 UPDATE BANK ACCOUNT MODAL 🌟           */}
-      {/* ========================================= */}
-      {isAddBankModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsAddBankModalOpen(false)}></div>
-          
-          <div className="relative bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl animate-in zoom-in duration-200">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-[#1e3a8a] flex items-center gap-2">
-                <FaUniversity className="text-[#08B36A]" /> Update Bank Details
-              </h3>
-              <button onClick={() => setIsAddBankModalOpen(false)} className="text-gray-400 hover:text-red-500 transition-colors">
-                <FaTimes size={20}/>
-              </button>
-            </div>
-
-            <form onSubmit={handleAddBank} className="space-y-4">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Account Holder Name</label>
-                <input type="text" placeholder="John Doe" className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" required />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Account Number</label>
-                <input type="text" placeholder="XXXXXXXXX1234" className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" required />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Bank Name</label>
-                  <input type="text" placeholder="HDFC Bank" className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">IFSC Code</label>
-                  <input type="text" placeholder="HDFC0001234" className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] uppercase transition-all" required />
-                </div>
-              </div>
-
-              <button type="submit" className="w-full mt-4 py-3 bg-[#08B36A] hover:bg-green-600 text-white font-bold rounded-xl shadow-md transition-all">
-                Save Bank Details
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
 
     </div>
   );

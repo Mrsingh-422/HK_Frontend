@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import NurseAPI from '@/app/services/NurseAPI';
 import { 
     Camera, Mail, Phone, MapPin, Briefcase, Save, Loader2, 
-    FileText, CheckCircle, Info, Globe, Navigation, CreditCard
+    FileText, CheckCircle, Info, Globe, Navigation, CreditCard,
+    Clock, AlertTriangle
 } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast'; 
 import { useUserContext } from '@/app/context/UserContext'; 
@@ -21,6 +22,9 @@ const ProfilePage = () => {
     const [countries, setCountries] = useState([]);
     const [states, setStates] = useState([]);
     const [cities, setCities] = useState([]);
+
+    // Staged request status state
+    const [stagedRequest, setStagedRequest] = useState(null);
 
     // Profile State
     const [profile, setProfile] = useState({
@@ -93,7 +97,17 @@ const ProfilePage = () => {
 
     const fetchProfile = async () => {
         try {
-            // First, fetch the nurse profile
+            // 1. Fetch profile update staging status
+            try {
+                const statusRes = await NurseAPI.getNurseProfileUpdateStatus();
+                if (statusRes && statusRes.success) {
+                    setStagedRequest(statusRes.data);
+                }
+            } catch (err) {
+                console.error("Failed loading profile update status:", err);
+            }
+
+            // 2. Fetch the nurse profile
             const res = await NurseAPI.getNurseProfile();
             if (res.success) {
                 const d = res.data;
@@ -262,7 +276,7 @@ const ProfilePage = () => {
             formData.append('state', stateName);
             formData.append('country', countryName);
 
-            // 2. Password updates
+            // 2. Password updates (if handled on backend, otherwise backend strips it per staged routing policy)
             if (profile.password && profile.password.trim() !== '') {
                 formData.append('password', profile.password);
             }
@@ -285,9 +299,10 @@ const ProfilePage = () => {
 
             const res = await NurseAPI.updateNurseProfile(formData);
             if (res.success) {
-                toast.success("Profile updated successfully!");
+                toast.success(res.message || "Profile updates submitted to Admin for review.");
+                // Update staging request tracking hook
+                setStagedRequest(res.data);
                 setProfileImageFile(null);
-                fetchProfile();
             } else {
                 toast.error(res.message || "Failed to update profile.");
             }
@@ -308,7 +323,38 @@ const ProfilePage = () => {
     return (
         <div className="min-h-screen bg-gray-50/50 p-4 md:p-8 font-sans">
             <Toaster position="top-right" />
-            <div className="max-w-6xl mx-auto">
+            <div className="max-w-6xl mx-auto space-y-6">
+                
+                {/* Pending Staged Profile Update Banner */}
+                {stagedRequest && stagedRequest.status === 'Pending' && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-3xl p-5 flex items-start gap-4 shadow-sm">
+                        <Clock className="text-amber-500 mt-1 flex-shrink-0 animate-pulse" size={20} />
+                        <div>
+                            <h4 className="font-bold text-sm">Modification Request Pending Review</h4>
+                            <p className="text-xs text-amber-700 mt-1">
+                                An update to this profile was submitted on {new Date(stagedRequest.createdAt).toLocaleDateString()}. 
+                                Your current verified details will remain unchanged in public listings until an administrator reviews and approves this request.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Rejected Staged Profile Update Banner */}
+                {stagedRequest && stagedRequest.status === 'Rejected' && (
+                    <div className="bg-red-50 border border-red-200 text-red-800 rounded-3xl p-5 flex items-start gap-4 shadow-sm">
+                        <AlertTriangle className="text-red-500 mt-1 flex-shrink-0" size={20} />
+                        <div>
+                            <h4 className="font-bold text-sm">Update Proposal Rejected</h4>
+                            <p className="text-xs text-red-700 mt-1">
+                                Your modification request was not approved. <strong className="text-red-900">Reason:</strong> {stagedRequest.rejectionReason || "No details provided."}
+                            </p>
+                            <p className="text-xs text-red-600 mt-1 font-semibold">
+                                Please correct the details below and resubmit.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 <form onSubmit={handleSubmit} className="space-y-6">
                     
                     {/* Header Section */}
@@ -376,7 +422,19 @@ const ProfilePage = () => {
                                         onChange={handleInputChange} 
                                     />
                                     
-                                    <FormInput label="Speciality" name="speciality" value={profile.speciality} onChange={handleInputChange} placeholder="e.g. ICU, General Care" />
+                                    <FormSelect 
+                                        label="Speciality" 
+                                        name="speciality" 
+                                        value={profile.speciality} 
+                                        options={[
+                                            { id: 'Home Care Nurse', name: 'Home Care Nurse' },
+                                            { id: 'Cancer Care Nurse', name: 'Cancer Care Nurse' },
+                                            { id: 'ICU Care Nurse', name: 'ICU Care Nurse' },
+                                            { id: 'Complete Care Nurse', name: 'Complete Care Nurse' }
+                                        ]} 
+                                        onChange={handleInputChange} 
+                                    />
+
                                     <FormInput label="Experience Years" name="experienceYears" type="number" value={profile.experienceYears} onChange={handleInputChange} />
 
                                     <div className="md:col-span-2">

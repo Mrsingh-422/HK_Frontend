@@ -1,12 +1,12 @@
 'use client'
-import { useAuth } from '@/app/context/AuthContext';
-import React, { useState, useRef, useEffect } from 'react'
-import { FaBars, FaBell, FaUser, FaCog, FaSignOutAlt, FaChevronDown } from "react-icons/fa"
+import React, { useState, useRef, useEffect } from 'react';
+import { FaBars, FaBell, FaUser, FaCog, FaSignOutAlt, FaChevronDown } from "react-icons/fa";
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import HospitalAPI from '@/app/services/HospitalAPI';
 
 function HospitalTopBar() {
-    const { logout } = useAuth(); 
+    const router = useRouter();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [hospitalData, setHospitalData] = useState(null); 
     const dropdownRef = useRef(null);
@@ -27,7 +27,7 @@ function HospitalTopBar() {
         const fetchProfile = async () => {
             try {
                 const response = await HospitalAPI.getHospitalProfile();
-                if (response.success) {
+                if (response && response.success) {
                     setHospitalData(response.data.hospital);
                 }
             } catch (error) {
@@ -37,17 +37,28 @@ function HospitalTopBar() {
         fetchProfile();
     }, []);
 
+    // Safely log out ONLY the hospital token
+    const handleLogout = () => {
+        setIsProfileOpen(false);
+        
+        // Only remove the hospitalToken to keep other active sessions logged in
+        localStorage.removeItem('hospitalToken');
+        
+        // Redirect cleanly to login
+        router.push('/');
+    };
+
     // Variables
     const hospitalName = hospitalData?.name || "Hospital Dashboard";
     const hospitalEmail = hospitalData?.email || "Admin User";
     
-    // Image URL construction (Right side profile dropdown ke liye)
+    // Image URL construction
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") || ""; 
     const imagePath = hospitalData?.hospitalImage?.[0];
     const imageUrl = imagePath ? `${backendUrl}${imagePath}` : null;
 
     return (
-        <header className="bg-white/90 backdrop-blur-md border-b border-gray-200 h-20 flex items-center justify-between px-4 md:px-6 sticky top-0 z-40 shadow-sm relative">
+        <header className="bg-white/90 backdrop-blur-md border-b border-gray-200 h-20 flex items-center justify-between px-4 md:px-6 sticky top-0 z-40 shadow-sm">
 
             {/* LEFT SIDE */}
             <div className="flex items-center gap-4">
@@ -112,7 +123,7 @@ function HospitalTopBar() {
 
                     {/* DROPDOWN MENU */}
                     {isProfileOpen && (
-                        <div className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in zoom-in duration-150">
+                        <div className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50">
 
                             <div className="px-4 py-3 border-b border-gray-50 mb-1">
                                 <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">Signed in as</p>
@@ -132,7 +143,7 @@ function HospitalTopBar() {
                             <div className="h-px bg-gray-50 my-1"></div>
 
                             <button
-                                onClick={logout}
+                                onClick={handleLogout}
                                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition font-medium"
                             >
                                 <FaSignOutAlt />
@@ -143,7 +154,7 @@ function HospitalTopBar() {
                 </div>
             </div>
         </header>
-    )
+    );
 }
 
-export default HospitalTopBar
+export default HospitalTopBar;

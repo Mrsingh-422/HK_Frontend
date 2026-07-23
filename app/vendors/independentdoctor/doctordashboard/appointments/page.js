@@ -10,6 +10,10 @@ import DoctorAPI from '@/app/services/DoctorAPI';
 import { toast, Toaster } from 'react-hot-toast';
 import VideoCallModal from '../../../../(user)/components/videoCall/VideoCallModal';
 
+// Interactive E-Prescription Components
+import AddPrescriptionModal from '../videocallappointments/components/AddPrescriptionModal';
+import DigitalPrescriptionTemplate from '../videocallappointments/components/DigitalPrescriptionTemplate';
+
 export default function AppointmentsPage() {
     const [appointments, setAppointments] = useState([]);
     const [stats, setStats] = useState(null);
@@ -17,6 +21,7 @@ export default function AppointmentsPage() {
     const [filterStatus, setFilterStatus] = useState(''); // Empty means 'All'
     const [filterConsultationType, setFilterConsultationType] = useState(''); // Empty means 'All'
     const [searchQuery, setSearchQuery] = useState(''); // Search query state
+    const [doctorProfile, setDoctorProfile] = useState(null); // Local doctor profile state
 
     // Pagination States
     const [currentPage, setCurrentPage] = useState(1);
@@ -33,8 +38,14 @@ export default function AppointmentsPage() {
     const [activeCallId, setActiveCallId] = useState(null);
     const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
 
+    // Prescription & Live Preview States
+    const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
+    const [isPreviewTemplateOpen, setIsPreviewTemplateOpen] = useState(false);
+    const [completedPrescriptionData, setCompletedPrescriptionData] = useState(null);
+
     useEffect(() => {
         fetchData();
+        fetchDoctorProfile();
     }, [filterStatus, filterConsultationType]);
 
     const fetchData = async () => {
@@ -55,12 +66,23 @@ export default function AppointmentsPage() {
             if (statsRes.success) setStats(statsRes.data);
             if (bookingsRes.success) {
                 setAppointments(bookingsRes.data);
-                setCurrentPage(1); // Reset pagination back to page 1 on search fetch
+                setCurrentPage(1); 
             }
         } catch (error) {
             toast.error("Failed to fetch appointments");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchDoctorProfile = async () => {
+        try {
+            const res = await DoctorAPI.getProfile();
+            if (res && res.success && res.data) {
+                setDoctorProfile(res.data);
+            }
+        } catch (err) {
+            console.error("Unable to resolve dynamic doctor profile details:", err);
         }
     };
 
@@ -75,7 +97,7 @@ export default function AppointmentsPage() {
     };
 
     const handleAction = async (e, id, action) => {
-        e.stopPropagation(); // Prevent opening the view modal
+        e.stopPropagation(); 
         try {
             setSubmitting(true);
             let res;
@@ -120,19 +142,17 @@ export default function AppointmentsPage() {
 
             const payload = {
                 appointmentId: appointment._id,
-                callId: appointment._id, // We use the appointment ID as the Firestore Room ID
+                callId: appointment._id, 
                 callerName: "Dr. " + (appointment.doctorId?.name || "Doctor"),
-                receiverId: appointment.userId._id, // The Patient ID
+                receiverId: appointment.userId?._id || appointment.userId, 
             }
-            console.log(payload)
-            // Tell backend to send Push Notification to Patient
             const res = await DoctorAPI.initiateVideoCall(payload);
 
             if (res.success) {
                 toast.success("Calling patient...");
                 setSelectedAppointment(appointment);
-                setActiveCallId(payload.callId); // Store the callId
-                setIsVideoModalOpen(true); // Open WebRTC UI
+                setActiveCallId(payload.callId); 
+                setIsVideoModalOpen(true); 
             } else {
                 toast.error("Patient is offline or unreachable");
             }
@@ -141,6 +161,81 @@ export default function AppointmentsPage() {
             toast.error("Could not initiate call session");
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    // Starts clinical case flow and normalizes patient metrics
+    const handleStartCase = (appt) => {
+        const normalizedAppt = {
+            ...appt,
+            patientName: appt.patients?.[0]?.patientName || appt.userId?.name || "N/A",
+            bookingId: appt.bookingId || "N/A",
+            patientGender: appt.patients?.[0]?.gender || "N/A",
+            patientAge: appt.patients?.[0]?.patientAge || "N/A",
+            patientId: appt.userId?._id || appt.userId || ""
+        };
+        setSelectedAppointment(normalizedAppt);
+        setIsPrescriptionModalOpen(true);
+    };
+
+    const handlePrescriptionSuccess = (stagedPayload) => {
+        setIsPrescriptionModalOpen(false);
+
+        const patientAddress = selectedAppointment?.consultationType === 'Home Visit' && selectedAppointment?.address
+            ? `${selectedAppointment.address.houseNo || ''}, ${selectedAppointment.address.sector || ''}, ${selectedAppointment.address.city || ''}, ${selectedAppointment.address.state || ''}`
+            : "Clinic Visit";
+
+        const formattedPreviewPayload = {
+            appointmentId: selectedAppointment?._id || selectedAppointment?.appointmentId,
+            patientId: selectedAppointment?.userId?._id || selectedAppointment?.userId || "",
+            patientInfo: {
+                name: selectedAppointment?.patientName || "N/A",
+                age: selectedAppointment?.patientAge || "N/A",
+                gender: selectedAppointment?.patientGender || "N/A",
+                phone: selectedAppointment?.userId?.phone || "N/A",
+                address: patientAddress
+            },
+            clinicalDetails: {
+                diagnosis: stagedPayload.diagnosis || [],
+                medicines: stagedPayload.medicines || [],
+                symptoms: stagedPayload.additionalNotes || ""
+            },
+            deliveryInfo: {
+                sentTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                status: "Awaiting Signature"
+            },
+            doctorInfo: {
+                name: doctorProfile?.name || "Doctor",
+                qualification: doctorProfile?.qualification || "",
+                speciality: doctorProfile?.speciality || "Practitioner",
+                licenseNumber: doctorProfile?.licenseNumber || "",
+                experienceYears: doctorProfile?.experienceYears || "",
+                profileImage: doctorProfile?.profileImage || ""
+            },
+            advisedInvestigations: stagedPayload.advisedInvestigations || "",
+            adviceGiven: stagedPayload.adviceGiven || "",
+            specialInstructions: stagedPayload.specialInstructions || "",
+            nextAppointment: stagedPayload.nextAppointment || ""
+        };
+
+        setCompletedPrescriptionData(formattedPreviewPayload);
+        setIsPreviewTemplateOpen(true);
+    };
+
+    const handleCompleteCase = async (appointmentId, prescriptionPayload) => {
+        try {
+            const response = await DoctorAPI.completeAppointment(appointmentId, prescriptionPayload);
+            if (response && response.success) {
+                toast.success("Consultation session finalized and marked Completed.");
+                setIsPreviewTemplateOpen(false);
+                setCompletedPrescriptionData(null);
+                fetchData(); 
+            } else {
+                toast.error(response?.message || "Failed to finalize consultation.");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("An error occurred during finalization.");
         }
     };
 
@@ -169,15 +264,14 @@ export default function AppointmentsPage() {
     };
 
     const openRescheduleModal = (e, appt) => {
-        e.stopPropagation(); // Prevent opening the view modal
+        e.stopPropagation(); 
         setSelectedAppointment(appt);
         setRescheduleData({ date: '', time: '', reason: '' });
         setIsRescheduleModalOpen(true);
     };
 
-    // Helper to divide appointment dates into Today (0), Future (1), and Past (2) buckets
     const getAppointmentBucket = (dateStr) => {
-        if (!dateStr) return 2; // Treat unassigned dates as past
+        if (!dateStr) return 2; 
         try {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -186,20 +280,18 @@ export default function AppointmentsPage() {
             target.setHours(0, 0, 0, 0);
 
             if (target.getTime() === today.getTime()) {
-                return 0; // Today
+                return 0; 
             } else if (target.getTime() > today.getTime()) {
-                return 1; // Future
+                return 1; 
             } else {
-                return 2; // Past
+                return 2; 
             }
         } catch (e) {
             return 2;
         }
     };
 
-    // Safe client-side status & search filter fallback
     const filteredAppointments = appointments.filter(appt => {
-        // Status filter
         let matchesStatus = true;
         if (filterStatus) {
             if (filterStatus === 'Cancelled') {
@@ -209,7 +301,6 @@ export default function AppointmentsPage() {
             }
         }
 
-        // Real-time keyword filter (Matches Patient Name, Booking ID, Contact Phone, or Email)
         let matchesSearch = true;
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
@@ -227,9 +318,6 @@ export default function AppointmentsPage() {
         return matchesStatus && matchesSearch;
     });
 
-    // Hierarchical Sorting: 
-    // Bucket 0 (Today) -> Bucket 1 (Future) -> Bucket 2 (Past)
-    // Within each category bucket, listings are sorted chronologically
     const sortedAppointments = [...filteredAppointments].sort((a, b) => {
         const bucketA = getAppointmentBucket(a.appointmentDate);
         const bucketB = getAppointmentBucket(b.appointmentDate);
@@ -238,22 +326,18 @@ export default function AppointmentsPage() {
             return bucketA - bucketB; 
         }
 
-        // Chronological sort within the same date bucket
         return new Date(a.appointmentDate) - new Date(b.appointmentDate);
     });
 
-    // Pagination Calculations
     const totalPages = Math.ceil(sortedAppointments.length / itemsPerPage);
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
     const currentAppointments = sortedAppointments.slice(indexOfFirstItem, indexOfLastItem);
 
-    // Checks if the consultation type represents an online call
     const isOnlineConsultation =
         selectedAppointment?.consultationType?.toLowerCase().includes('online') ||
         selectedAppointment?.consultationType?.toLowerCase().includes('video');
 
-    // Checks if the appointment is in a terminal status (Completed or Cancelled), excluding "Cancelled-By-User"
     const isTerminalStatus =
         selectedAppointment?.status === 'Completed' ||
         (isCancelledStatus(selectedAppointment?.status) && !isCancelledByUserStatus(selectedAppointment?.status));
@@ -288,7 +372,6 @@ export default function AppointmentsPage() {
 
                     <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto items-stretch sm:items-center">
                         
-                        {/* Interactive Search Bar */}
                         <div className="relative flex-grow sm:flex-grow-0">
                             <input
                                 type="text"
@@ -304,7 +387,6 @@ export default function AppointmentsPage() {
                             </div>
                         </div>
 
-                        {/* Status Filter Bar */}
                         <div className="bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100 flex gap-1 overflow-x-auto">
                             {['', 'Pending', 'Confirmed', 'Completed', 'Cancelled'].map((status) => (
                                 <button
@@ -318,7 +400,6 @@ export default function AppointmentsPage() {
                             ))}
                         </div>
 
-                        {/* Refined Consultation Type Dropdown Selector */}
                         <div className="relative">
                             <select
                                 value={filterConsultationType}
@@ -411,7 +492,7 @@ export default function AppointmentsPage() {
                                                 </div>
                                             </td>
                                             <td className="px-8 py-6">
-                                                <div className="flex justify-end gap-2">
+                                                <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                                                     {appt.status === 'Pending' ? (
                                                         <>
                                                             <button
@@ -439,12 +520,25 @@ export default function AppointmentsPage() {
                                                     ) : (isCancelledStatus(appt.status) || appt.status === 'Completed') ? (
                                                         <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest px-4 py-2 bg-gray-50 rounded-xl">View Only</span>
                                                     ) : (
-                                                        <button
-                                                            onClick={(e) => openRescheduleModal(e, appt)}
-                                                            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-gray-100 text-gray-500 hover:bg-gray-50 transition-all"
-                                                        >
-                                                            <FaUndo /> Reschedule
-                                                        </button>
+                                                        <div className="flex gap-2">
+                                                            {appt.status === 'Confirmed' && (appt.consultationType === 'Home Visit' || appt.consultationType === 'Clinic Visit') && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleStartCase(appt);
+                                                                    }}
+                                                                    className="flex items-center gap-1.5 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-orange-500 hover:bg-orange-600 text-white shadow-md shadow-orange-100 transition-all"
+                                                                >
+                                                                    Start Case
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={(e) => openRescheduleModal(e, appt)}
+                                                                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-gray-100 text-gray-500 hover:bg-gray-50 transition-all"
+                                                            >
+                                                                <FaUndo /> Reschedule
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </td>
@@ -490,14 +584,14 @@ export default function AppointmentsPage() {
             {isViewModalOpen && selectedAppointment && (
                 <div className="fixed inset-0 bg-slate-900/70 flex items-center justify-center z-[110] p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-[3.5rem] w-full max-w-2xl max-h-[90vh] overflow-hidden relative shadow-2xl animate-in fade-in zoom-in-95 duration-300 flex flex-col">
-                        {/* Header */}
+                        
                         <div className="p-8 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
                             <div className="flex items-center gap-4">
                                 <div className="w-14 h-14 bg-[#08B36A] rounded-[1.5rem] flex items-center justify-center text-white text-xl font-black">
-                                    {selectedAppointment.patients[0]?.patientName?.charAt(0)}
+                                    {selectedAppointment.patients[0]?.patientName?.charAt(0) || selectedAppointment.userId?.name?.charAt(0)}
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-black text-gray-900 tracking-tight uppercase">{selectedAppointment.patients[0]?.patientName}</h2>
+                                    <h2 className="text-xl font-black text-gray-900 tracking-tight uppercase">{selectedAppointment.patients[0]?.patientName || selectedAppointment.userId?.name}</h2>
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Booking ID: {selectedAppointment.bookingId}</p>
                                 </div>
                             </div>
@@ -506,9 +600,8 @@ export default function AppointmentsPage() {
                             </button>
                         </div>
 
-                        {/* Content */}
                         <div className="p-8 overflow-y-auto space-y-8">
-                            {/* Status Bar */}
+                            
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="p-4 rounded-[1.5rem] bg-gray-50 border border-gray-100">
                                     <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Status</p>
@@ -524,22 +617,21 @@ export default function AppointmentsPage() {
                                 </div>
                             </div>
 
-                            {/* Patient & Reason */}
                             <div className="grid md:grid-cols-2 gap-8">
                                 <div className="space-y-4">
                                     <h4 className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest"><FaUser size={10} /> Patient Information</h4>
                                     <div className="space-y-2">
                                         <div className="flex justify-between py-2 border-b border-gray-50">
                                             <span className="text-xs font-bold text-gray-500">Gender</span>
-                                            <span className="text-xs font-black text-gray-800">{selectedAppointment.patients[0]?.gender}</span>
+                                            <span className="text-xs font-black text-gray-800">{selectedAppointment.patients[0]?.gender || "N/A"}</span>
                                         </div>
                                         <div className="flex justify-between py-2 border-b border-gray-50">
                                             <span className="text-xs font-bold text-gray-500">Age</span>
-                                            <span className="text-xs font-black text-gray-800">{selectedAppointment.patients[0]?.patientAge} Years</span>
+                                            <span className="text-xs font-black text-gray-800">{selectedAppointment.patients[0]?.patientAge ? `${selectedAppointment.patients[0].patientAge} Years` : "N/A"}</span>
                                         </div>
                                         <div className="flex justify-between py-2">
                                             <span className="text-xs font-bold text-gray-500">Relation</span>
-                                            <span className="text-xs font-black text-gray-800 uppercase">{selectedAppointment.patients[0]?.relation}</span>
+                                            <span className="text-xs font-black text-gray-800 uppercase">{selectedAppointment.patients[0]?.relation || "Self"}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -553,7 +645,6 @@ export default function AppointmentsPage() {
                                 </div>
                             </div>
 
-                            {/* Schedule & Contact */}
                             <div className="grid md:grid-cols-2 gap-8">
                                 <div className="space-y-4">
                                     <h4 className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest"><FaClock size={10} /> Schedule Info</h4>
@@ -574,17 +665,16 @@ export default function AppointmentsPage() {
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-3 text-xs font-bold text-gray-700">
                                             <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"><FaPhoneAlt size={12} /></div>
-                                            {selectedAppointment.userId?.phone}
+                                            {selectedAppointment.userId?.phone || "N/A"}
                                         </div>
                                         <div className="flex items-center gap-3 text-xs font-bold text-gray-700">
                                             <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"><FaEnvelope size={12} /></div>
-                                            {selectedAppointment.userId?.email}
+                                            {selectedAppointment.userId?.email || "N/A"}
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Address - Only for Home Visits */}
                             {selectedAppointment.consultationType === 'Home Visit' && (
                                 <div className="space-y-4">
                                     <h4 className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest"><FaMapMarkerAlt size={10} /> Visit Address</h4>
@@ -598,27 +688,26 @@ export default function AppointmentsPage() {
                                 </div>
                             )}
 
-                            {/* Billing */}
                             <div className="space-y-4">
                                 <h4 className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest"><FaWallet size={10} /> Bill Breakdown</h4>
                                 <div className="bg-slate-900 rounded-[2rem] p-6 text-white">
                                     <div className="space-y-2 border-b border-slate-800 pb-4 mb-4">
                                         <div className="flex justify-between text-xs font-medium text-slate-400">
                                             <span>Base Consultation Fee</span>
-                                            <span>₹{selectedAppointment.pricingBreakdown?.baseFee}</span>
+                                            <span>₹{selectedAppointment.pricingBreakdown?.baseFee || 0}</span>
                                         </div>
                                         <div className="flex justify-between text-xs font-medium text-slate-400">
                                             <span>Visit/Travel Charges</span>
-                                            <span>+ ₹{selectedAppointment.pricingBreakdown?.visitCharges}</span>
+                                            <span>+ ₹{selectedAppointment.pricingBreakdown?.visitCharges || 0}</span>
                                         </div>
                                         <div className="flex justify-between text-xs font-medium text-[#08B36A]">
                                             <span>Discount Applied</span>
-                                            <span>- ₹{selectedAppointment.pricingBreakdown?.discountAmount}</span>
+                                            <span>- ₹{selectedAppointment.pricingBreakdown?.discountAmount || 0}</span>
                                         </div>
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-xs font-black uppercase tracking-widest text-slate-400">Total Paid</span>
-                                        <span className="text-2xl font-black text-white">₹{selectedAppointment.totalAmount}</span>
+                                        <span className="text-2xl font-black text-white">₹{selectedAppointment.totalAmount || 0}</span>
                                     </div>
                                 </div>
                             </div>
@@ -643,15 +732,28 @@ export default function AppointmentsPage() {
                                         Start Call
                                     </button>
                                 ) : (
-                                    <button
-                                        onClick={(e) => {
-                                            setIsViewModalOpen(false);
-                                            openRescheduleModal(e, selectedAppointment);
-                                        }}
-                                        className="flex-1 py-4 rounded-2xl bg-[#08B36A] text-white font-black text-[10px] uppercase tracking-widest hover:bg-green-600 shadow-xl shadow-green-100 transition-all"
-                                    >
-                                        Modify Schedule
-                                    </button>
+                                    <div className="flex-1 flex gap-2">
+                                        {selectedAppointment.status === 'Confirmed' && (selectedAppointment.consultationType === 'Home Visit' || selectedAppointment.consultationType === 'Clinic Visit') && (
+                                            <button
+                                                onClick={() => {
+                                                    setIsViewModalOpen(false);
+                                                    handleStartCase(selectedAppointment);
+                                                }}
+                                                className="flex-1 py-4 rounded-2xl bg-orange-500 text-white font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 shadow-xl shadow-orange-100 transition-all"
+                                            >
+                                                Start Case
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={(e) => {
+                                                setIsViewModalOpen(false);
+                                                openRescheduleModal(e, selectedAppointment);
+                                            }}
+                                            className="flex-1 py-4 rounded-2xl bg-[#08B36A] text-white font-black text-[10px] uppercase tracking-widest hover:bg-green-600 shadow-xl shadow-green-100 transition-all"
+                                        >
+                                            Modify Schedule
+                                        </button>
+                                    </div>
                                 )
                             )}
                         </div>
@@ -728,6 +830,25 @@ export default function AppointmentsPage() {
                     </div>
                 </div>
             )}
+
+            {/* Prescription Form Modal Builder */}
+            <AddPrescriptionModal
+                isOpen={isPrescriptionModalOpen}
+                onClose={() => setIsPrescriptionModalOpen(false)}
+                appointment={selectedAppointment}
+                onSuccess={handlePrescriptionSuccess}
+            />
+
+            {/* Digital Template Preview Summary Sheet */}
+            <DigitalPrescriptionTemplate
+                isOpen={isPreviewTemplateOpen}
+                onClose={() => {
+                    setIsPreviewTemplateOpen(false);
+                    setCompletedPrescriptionData(null);
+                }}
+                data={completedPrescriptionData}
+                onCompleteCase={handleCompleteCase}
+            />
 
             {/* Video Call Session Modal Portal */}
             {isVideoModalOpen && (

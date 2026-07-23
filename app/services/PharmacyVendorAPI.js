@@ -78,8 +78,8 @@ const PharmacyVendorAPI = {
         return response.data;
     },
 
-    submitNewMasterRequest: async (payload) => {
-        const response = await pharmacyVendorApi.post('/provider/pharmacy/inventory/add-request', payload);
+     submitNewMasterRequest: async (payload) => {
+        const response = await pharmacyVendorApi.post('/provider/pharmacy/inventory/request-add', payload);
         return response.data;
     },
 
@@ -183,8 +183,22 @@ const PharmacyVendorAPI = {
         const response = await pharmacyVendorApi.delete(`/provider/driver/delete/${id}`);
         return response.data;
     },
+      // 4. Reassign Driver (Fallback Recovery)
+    reassignDriver: async (orderId, newDriverId) => {
+        const response = await pharmacyVendorApi.post('/provider/pharmacy/orders/reassign', {
+            orderId,
+            newDriverId
+        });
+        return response.data;
+    },
 
-    // --- PROFILE ---
+    // 5. Track All Pharmacy Drivers (NEW API ADDED)
+    trackPharmacyDrivers: async () => {
+        const response = await pharmacyVendorApi.get('/provider/pharmacy/orders/track-drivers');
+        return response.data;
+    },
+
+  // --- PROFILE ---
     getPharmacyProfile: async () => {
         const response = await pharmacyVendorApi.get('/provider/pharmacy/profile');
         return response.data;
@@ -195,7 +209,12 @@ const PharmacyVendorAPI = {
         });
         return response.data;
     },
-
+    // Track the status of the submitted profile change request
+    getPharmacyProfileUpdateStatus: async () => {
+        const response = await pharmacyVendorApi.get('/provider/pharmacy/profile/update-status');
+        return response.data;
+    },
+    
     // --- SCHEDULE / AVAILABILITY ---
     getAvailability: async () => {
         const response = await pharmacyVendorApi.get('/provider/availability/my-slots');

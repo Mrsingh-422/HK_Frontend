@@ -1,297 +1,235 @@
 'use client'
-import React, { useState } from 'react'
-import { 
-  FaEye, 
-  FaUpload, 
-  FaTimes, 
-  FaUser, 
-  FaPhoneAlt, 
-  FaMapMarkerAlt, 
-  FaFileMedical,
-  FaCheckCircle,
-  FaCloudUploadAlt
-} from 'react-icons/fa'
+import React, { useState, useEffect } from 'react'
+import { FaFileMedical, FaSpinner, FaEye, FaUpload, FaUser, FaPhoneAlt, FaMapMarkerAlt, FaFlask } from 'react-icons/fa'
+import LabVendorAPI from '@/app/services/LabVendorAPI'
+import PatientInfoModal from './components/PatientInfoModal'
+import LimsWorkspacePanel from './components/LimsWorkspacePanel'
+import ReportViewModal from './components/ReportViewModal'
 
 export default function UploadReportPage() {
-  
-  // State for Modals
-  const[selectedReport, setSelectedReport] = useState(null);
-  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [orders, setOrders] = useState([])
+  const [loadingOrders, setLoadingOrders] = useState(false)
+  const [statusFilter, setStatusFilter] = useState('Approved')
 
-  // Dummy Data (Based on your images)
-  const reportsList =[
-    { 
-      id: '140820241108065850', 
-      name: 'Yash User', 
-      phone: '9999999999', 
-      address: 'Chandigarh, Sahibzada Ajit Singh Nagar, Ropar Division, Punjab', 
-      status: 'Approved' 
-    },
-    { 
-      id: '573520241212065043', 
-      name: 'Yash User', 
-      phone: '6239904039', 
-      address: 'Pincode: 160071, House: 8B, Sector/Village: Ropar Division', 
-      status: 'Approved' 
-    },
-    { 
-      id: '110420241213040747', 
-      name: 'Yash User', 
-      phone: '6239904039', 
-      address: 'Pincode: 160071, House: 8B, Sector/Village: Ropar Division', 
-      status: 'Approved' 
-    },
-    { 
-      id: '788520241231062228', 
-      name: 'Aarush Singh', 
-      phone: '7597272101', 
-      address: 'Sector 62, Mohali, Punjab', 
-      status: 'Approved' 
-    },
-  ];
+  // Modals & Panels Active state
+  const [selectedOrder, setSelectedOrder] = useState(null)
+  const [isInfoOpen, setIsInfoOpen] = useState(false)
+  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false)
+  const [isReportViewerOpen, setIsReportViewerOpen] = useState(false)
 
-  // Handlers for Info Modal
-  const handleOpenInfo = (report) => {
-    setSelectedReport(report);
-    setIsInfoModalOpen(true);
+  useEffect(() => {
+    fetchOrdersList();
+  }, [statusFilter]);
+
+  const fetchOrdersList = async () => {
+    setLoadingOrders(true);
+    try {
+      const response = await LabVendorAPI.getOrders(statusFilter);
+      if (response && response.success && response.data) {
+        setOrders(response.data);
+      } else {
+        setOrders([]);
+      }
+    } catch (err) {
+      console.error("Error retrieving orders from API:", err);
+      setOrders([]);
+    } finally {
+      setLoadingOrders(false);
+    }
   };
 
-  const handleCloseInfo = () => {
-    setIsInfoModalOpen(false);
-    setSelectedReport(null);
+  const handleActionClick = (order) => {
+    setSelectedOrder(order);
+    if (statusFilter === 'Completed') {
+      setIsReportViewerOpen(true);
+    } else {
+      setIsInfoOpen(true);
+    }
   };
 
-  // Handlers for Upload Modal
-  const handleOpenUpload = (report) => {
-    setSelectedReport(report);
-    setIsUploadModalOpen(true);
+  const getPatientName = (order) => {
+    return order.patients?.[0]?.patientName || order.patients?.[0]?.name || order.userId?.name || 'Unknown Patient';
   };
 
-  const handleCloseUpload = () => {
-    setIsUploadModalOpen(false);
-    setSelectedReport(null);
+  const getPatientPhone = (order) => {
+    return order.userId?.phone || 'No Phone';
+  };
+
+  const getBookedItemsSummary = (order) => {
+    const tests = order.items?.tests?.map(t => t.name) || [];
+    const packageTests = order.items?.packages?.flatMap(p => 
+      p.packageId?.tests?.map(nt => nt.testName) || []
+    ) || [];
+    const uniqueItems = Array.from(new Set([...tests, ...packageTests]));
+    return uniqueItems.join(', ') || order.items?.packages?.map(p => p.name).join(', ') || 'No services booked';
+  };
+
+  const formatAddress = (order) => {
+    if (order.collectionType === 'Visit Lab') {
+      return 'Visit Lab (In-house)';
+    }
+    if (!order.address) {
+      return 'Home Collection';
+    }
+    const { houseNo, sector, city, pincode } = order.address;
+    return [houseNo, sector, city, pincode].filter(Boolean).join(', ');
   };
 
   return (
-    <div className="w-full relative">
+    <div className="w-full relative px-2 py-4">
       
-      {/* ========================================= */}
-      {/* HEADER SECTION                            */}
-      {/* ========================================= */}
-      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 border-b border-gray-100 pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1e3a8a] flex items-center gap-2">
+          <h1 className="text-3xl font-bold text-[#1e3a8a] flex items-center gap-2.5">
             <FaFileMedical className="text-[#08B36A]"/> Upload Reports
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Manage and upload patient test reports securely.</p>
+          <p className="text-gray-500 text-xs mt-1">Configure diagnostic outputs or construct smart lab results dynamically.</p>
+        </div>
+
+        {/* Tab Filter */}
+        <div className="flex bg-gray-100 p-1.5 rounded-xl border border-gray-200">
+          {['Approved', 'Testing', 'Completed'].map((status) => (
+            <button
+              key={status}
+              onClick={() => setStatusFilter(status)}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                statusFilter === status 
+                  ? 'bg-white text-[#1e3a8a] shadow-sm' 
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              {status}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* ========================================= */}
-      {/* TABLE SECTION                             */}
-      {/* ========================================= */}
+      {/* TABLE SECTION */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 text-sm uppercase tracking-wider">
-              <tr>
-                <th className="px-6 py-4 font-semibold">Report ID</th>
-                <th className="px-6 py-4 font-semibold">Patient Info</th>
-                <th className="px-6 py-4 font-semibold">Address / Details</th>
-                <th className="px-6 py-4 font-semibold">Status</th>
-                <th className="px-6 py-4 font-semibold text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {reportsList.map((report) => (
-                <tr 
-                  key={report.id} 
-                  onClick={() => handleOpenInfo(report)} // Row pe click karne se info khulega
-                  className="hover:bg-green-50/50 transition-colors duration-200 cursor-pointer group"
-                >
-                  
-                  {/* Report ID */}
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="font-bold text-gray-800">{report.id}</span>
-                  </td>
-
-                  {/* Patient Info */}
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-gray-800 flex items-center gap-2">
-                        <FaUser className="text-gray-400 text-xs"/> {report.name}
-                      </span>
-                      <span className="text-sm font-bold text-[#08B36A] mt-1 flex items-center gap-2">
-                        <FaPhoneAlt className="text-gray-400 text-xs"/> {report.phone}
-                      </span>
-                    </div>
-                  </td>
-
-                  {/* Address */}
-                  <td className="px-6 py-4">
-                    <div className="flex items-start gap-2 text-sm text-gray-600 max-w-xs">
-                      <FaMapMarkerAlt className="text-gray-400 mt-1 flex-shrink-0" />
-                      <span className="line-clamp-2" title={report.address}>{report.address}</span>
-                    </div>
-                  </td>
-
-                  {/* Status */}
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-green-50 text-green-600 border border-green-100">
-                      <FaCheckCircle /> {report.status}
-                    </span>
-                  </td>
-
-                  {/* Actions */}
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      
-                      {/* VIEW BUTTON */}
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleOpenInfo(report); }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold rounded-lg transition-colors border border-blue-100"
-                      >
-                        <FaEye size={14} /> View
-                      </button>
-
-                      {/* UPLOAD BUTTON */}
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleOpenUpload(report); }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#08B36A] hover:bg-green-600 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
-                      >
-                        <FaUpload size={12} /> Upload
-                      </button>
-
-                    </div>
-                  </td>
-
+        {loadingOrders ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <FaSpinner className="text-[#08B36A] animate-spin" size={32} />
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Querying diagnostic queue...</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-gray-50/70 border-b border-gray-100 text-gray-500 text-xs font-bold uppercase tracking-wider">
+                <tr>
+                  <th className="px-6 py-4">Booking ID</th>
+                  <th className="px-6 py-4">Patient Info</th>
+                  <th className="px-6 py-4">Booked Services (Recursive)</th>
+                  <th className="px-6 py-4">Address / Mode</th>
+                  <th className="px-6 py-4 text-center">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {orders.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-12 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
+                      No matching bookings in queue.
+                    </td>
+                  </tr>
+                ) : (
+                  orders.map((order) => (
+                    <tr 
+                      key={order._id} 
+                      onClick={() => handleActionClick(order)}
+                      className="hover:bg-green-50/30 transition-colors duration-150 cursor-pointer group"
+                    >
+                      {/* Booking ID */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="font-bold text-gray-800 font-mono tracking-tight text-xs">{order.bookingId}</span>
+                      </td>
+
+                      {/* Patient Info */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-gray-800 flex items-center gap-2 text-xs">
+                            <FaUser className="text-gray-400 text-xs"/> {getPatientName(order)}
+                          </span>
+                          <span className="text-xs font-bold text-[#08B36A] mt-1 flex items-center gap-2">
+                            <FaPhoneAlt className="text-gray-400 text-xs"/> {getPatientPhone(order)}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Booked Items */}
+                      <td className="px-6 py-4 max-w-xs">
+                        <div className="flex items-start gap-1.5 text-xs text-gray-700 font-semibold">
+                          <FaFlask className="text-slate-400 mt-0.5 flex-shrink-0" />
+                          <span className="line-clamp-2" title={getBookedItemsSummary(order)}>
+                            {getBookedItemsSummary(order)}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Address */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-start gap-2 text-xs text-gray-600 max-w-xs">
+                          <FaMapMarkerAlt className="text-gray-400 mt-1 flex-shrink-0" />
+                          <span className="line-clamp-2" title={formatAddress(order)}>{formatAddress(order)}</span>
+                        </div>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          
+                          {/* Always render View action trigger */}
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleActionClick(order); }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold rounded-lg transition-colors border border-blue-100"
+                          >
+                            <FaEye size={13} /> View
+                          </button>
+
+                          {/* Render Upload action trigger ONLY on the Testing status tab */}
+                          {statusFilter === 'Testing' && (
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); setSelectedOrder(order); setIsWorkspaceOpen(true); }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#08B36A] hover:bg-green-600 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+                            >
+                              <FaUpload size={12} /> Upload
+                            </button>
+                          )}
+
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-
-      {/* ========================================= */}
-      {/* 🌟 1. PATIENT INFO MODAL 🌟               */}
-      {/* ========================================= */}
-      {isInfoModalOpen && selectedReport && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={handleCloseInfo}></div>
-
-          <div className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200">
-            
-            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h2 className="text-lg font-bold text-[#1e3a8a] flex items-center gap-2">
-                <FaFileMedical className="text-[#08B36A]"/> Report Information
-              </h2>
-              <button onClick={handleCloseInfo} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors">
-                <FaTimes size={16} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 text-center mb-6">
-                <p className="text-xs text-gray-500 font-bold uppercase mb-1">Report / Order ID</p>
-                <p className="text-xl font-black text-[#1e3a8a] tracking-wider">{selectedReport.id}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  <p className="text-xs text-gray-500 font-bold uppercase mb-1">Patient Name</p>
-                  <p className="font-bold text-gray-800">{selectedReport.name}</p>
-                </div>
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  <p className="text-xs text-gray-500 font-bold uppercase mb-1">Phone Number</p>
-                  <p className="font-bold text-[#08B36A]">{selectedReport.phone}</p>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <p className="text-xs text-gray-500 font-bold uppercase mb-1">Complete Address Details</p>
-                <p className="font-medium text-gray-700 leading-relaxed">{selectedReport.address}</p>
-              </div>
-            </div>
-
-            <div className="p-5 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
-              <button onClick={handleCloseInfo} className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-100 transition-colors">
-                Close
-              </button>
-              <button 
-                onClick={() => { handleCloseInfo(); handleOpenUpload(selectedReport); }} 
-                className="px-6 py-2.5 bg-[#08B36A] text-white font-bold rounded-xl shadow-md hover:bg-green-600 transition-colors flex items-center gap-2"
-              >
-                <FaUpload /> Upload Report Now
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* 🌟 1. PATIENT DEMOGRAPHICS OVERVIEW MODAL 🌟 */}
+      {isInfoOpen && selectedOrder && (
+        <PatientInfoModal 
+          order={selectedOrder}
+          onClose={() => { setIsInfoOpen(false); setSelectedOrder(null); }}
+          onEnterLims={(order) => { setIsInfoOpen(false); setSelectedOrder(order); setIsWorkspaceOpen(true); }}
+        />
       )}
 
+      {/* 🌟 2. REPORT VIEW COMPLETED MODAL 🌟 */}
+      {isReportViewerOpen && selectedOrder && (
+        <ReportViewModal 
+          order={selectedOrder}
+          onClose={() => { setIsReportViewerOpen(false); setSelectedOrder(null); }}
+        />
+      )}
 
-      {/* ========================================= */}
-      {/* 🌟 2. UPLOAD REPORT MODAL 🌟              */}
-      {/* ========================================= */}
-      {isUploadModalOpen && selectedReport && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={handleCloseUpload}></div>
-
-          <div className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200">
-            
-            {/* Modal Header */}
-            <div className="p-5 border-b border-gray-100 flex justify-between items-center">
-              <h2 className="text-lg font-bold text-[#08B36A] flex items-center gap-2">
-                Upload Report
-              </h2>
-              <button onClick={handleCloseUpload} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors">
-                <FaTimes size={16} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 space-y-6">
-              
-              {/* File Input Area (Modern Look) */}
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Select Document</label>
-                <div className="w-full relative border-2 border-dashed border-gray-300 hover:border-[#08B36A] bg-gray-50 rounded-xl p-6 flex flex-col items-center justify-center transition-colors cursor-pointer group">
-                  <FaCloudUploadAlt className="text-4xl text-gray-300 group-hover:text-[#08B36A] mb-2 transition-colors" />
-                  <span className="text-sm font-bold text-gray-600 group-hover:text-[#08B36A]">Choose File to Upload</span>
-                  <span className="text-xs text-gray-400 mt-1">PDF, JPG, PNG (Max 5MB)</span>
-                  {/* Invisible real file input over the box */}
-                  <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                </div>
-              </div>
-
-              {/* Readonly ID Field */}
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Report / Order ID</label>
-                <input 
-                  type="text" 
-                  value={selectedReport.id} 
-                  readOnly 
-                  className="w-full px-4 py-3 bg-gray-100 rounded-xl border border-gray-200 text-gray-700 font-bold focus:outline-none cursor-not-allowed"
-                />
-              </div>
-
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-5 border-t border-gray-100 flex justify-between items-center bg-gray-50">
-              <button onClick={handleCloseUpload} className="px-5 py-2 text-gray-500 font-bold hover:text-gray-800 transition-colors">
-                Cancel
-              </button>
-              <button 
-                onClick={() => { alert('Report Uploaded!'); handleCloseUpload(); }}
-                className="px-8 py-2.5 bg-[#08B36A] text-white font-bold rounded-xl shadow-md shadow-green-200 hover:bg-green-600 transition-transform hover:-translate-y-0.5"
-              >
-                UPLOAD
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* 🌟 3. ACTIVE LIMS REPORT BUILDER WORKSPACE 🌟 */}
+      {isWorkspaceOpen && selectedOrder && (
+        <LimsWorkspacePanel 
+          order={selectedOrder}
+          onClose={() => { setIsWorkspaceOpen(false); setSelectedOrder(null); }}
+          onSuccess={() => { setIsWorkspaceOpen(false); setSelectedOrder(null); fetchOrdersList(); }}
+        />
       )}
 
     </div>

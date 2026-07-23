@@ -755,7 +755,77 @@ const AdminAPI = {
     toggleHospitalStatus: async (hospitalId) => {
         const response = await api.patch(`/admin/hospital/status/active-inactive/${hospitalId}`);
         return response.data;
+    },
+    // ==========================================
+    // NEW PROFILE UPDATE APIS START HERE
+    // ==========================================
+ 
+    // 1. List Profile Update Requests
+    listProfileUpdateRequests: async (status = 'Pending', vendorModel = '', page = 1, limit = 20) => {
+        const response = await api.get("/api/admin/profile-update", {
+            params: { status, vendorModel, page, limit }
+        });
+        return response.data;
+    },
+ 
+    // 2. Get Request Details & Comparison
+    getProfileUpdateRequestDetails: async (requestId) => {
+        const response = await api.get(`/api/admin/profile-update/${requestId}`);
+        return response.data;
+    },
+ 
+    // 3. Approve / Reject Profile Update Action
+    actionProfileUpdateRequest: async (requestId, action, reason = "") => {
+        const response = await api.post(`/api/admin/profile-update/${requestId}/action`, {
+            action, // 'Approve' or 'Reject'
+            reason  // Optional rejection reason
+        });
+        return response.data;
+    },
+    // ==========================================
+    // NEW POLICY CONFIGURATION APIS START HERE
+    // ==========================================
+ 
+    // 1.1 Fetch All Active Policies (GET /api/admin/policy-config)
+    getActivePolicies: async () => {
+        const response = await api.get("/api/admin/policy-config");
+        return response.data;
+    },
+ 
+    // 1.2 Update / Upsert No-Show Policy (POST /api/admin/policy-config/no-show)
+    updateNoShowPolicy: async (policyData) => {
+        // payload: { vendorType, chargeType, chargeValue, timePeriodInMinutes, triggerState, isActive }
+        const response = await api.post("/api/admin/policy-config/no-show", policyData);
+        return response.data;
+    },
+ 
+    // 1.3 Update / Upsert Cancellation Policy (POST /api/admin/policy-config/cancellation)
+    updateCancellationPolicy: async (policyData) => {
+        // payload: { vendorType, chargeType, chargeValue, isActive }
+        const response = await api.post("/api/admin/policy-config/cancellation", policyData);
+        return response.data;
+    },
+    // ==========================================
+    // COD CONFIGURATION ENDPOINTS (1.1 & 1.2)
+    // ==========================================
+ 
+    // 1.1 Fetch All COD Configurations (GET /api/admin/policy-config/cod)
+    getCODConfigurations: async () => {
+        const response = await api.get("/api/admin/policy-config/cod");
+        return response.data;
+    },
+ 
+    // 1.2 Toggle COD Availability Status (POST /api/admin/policy-config/cod/toggle)
+    toggleCODAvailability: async (vendorType, isCodAvailable) => {
+        // payload: { vendorType, isCodAvailable }
+        const response = await api.post("/api/admin/policy-config/cod/toggle", {
+            vendorType,
+            isCodAvailable
+        });
+        return response.data;
     }
+ 
+ 
 
 };
 

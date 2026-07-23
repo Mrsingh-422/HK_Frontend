@@ -34,9 +34,7 @@ export default function NurseTopBar({ onToggleSidebar, isCollapsed }) {
     // Clear all possible nurse and provider auth tokens/metadata
     localStorage.removeItem('nursingToken');
     localStorage.removeItem('nurseToken');
-    localStorage.removeItem('nursingProvider');
-    localStorage.removeItem('nurseProfile');
-    localStorage.removeItem('token');
+    
     
     setIsDropdownOpen(false);
     

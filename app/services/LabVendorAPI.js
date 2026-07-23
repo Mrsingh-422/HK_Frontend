@@ -9,9 +9,8 @@ const getLabToken = () => localStorage.getItem('labToken');
  
 const getAnyToken = () => {
     if (typeof window !== 'undefined') {
-        return localStorage.getItem('labToken') ||
-               localStorage.getItem('pharmacyToken') ||
-               localStorage.getItem('nurseToken');
+        return localStorage.getItem('labToken') 
+               ;
     }
     return null;
 };
@@ -72,6 +71,12 @@ const LabVendorAPI = {
         const response = await labVendorApi.put('/provider/labs/profile/update', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
+        return response.data;
+    },
+
+    // Track the status of submitted staged lab profile changes
+    getLabProfileUpdateStatus: async () => {
+        const response = await labVendorApi.get('/provider/labs/profile/update-status');
         return response.data;
     },
  
@@ -142,7 +147,7 @@ const LabVendorAPI = {
         const response = await labVendorApi.get('/provider/availability/my-slots');
         return response.data;
     },
- 
+
     blockSlot: async (time) => {
         const response = await labVendorApi.post('/provider/availability/block-slot', { time });
         return response.data;
@@ -152,7 +157,7 @@ const LabVendorAPI = {
         const response = await labVendorApi.post('/provider/availability/unblock-slot', { time });
         return response.data;
     },
- 
+
     saveLabTest: async (data) => {
         const response = await labVendorApi.post('/provider/labs/services/tests/save', data);
         return response.data;
@@ -198,7 +203,7 @@ const LabVendorAPI = {
         return response.data;
     },
  
-    // ==========================================
+   // ==========================================
     // COUPON / PROMOTIONS SECTION (NEW)
     // ==========================================
     listCoupons: async () => {
@@ -270,6 +275,14 @@ const LabVendorAPI = {
      // ==========================================
     // ORDER MANAGEMENT (UPDATED WITH PRIORITY FILTER)
     // ==========================================
+
+      getOrderHistory: async (page = 1) => {
+        const response = await labVendorApi.get('/provider/labs/order-history', {
+            params: { page }
+        });
+        return response.data;
+    },
+
     getOrders: async (status, isPriority = null) => {
         const params = { status: status === 'Approved' ? 'Confirmed' : status };
         
@@ -353,7 +366,134 @@ const LabVendorAPI = {
       };
     }
   },
- 
+  // ==========================================
+    // SMART LIMS REPORT & TEMPLATE API (UPDATED)
+    // ==========================================
+    getDropdownTemplates: async (search = '') => {
+        const response = await labVendorApi.get('/provider/labs/report-templates/dropdown', {
+            params: search ? { search } : {}
+        });
+        return response.data;
+    },
+
+    getTemplateParameters: async (testNames) => {
+        const response = await labVendorApi.get('/provider/labs/report-templates', {
+            params: { testNames }
+        });
+        return response.data;
+    },
+
+    getBookingTemplates: async (orderId) => {
+        const response = await labVendorApi.get(`/provider/labs/report-templates/booking/${orderId}`);
+        return response.data;
+    },
+
+    saveDraftReport: async (orderId, patientId, testValues) => {
+        const response = await labVendorApi.post(`/provider/labs/save-draft/${orderId}`, { 
+            patientId, 
+            testValues 
+        });
+        return response.data;
+    },
+
+    getDraftReport: async (orderId, patientId) => {
+        const response = await labVendorApi.get(`/provider/labs/get-draft/${orderId}`, {
+            params: { patientId }
+        });
+        return response.data;
+    },
+
+    getReportData: async (orderId, patientId) => {
+        const response = await labVendorApi.get(`/provider/labs/get-report-data/${orderId}`, {
+            params: { patientId }
+        });
+        return response.data;
+    },
+
+    uploadClientPdf: async (orderId, formData) => {
+        const response = await labVendorApi.post(`/provider/labs/upload-client-pdf/${orderId}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+
+    generateBrandedReport: async (orderId, patientId, testValues) => {
+        const response = await labVendorApi.post(`/provider/labs/generate-report/${orderId}`, { 
+            patientId, 
+            testValues 
+        });
+        return response.data;
+    },
+    // ==========================================
+    // PHLEBOTOMIST (DRIVER) TRACKING SECTION
+    // ==========================================
+    
+    /**
+     * Fetch available/online phlebotomists list for staff assignment
+     * GET /provider/labs/available-phlebotomists
+     */
+    getAvailablePhlebotomists: async () => {
+        const response = await labVendorApi.get('/provider/labs/available-phlebotomists');
+        return response.data;
+    },
+
+    /**
+     * Reassign an active booking to a different phlebotomist
+     * PATCH /provider/labs/reassign-staff/:orderId
+     */
+    reassignPhlebotomist: async (orderId, newPhlebotomistId) => {
+        const response = await labVendorApi.patch(`/provider/labs/reassign-staff/${orderId}`, {
+            newPhlebotomistId
+        });
+        return response.data;
+    },
+
+    /**
+     * Retrieve visual timeline progress, phlebotomist location, and patient details
+     * GET /provider/labs/booking-tracking/:orderId
+     */
+    getBookingTrackingDetails: async (orderId) => {
+        const response = await labVendorApi.get(`/provider/labs/booking-tracking/${orderId}`);
+        return response.data;
+    },
+    
+    /**
+     * Retrieve active booking/timeline status and profile of a phlebotomist
+     * GET /provider/labs/phlebotomist-detail/:phlebotomistId
+     */
+    getPhlebotomistDetails: async (phlebotomistId) => {
+        const response = await labVendorApi.get(`/provider/labs/phlebotomist-detail/${phlebotomistId}`);
+        return response.data;
+    },
+      // ==========================================
+    // SECTION B: LAB PROVIDER ENDPOINTS (NEW)
+    // ==========================================
+    getIncomingRequestsList: async (status = '') => {
+        const response = await labVendorApi.get('/provider/labs/prescription-request/list', {
+            params: status ? { status } : {}
+        });
+        return response.data;
+    },
+
+    getProviderRequestDetails: async (requestId) => {
+        const response = await labVendorApi.get(`/provider/labs/prescription-request/details/${requestId}`);
+        return response.data;
+    },
+
+    startPrescriptionReview: async (requestId) => {
+        const response = await labVendorApi.post(`/provider/labs/prescription-request/start-review/${requestId}`);
+        return response.data;
+    },
+
+    submitReviewAndBill: async (requestId, billingData) => {
+        const response = await labVendorApi.post(`/provider/labs/prescription-request/review/${requestId}`, billingData);
+        return response.data;
+    },
+
+    rejectPrescriptionRequest: async (requestId, reason) => {
+        const response = await labVendorApi.post(`/provider/labs/prescription-request/reject/${requestId}`, { reason });
+        return response.data;
+    },
     
 };
  

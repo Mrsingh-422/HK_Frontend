@@ -1,9 +1,10 @@
 'use client'
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-    FaBuilding, FaMapMarkerAlt, FaPills, FaCamera, FaFileUpload, 
-    FaSave, FaClock, FaCheckCircle, FaInfoCircle, FaFileContract 
+    FaBuilding, FaMapMarkerAlt, FaPills, FaCamera, 
+    FaSave, FaClock, FaCheckCircle, FaInfoCircle, FaFileContract,
+    FaPhoneAlt, FaPlus, FaTimes, FaShieldAlt, FaExclamationTriangle
 } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import PharmacyVendorAPI from '@/app/services/PharmacyVendorAPI'; 
@@ -20,6 +21,9 @@ export default function PharmacyProfile() {
     const [states, setStates] = useState([]);
     const [cities, setCities] = useState([]);
 
+    // Staged request state: stores pending or rejected staging records
+    const [stagedRequest, setStagedRequest] = useState(null);
+
     const [profile, setProfile] = useState({
         name: '',
         about: '',
@@ -28,38 +32,52 @@ export default function PharmacyProfile() {
         city: '',    
         address: '',
         isHomeDeliveryAvailable: 'false',
+        isRapidServiceAvailable: 'false',
+        isInsuranceAccepted: 'false',
+        acceptedInsurances: [], 
         is24x7: 'false',
         lat: '',
         lng: '',
-        gstNumber: '', 
+        alternatePhone: ''
+    });
+
+    const [newInsurance, setNewInsurance] = useState('');
+
+    const [verificationDocs, setVerificationDocs] = useState({
+        gstNumber: '',
         drugLicenseType: 'Retail',
-        issuingAuthority: ''
+        issuingAuthority: '',
+        pharmacyImages: [],
+        pharmacyCertificates: [],
+        pharmacyLicenses: [],
+        gstCertificates: [],
+        drugLicenses: [],
+        otherCertificates: []
     });
 
     const [previews, setPreviews] = useState({ 
-        profile: null,
-        pharmacyImages: [],
-        pharmacyCertificates: [],
-        pharmacyLicenses: [],
-        gstCertificates: [],
-        drugLicenses: [],
-        otherCertificates: []
+        profile: null
     });
 
     const [files, setFiles] = useState({
-        profileImage: null,
-        pharmacyImages: [],
-        pharmacyCertificates: [],
-        pharmacyLicenses: [],
-        gstCertificates: [],
-        drugLicenses: [],
-        otherCertificates: []
+        profileImage: null
     });
 
-    const getDisplayName = (list, id) => {
-        if (!id || !list) return 'Not Set';
-        const item = list.find(i => (i.id || i._id || i.name) == id);
-        return item ? item.name : id;
+    const getAllCountriesRef = useRef(getAllCountries);
+    const getStatesByCountryRef = useRef(getStatesByCountry);
+    const getCitiesByStateRef = useRef(getCitiesByState);
+
+    useEffect(() => {
+        getAllCountriesRef.current = getAllCountries;
+        getStatesByCountryRef.current = getStatesByCountry;
+        getCitiesByStateRef.current = getCitiesByState;
+    }, [getAllCountries, getStatesByCountry, getCitiesByState]);
+
+    const getDisplayName = (list, val) => {
+        if (!val) return 'Not Set';
+        if (!list || list.length === 0) return val; 
+        const item = list.find(i => (i.id || i._id || i.name) === val || i.name === val);
+        return item ? item.name : val;
     };
 
     const formatImagePath = (path) => {
@@ -69,185 +87,255 @@ export default function PharmacyProfile() {
         return `${process.env.NEXT_PUBLIC_BACKEND_URL}/${cleanPath}`;
     };
 
-    useEffect(() => {
-        const fetchCountries = async () => {
-            try {
-                const data = await getAllCountries();
-                setCountries(data || []);
-            } catch {
-                console.error("Failed to load countries");
-            }
-        };
-        fetchCountries();
-    }, [getAllCountries]);
-
     const fetchStates = async (countryId) => {
         if (!countryId) return;
         try {
-            const data = await getStatesByCountry(countryId);
-            setStates(data || []);
-        } catch {
-            console.error("Failed to load states");
+            if (getStatesByCountryRef.current) {
+                const data = await getStatesByCountryRef.current(countryId);
+                setStates(data || []);
+            }
+        } catch (err) {
+            console.error("Failed to load states:", err);
         }
     };
 
     const fetchCities = async (stateId) => {
         if (!stateId) return;
         try {
-            const data = await getCitiesByState(stateId);
-            setCities(data || []);
-        } catch {
-            console.error("Failed to load cities");
-        }
-    };
-
-    const loadProfileData = async () => {
-        try {
-            const res = await PharmacyVendorAPI.getPharmacyProfile();
-            if (res.success) {
-                const data = res.data;
-                setProfile({
-                    name: data.name || '',
-                    about: data.about || '',
-                    country: data.country || '', 
-                    state: data.state || '',
-                    city: data.city || '',
-                    address: data.address || '',
-                    isHomeDeliveryAvailable: String(data.isHomeDeliveryAvailable ?? 'false'),
-                    is24x7: String(data.is24x7 ?? 'false'),
-                    lat: data.location?.lat || '',
-                    lng: data.location?.lng || '',
-                    gstNumber: data.documents?.gstNumber || '', 
-                    drugLicenseType: data.documents?.drugLicenseType || 'Retail',
-                    issuingAuthority: data.documents?.issuingAuthority || ''
-                });
-
-                if (data.country) fetchStates(data.country);
-                if (data.state) fetchCities(data.state);
-
-                setPreviews({
-                    profile: data.profileImage || null,
-                    pharmacyImages: data.documents?.pharmacyImages || [],
-                    pharmacyCertificates: data.documents?.pharmacyCertificates || [],
-                    pharmacyLicenses: data.documents?.pharmacyLicenses || [],
-                    gstCertificates: data.documents?.gstCertificates || [],
-                    drugLicenses: data.documents?.drugLicenses || [],
-                    otherCertificates: data.documents?.otherCertificates || []
-                });
+            if (getCitiesByStateRef.current) {
+                const data = await getCitiesByStateRef.current(stateId);
+                setCities(data || []);
             }
         } catch (err) {
-            console.error(err);
-            toast.error("Failed to load profile");
-        } finally {
-            setFetching(false);
+            console.error("Failed to load cities:", err);
         }
     };
 
     useEffect(() => {
-        loadProfileData();
+        let isMounted = true;
+
+        const initializeData = async () => {
+            setFetching(true);
+            let loadedCountries = [];
+
+            // 1. Fetch countries
+            try {
+                if (getAllCountriesRef.current) {
+                    const data = await getAllCountriesRef.current();
+                    loadedCountries = data || [];
+                    if (isMounted) setCountries(loadedCountries);
+                }
+            } catch (err) {
+                console.error("Failed to load countries during mount:", err);
+            }
+
+            // 2. Fetch profile update staging status
+            try {
+                const statusRes = await PharmacyVendorAPI.getPharmacyProfileUpdateStatus();
+                if (statusRes && statusRes.success && isMounted) {
+                    setStagedRequest(statusRes.data);
+                }
+            } catch (err) {
+                console.error("Failed to load profile update status:", err);
+            }
+
+            // 3. Fetch current profile data
+            try {
+                const res = await PharmacyVendorAPI.getPharmacyProfile();
+                if (res && res.success && isMounted) {
+                    const data = res.data;
+                    
+                    let parsedInsurances = [];
+                    if (data.acceptedInsurances) {
+                        try {
+                            parsedInsurances = typeof data.acceptedInsurances === 'string' 
+                                ? JSON.parse(data.acceptedInsurances) 
+                                : data.acceptedInsurances;
+                        } catch (e) {
+                            parsedInsurances = [];
+                        }
+                    }
+
+                    const countryVal = data.country || '';
+                    const stateVal = data.state || '';
+                    const cityVal = data.city || '';
+
+                    setProfile({
+                        name: data.name || '',
+                        about: data.about || '',
+                        country: countryVal,
+                        state: stateVal,
+                        city: cityVal,
+                        address: data.address || '',
+                        isHomeDeliveryAvailable: String(data.isHomeDeliveryAvailable ?? 'false'),
+                        isRapidServiceAvailable: String(data.isRapidServiceAvailable ?? 'false'),
+                        isInsuranceAccepted: String(data.isInsuranceAccepted ?? 'false'),
+                        acceptedInsurances: Array.isArray(parsedInsurances) ? parsedInsurances : [],
+                        is24x7: String(data.is24x7 ?? 'false'),
+                        lat: data.location?.lat || data.lat || '',
+                        lng: data.location?.lng || data.lng || '',
+                        alternatePhone: data.alternatePhone || ''
+                    });
+
+                    setVerificationDocs({
+                        gstNumber: data.documents?.gstNumber || '', 
+                        drugLicenseType: data.documents?.drugLicenseType || 'Retail',
+                        issuingAuthority: data.documents?.issuingAuthority || '',
+                        pharmacyImages: data.documents?.pharmacyImages || [],
+                        pharmacyCertificates: data.documents?.pharmacyCertificates || [],
+                        pharmacyLicenses: data.documents?.pharmacyLicenses || [],
+                        gstCertificates: data.documents?.gstCertificates || [],
+                        drugLicenses: data.documents?.drugLicenses || [],
+                        otherCertificates: data.documents?.otherCertificates || []
+                    });
+
+                    setPreviews({
+                        profile: data.profileImage || null
+                    });
+
+                    // Sequential fetch for states based on country name
+                    if (countryVal && loadedCountries.length > 0) {
+                        const matchedCountry = loadedCountries.find(
+                            c => c.name?.toLowerCase() === countryVal.toLowerCase() || (c.id || c._id) === countryVal
+                        );
+                        if (matchedCountry) {
+                            const countryId = matchedCountry.id || matchedCountry._id;
+                            try {
+                                if (getStatesByCountryRef.current) {
+                                    const statesData = await getStatesByCountryRef.current(countryId);
+                                    const loadedStates = statesData || [];
+                                    if (isMounted) {
+                                        setStates(loadedStates);
+
+                                        // Sequential fetch for cities based on state name
+                                        if (stateVal && loadedStates.length > 0) {
+                                            const matchedState = loadedStates.find(
+                                                s => s.name?.toLowerCase() === stateVal.toLowerCase() || (s.id || s._id) === stateVal
+                                            );
+                                            if (matchedState) {
+                                                const stateId = matchedState.id || matchedState._id;
+                                                if (getCitiesByStateRef.current) {
+                                                    const citiesData = await getCitiesByStateRef.current(stateId);
+                                                    if (isMounted) setCities(citiesData || []);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (err) {
+                                console.error("Failed to load states sequentially during mount:", err);
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load profile details:", err);
+                toast.error("Failed to load profile");
+            } finally {
+                if (isMounted) setFetching(false);
+            }
+        };
+
+        initializeData();
+
+        return () => {
+            isMounted = false;
+        };
     }, []);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        setProfile(prev => ({ ...prev, [name]: value }));
 
         if (name === "country") {
-            fetchStates(value);
-            setProfile(prev => ({ ...prev, state: "", city: "" }));
-        }
-        if (name === "state") {
-            fetchCities(value);
-            setProfile(prev => ({ ...prev, city: "" }));
+            const matchedCountry = countries.find(c => c.name === value);
+            setProfile(prev => ({ ...prev, country: value, state: "", city: "" }));
+            setStates([]);
+            setCities([]);
+            if (matchedCountry) {
+                const countryId = matchedCountry.id || matchedCountry._id;
+                fetchStates(countryId);
+            }
+        } else if (name === "state") {
+            const matchedState = states.find(s => s.name === value);
+            setProfile(prev => ({ ...prev, state: value, city: "" }));
+            setCities([]);
+            if (matchedState) {
+                const stateId = matchedState.id || matchedState._id;
+                fetchCities(stateId);
+            }
+        } else if (name === "city") {
+            setProfile(prev => ({ ...prev, city: value }));
+        } else {
+            setProfile(prev => ({ ...prev, [name]: value }));
         }
     };
 
-    const handleFileChange = (e, key, isMultiple = false) => {
+    const handleFileChange = (e, key) => {
         const selectedFiles = Array.from(e.target.files);
         if (selectedFiles.length === 0) return;
 
-        if (isMultiple) {
-            setFiles(prev => ({ ...prev, [key]: selectedFiles }));
-            const localPreviews = selectedFiles.map(file => URL.createObjectURL(file));
-            setPreviews(prev => ({ ...prev, [key]: localPreviews }));
-        } else {
-            setFiles(prev => ({ ...prev, [key]: selectedFiles[0] }));
-            const singlePreview = URL.createObjectURL(selectedFiles[0]);
-            setPreviews(prev => ({ 
-                ...prev, 
-                [key === 'profileImage' ? 'profile' : key]: singlePreview 
+        setFiles(prev => ({ ...prev, [key]: selectedFiles[0] }));
+        const singlePreview = URL.createObjectURL(selectedFiles[0]);
+        setPreviews(prev => ({ 
+            ...prev, 
+            profile: singlePreview 
+        }));
+    };
+
+    const addInsuranceToken = () => {
+        if (newInsurance.trim() && !profile.acceptedInsurances.includes(newInsurance.trim())) {
+            setProfile(prev => ({
+                ...prev,
+                acceptedInsurances: [...prev.acceptedInsurances, newInsurance.trim()]
             }));
+            setNewInsurance('');
         }
     };
 
-   const handleSubmit = async (e) => {
+    const removeInsuranceToken = (indexToRemove) => {
+        setProfile(prev => ({
+            ...prev,
+            acceptedInsurances: prev.acceptedInsurances.filter((_, idx) => idx !== indexToRemove)
+        }));
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         try {
             const formData = new FormData();
             
-            // 1. Append Basic Fields (Check for null/undefined to avoid sending "null" string)
-            const basicFields = ['name', 'about', 'country', 'state', 'city', 'address', 'isHomeDeliveryAvailable', 'is24x7'];
-            basicFields.forEach(key => {
+            const allowedFields = [
+                'name', 'about', 'country', 'state', 'city', 'address', 
+                'isHomeDeliveryAvailable', 'isRapidServiceAvailable', 
+                'isInsuranceAccepted', 'is24x7', 'alternatePhone', 'lat', 'lng'
+            ];
+
+            allowedFields.forEach(key => {
                 if (profile[key] !== null && profile[key] !== undefined) {
                     formData.append(key, profile[key]);
                 }
             });
 
-            // 2. Append Location Data (Matching backend structure)
-            if (profile.lat) formData.append('lat', profile.lat);
-            if (profile.lng) formData.append('lng', profile.lng);
-
-            // 3. Append Document Text Fields
-            if (profile.gstNumber) formData.append('gstNumber', profile.gstNumber);
-            if (profile.drugLicenseType) formData.append('drugLicenseType', profile.drugLicenseType);
-            if (profile.issuingAuthority) formData.append('issuingAuthority', profile.issuingAuthority);
+            formData.append('acceptedInsurances', JSON.stringify(profile.acceptedInsurances));
             
-            // 4. Append Single Profile Image
             if (files.profileImage instanceof File) {
                 formData.append('profileImage', files.profileImage);
             }
-            
-            // 5. Append Multiple Files
-            const multiFileKeys = [
-                'pharmacyImages', 'pharmacyCertificates', 'pharmacyLicenses', 
-                'gstCertificates', 'drugLicenses', 'otherCertificates'
-            ];
-            
-            multiFileKeys.forEach(key => {
-                if (files[key] && files[key].length > 0) {
-                    files[key].forEach(file => {
-                        if (file instanceof File) {
-                            formData.append(key, file);
-                        }
-                    });
-                }
-            });
 
-            // Call the API
             const res = await PharmacyVendorAPI.updatePharmacyProfile(formData);
 
             if (res.success) {
-                toast.success("Pharmacy profile updated successfully!");
-                // Refresh profile to get the latest data from server
-                const refresh = await PharmacyVendorAPI.getPharmacyProfile();
-                if (refresh.success) {
-                    const data = refresh.data;
-                    setPreviews(prev => ({
-                        ...prev,
-                        profile: data.profileImage,
-                        pharmacyImages: data.documents?.pharmacyImages || [],
-                        drugLicenses: data.documents?.drugLicenses || [],
-                        gstCertificates: data.documents?.gstCertificates || [],
-                        pharmacyCertificates: data.documents?.pharmacyCertificates || []
-                    }));
-                }
+                // Show successful submission message to admin review
+                toast.success(res.message || "Profile updates submitted to Admin for review.");
+                // Store staging information returned from endpoint
+                setStagedRequest(res.data);
             } else {
                 toast.error(res.message || "Update failed");
             }
         } catch (err) {
             console.error("Submit Error:", err);
-            // If it's still a 500, check if your backend specifically requires 'location[lat]' instead of 'lat'
-            toast.error(err.response?.data?.message || "Internal Server Error (500). Please check required fields.");
+            toast.error(err.response?.data?.message || "Internal Server Error. Please verify fields.");
         } finally {
             setLoading(false);
         }
@@ -257,7 +345,37 @@ export default function PharmacyProfile() {
 
     return (
         <div className="min-h-screen bg-gray-50/50 p-4 md:p-8">
-            <div className="max-w-6xl mx-auto">
+            <div className="max-w-6xl mx-auto space-y-6">
+                
+                {/* 1. Staged Update Status Warnings and Notices */}
+                {stagedRequest && stagedRequest.status === 'Pending' && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 flex items-start gap-3 shadow-sm">
+                        <FaClock className="text-amber-500 mt-1 flex-shrink-0" size={20} />
+                        <div>
+                            <h4 className="font-bold text-sm">Profile Updates Pending Admin Review</h4>
+                            <p className="text-xs text-amber-700 mt-1">
+                                You submitted profile modifications on {new Date(stagedRequest.createdAt).toLocaleDateString()}. 
+                                These updates will not display publicly until approved by an administrator. You can still modify fields below to submit a new revision request.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {stagedRequest && stagedRequest.status === 'Rejected' && (
+                    <div className="bg-red-50 border border-red-200 text-red-800 rounded-2xl p-4 flex items-start gap-3 shadow-sm">
+                        <FaExclamationTriangle className="text-red-500 mt-1 flex-shrink-0" size={20} />
+                        <div>
+                            <h4 className="font-bold text-sm">Previous Update Request Rejected</h4>
+                            <p className="text-xs text-red-700 mt-1">
+                                Your update request was rejected. <strong className="text-red-900">Reason:</strong> {stagedRequest.rejectionReason || "No explicit reason was provided."}
+                            </p>
+                            <p className="text-xs text-red-600 mt-1 font-medium">
+                                Please review and correct your information below, then resubmit for approval.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Header Card */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row items-center gap-6">
@@ -276,7 +394,7 @@ export default function PharmacyProfile() {
                         </div>
                         <div className="flex-1 text-center md:text-left">
                             <h1 className="text-2xl font-bold text-gray-800">{profile.name || "Pharmacy Profile"}</h1>
-                            <p className="text-gray-500 font-medium text-sm">Manage your pharmacy storefront and compliance documents</p>
+                            <p className="text-gray-500 font-medium text-sm">Manage your pharmacy storefront details and features</p>
                         </div>
                         <button type="submit" disabled={loading} className="flex items-center gap-2 px-8 py-3 bg-[#08B36A] text-white font-bold rounded-xl hover:bg-green-600 transition-all shadow-lg">
                             {loading ? "Saving..." : <><FaSave /> Save Profile</>}
@@ -330,13 +448,57 @@ export default function PharmacyProfile() {
                                     <SelectField label="City" name="city" value={profile.city} options={cities} onChange={handleInputChange} disabled={!profile.state} />
                                     
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-2">GST Number</label>
-                                        <input name="gstNumber" value={profile.gstNumber} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A]" />
+                                        <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5">
+                                            <FaPhoneAlt size={12} className="text-gray-400" /> Alternate Phone
+                                        </label>
+                                        <input name="alternatePhone" value={profile.alternatePhone} onChange={handleInputChange} placeholder="e.g. +919876543210" className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A]" />
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-2">Issuing Authority</label>
-                                        <input name="issuingAuthority" value={profile.issuingAuthority} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A]" />
-                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Insurance Support Configuration */}
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                                <h3 className="text-lg font-bold text-[#1e3a8a] mb-6 flex items-center gap-2">
+                                    <FaShieldAlt className="text-[#08B36A]" /> Insurance Schemes
+                                </h3>
+                                <div className="space-y-4">
+                                    <ServiceToggle label="Accept Insurance Schemes?" name="isInsuranceAccepted" value={profile.isInsuranceAccepted} onChange={handleInputChange} />
+                                    
+                                    {profile.isInsuranceAccepted === 'true' && (
+                                        <div className="pt-2 space-y-3">
+                                            <label className="block text-sm font-bold text-gray-700">Supported Insurance Providers</label>
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    type="text" 
+                                                    value={newInsurance} 
+                                                    onChange={(e) => setNewInsurance(e.target.value)} 
+                                                    placeholder="Enter insurance company name" 
+                                                    className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A]" 
+                                                />
+                                                <button 
+                                                    type="button" 
+                                                    onClick={addInsuranceToken} 
+                                                    className="px-4 py-2.5 bg-[#1e3a8a] text-white rounded-xl hover:bg-blue-800 transition-colors flex items-center gap-1 font-bold text-sm"
+                                                >
+                                                    <FaPlus size={12} /> Add
+                                                </button>
+                                            </div>
+                                            
+                                            <div className="flex flex-wrap gap-2 pt-2">
+                                                {profile.acceptedInsurances.map((ins, index) => (
+                                                    <span key={index} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-800 text-xs font-bold rounded-lg border border-gray-200">
+                                                        {ins}
+                                                        <button type="button" onClick={() => removeInsuranceToken(index)} className="text-red-500 hover:text-red-700 font-bold">
+                                                            <FaTimes size={10} />
+                                                        </button>
+                                                    </span>
+                                                ))}
+                                                {profile.acceptedInsurances.length === 0 && (
+                                                    <span className="text-xs text-gray-400 italic">No insurance providers added yet.</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -351,8 +513,14 @@ export default function PharmacyProfile() {
                                         <input name="address" value={profile.address} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A]" />
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <input name="lat" value={profile.lat} onChange={handleInputChange} placeholder="Latitude" className="px-4 py-3 rounded-xl border border-gray-200 outline-none" />
-                                        <input name="lng" value={profile.lng} onChange={handleInputChange} placeholder="Longitude" className="px-4 py-3 rounded-xl border border-gray-200 outline-none" />
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-400 mb-1">Latitude</label>
+                                            <input name="lat" value={profile.lat} onChange={handleInputChange} placeholder="Latitude" className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A]" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-400 mb-1">Longitude</label>
+                                            <input name="lng" value={profile.lng} onChange={handleInputChange} placeholder="Longitude" className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A]" />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -365,27 +533,45 @@ export default function PharmacyProfile() {
                                 <div className="space-y-4">
                                     <ServiceToggle label="Home Delivery" name="isHomeDeliveryAvailable" value={profile.isHomeDeliveryAvailable} onChange={handleInputChange} />
                                     <ServiceToggle label="24/7 Pharmacy" name="is24x7" value={profile.is24x7} onChange={handleInputChange} />
-                                    
-                                    <div className="pt-2">
-                                        <label className="block text-xs font-bold text-gray-400 mb-2">License Type</label>
-                                        <select name="drugLicenseType" value={profile.drugLicenseType} onChange={handleInputChange} className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 font-bold outline-none">
-                                            <option value="Retail">Retail</option>
-                                            <option value="Wholesale">Wholesale</option>
-                                            <option value="Both">Both</option>
-                                        </select>
-                                    </div>
+                                    <ServiceToggle label="Rapid Service Available" name="isRapidServiceAvailable" value={profile.isRapidServiceAvailable} onChange={handleInputChange} />
                                 </div>
                             </div>
 
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-                                <h3 className="text-lg font-bold text-[#1e3a8a] mb-2 flex items-center gap-2">
-                                    <FaFileContract className="text-[#08B36A]" /> Documents
-                                </h3>
-                                
-                                <FileUploadBox label="Pharmacy Store Images" previews={previews.pharmacyImages} onChange={(e) => handleFileChange(e, 'pharmacyImages', true)} formatImagePath={formatImagePath} />
-                                <FileUploadBox label="Drug Licenses" previews={previews.drugLicenses} onChange={(e) => handleFileChange(e, 'drugLicenses', true)} formatImagePath={formatImagePath} />
-                                <FileUploadBox label="GST Certificates" previews={previews.gstCertificates} onChange={(e) => handleFileChange(e, 'gstCertificates', true)} formatImagePath={formatImagePath} />
-                                <FileUploadBox label="Pharmacy Certificates" previews={previews.pharmacyCertificates} onChange={(e) => handleFileChange(e, 'pharmacyCertificates', true)} formatImagePath={formatImagePath} />
+                            {/* Verification/Registration Details Display (Read-Only) */}
+                            <div className="bg-gray-50 rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
+                                <div className="flex items-center justify-between border-b border-gray-200 pb-2">
+                                    <h3 className="text-sm font-bold text-[#1e3a8a] flex items-center gap-1.5">
+                                        <FaFileContract className="text-gray-500" /> Registry Details
+                                    </h3>
+                                    <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-700 px-2 py-0.5 rounded border border-amber-200">
+                                        Read-Only
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-gray-500">
+                                    These registration and verification items are locked to maintain profile status and cannot be edited.
+                                </p>
+
+                                <div className="space-y-3 pt-2">
+                                    <div>
+                                        <span className="block text-[10px] font-bold text-gray-400 uppercase">GST Number</span>
+                                        <span className="text-sm font-bold text-gray-700">{verificationDocs.gstNumber || 'Not Provided'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="block text-[10px] font-bold text-gray-400 uppercase">Drug License Type</span>
+                                        <span className="text-sm font-bold text-gray-700">{verificationDocs.drugLicenseType || 'Not Provided'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="block text-[10px] font-bold text-gray-400 uppercase">Issuing Authority</span>
+                                        <span className="text-sm font-bold text-gray-700">{verificationDocs.issuingAuthority || 'Not Provided'}</span>
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-gray-200 pt-4 space-y-4">
+                                    <ReadOnlyDocumentDisplay label="Pharmacy Store Images" paths={verificationDocs.pharmacyImages} formatImagePath={formatImagePath} />
+                                    <ReadOnlyDocumentDisplay label="Drug Licenses" paths={verificationDocs.drugLicenses} formatImagePath={formatImagePath} />
+                                    <ReadOnlyDocumentDisplay label="GST Certificates" paths={verificationDocs.gstCertificates} formatImagePath={formatImagePath} />
+                                    <ReadOnlyDocumentDisplay label="Pharmacy Certificates" paths={verificationDocs.pharmacyCertificates} formatImagePath={formatImagePath} />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -419,9 +605,22 @@ function SelectField({ label, name, value, options, onChange, disabled }) {
     return (
         <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">{label}</label>
-            <select name={name} value={value} onChange={onChange} disabled={disabled} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] bg-white disabled:bg-gray-50">
+            <select 
+                name={name} 
+                value={value} 
+                onChange={onChange} 
+                disabled={disabled} 
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] bg-white disabled:bg-gray-50 text-gray-800"
+            >
                 <option value="">Select {label}</option>
-                {options.map((opt, i) => <option key={opt.id || opt._id || i} value={opt.id || opt._id}>{opt.name}</option>)}
+                {options.map((opt, i) => {
+                    const optVal = opt.name || opt.id || opt._id;
+                    return (
+                        <option key={opt.id || opt._id || i} value={optVal}>
+                            {opt.name}
+                        </option>
+                    );
+                })}
             </select>
         </div>
     );
@@ -439,25 +638,18 @@ function ServiceToggle({ label, name, value, onChange }) {
     );
 }
 
-function FileUploadBox({ label, onChange, previews = [], formatImagePath }) {
+function ReadOnlyDocumentDisplay({ label, paths = [], formatImagePath }) {
+    if (!paths || paths.length === 0) return null;
     return (
-        <div className="space-y-3">
-            <label className="block text-[11px] font-black uppercase text-gray-400 mb-1 tracking-wider">{label}</label>
-            <label className="w-full flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-100 rounded-xl hover:border-[#08B36A] hover:bg-green-50/50 cursor-pointer transition-all">
-                <FaFileUpload className="text-gray-300 mb-1" />
-                <span className="text-[11px] text-gray-500 font-bold">Upload Files</span>
-                <input type="file" hidden multiple onChange={onChange} />
-            </label>
-
-            {previews && previews.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-1">
-                    {previews.map((src, i) => (
-                        <div key={i} className="relative w-14 h-14 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                            <img src={formatImagePath(src)} alt="preview" className="w-full h-full object-cover" />
-                        </div>
-                    ))}
-                </div>
-            )}
+        <div className="space-y-1.5">
+            <span className="block text-[10px] font-bold text-gray-400 uppercase">{label}</span>
+            <div className="flex flex-wrap gap-1.5">
+                {paths.map((src, i) => (
+                    <div key={i} className="relative w-12 h-12 rounded-lg overflow-hidden border border-gray-200 bg-white shadow-sm">
+                        <img src={formatImagePath(src)} alt="Verification file" className="w-full h-full object-cover" />
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }

@@ -4,8 +4,8 @@ import { useAuth } from '@/app/context/AuthContext'
 import {
   FaHospital, FaMapMarkerAlt, FaPhoneAlt, FaEnvelope, 
   FaRegIdCard, FaClock, FaCheckCircle, FaExclamationTriangle, 
-  FaTimes, FaGlobe, FaMap, FaBuilding, FaUpload, FaSpinner,
-  FaFileAlt, FaEdit
+  FaTimes, FaGlobe, FaMap, FaBuilding, FaSpinner,
+  FaFileAlt, FaEdit, FaCreditCard
 } from "react-icons/fa"
 import HospitalAPI from '@/app/services/HospitalAPI';
 
@@ -19,20 +19,38 @@ export default function HospitalProfilePage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Form States (Bank fields completely removed)
+  // Staged request status state
+  const [stagedRequest, setStagedRequest] = useState(null);
+
+  // Form States
   const [formData, setFormData] = useState({
     name: '', 
     address: '', 
+    country: '',
     state: '', 
-    city: ''
-  });
-  const [files, setFiles] = useState({
-    hospitalImage: null, licenseDocument: null, otherDocuments: null
+    city: '',
+    zipCode: '',
+    type: 'Private',
+    alternatePhone: '',
+    lat: '',
+    lng: '',
+    bankName: '',
+    accountHolderName: '',
+    accountNumber: '',
+    ifscCode: '',
+    upiId: ''
   });
 
   const fetchProfile = async () => {
     setIsFetching(true);
     try {
+      // 1. Fetch profile update staging status
+      const statusRes = await HospitalAPI.getHospitalProfileUpdateStatus();
+      if (statusRes && statusRes.success) {
+        setStagedRequest(statusRes.data);
+      }
+
+      // 2. Fetch primary active profile
       const response = await HospitalAPI.getHospitalProfile();
       if (response.success) {
         setHospitalData(response.data.hospital);
@@ -48,22 +66,31 @@ export default function HospitalProfilePage() {
     fetchProfile();
   }, []);
 
-  // Modal Open Handler (populating text fields only)
+  // Modal Open Handler (populating text fields)
   const openEditModal = () => {
     setFormData({
       name: hospitalData?.name || '',
       address: hospitalData?.address || '',
+      country: hospitalData?.country || '',
       state: hospitalData?.state || '',
-      city: hospitalData?.city || ''
+      city: hospitalData?.city || '',
+      zipCode: hospitalData?.zipCode || '',
+      type: hospitalData?.type || 'Private',
+      alternatePhone: hospitalData?.alternatePhone || '',
+      lat: hospitalData?.location?.lat || '',
+      lng: hospitalData?.location?.lng || '',
+      bankName: hospitalData?.bankDetails?.bankName || '',
+      accountHolderName: hospitalData?.bankDetails?.accountHolderName || '',
+      accountNumber: hospitalData?.bankDetails?.accountNumber || '',
+      ifscCode: hospitalData?.bankDetails?.ifscCode || '',
+      upiId: hospitalData?.bankDetails?.upiId || ''
     });
-    setFiles({ hospitalImage: null, licenseDocument: null, otherDocuments: null });
     setIsEditModalOpen(true);
   };
 
   const handleTextChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
-  const handleFileChange = (e) => setFiles({ ...files, [e.target.name]: e.target.files[0] });
 
-  // Submit Update Profile Details Only
+  // Submit Update Profile Details Only (Excluded registration documents)
   const handleUpdateSubmit = async (e) => {
     e.preventDefault();
     setIsUpdating(true);
@@ -71,16 +98,30 @@ export default function HospitalProfilePage() {
     const dataToSend = new FormData();
     dataToSend.append('name', formData.name);
     dataToSend.append('address', formData.address);
+    dataToSend.append('country', formData.country);
     dataToSend.append('state', formData.state);
     dataToSend.append('city', formData.city);
+    dataToSend.append('zipCode', formData.zipCode);
+    dataToSend.append('type', formData.type);
+    dataToSend.append('alternatePhone', formData.alternatePhone);
     
-    if (files.hospitalImage) dataToSend.append('hospitalImage', files.hospitalImage);
-    if (files.licenseDocument) dataToSend.append('licenseDocument', files.licenseDocument);
-    if (files.otherDocuments) dataToSend.append('otherDocuments', files.otherDocuments);
+    // Append coordinates map using backend bracket notation
+    if (formData.lat) dataToSend.append('location[lat]', String(formData.lat));
+    if (formData.lng) dataToSend.append('location[lng]', String(formData.lng));
+
+    // Append nested bankDetails credentials
+    dataToSend.append('bankDetails[bankName]', formData.bankName);
+    dataToSend.append('bankDetails[accountHolderName]', formData.accountHolderName);
+    dataToSend.append('bankDetails[accountNumber]', formData.accountNumber);
+    dataToSend.append('bankDetails[ifscCode]', formData.ifscCode);
+    dataToSend.append('bankDetails[upiId]', formData.upiId);
 
     try {
       const res = await HospitalAPI.updateHospitalProfile(dataToSend);
       if (res.success) {
+        alert(res.message || "Profile updates submitted to Admin for review. Your profile will update once approved.");
+        // Store newly created staging record inside local state
+        setStagedRequest(res.data);
         setIsEditModalOpen(false);
         fetchProfile(); 
       } else {
@@ -121,6 +162,7 @@ export default function HospitalProfilePage() {
   const name = hospitalData?.name || "N/A";
   const email = hospitalData?.email || "N/A";
   const phone = hospitalData?.phone || "N/A";
+  const alternatePhone = hospitalData?.alternatePhone || "Not Configured";
   const type = hospitalData?.type || "N/A";
   const status = hospitalData?.profileStatus || "Pending";
   const joinedDate = hospitalData?.createdAt 
@@ -130,6 +172,35 @@ export default function HospitalProfilePage() {
   return (
     <>
       <div className="max-w-6xl mx-auto space-y-6 pb-12">
+
+        {/* --- STAGED PROFILE UPDATE BANNERS --- */}
+        {stagedRequest && stagedRequest.status === 'Pending' && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-[2rem] p-6 flex items-start gap-4 shadow-sm animate-in fade-in duration-300">
+            <FaClock className="text-amber-500 mt-1 flex-shrink-0 animate-pulse" size={20} />
+            <div>
+              <h4 className="font-bold text-sm">Modifications Pending Verification</h4>
+              <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                Your profile changes submitted on {new Date(stagedRequest.createdAt).toLocaleDateString()} are awaiting admin review. 
+                Your active public page details will remain visible as they are until the request has been verified and approved.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {stagedRequest && stagedRequest.status === 'Rejected' && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-[2rem] p-6 flex items-start gap-4 shadow-sm animate-in fade-in duration-300">
+            <FaExclamationTriangle className="text-rose-500 mt-1 flex-shrink-0" size={20} />
+            <div>
+              <h4 className="font-bold text-sm">Modifications Rejected</h4>
+              <p className="text-xs text-rose-700 mt-1 leading-relaxed">
+                Your recent profile modification request was rejected. <strong className="text-rose-950">Reason:</strong> {stagedRequest.rejectionReason || "No details provided."}
+              </p>
+              <p className="text-xs text-rose-600 mt-1 font-semibold">
+                Please correct your records using the "Edit Profile" dashboard below and re-submit.
+              </p>
+            </div>
+          </div>
+        )}
         
         {/* --- HERO HEADER SECTION --- */}
         <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden relative">
@@ -194,14 +265,18 @@ export default function HospitalProfilePage() {
               <h3 className="text-lg font-extrabold text-gray-800 mb-5 flex items-center gap-2">
                 <FaPhoneAlt className="text-[#08B36A]" /> Contact Details
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100/50">
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Email Address</p>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Email (Read-Only)</p>
                   <p className="text-sm font-semibold text-gray-800 truncate" title={email}>{email}</p>
                 </div>
                 <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100/50">
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Phone Number</p>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Phone (Read-Only)</p>
                   <p className="text-sm font-semibold text-gray-800">{phone}</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100/50">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Alternate Phone</p>
+                  <p className="text-sm font-semibold text-gray-800">{alternatePhone}</p>
                 </div>
               </div>
             </div>
@@ -232,19 +307,12 @@ export default function HospitalProfilePage() {
                     <p className="text-sm font-semibold text-gray-800 capitalize">{state || "N/A"}</p>
                   </div>
                 </div>
-                <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100/50 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-gray-400 shadow-sm"><FaGlobe size={12}/></div>
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Country</p>
-                    <p className="text-sm font-semibold text-gray-800 capitalize">{country || "N/A"}</p>
-                  </div>
-                </div>
               </div>
             </div>
 
           </div>
 
-          {/* RIGHT: System & Documents */}
+          {/* RIGHT: Account & Documents */}
           <div className="flex flex-col gap-6">
             
             {/* System Info */}
@@ -264,11 +332,16 @@ export default function HospitalProfilePage() {
               </div>
             </div>
 
-            {/* Documents Grid */}
-            <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100 flex-1">
-              <h3 className="text-lg font-extrabold text-gray-800 mb-5 flex items-center gap-2">
-                <FaRegIdCard className="text-[#08B36A]" /> Verification Documents
-              </h3>
+            {/* Documents Grid (Strictly Read-Only) */}
+            <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100 flex-1 font-sans">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-extrabold text-gray-800 flex items-center gap-2">
+                  <FaRegIdCard className="text-[#08B36A]" /> Verification Records
+                </h3>
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded">
+                  Read-Only
+                </span>
+              </div>
               
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {/* License Document */}
@@ -328,7 +401,9 @@ export default function HospitalProfilePage() {
             <form onSubmit={handleUpdateSubmit} className="p-6 space-y-8">
               {/* Profile Text Fields */}
               <div>
-                <h3 className="text-sm font-bold text-gray-800 mb-4 uppercase tracking-wider">Hospital Details</h3>
+                <h3 className="text-sm font-bold text-gray-800 mb-4 uppercase tracking-wider flex items-center gap-1.5">
+                  <FaBuilding className="text-[#08B36A]" /> Hospital details
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Hospital Name</label>
@@ -339,37 +414,78 @@ export default function HospitalProfilePage() {
                     <input type="text" name="address" required value={formData.address} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="Enter address"/>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">City</label>
-                    <input type="text" name="city" required value={formData.city} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="City"/>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Country</label>
+                    <input type="text" name="country" required value={formData.country} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="Country"/>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">State</label>
                     <input type="text" name="state" required value={formData.state} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="State"/>
                   </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">City</label>
+                    <input type="text" name="city" required value={formData.city} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="City"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Postal / Zip Code</label>
+                    <input type="text" name="zipCode" required value={formData.zipCode} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="ZIP Code"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Hospital Type</label>
+                    <select name="type" value={formData.type} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-bold text-gray-700 bg-white cursor-pointer">
+                      <option value="Private">Private</option>
+                      <option value="Govt">Govt</option>
+                      <option value="Charity">Charity</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Alternate Phone</label>
+                    <input type="text" name="alternatePhone" value={formData.alternatePhone} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="Secondary Phone"/>
+                  </div>
                 </div>
               </div>
 
-              {/* File Uploads */}
+              {/* Coordinates Block */}
               <div className="border-t border-gray-100 pt-6">
-                <h3 className="text-sm font-bold text-gray-800 mb-4 uppercase tracking-wider">Update Documents</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 flex flex-col items-center justify-center text-center hover:bg-gray-50 hover:border-[#08B36A] transition-colors relative group">
-                    <FaUpload className="text-gray-400 group-hover:text-[#08B36A] mb-3 text-2xl transition-colors" />
-                    <span className="text-sm font-bold text-gray-700">Hospital Image</span>
-                    <span className="text-xs text-gray-400 mt-1 truncate w-full px-2">{files.hospitalImage ? files.hospitalImage.name : "Select File"}</span>
-                    <input type="file" accept="image/*" name="hospitalImage" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
+                <h3 className="text-sm font-bold text-gray-800 mb-4 uppercase tracking-wider flex items-center gap-1.5">
+                  <FaMapMarkerAlt className="text-[#08B36A]"/> Geolocation Coordinates
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Latitude</label>
+                    <input type="number" step="any" name="lat" value={formData.lat} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="Latitude"/>
                   </div>
-                  <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 flex flex-col items-center justify-center text-center hover:bg-gray-50 hover:border-[#08B36A] transition-colors relative group">
-                    <FaUpload className="text-gray-400 group-hover:text-[#08B36A] mb-3 text-2xl transition-colors" />
-                    <span className="text-sm font-bold text-gray-700">License Doc</span>
-                    <span className="text-xs text-gray-400 mt-1 truncate w-full px-2">{files.licenseDocument ? files.licenseDocument.name : "Select File"}</span>
-                    <input type="file" name="licenseDocument" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Longitude</label>
+                    <input type="number" step="any" name="lng" value={formData.lng} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="Longitude"/>
                   </div>
-                  <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 flex flex-col items-center justify-center text-center hover:bg-gray-50 hover:border-[#08B36A] transition-colors relative group">
-                    <FaUpload className="text-gray-400 group-hover:text-[#08B36A] mb-3 text-2xl transition-colors" />
-                    <span className="text-sm font-bold text-gray-700">Other Docs</span>
-                    <span className="text-xs text-gray-400 mt-1 truncate w-full px-2">{files.otherDocuments ? files.otherDocuments.name : "Select File"}</span>
-                    <input type="file" name="otherDocuments" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
+                </div>
+              </div>
+
+              {/* Bank Details */}
+              <div className="border-t border-gray-100 pt-6">
+                <h3 className="text-sm font-bold text-gray-800 mb-4 uppercase tracking-wider flex items-center gap-1.5">
+                  <FaCreditCard className="text-[#08B36A]"/> Bank Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Bank Name</label>
+                    <input type="text" name="bankName" value={formData.bankName} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="e.g. HDFC Bank"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Account Holder Name</label>
+                    <input type="text" name="accountHolderName" value={formData.accountHolderName} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="Holder Name"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Account Number</label>
+                    <input type="text" name="accountNumber" value={formData.accountNumber} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="Account Number"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">IFSC Code</label>
+                    <input type="text" name="ifscCode" value={formData.ifscCode} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="IFSC routing code"/>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">UPI ID</label>
+                    <input type="text" name="upiId" value={formData.upiId} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="e.g. cityhospital@upi"/>
                   </div>
                 </div>
               </div>

@@ -30,19 +30,21 @@ export default function ManageBankingPage() {
   const fetchBankDetails = async () => {
     setFetching(true);
     try {
+      // Fetching the profile payload
       const response = await DoctorAPI.getProfile();
-      if (response.success && response.data?.bankDetails) {
-        const bd = response.data.bankDetails;
-        setBankDetails({
-          accountType: bd.accountType || 'Savings',
-          bankName: bd.bankName || '',
-          accountHolderName: bd.accountHolderName || '',
-          accountNumber: bd.accountNumber || '',
-          ifscCode: bd.ifscCode || '',
-          upiId: bd.upiId || '',
-          isVerified: bd.isVerified || false
-        });
-      }
+      
+      // Extracting bankDetails from response.data based on the API structure
+      const bd = response?.data?.bankDetails || response?.bankDetails || {};
+      
+      setBankDetails({
+        accountType: bd.accountType || 'Savings',
+        bankName: bd.bankName || '',
+        accountHolderName: bd.accountHolderName || '',
+        accountNumber: bd.accountNumber || '',
+        ifscCode: bd.ifscCode || '',
+        upiId: bd.upiId || '',
+        isVerified: bd.isVerified || false
+      });
     } catch (error) {
       console.error("Error fetching doctor bank settings", error);
       toast.error("Failed to load current bank settlement details.");
@@ -93,7 +95,7 @@ export default function ManageBankingPage() {
   );
  
   return (
-    <div className="w-full  mx-auto pb-20 px-4">
+    <div className="w-full mx-auto pb-20 px-4">
       <Toaster position="top-right" />
       
       {/* Header */}
@@ -277,4 +279,3 @@ export default function ManageBankingPage() {
     </div>
   )
 }
- 

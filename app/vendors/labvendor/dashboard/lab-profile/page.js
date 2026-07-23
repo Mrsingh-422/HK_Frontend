@@ -2,9 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-    FaBuilding, FaMapMarkerAlt, FaFlask, FaCamera, FaFileUpload, 
-    FaSave, FaGlobe, FaShieldAlt, FaClock, FaTimes, FaInfoCircle, 
-    FaCheckCircle 
+    FaBuilding, FaMapMarkerAlt, FaFlask, FaCamera, 
+    FaSave, FaClock, FaTimes, FaInfoCircle, 
+    FaCheckCircle, FaPhoneAlt, FaPlus,
+    FaFileContract, FaSignature, FaAward,
+    FaExclamationTriangle
 } from 'react-icons/fa';
 import { toast, Toaster } from 'react-hot-toast';
 import LabVendorAPI from '@/app/services/LabVendorAPI';
@@ -25,7 +27,10 @@ export default function LabProfile() {
     // Insurance Master List State
     const [insuranceMasterList, setInsuranceMasterList] = useState([]);
 
-    // Profile Details State (Bank details completely removed)
+    // Staged request status state
+    const [stagedRequest, setStagedRequest] = useState(null);
+
+    // Profile Details State
     const [profile, setProfile] = useState({
         name: '',
         about: '',
@@ -39,31 +44,34 @@ export default function LabProfile() {
         is24x7: 'false',
         lat: '',
         lng: '',
-        acceptedInsurances: '', 
-        timingLabel: '',
-        gstNumber: '', 
-        drugLicenseType: 'Retail'
+        acceptedInsurances: [], 
+        alternatePhone: '',
+        nablNumber: '' // Added for NABL accreditation
     });
 
-    // States for image previews
-    const [previews, setPreviews] = useState({ 
-        profile: null,
+    // Verification-only details
+    const [verificationDocs, setVerificationDocs] = useState({
+        gstNumber: '',
+        drugLicenseType: 'Retail',
         labImages: [],
         gallery: [],
         labCertificates: [],
         labLicenses: [] 
     });
 
+    // States for image previews
+    const [previews, setPreviews] = useState({ 
+        profile: null,
+        signature: null // Added for Signature preview
+    });
+
     // Actual File objects for upload
     const [files, setFiles] = useState({
         profileImage: null,
-        labImages: [],
-        gallery: [],
-        labCertificates: [],
-        labLicenses: []
+        signatureImage: null // Added for Signature file
     });
 
-    // Helper to find Display Names for Country/State/City for the Summary Div
+    // Helper to find Display Names for Country/State/City
     const getDisplayName = (list, id) => {
         if (!id || !list) return 'Not Set';
         const item = list.find(i => (i.id || i._id || i.name) == id);
@@ -73,8 +81,8 @@ export default function LabProfile() {
     // Helper to format image URL correctly
     const formatImagePath = (path) => {
         if (!path) return null;
-        if (path.startsWith('blob') || path.startsWith('http')) return path;
-        const cleanPath = path.replace('public/', '');
+        if (typeof path === 'string' && (path.startsWith('blob') || path.startsWith('http'))) return path;
+        const cleanPath = String(path).replace('public/', '');
         return `${process.env.NEXT_PUBLIC_BACKEND_URL}/${cleanPath}`;
     };
 
@@ -127,50 +135,79 @@ export default function LabProfile() {
     }, []);
 
     // ================= LOAD PROFILE =================
-    useEffect(() => {
-        const loadProfile = async () => {
+    const loadProfile = async () => {
+        try {
+            // 1. Fetch profile update staging status
             try {
-                const res = await LabVendorAPI.getLabProfile();
-                if (res.success) {
-                    const data = res.data;
-                    const loadedProfile = {
-                        name: data.name || '',
-                        about: data.about || '',
-                        country: data.country || '', 
-                        state: data.state || '',
-                        city: data.city || '',
-                        address: data.address || '',
-                        isHomeCollectionAvailable: String(data.isHomeCollectionAvailable ?? 'false'),
-                        isRapidServiceAvailable: String(data.isRapidServiceAvailable ?? 'false'),
-                        isInsuranceAccepted: String(data.isInsuranceAccepted ?? 'false'),
-                        is24x7: String(data.is24x7 ?? 'false'),
-                        lat: data.location?.lat || '',
-                        lng: data.location?.lng || '',
-                        acceptedInsurances: data.acceptedInsurances?.join(', ') || '',
-                        timingLabel: data.timingLabel || '',
-                        gstNumber: data.documents?.gstNumber || '', 
-                        drugLicenseType: data.documents?.drugLicenseType || 'Retail', 
-                    };
-                    setProfile(loadedProfile);
-
-                    if (data.country) fetchStates(data.country);
-                    if (data.state) fetchCities(data.state);
-
-                    setPreviews({
-                        profile: data.profileImage || null,
-                        labImages: data.documents?.labImages || [],
-                        gallery: data.gallery || [],
-                        labCertificates: data.documents?.labCertificates || [],
-                        labLicenses: data.documents?.labLicenses || []
-                    });
+                const statusRes = await LabVendorAPI.getLabProfileUpdateStatus();
+                if (statusRes && statusRes.success) {
+                    setStagedRequest(statusRes.data);
                 }
             } catch (err) {
-                console.error(err);
-                toast.error("Failed to load profile");
-            } finally {
-                setFetching(false);
+                console.error("Failed loading staged profile status:", err);
             }
-        };
+
+            // 2. Fetch primary active profile
+            const res = await LabVendorAPI.getLabProfile();
+            if (res.success) {
+                const data = res.data;
+
+                // Safely parse incoming insurances
+                let parsedInsurances = [];
+                if (data.acceptedInsurances) {
+                    try {
+                        parsedInsurances = typeof data.acceptedInsurances === 'string'
+                            ? JSON.parse(data.acceptedInsurances)
+                            : data.acceptedInsurances;
+                    } catch (e) {
+                        parsedInsurances = String(data.acceptedInsurances).split(',').map(i => i.trim()).filter(Boolean);
+                    }
+                }
+
+                setProfile({
+                    name: data.name || '',
+                    about: data.about || '',
+                    country: data.country || '', 
+                    state: data.state || '',
+                    city: data.city || '',
+                    address: data.address || '',
+                    isHomeCollectionAvailable: String(data.isHomeCollectionAvailable ?? 'false'),
+                    isRapidServiceAvailable: String(data.isRapidServiceAvailable ?? 'false'),
+                    isInsuranceAccepted: String(data.isInsuranceAccepted ?? 'false'),
+                    is24x7: String(data.is24x7 ?? 'false'),
+                    lat: data.location?.lat || data.lat || '',
+                    lng: data.location?.lng || data.lng || '',
+                    acceptedInsurances: Array.isArray(parsedInsurances) ? parsedInsurances : [],
+                    alternatePhone: data.alternatePhone || '',
+                    nablNumber: data.documents?.nablNumber || data.nablNumber || '' // Set NABL Number
+                });
+
+                if (data.country) fetchStates(data.country);
+                if (data.state) fetchCities(data.state);
+
+                setVerificationDocs({
+                    gstNumber: data.documents?.gstNumber || '', 
+                    drugLicenseType: data.documents?.drugLicenseType || 'Retail', 
+                    labImages: data.documents?.labImages || [],
+                    gallery: data.gallery || [],
+                    labCertificates: data.documents?.labCertificates || [],
+                    labLicenses: data.documents?.labLicenses || []
+                });
+
+                setPreviews({
+                    profile: data.profileImage || null,
+                    signature: data.signatureImage || null // Set signature image preview if available
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to load profile");
+        } finally {
+            setFetching(false);
+        }
+    };
+
+    useEffect(() => {
         loadProfile();
     }, []);
 
@@ -189,19 +226,36 @@ export default function LabProfile() {
         }
     };
 
-    const handleInsuranceToggle = (insuranceName) => {
-        setProfile(prev => ({ ...prev, acceptedInsurances: insuranceName }));
+    const handleAddInsurance = (insuranceName) => {
+        if (!insuranceName) return;
+        if (!profile.acceptedInsurances.includes(insuranceName)) {
+            setProfile(prev => ({
+                ...prev,
+                acceptedInsurances: [...prev.acceptedInsurances, insuranceName]
+            }));
+        }
     };
 
-    const handleFileChange = (e, key, isMultiple = false) => {
-        const selectedFiles = Array.from(e.target.files);
-        if (isMultiple) {
-            setFiles(prev => ({ ...prev, [key]: selectedFiles }));
-            const localPreviews = selectedFiles.map(file => URL.createObjectURL(file));
-            setPreviews(prev => ({ ...prev, [key]: localPreviews }));
-        } else {
-            setFiles(prev => ({ ...prev, [key]: selectedFiles[0] }));
-            setPreviews(prev => ({ ...prev, profile: URL.createObjectURL(selectedFiles[0]) }));
+    const handleRemoveInsurance = (insuranceName) => {
+        setProfile(prev => ({
+            ...prev,
+            acceptedInsurances: prev.acceptedInsurances.filter(item => item !== insuranceName)
+        }));
+    };
+
+    const handleProfileImageChange = (e) => {
+        const selectedFile = e.target.files[0];
+        if (selectedFile) {
+            setFiles(prev => ({ ...prev, profileImage: selectedFile }));
+            setPreviews(prev => ({ ...prev, profile: URL.createObjectURL(selectedFile) }));
+        }
+    };
+
+    const handleSignatureImageChange = (e) => {
+        const selectedFile = e.target.files[0];
+        if (selectedFile) {
+            setFiles(prev => ({ ...prev, signatureImage: selectedFile }));
+            setPreviews(prev => ({ ...prev, signature: URL.createObjectURL(selectedFile) }));
         }
     };
 
@@ -215,30 +269,43 @@ export default function LabProfile() {
             const selectedState = states.find((s) => (s.id || s._id) == profile.state);
             const selectedCity = cities.find((c) => (c.id || c._id) == profile.city);
 
-            Object.keys(profile).forEach(key => {
-                if (key === 'acceptedInsurances') {
-                    const insuranceArray = profile.acceptedInsurances.split(',').map(i => i.trim()).filter(i => i !== "");
-                    formData.append(key, JSON.stringify(insuranceArray));
-                } else if (key === 'country') {
-                    formData.append('country', selectedCountry?.name || profile.country);
-                } else if (key === 'state') {
-                    formData.append('state', selectedState?.name || profile.state);
-                } else if (key === 'city') {
-                    formData.append('city', selectedCity?.name || profile.city);
-                } else {
+            // Allowed Request Fields according to the provided API documentation
+            const allowedFields = [
+                'name', 'about', 'address', 'lat', 'lng',
+                'isHomeCollectionAvailable', 'isRapidServiceAvailable',
+                'isInsuranceAccepted', 'is24x7', 'alternatePhone', 'nablNumber'
+            ];
+
+            // Append standard fields safely
+            allowedFields.forEach(key => {
+                if (profile[key] !== null && profile[key] !== undefined) {
                     formData.append(key, profile[key]);
                 }
             });
+
+            // Append dynamic geolocation names if updated
+            formData.append('country', selectedCountry?.name || profile.country);
+            formData.append('state', selectedState?.name || profile.state);
+            formData.append('city', selectedCity?.name || profile.city);
+
+            // Format acceptedInsurances strictly as JSON-stringified array
+            formData.append('acceptedInsurances', JSON.stringify(profile.acceptedInsurances));
             
-            if (files.profileImage) formData.append('profileImage', files.profileImage);
-            files.labImages.forEach(file => formData.append('labImages', file));
-            files.gallery.forEach(file => formData.append('gallery', file));
-            files.labCertificates.forEach(file => formData.append('labCertificates', file));
-            files.labLicenses.forEach(file => formData.append('labLicenses', file));
+            if (files.profileImage) {
+                formData.append('profileImage', files.profileImage);
+            }
+
+            if (files.signatureImage) {
+                formData.append('signatureImage', files.signatureImage);
+            }
 
             const res = await LabVendorAPI.updateLabProfile(formData);
             if (res.success) {
-                toast.success("Profile updated successfully!");
+                toast.success(res.message || "Profile updates submitted to Admin for review.");
+                // Store newly created staging record inside local state
+                setStagedRequest(res.data);
+                // Clear state file variables
+                setFiles({ profileImage: null, signatureImage: null });
             } else {
                 toast.error(res.message || "Failed to update profile.");
             }
@@ -255,7 +322,38 @@ export default function LabProfile() {
     return (
         <div className="min-h-screen bg-gray-50/50 p-4 md:p-8">
             <Toaster position="top-right" /> 
-            <div className="max-w-6xl mx-auto">
+            <div className="max-w-6xl mx-auto space-y-6">
+
+                {/* Staging Warning Alert for Pending Reviews */}
+                {stagedRequest && stagedRequest.status === 'Pending' && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-5 flex items-start gap-4 shadow-sm">
+                        <FaClock className="text-amber-500 mt-1 flex-shrink-0 animate-pulse" size={20} />
+                        <div>
+                            <h4 className="font-bold text-sm">Modifications Pending Verification</h4>
+                            <p className="text-xs text-amber-700 mt-1">
+                                Your profile changes submitted on {new Date(stagedRequest.createdAt).toLocaleDateString()} are currently being reviewed by administrators. 
+                                Active public listings will show your historical data until approval is granted.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Staging Warning Alert for Rejections */}
+                {stagedRequest && stagedRequest.status === 'Rejected' && (
+                    <div className="bg-red-50 border border-red-200 text-red-800 rounded-2xl p-5 flex items-start gap-4 shadow-sm">
+                        <FaExclamationTriangle className="text-red-500 mt-1 flex-shrink-0" size={20} />
+                        <div>
+                            <h4 className="font-bold text-sm">Modifications Rejected</h4>
+                            <p className="text-xs text-red-700 mt-1">
+                                Your recent change request could not be processed. <strong className="text-red-950">Reason:</strong> {stagedRequest.rejectionReason || "No specifics provided."}
+                            </p>
+                            <p className="text-xs text-red-600 mt-1 font-semibold">
+                                Please correct the corresponding values below and submit again.
+                            </p>
+                        </div>
+                    </div>
+                )}
+                
                 <form onSubmit={handleSubmit} className="space-y-6">
                     
                     {/* Header Card */}
@@ -270,12 +368,12 @@ export default function LabProfile() {
                             </div>
                             <label className="absolute bottom-1 right-1 bg-[#08B36A] p-2 rounded-full text-white cursor-pointer hover:scale-110 transition-transform shadow-md">
                                 <FaCamera size={16} />
-                                <input type="file" hidden onChange={(e) => handleFileChange(e, 'profileImage')} accept="image/*" />
+                                <input type="file" hidden onChange={handleProfileImageChange} accept="image/*" />
                             </label>
                         </div>
                         <div className="flex-1 text-center md:text-left">
                             <h1 className="text-2xl font-bold text-gray-800">{profile.name || "Laboratory Profile"}</h1>
-                            <p className="text-gray-500 font-medium text-sm">Update your laboratory details and documents</p>
+                            <p className="text-gray-500 font-medium text-sm">Update your laboratory details and configuration</p>
                         </div>
                         <button type="submit" disabled={loading} className="flex items-center gap-2 px-8 py-3 bg-[#08B36A] text-white font-bold rounded-xl hover:bg-green-600 transition-all shadow-lg shadow-green-100">
                             {loading ? "Saving..." : <><FaSave /> Save Changes</>}
@@ -303,8 +401,8 @@ export default function LabProfile() {
                                         <p className="font-bold text-sm truncate">{getDisplayName(cities, profile.city)}</p>
                                     </div>
                                     <div className="bg-white/10 p-3 rounded-xl border border-white/5">
-                                        <p className="text-[10px] uppercase font-black text-blue-200 mb-1 tracking-widest">Address</p>
-                                        <p className="font-bold text-sm truncate" title={profile.address}>{profile.address || 'Not Set'}</p>
+                                        <p className="text-[10px] uppercase font-black text-blue-200 mb-1 tracking-widest">NABL ID</p>
+                                        <p className="font-bold text-sm truncate" title={profile.nablNumber}>{profile.nablNumber || 'Not Set'}</p>
                                     </div>
                                 </div>
                             </div>
@@ -366,8 +464,56 @@ export default function LabProfile() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-2">GST Number</label>
-                                        <input name="gstNumber" value={profile.gstNumber} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] font-medium" />
+                                        <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5">
+                                            <FaPhoneAlt size={12} className="text-gray-400" /> Alternate Phone
+                                        </label>
+                                        <input 
+                                            name="alternatePhone" 
+                                            value={profile.alternatePhone} 
+                                            onChange={handleInputChange} 
+                                            placeholder="e.g. +919876543211"
+                                            className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] font-medium" 
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Accreditation & Signatures (NABL and Signature upload) */}
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                                <h3 className="text-lg font-bold text-[#1e3a8a] mb-6 flex items-center gap-2">
+                                    <FaAward className="text-[#08B36A]" /> Accreditation & Signatures
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-2">NABL Number</label>
+                                        <input 
+                                            name="nablNumber" 
+                                            value={profile.nablNumber} 
+                                            onChange={handleInputChange} 
+                                            placeholder="e.g. MC-5949"
+                                            className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] font-medium" 
+                                        />
+                                        <p className="text-[11px] text-gray-400 mt-1.5">NABL accredited registration identifier</p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-2">Pathologist Signature</label>
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-24 h-16 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden relative">
+                                                {previews.signature ? (
+                                                    <img src={formatImagePath(previews.signature)} alt="Signature" className="w-full h-full object-contain" />
+                                                ) : (
+                                                    <FaSignature className="text-gray-300 w-8 h-8" />
+                                                )}
+                                            </div>
+                                            <div>
+                                                <label className="cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg text-xs font-bold inline-block transition-colors">
+                                                    Choose Image
+                                                    <input type="file" hidden onChange={handleSignatureImageChange} accept="image/*" />
+                                                </label>
+                                                <p className="text-[10px] text-gray-400 mt-1">Recommended format: .png with transparent background</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -383,8 +529,14 @@ export default function LabProfile() {
                                         <input name="address" value={profile.address} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] font-medium" />
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <input name="lat" value={profile.lat} onChange={handleInputChange} placeholder="Latitude" className="px-4 py-3 rounded-xl border border-gray-200 outline-none font-medium" />
-                                        <input name="lng" value={profile.lng} onChange={handleInputChange} placeholder="Longitude" className="px-4 py-3 rounded-xl border border-gray-200 outline-none font-medium" />
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-400 mb-1">Latitude</label>
+                                            <input name="lat" value={profile.lat} onChange={handleInputChange} placeholder="Latitude" className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] font-medium" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-400 mb-1">Longitude</label>
+                                            <input name="lng" value={profile.lng} onChange={handleInputChange} placeholder="Longitude" className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-[#08B36A] font-medium" />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -393,56 +545,90 @@ export default function LabProfile() {
 
                         <div className="space-y-6">
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                                <h3 className="text-lg font-bold text-[#1e3a8a] mb-6">Services & Timing</h3>
+                                <h3 className="text-lg font-bold text-[#1e3a8a] mb-6">Services Settings</h3>
                                 <div className="space-y-4">
                                     <ServiceToggle label="Home Collection" name="isHomeCollectionAvailable" value={profile.isHomeCollectionAvailable} onChange={handleInputChange} />
                                     <ServiceToggle label="Rapid Service" name="isRapidServiceAvailable" value={profile.isRapidServiceAvailable} onChange={handleInputChange} />
                                     <ServiceToggle label="Accept Insurance" name="isInsuranceAccepted" value={profile.isInsuranceAccepted} onChange={handleInputChange} />
                                     <ServiceToggle label="24/7 Open" name="is24x7" value={profile.is24x7} onChange={handleInputChange} />
-                                    
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-400 mb-1">Timing Label</label>
-                                        <input name="timingLabel" value={profile.timingLabel} onChange={handleInputChange} placeholder="Open 09:00 - 18:00" className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 font-bold outline-none focus:border-[#08B36A]" />
-                                    </div>
 
                                     {profile.isInsuranceAccepted === 'true' && (
-                                        <div className="mt-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-                                            <label className="block text-xs font-bold text-[#1e3a8a] mb-3 uppercase tracking-wider">Select Accepted Insurance</label>
+                                        <div className="mt-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
+                                            <label className="block text-xs font-bold text-[#1e3a8a] uppercase tracking-wider">Add Accepted Insurance</label>
                                             
-                                            {/* DROPDOWN FOR SINGLE INSURANCE SELECTION */}
+                                            {/* DROPDOWN FOR SINGLE INSURANCE ADDITION */}
                                             <select 
                                                 className="w-full px-3 py-2 text-xs rounded-lg border border-gray-200 font-bold outline-none focus:border-[#08B36A] bg-white cursor-pointer"
-                                                value={profile.acceptedInsurances}
-                                                onChange={(e) => handleInsuranceToggle(e.target.value)}
+                                                value=""
+                                                onChange={(e) => {
+                                                    handleAddInsurance(e.target.value);
+                                                    e.target.value = ""; // Reset dropdown selection immediately
+                                                }}
                                             >
-                                                <option value="">-- Choose Insurance --</option>
-                                                {insuranceMasterList.map((ins) => (
-                                                    <option key={ins._id} value={ins.insuranceName}>
-                                                        {ins.insuranceName}
-                                                    </option>
+                                                <option value="">-- Choose Insurance to Add --</option>
+                                                {insuranceMasterList
+                                                    .filter(ins => !profile.acceptedInsurances.includes(ins.insuranceName))
+                                                    .map((ins) => (
+                                                        <option key={ins._id} value={ins.insuranceName}>
+                                                            {ins.insuranceName}
+                                                        </option>
                                                 ))}
                                             </select>
 
-                                            {/* SHOW SELECTED INSURANCE NAME BELOW DROPDOWN */}
-                                            {profile.acceptedInsurances && (
-                                                <div className="mt-4 p-2.5 bg-[#08B36A]/10 border border-[#08B36A]/20 rounded-lg flex items-center gap-2">
-                                                    <FaCheckCircle className="text-[#08B36A]" size={14} />
-                                                    <span className="text-xs font-black text-[#08B36A] uppercase tracking-wide">
-                                                        Selected: {profile.acceptedInsurances}
+                                            {/* SHOW SELECTIONS AS TAGS */}
+                                            <div className="flex flex-wrap gap-1.5 pt-2">
+                                                {profile.acceptedInsurances.map((ins, idx) => (
+                                                    <span key={idx} className="flex items-center gap-1 px-2.5 py-1 bg-[#08B36A]/10 border border-[#08B36A]/20 rounded text-[11px] font-bold text-[#08B36A]">
+                                                        {ins}
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => handleRemoveInsurance(ins)} 
+                                                            className="text-red-500 hover:text-red-700 font-black ml-1"
+                                                        >
+                                                            <FaTimes size={10} />
+                                                        </button>
                                                     </span>
-                                                </div>
-                                            )}
+                                                ))}
+                                                {profile.acceptedInsurances.length === 0 && (
+                                                    <p className="text-xs text-gray-400 italic">No insurance providers added yet.</p>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
                             </div>
 
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-                                <h3 className="text-lg font-bold text-[#1e3a8a] mb-2">Media & Docs</h3>
-                                
-                                <FileUploadBox label="Lab Interior Photos" previews={previews.labImages} onChange={(e) => handleFileChange(e, 'labImages', true)} formatImagePath={formatImagePath} />
-                                <FileUploadBox label="Certificates / Licenses" previews={previews.labCertificates} onChange={(e) => handleFileChange(e, 'labCertificates', true)} formatImagePath={formatImagePath} />
-                                <FileUploadBox label="Lab Licenses" previews={previews.labLicenses} onChange={(e) => handleFileChange(e, 'labLicenses', true)} formatImagePath={formatImagePath} />
+                            {/* Verification/Registration Details Display (Read-Only) */}
+                            <div className="bg-gray-50 rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
+                                <div className="flex items-center justify-between border-b border-gray-200 pb-2">
+                                    <h3 className="text-sm font-bold text-[#1e3a8a] flex items-center gap-1.5">
+                                        <FaFileContract className="text-gray-500" /> Registry Details
+                                    </h3>
+                                    <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-700 px-2 py-0.5 rounded border border-amber-200">
+                                        Read-Only
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-gray-500">
+                                    These registration and licensing items are secured to maintain verification status.
+                                </p>
+
+                                <div className="space-y-3 pt-2">
+                                    <div>
+                                        <span className="block text-[10px] font-bold text-gray-400 uppercase">GST Number</span>
+                                        <span className="text-sm font-bold text-gray-700">{verificationDocs.gstNumber || 'Not Provided'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="block text-[10px] font-bold text-gray-400 uppercase">Drug License Type</span>
+                                        <span className="text-sm font-bold text-gray-700">{verificationDocs.drugLicenseType || 'Not Provided'}</span>
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-gray-200 pt-4 space-y-4">
+                                    <ReadOnlyDocumentDisplay label="Lab Interior Photos" paths={verificationDocs.labImages} formatImagePath={formatImagePath} />
+                                    <ReadOnlyDocumentDisplay label="Gallery Images" paths={verificationDocs.gallery} formatImagePath={formatImagePath} />
+                                    <ReadOnlyDocumentDisplay label="Certificates / Licenses" paths={verificationDocs.labCertificates} formatImagePath={formatImagePath} />
+                                    <ReadOnlyDocumentDisplay label="Lab Licenses" paths={verificationDocs.labLicenses} formatImagePath={formatImagePath} />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -464,29 +650,18 @@ function ServiceToggle({ label, name, value, onChange }) {
     );
 }
 
-function FileUploadBox({ label, onChange, previews = [], formatImagePath }) {
+function ReadOnlyDocumentDisplay({ label, paths = [], formatImagePath }) {
+    if (!paths || paths.length === 0) return null;
     return (
-        <div className="space-y-3">
-            <label className="block text-[11px] font-black uppercase text-gray-400 mb-1 tracking-wider">{label}</label>
-            <label className="w-full flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-100 rounded-xl hover:border-[#08B36A] hover:bg-green-50/50 cursor-pointer transition-all">
-                <FaFileUpload className="text-gray-300 mb-1" />
-                <span className="text-[11px] text-gray-500 font-bold">Select Files</span>
-                <input type="file" hidden multiple onChange={onChange} />
-            </label>
-
-            {previews.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-1">
-                    {previews.map((src, i) => (
-                        <div key={i} className="relative w-14 h-14 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                            <img 
-                                src={formatImagePath(src)} 
-                                alt="preview" 
-                                className="w-full h-full object-cover" 
-                            />
-                        </div>
-                    ))}
-                </div>
-            )}
+        <div className="space-y-1.5">
+            <span className="block text-[10px] font-bold text-gray-400 uppercase">{label}</span>
+            <div className="flex flex-wrap gap-1.5">
+                {paths.map((src, i) => (
+                    <div key={i} className="relative w-12 h-12 rounded-lg overflow-hidden border border-gray-200 bg-white shadow-sm">
+                        <img src={formatImagePath(src)} alt="Verification file" className="w-full h-full object-cover" />
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }

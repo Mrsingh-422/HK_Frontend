@@ -123,9 +123,18 @@ export default function LabOrdersPage() {
   const fetchDrivers = async () => {
     try {
       const response = await LabVendorAPI.getDrivers();
-      if (response.success) setDrivers(response.data || []);
+      if (response.success) {
+        // Filter list to keep only available phlebotomists (case-insensitive check)
+        const availableStaff = (response.data || []).filter(
+          (staff) => staff.status && staff.status.toLowerCase() === 'available'
+        );
+        setDrivers(availableStaff);
+      } else {
+        setDrivers([]);
+      }
     } catch (error) {
       toast.error("Failed to load staff list");
+      setDrivers([]);
     }
   };
 
@@ -662,7 +671,7 @@ export default function LabOrdersPage() {
               <button onClick={() => setIsAssignOpen(false)} className="absolute top-6 right-6 text-white/80 hover:text-white"><FaTimes size={20} /></button>
               <div className="flex items-center gap-4 mb-2">
                 <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md"><FaTruckLoading size={28} /></div>
-                <div><h3 className="text-2xl font-extrabold tracking-tight">Assign Staff</h3><p className="text-white/80 text-sm font-medium">Select a phlebotomist</p></div>
+                <div><h3 className="text-2xl font-extrabold tracking-tight">Assign Staff</h3><p className="text-white/80 text-sm font-medium">Select an active phlebotomist</p></div>
               </div>
             </div>
 
@@ -680,13 +689,23 @@ export default function LabOrdersPage() {
                     <button key={driver._id} onClick={() => setSelectedDriverId(driver._id)} className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${selectedDriverId === driver._id ? 'border-[#08B36A] bg-green-50 ring-4 ring-green-50' : 'border-gray-100 bg-white hover:border-green-200'}`}>
                       <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedDriverId === driver._id ? 'bg-[#08B36A] text-white' : 'bg-gray-100 text-gray-400'}`}><FaUser size={18} /></div>
-                        <div className="text-left"><p className={`font-bold text-sm ${selectedDriverId === driver._id ? 'text-[#08B36A]' : 'text-gray-700'}`}>{driver.name}</p><p className="text-xs text-gray-400 font-medium">{driver.phone}</p></div>
+                        <div className="text-left">
+                          <p className={`font-bold text-sm ${selectedDriverId === driver._id ? 'text-[#08B36A]' : 'text-gray-700'}`}>{driver.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-gray-400 font-medium">{driver.phone}</span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                            <span className="text-[10px] text-green-600 font-bold uppercase tracking-wider">{driver.status}</span>
+                          </div>
+                        </div>
                       </div>
                       {selectedDriverId === driver._id && <div className="w-6 h-6 bg-[#08B36A] rounded-full flex items-center justify-center text-white"><FaCheck size={12} /></div>}
                     </button>
                   ))
                 ) : (
-                  <div className="text-center py-10 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200"><FaExclamationTriangle className="mx-auto text-gray-300 mb-2" size={24} /><p className="text-sm font-bold text-gray-400">No staff members found</p></div>
+                  <div className="text-center py-10 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
+                    <FaExclamationTriangle className="mx-auto text-gray-300 mb-2" size={24} />
+                    <p className="text-sm font-bold text-gray-400">No active, available staff members found</p>
+                  </div>
                 )}
               </div>
 

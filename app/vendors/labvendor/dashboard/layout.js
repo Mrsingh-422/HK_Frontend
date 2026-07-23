@@ -7,7 +7,7 @@ import {
     FaFlask, FaVials, FaClipboardList, FaFileMedical, FaCog,
     FaChevronLeft, FaChevronRight, FaUserMd, FaMapMarkedAlt,
     FaBoxOpen, FaPlusSquare, FaBullhorn, FaFolderOpen,
-    FaHistory, FaWallet, FaCalendarCheck, FaTruck, FaUniversity // ADDED FaUniversity IMPORT
+    FaHistory, FaWallet, FaCalendarCheck, FaTruck, FaUniversity,FaFilePrescription// ADDED FaUniversity IMPORT
 } from "react-icons/fa";
 import { useAuth } from '@/app/context/AuthContext';
 import LabTopBar from './components/LabTopBar';
@@ -16,21 +16,21 @@ import LabTopBar from './components/LabTopBar';
 const menuItems = [
     { name: 'Dashboard', href: '/vendors/labvendor/dashboard', icon: FaFlask },
     { name: 'Orders', href: '/vendors/labvendor/dashboard/laborders', icon: FaClipboardList },
+    { name: 'Prescription Request', href: '/vendors/labvendor/dashboard/prescription-orders', icon: FaFilePrescription },
     { name: 'Manage Phlebotomist', href: '/vendors/labvendor/dashboard/ManagePhlebotomist', icon: FaVials },
     { name: 'Assign Phlebotomist', href: '/vendors/labvendor/dashboard/assign-phlebotomist', icon: FaUserMd },
     { name: 'Track Phlebotomist', href: '/vendors/labvendor/dashboard/track-phlebotomist', icon: FaMapMarkedAlt },
     { name: 'Manage Tests', href: '/vendors/labvendor/dashboard/tests', icon: FaVials }, 
     { name: 'Manage Packages', href: '/vendors/labvendor/dashboard/packages', icon: FaBoxOpen },
-    { name: 'Add Services', href: '/vendors/labvendor/dashboard/addservices', icon: FaPlusSquare },
     { name: 'Upload Reports', href: '/vendors/labvendor/dashboard/upload-reports', icon: FaFileMedical },
-    { name: 'Manage Documents', href: '/vendors/labvendor/dashboard/manage-documents', icon: FaFolderOpen },
+    // { name: 'Manage Documents', href: '/vendors/labvendor/dashboard/manage-documents', icon: FaFolderOpen },
     { name: 'Promotions', href: '/vendors/labvendor/dashboard/promotions', icon: FaBullhorn },
     { name: 'Order History', href: '/vendors/labvendor/dashboard/order-history', icon: FaHistory },
     { name: 'Wallet & Earning', href: '/vendors/labvendor/dashboard/wallet', icon: FaWallet },
     { name: 'Availability', href: '/vendors/labvendor/dashboard/availability', icon: FaCalendarCheck },
     { name: 'Delivery Charges', href: '/vendors/labvendor/dashboard/delivery-charge', icon: FaTruck },
     { name: 'Manage Banking', href: '/vendors/labvendor/dashboard/ManageBanking', icon: FaUniversity }, // ADDED MANAGE BANKING TO SETTINGS SECTION
-    { name: 'Settings', href: '/vendors/labvendor/dashboard/settings', icon: FaCog },
+    
 ];
 
 export default function LabVendorLayout({ children }) {

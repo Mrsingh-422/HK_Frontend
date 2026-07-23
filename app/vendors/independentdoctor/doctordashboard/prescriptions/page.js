@@ -1,11 +1,14 @@
-'use client'
-import React, { useState, useEffect } from 'react'
+'use client';
+import React, { useState, useEffect } from 'react';
 import { 
   FaRegEye, FaRegEdit, FaShareSquare, FaPhoneAlt, FaCalendarAlt, 
   FaStethoscope, FaCapsules, FaCheckCircle, FaUser, FaArrowLeft, 
-  FaPlus, FaTrash, FaTimes, FaStickyNote
-} from 'react-icons/fa'
+  FaPlus, FaTrash, FaTimes, FaStickyNote, FaSpinner
+} from 'react-icons/fa';
 import DoctorAPI from '@/app/services/DoctorAPI';
+
+// Import template relative link
+import DigitalPrescriptionTemplate from '../videocallappointments/components/DigitalPrescriptionTemplate';
 
 export default function PrescriptionPage() {
   // List View States
@@ -13,32 +16,26 @@ export default function PrescriptionPage() {
   const [prescriptions, setPrescriptions] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Detail View States
-  const [selectedPrescription, setSelectedPrescription] = useState(null);
-  const [showDetail, setShowDetail] = useState(false);
+  // Digital Template Modal States
+  const [selectedPrescriptionPayload, setSelectedPrescriptionPayload] = useState(null);
+  const [isTemplateOpen, setIsTemplateOpen] = useState(false);
 
-  // Form (Create/Edit) States
+  // Form (Edit) States
   const [showForm, setShowForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentPrescriptionId, setCurrentPrescriptionId] = useState(null);
-  
-  const initialFormState = {
-    userId: "", // In a real app, this comes from the appointment data
-    appointmentId: "",
-    diagnosis: "", // Sent as string, converted to array on submit
-    medicines: [
-      { name: "", dosage: "1-0-1", frequency: "After meals", duration: "5 Days", instructions: "" }
-    ],
+  const [formData, setFormData] = useState({
+    diagnosis: "",
+    medicines: [],
     additionalNotes: ""
-  };
-  const [formData, setFormData] = useState(initialFormState);
+  });
 
   // 1. FETCH ALL PRESCRIPTIONS
   const fetchPrescriptions = async () => {
     setLoading(true);
     try {
       const response = await DoctorAPI.getAllPrescriptions(activeTab.toLowerCase());
-      if (response.success) {
+      if (response && response.success) {
         setPrescriptions(response.data || []);
       }
     } catch (error) {
@@ -52,52 +49,35 @@ export default function PrescriptionPage() {
     fetchPrescriptions();
   }, [activeTab]);
 
-  // 2. FETCH SPECIFIC DETAILS
+  // 2. FETCH SPECIFIC DETAILS & OPEN PRINT SUMMARY SHEETS
   const handleViewDetails = async (id) => {
     setLoading(true);
     try {
       const response = await DoctorAPI.getPrescriptionDetails(id);
-      const resData = response.data || response;
-
-      const detailMapping = {
-        id: id,
-        name: resData.patientInfo?.name || "N/A",
-        age: resData.patientInfo?.age || "N/A",
-        gender: resData.patientInfo?.gender || "N/A",
-        phone: resData.patientInfo?.phone || "N/A",
-        diagnosis: resData.clinicalDetails?.diagnosis?.join(", ") || "N/A",
-        symptoms: resData.clinicalDetails?.symptoms || "N/A", 
-        date: resData.deliveryInfo?.sentTime || "N/A",
-        status: resData.deliveryInfo?.status || "Sent",
-        sentTime: resData.deliveryInfo?.sentTime || "N/A",
-        medicines: resData.clinicalDetails?.medicines || [],
-        notes: resData.clinicalDetails?.notes || "No additional notes."
-      };
-
-      setSelectedPrescription(detailMapping);
-      setShowDetail(true);
+      if (response) {
+        setSelectedPrescriptionPayload(response);
+        setIsTemplateOpen(true);
+      }
     } catch (error) {
+      console.error("Could not load prescription details:", error);
       alert("Could not load details.");
     } finally {
       setLoading(false);
     }
   };
 
-  // 3. CREATE / EDIT LOGIC
-  const openCreateForm = () => {
-    setFormData(initialFormState);
-    setIsEditing(false);
-    setShowForm(true);
-  };
+  // 3. EDIT LOGIC
+  const openEditForm = (prescriptionRawData) => {
+    const raw = prescriptionRawData?.data || prescriptionRawData || {};
+    const medicinesList = raw.clinicalDetails?.medicines || [];
+    const diagnosisList = raw.clinicalDetails?.diagnosis || [];
 
-  const openEditForm = () => {
-    // Populate form with existing data
     setFormData({
-      diagnosis: selectedPrescription.diagnosis,
-      medicines: [...selectedPrescription.medicines],
-      additionalNotes: selectedPrescription.notes
+      diagnosis: Array.isArray(diagnosisList) ? diagnosisList.join(', ') : diagnosisList,
+      medicines: [...medicinesList],
+      additionalNotes: raw.clinicalDetails?.symptoms || ""
     });
-    setCurrentPrescriptionId(selectedPrescription.id);
+    setCurrentPrescriptionId(raw._id || raw.id);
     setIsEditing(true);
     setShowForm(true);
   };
@@ -129,16 +109,10 @@ export default function PrescriptionPage() {
             diagnosis: typeof formData.diagnosis === 'string' ? formData.diagnosis.split(',').map(s => s.trim()) : formData.diagnosis
         };
 
-        if (isEditing) {
-            await DoctorAPI.updatePrescription(currentPrescriptionId, payload);
-            alert("Prescription updated!");
-        } else {
-            await DoctorAPI.createPrescription(payload);
-            alert("Prescription created successfully!");
-        }
+        await DoctorAPI.updatePrescription(currentPrescriptionId, payload);
+        alert("Prescription updated successfully!");
         setShowForm(false);
         fetchPrescriptions();
-        if(showDetail) handleViewDetails(currentPrescriptionId);
     } catch (error) {
         alert("Action failed. Check console.");
         console.error(error);
@@ -149,6 +123,7 @@ export default function PrescriptionPage() {
 
   // 4. RESEND
   const handleResend = async (id) => {
+    if (!id) return;
     try {
       await DoctorAPI.resendPrescription(id);
       alert("Prescription notification resent to patient!");
@@ -163,41 +138,29 @@ export default function PrescriptionPage() {
       {/* --- HEADER --- */}
       <div className="p-6 md:px-10 flex items-center justify-between bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="flex items-center gap-4">
-            {showDetail && (
-                <button onClick={() => setShowDetail(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                    <FaArrowLeft className="text-gray-600"/>
-                </button>
-            )}
             <h1 className="text-xl font-black uppercase tracking-tight">
-                {showDetail ? "Prescription Detail" : "Prescriptions"}
+                Prescription History
             </h1>
         </div>
 
         <div className="flex items-center gap-4">
-            {!showDetail && (
-                <div className="flex bg-gray-100 p-1 rounded-xl">
-                    {['All', 'Today'].map(tab => (
-                        <button 
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            className={`px-6 py-2 rounded-lg text-xs font-bold transition-all ${
-                                activeTab === tab ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'
-                            }`}
-                        >
-                            {tab}
-                        </button>
-                    ))}
-                </div>
-            )}
-            <button 
-                onClick={openCreateForm}
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#5BB584] text-white rounded-xl text-xs font-bold uppercase hover:bg-[#4a9c6f] transition-all shadow-md"
-            >
-                <FaPlus /> New Prescription
-            </button>
+            <div className="flex bg-gray-100 p-1 rounded-xl">
+                {['All', 'Today'].map(tab => (
+                    <button 
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        className={`px-6 py-2 rounded-lg text-xs font-bold transition-all ${
+                            activeTab === tab ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'
+                        }`}
+                    >
+                        {tab}
+                    </button>
+                ))}
+            </div>
         </div>
       </div>
 
+      {/* --- MAIN PAGE CONTENT --- */}
       <div className="flex-1 p-6 md:p-10 overflow-y-auto">
         
         {loading && (
@@ -206,14 +169,14 @@ export default function PrescriptionPage() {
             </div>
         )}
 
-        {/* --- VIEW 1: TABLE LIST --- */}
-        {!showDetail && !loading && (
+        {/* --- VIEW: TABLE LIST --- */}
+        {!loading && (
           <div className="max-w-7xl mx-auto bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
             <table className="w-full text-left">
                 <thead className="bg-gray-50">
                     <tr className="border-b border-gray-100">
                         <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Patient</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Diagnosis</th>
+                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Clinical Summary</th>
                         <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Date & Time</th>
                         <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
                         <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Action</th>
@@ -234,7 +197,7 @@ export default function PrescriptionPage() {
                                 </div>
                             </td>
                             <td className="px-8 py-6">
-                                <p className="text-sm font-bold text-gray-600 truncate max-w-[200px]">{item.symptoms}</p>
+                                <p className="text-sm font-bold text-gray-600 truncate max-w-[200px]">{item.symptoms || "General Care"}</p>
                             </td>
                             <td className="px-8 py-6">
                                 <span className="text-xs font-bold text-gray-500">{item.date}</span>
@@ -250,6 +213,7 @@ export default function PrescriptionPage() {
                                 <button 
                                     onClick={() => handleViewDetails(item.id)}
                                     className="p-2.5 bg-gray-50 rounded-lg text-gray-400 hover:text-[#5BB584] hover:bg-green-50 transition-all"
+                                    title="View Medical Summary Sheet"
                                 >
                                     <FaRegEye size={18}/>
                                 </button>
@@ -263,92 +227,27 @@ export default function PrescriptionPage() {
             )}
           </div>
         )}
-
-        {/* --- VIEW 2: FULL DETAILS --- */}
-        {showDetail && !loading && selectedPrescription && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm flex flex-wrap justify-between items-center gap-6">
-                <div className="flex items-center gap-6">
-                    <div className="w-20 h-20 bg-green-50 rounded-3xl flex items-center justify-center text-[#5BB584]">
-                        <FaUser size={30}/>
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-black text-gray-900">{selectedPrescription.name}</h2>
-                        <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">{selectedPrescription.gender} • {selectedPrescription.age} Years</p>
-                    </div>
-                </div>
-                <div className="flex gap-3">
-                    <button onClick={openEditForm} className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-xl text-xs font-bold uppercase hover:bg-gray-200 transition-all">
-                        <FaRegEdit/> Edit
-                    </button>
-                    <button onClick={() => handleResend(selectedPrescription.id)} className="flex items-center gap-2 px-4 py-2 bg-[#5BB584] text-white rounded-xl text-xs font-bold uppercase shadow-sm">
-                        <FaShareSquare/> Resend
-                    </button>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2 bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm space-y-8">
-                    <div>
-                        <div className="flex items-center gap-3 mb-4">
-                            <FaStethoscope className="text-[#5BB584]"/>
-                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">Diagnosis & Symptoms</h3>
-                        </div>
-                        <p className="text-lg font-black text-gray-800">{selectedPrescription.diagnosis}</p>
-                        <p className="text-sm text-gray-500 mt-1">{selectedPrescription.symptoms}</p>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-3 mb-2">
-                            <FaCapsules className="text-[#5BB584]"/>
-                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">Medicines</h3>
-                        </div>
-                        {selectedPrescription.medicines.map((med, idx) => (
-                            <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                                <div>
-                                    <p className="font-black text-gray-900">{med.name}</p>
-                                    <p className="text-[11px] text-gray-500 font-bold uppercase">{med.dosage} • {med.frequency} • {med.duration}</p>
-                                    {med.instructions && <p className="text-[11px] text-[#5BB584] mt-1 font-bold italic">Note: {med.instructions}</p>}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="space-y-6">
-                    <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm">
-                        <div className="flex items-center gap-3 mb-4">
-                            <FaStickyNote className="text-yellow-500"/>
-                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">Notes</h3>
-                        </div>
-                        <p className="text-sm font-bold text-gray-600 leading-relaxed italic">"{selectedPrescription.notes}"</p>
-                    </div>
-                    <div className="bg-[#5BB584] rounded-[2rem] p-6 text-white shadow-lg">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-4">Delivery Status</h3>
-                        <div className="space-y-3">
-                            <div className="flex justify-between text-xs">
-                                <span className="font-bold opacity-80">Status</span>
-                                <span className="font-black uppercase">{selectedPrescription.status}</span>
-                            </div>
-                            <div className="flex justify-between text-xs">
-                                <span className="font-bold opacity-80">Sent On</span>
-                                <span className="font-black">{selectedPrescription.sentTime}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* --- MODAL FORM: CREATE / EDIT --- */}
+      {/* --- PREVIEW PAD SUMMARY MODAL OVERLAY --- */}
+      <DigitalPrescriptionTemplate
+          isOpen={isTemplateOpen}
+          onClose={() => {
+              setIsTemplateOpen(false);
+              setSelectedPrescriptionPayload(null);
+          }}
+          data={selectedPrescriptionPayload}
+          onEdit={openEditForm}
+          onResend={handleResend}
+      />
+
+      {/* --- MODAL FORM: EDIT FORM --- */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="px-8 py-6 bg-gray-50 border-b flex justify-between items-center">
                     <h2 className="text-lg font-black uppercase tracking-tighter">
-                        {isEditing ? "Edit Prescription" : "Create Prescription"}
+                        Edit Prescription
                     </h2>
                     <button onClick={() => setShowForm(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
                         <FaTimes/>
@@ -356,33 +255,6 @@ export default function PrescriptionPage() {
                 </div>
 
                 <form onSubmit={handleSubmitPrescription} className="p-8 space-y-6 max-h-[75vh] overflow-y-auto">
-                    {!isEditing && (
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-gray-400 ml-2">User ID</label>
-                                <input 
-                                    required
-                                    type="text" 
-                                    className="w-full px-4 py-3 bg-gray-50 rounded-xl border-none text-sm font-bold mt-1 focus:ring-2 focus:ring-[#5BB584]"
-                                    value={formData.userId}
-                                    onChange={(e) => setFormData({...formData, userId: e.target.value})}
-                                    placeholder="Enter User ID"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Appointment ID</label>
-                                <input 
-                                    required
-                                    type="text" 
-                                    className="w-full px-4 py-3 bg-gray-50 rounded-xl border-none text-sm font-bold mt-1 focus:ring-2 focus:ring-[#5BB584]"
-                                    value={formData.appointmentId}
-                                    onChange={(e) => setFormData({...formData, appointmentId: e.target.value})}
-                                    placeholder="Enter Appointment ID"
-                                />
-                            </div>
-                        </div>
-                    )}
-
                     <div>
                         <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Diagnosis (Comma separated)</label>
                         <input 
@@ -459,12 +331,12 @@ export default function PrescriptionPage() {
                         type="submit"
                         className="w-full py-4 bg-[#5BB584] text-white rounded-2xl font-black uppercase tracking-widest hover:bg-[#4a9c6f] transition-all shadow-lg"
                     >
-                        {isEditing ? "Update Prescription" : "Send Prescription"}
+                        Update Prescription
                     </button>
                 </form>
             </div>
         </div>
       )}
     </div>
-  )
+  );
 }

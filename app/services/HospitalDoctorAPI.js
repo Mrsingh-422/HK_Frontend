@@ -56,7 +56,6 @@ const HospitalDoctorAPI = {
             if (standardTabs.includes(tabOrType)) {
                 params.tab = tabOrType;
             } else {
-                // Graceful legacy fallback mapper
                 if (legacyStatus === 'Pending Handovers') params.tab = 'pending';
                 else if (legacyStatus === 'In-Progress') params.tab = 'active';
                 else if (legacyStatus === 'Completed') params.tab = 'history';
@@ -82,11 +81,19 @@ const HospitalDoctorAPI = {
         }
     },
  
-    // 5. Process & Create Prescription (Multipart FormData support corrected) [4]
+    // 5. Process & Create Prescription (Multipart FormData support corrected)
     addPrescription: async (formData) => {
         try {
-            // Omitting content-type manually allows the browser to calculate unique boundary markers [4]
-            const response = await hospitalDoctorApi.post('/hospital-doctor/panel/prescription/add', formData);
+            let url = '/hospital-doctor/panel/prescription/add';
+            
+            if (formData && formData instanceof FormData) {
+                const appointmentId = formData.get('appointmentId');
+                if (appointmentId) {
+                    url += `?appointmentId=${encodeURIComponent(appointmentId)}`;
+                }
+            }
+            
+            const response = await hospitalDoctorApi.post(url, formData);
             return response.data;
         } catch (error) {
             return Promise.reject(error.response?.data?.message || "Failed to create prescription");
@@ -136,7 +143,27 @@ const HospitalDoctorAPI = {
     // 10. Submit Discharge Summary
     submitDischargeSummary: async (body) => {
         try {
-            const response = await hospitalDoctorApi.post('/hospital-doctor/panel/case/discharge-summary', body);
+            let data = body;
+            let appointmentId = body?.appointmentId;
+
+            if (body && !(body instanceof FormData)) {
+                data = new FormData();
+                Object.keys(body).forEach(key => {
+                    data.append(key, body[key]);
+                });
+            } else if (body instanceof FormData) {
+                appointmentId = body.get('appointmentId');
+            }
+
+            const url = appointmentId 
+                ? `/hospital-doctor/panel/case/discharge-summary?appointmentId=${encodeURIComponent(appointmentId)}`
+                : '/hospital-doctor/panel/case/discharge-summary';
+
+            const response = await hospitalDoctorApi.post(url, data, { 
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
             return response.data;
         } catch (error) {
             return Promise.reject(error.response?.data?.message || "Failed to submit discharge summary");
@@ -173,10 +200,6 @@ const HospitalDoctorAPI = {
         }
     },
  
-    // ==========================================
-    // Specialist Bedside Care Team Endpoints
-    // ==========================================
- 
     // 14. Request Bedside Specialist (Primary Doctor Action)
     requestBedsideHelp: async (body) => {
         try {
@@ -207,17 +230,25 @@ const HospitalDoctorAPI = {
         }
     },
  
-     // ==========================================
-    // Profile Management Endpoints
-    // ==========================================
- 
-    // 17. Get Doctor Profile Details (Page Load)
+   // 17. Get Doctor Profile Details (Page Load)
     getProfile: async () => {
         try {
             const response = await hospitalDoctorApi.get('/hospital-doctor/panel/profile');
             return response.data;
         } catch (error) {
             return Promise.reject(error.response?.data?.message || "Failed to fetch profile details");
+        }
+    },
+
+    // Retrieve status of the latest profile update request
+    getProfileUpdateStatus: async () => {
+        try {
+            const response = await hospitalDoctorApi.get('/hospital-doctor/panel/profile/update-status');
+            return response.data;
+        } catch (error) {
+            console.warn("Hospital Doctor update-status endpoint returned an error or is inactive:", error);
+            // Fallback clean state
+            return { success: true, data: null };
         }
     },
  
@@ -255,7 +286,7 @@ const HospitalDoctorAPI = {
         }
     },
  
-    // 21. Start Specialist Bedside Shift [2]
+    // 21. Start Specialist Bedside Shift
     startBedsideShift: async (body) => {
         try {
             const response = await hospitalDoctorApi.post('/hospital-doctor/panel/case/bedside-start', body);
@@ -265,7 +296,7 @@ const HospitalDoctorAPI = {
         }
     },
  
-    // 22. Finish/Complete Specialist Bedside Shift [2]
+    // 22. Finish/Complete Specialist Bedside Shift
     completeBedsideShift: async (body) => {
         try {
             const response = await hospitalDoctorApi.post('/hospital-doctor/panel/case/bedside-complete', body);
@@ -275,7 +306,7 @@ const HospitalDoctorAPI = {
         }
     },
  
-    // 23. Get Discharge Summary Print Data from Database [2]
+    // 23. Get Discharge Summary Print Data from Database
     getDischargePrintData: async (id) => {
         try {
             const response = await hospitalDoctorApi.get(`/hospital-doctor/panel/case/discharge-summary/print/${id}`);
@@ -284,7 +315,8 @@ const HospitalDoctorAPI = {
             return Promise.reject(error.response?.data?.message || "Failed to fetch discharge summary print details");
         }
     },
-     // 24. Fetch Complete Consultation History List [2]
+
+    // 24. Fetch Complete Consultation History List
     getHistoryList: async (page = 1, limit = 10, search = "") => {
         try {
             const response = await hospitalDoctorApi.get('/hospital-doctor/panel/cases/history-list', {
@@ -295,7 +327,8 @@ const HospitalDoctorAPI = {
             return Promise.reject(error.response?.data?.message || "Failed to fetch consultation history list");
         }
     },
-     // 3c. Fetch Admission Cases Listing supporting multi-specialist collaboration tabs [2]
+
+    // 25. Fetch Admission Cases Listing supporting multi-specialist collaboration tabs
     getAdmissionCases: async (tabOrType = "active", legacyStatus = "") => {
         try {
             const params = {};
@@ -304,7 +337,6 @@ const HospitalDoctorAPI = {
             if (standardTabs.includes(tabOrType)) {
                 params.tab = tabOrType;
             } else {
-                // Graceful legacy fallback mapper
                 if (legacyStatus === 'Pending Handovers') params.tab = 'pending';
                 else if (legacyStatus === 'In-Progress') params.tab = 'active';
                 else if (legacyStatus === 'Completed') params.tab = 'history';
@@ -319,7 +351,8 @@ const HospitalDoctorAPI = {
             return Promise.reject(error.response?.data?.message || "Failed to fetch admission cases");
         }
     },
-      // 26. Self-Assign Case (Doctor Panel)
+
+    // 26. Self-Assign Case (Doctor Panel)
     selfAssignCase: async (body) => {
         try {
             const response = await hospitalDoctorApi.post('/hospital-doctor/panel/case/self-assign', body);
@@ -330,6 +363,4 @@ const HospitalDoctorAPI = {
     }
 };
  
- 
 export default HospitalDoctorAPI;
- 

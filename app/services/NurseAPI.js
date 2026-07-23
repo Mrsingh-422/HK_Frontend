@@ -57,7 +57,7 @@ anyOneApi.interceptors.request.use((config) => {
  
 const NurseAPI = {
  
-     // ==========================================
+   // ==========================================
     // PROFILE SECTION
     // ==========================================
     getNurseProfile: async () => {
@@ -69,6 +69,12 @@ const NurseAPI = {
         const response = await nurseVendorApi.put('/provider/nurse/dash/profile/update', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
+        return response.data;
+    },
+
+    // Track status of submitted staged changes
+    getNurseProfileUpdateStatus: async () => {
+        const response = await nurseVendorApi.get('/provider/nurse/dash/profile/update-status');
         return response.data;
     },
  

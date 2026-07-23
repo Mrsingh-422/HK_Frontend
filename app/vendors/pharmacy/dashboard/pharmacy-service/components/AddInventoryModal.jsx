@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { 
   FaTimes, 
   FaSpinner, 
@@ -8,7 +8,9 @@ import {
   FaCapsules, 
   FaChevronLeft, 
   FaChevronRight, 
-  FaInfoCircle 
+  FaInfoCircle,
+  FaUpload,
+  FaTrash
 } from 'react-icons/fa'
 import PharmacyVendorAPI from '@/app/services/PharmacyVendorAPI';
 
@@ -19,13 +21,28 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
   const [searching, setSearching] = useState(false);
   const [selectedMaster, setSelectedMaster] = useState(null);
   
+  // File Upload States
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const fileInputRef = useRef(null);
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 15;
 
+  // Form State
   const [formData, setFormData] = useState({
-    vendor_price: '', stock_quantity: '', expiry_date: '',
-    newName: '', newManufacturer: '', newSalt: '', newPackaging: '', newMRP: ''
+    vendor_price: '', 
+    stock_quantity: '', 
+    expiry_date: '',
+    newName: '', 
+    newManufacturer: '', 
+    newSalt: '', 
+    newPackaging: '', 
+    newMRP: '',
+    newBestPrice: '',
+    newDescription: '',
+    newPrescriptionRequired: 'No'
   });
 
   // Fetch the default master medicine database from backend
@@ -43,7 +60,7 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
     }
   };
 
-  // Hydrate modal states on state open triggers
+  // Hydrate modal states
   useEffect(() => {
     if (isOpen) {
         if (initialData) {
@@ -59,11 +76,33 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
             setActiveTab('master');
             setSearchTerm('');
             setCurrentPage(1);
-            // Fetch default list from API immediately on mount to ensure visibility
+            setSelectedFile(null);
+            setImagePreview('');
             fetchDefaultMaster();
         }
     }
   }, [initialData, isOpen]);
+
+  // Handle local image file selection
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedFile(null);
+    setImagePreview('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   // Handle server-side API search
   const handleMasterSearch = async () => {
@@ -79,26 +118,21 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
     }
   };
 
-  // Synchronize dynamic lists (Server Results vs Passed Local Prop List)
+  // Synchronize dynamic lists
   const processedList = useMemo(() => {
-    // If the server search returned results, display them
     if (masterResults && masterResults.length > 0) {
       return masterResults;
     }
-
-    // Local client-side fallback filtering
     if (searchTerm.trim() !== "") {
       return masterList.filter(item => 
         item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
         (item.manufacturers && item.manufacturers.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
-
-    // Default to the parent passed local list
     return masterList;
   }, [searchTerm, masterResults, masterList]);
 
-  // Compute Active Paginated Chunk (15 items per page)
+  // Compute Active Paginated Chunk
   const paginatedItems = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     return processedList.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -106,24 +140,39 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
 
   const totalPages = Math.ceil(processedList.length / ITEMS_PER_PAGE) || 1;
 
+  // Handle flat object submission
   const handleSuggestSubmit = async (e) => {
     e.preventDefault();
     try {
+        let finalImageUrl = [];
+
+        if (selectedFile) {
+          // वास्तविक प्रोडक्शन में: पहले इमेज फ़ाइल को सर्वर/S3 पर अपलोड करें और प्राप्त URL का उपयोग करें।
+          // उदाहरण: const uploadRes = await PharmacyVendorAPI.uploadImage(selectedFile);
+          // finalImageUrl = [uploadRes.url];
+          
+          // यहाँ पेलोड संरचना को पूरा करने के लिए एक सांकेतिक URL का उपयोग किया गया है:
+          const simulatedUrl = `https://api-url/uploads/medicines/${selectedFile.name.replace(/\s+/g, '_')}`;
+          finalImageUrl = [simulatedUrl];
+        }
+
         const payload = {
-            requestType: "Medicine",
-            data: { 
-              name: formData.newName, 
-              manufacturers: formData.newManufacturer, 
-              salt_composition: formData.newSalt, 
-              packaging: formData.newPackaging, 
-              mrp: formData.newMRP 
-            }
+            name: formData.newName,
+            manufacturers: formData.newManufacturer,
+            salt_composition: formData.newSalt,
+            packaging: formData.newPackaging,
+            mrp: formData.newMRP,
+            best_price: formData.newBestPrice || formData.newMRP, 
+            description: formData.newDescription,
+            prescription_required: formData.newPrescriptionRequired,
+            image_url: finalImageUrl
         };
+        
         await PharmacyVendorAPI.submitNewMasterRequest(payload);
-        alert("Suggestion sent to admin!");
+        alert("Request to add new medicine submitted successfully!");
         onClose();
     } catch (err) { 
-      alert("Failed to suggest"); 
+      alert("Failed to submit request"); 
     }
   };
 
@@ -197,7 +246,7 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
                 </button>
               </div>
 
-              {/* Medicine Records Scrollable Grid (Expanded Max-Height for Visibility) */}
+              {/* Medicine Records Scrollable Grid */}
               <div className="space-y-2 overflow-y-auto pr-1 flex-grow max-h-[480px] min-h-[260px]">
                 {paginatedItems.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center py-16 text-slate-400">
@@ -229,7 +278,7 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
                 )}
               </div>
 
-              {/* Dynamic Pagination Controls Block (15 items/page) */}
+              {/* Dynamic Pagination Controls Block */}
               {totalPages > 1 && (
                 <div className="flex justify-between items-center pt-4 border-t border-slate-100 flex-shrink-0">
                   <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
@@ -264,16 +313,91 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
             <form onSubmit={handleSuggestSubmit} className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 space-y-1">
                     <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Medicine Name</label>
-                    <input required className="w-full p-3.5 bg-slate-50 border border-slate-200 focus:border-[#08B36A] rounded-xl font-semibold text-xs outline-none transition" value={formData.newName} onChange={e => setFormData({...formData, newName: e.target.value})} />
+                    <input required className="w-full p-3 bg-slate-50 border border-slate-200 focus:border-[#08B36A] rounded-xl font-semibold text-xs outline-none transition" value={formData.newName} onChange={e => setFormData({...formData, newName: e.target.value})} placeholder="e.g. Paracetamol 500mg" />
                 </div>
+                
                 <div className="space-y-1">
                     <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Manufacturer</label>
-                    <input required className="w-full p-3.5 bg-slate-50 border border-slate-200 focus:border-[#08B36A] rounded-xl font-semibold text-xs outline-none transition" value={formData.newManufacturer} onChange={e => setFormData({...formData, newManufacturer: e.target.value})} />
+                    <input required className="w-full p-3 bg-slate-50 border border-slate-200 focus:border-[#08B36A] rounded-xl font-semibold text-xs outline-none transition" value={formData.newManufacturer} onChange={e => setFormData({...formData, newManufacturer: e.target.value})} placeholder="e.g. Cipla Ltd" />
                 </div>
+
                 <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Global MRP ($)</label>
-                    <input required type="number" step="0.01" className="w-full p-3.5 bg-slate-50 border border-slate-200 focus:border-[#08B36A] rounded-xl font-semibold text-xs outline-none transition" value={formData.newMRP} onChange={e => setFormData({...formData, newMRP: e.target.value})} />
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Salt Composition</label>
+                    <input required className="w-full p-3 bg-slate-50 border border-slate-200 focus:border-[#08B36A] rounded-xl font-semibold text-xs outline-none transition" value={formData.newSalt} onChange={e => setFormData({...formData, newSalt: e.target.value})} placeholder="e.g. Paracetamol (500mg)" />
                 </div>
+
+                <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Packaging</label>
+                    <input required className="w-full p-3 bg-slate-50 border border-slate-200 focus:border-[#08B36A] rounded-xl font-semibold text-xs outline-none transition" value={formData.newPackaging} onChange={e => setFormData({...formData, newPackaging: e.target.value})} placeholder="e.g. Strip of 15 tablets" />
+                </div>
+
+                <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Prescription Required</label>
+                    <select className="w-full p-3 bg-slate-50 border border-slate-200 focus:border-[#08B36A] rounded-xl font-semibold text-xs outline-none transition" value={formData.newPrescriptionRequired} onChange={e => setFormData({...formData, newPrescriptionRequired: e.target.value})}>
+                      <option value="No">No</option>
+                      <option value="Yes">Yes</option>
+                    </select>
+                </div>
+
+                <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Global MRP</label>
+                    <input required type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 focus:border-[#08B36A] rounded-xl font-semibold text-xs outline-none transition" value={formData.newMRP} onChange={e => setFormData({...formData, newMRP: e.target.value})} placeholder="40.00" />
+                </div>
+
+                <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Best Price</label>
+                    <input required type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 focus:border-[#08B36A] rounded-xl font-semibold text-xs outline-none transition" value={formData.newBestPrice} onChange={e => setFormData({...formData, newBestPrice: e.target.value})} placeholder="32.00" />
+                </div>
+
+                <div className="col-span-2 space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Description</label>
+                    <textarea rows="2" className="w-full p-3 bg-slate-50 border border-slate-200 focus:border-[#08B36A] rounded-xl font-semibold text-xs outline-none transition resize-none" value={formData.newDescription} onChange={e => setFormData({...formData, newDescription: e.target.value})} placeholder="Used for pain relief and fever treatment." />
+                </div>
+
+                {/* System Photo Selector with Preview */}
+                <div className="col-span-2 space-y-2">
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Medicine Image</label>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      ref={fileInputRef} 
+                      className="hidden" 
+                      onChange={handleFileChange} 
+                    />
+                    
+                    {!imagePreview ? (
+                      <div 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="border-2 border-dashed border-slate-200 hover:border-[#08B36A] rounded-2xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer bg-slate-50/50 hover:bg-slate-50/80 transition-all group"
+                      >
+                        <div className="p-3 bg-white border border-slate-100 rounded-xl text-slate-400 group-hover:text-[#08B36A] group-hover:shadow-sm transition-all">
+                          <FaUpload size={16} />
+                        </div>
+                        <span className="text-xs font-bold text-slate-600">Choose file from system</span>
+                        <span className="text-[9px] text-slate-400 font-medium">Supports PNG, JPG, JPEG (Max. 5MB)</span>
+                      </div>
+                    ) : (
+                      <div className="relative border border-slate-200 rounded-2xl p-4 flex items-center justify-between bg-slate-50">
+                        <div className="flex items-center gap-3">
+                          <div className="h-14 w-14 rounded-xl border border-slate-100 overflow-hidden bg-white flex items-center justify-center">
+                            <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-700 max-w-[200px] truncate">{selectedFile?.name}</p>
+                            <p className="text-[9px] text-slate-400 font-medium">{(selectedFile?.size / 1024).toFixed(1)} KB</p>
+                          </div>
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={handleRemoveImage}
+                          className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                        >
+                          <FaTrash size={12} />
+                        </button>
+                      </div>
+                    )}
+                </div>
+
                 <button type="submit" className="col-span-2 mt-4 py-4 bg-[#08B36A] hover:bg-[#079d5c] text-white font-extrabold rounded-xl uppercase text-[10px] tracking-widest transition-all shadow-md hover:shadow-lg shadow-[#08B36A]/10">Submit for Approval</button>
             </form>
           )}

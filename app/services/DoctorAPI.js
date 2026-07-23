@@ -80,7 +80,7 @@ const DoctorAPI = {
     },
 
 
-    // ==========================================
+   // ==========================================
     // DOCTOR PROFILE SECTION
     // ==========================================
 
@@ -98,11 +98,12 @@ const DoctorAPI = {
         return response.data;
     },
 
-    updateSettings: async (settings) => {
-        const response = await doctorApi.put('/doctor/settings/update-settings', settings);
+    // Track the status of submitted staged doctor profile changes
+    getProfileUpdateStatus: async () => {
+        const response = await doctorApi.get('/api/auth/doctor/profile/update-status');
         return response.data;
     },
-
+    
     // ==========================================
     // DOCTOR AVAILABILITY SECTION
     // ==========================================
@@ -222,14 +223,46 @@ const DoctorAPI = {
         return response.data;
     },
 
-    // ==========================================
+     // ==========================================
     // DOCTOR PRESCRIPTION SECTION
     // ==========================================
 
-    createPrescription: async (data) => {
-        const response = await doctorApi.post('/doctor/appointments/create-prescription', data);
-        return response.data;
+   // ==========================================
+    // DOCTOR PRESCRIPTION SECTION
+    // ==========================================
+
+   // ==========================================
+    // DOCTOR PRESCRIPTION SECTION
+    // ==========================================
+
+    searchMedicines: async (query, page = 1, limit = 20) => {
+        try {
+            const response = await doctorApi.get('/doctor/appointments/medicines/search', {
+                params: {
+                    query: query,
+                    page: page,
+                    limit: limit
+                }
+            });
+            return response.data;
+        } catch (error) {
+            console.error("API Error in searchMedicines:", error);
+            return { success: false, data: [] };
+        }
     },
+
+   createPrescription: async (formData) => {
+    try {
+        const response = await doctorApi.post('/doctor/appointments/create-prescription', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+        return response.data;
+    } catch (error) {
+        return Promise.reject(error.response?.data?.message || "Failed to submit prescription");
+    }
+},
 
     getAllPrescriptions: async (filter = 'all') => {
         const response = await doctorApi.get(`/doctor/appointments/all-prescription?filter=${filter}`);
@@ -250,7 +283,6 @@ const DoctorAPI = {
         const response = await doctorApi.post(`/doctor/appointments/prescription/resend/${id}`);
         return response.data;
     },
-
     // ==========================================
     // NEW: PATIENT HISTORY SECTION
     // ==========================================

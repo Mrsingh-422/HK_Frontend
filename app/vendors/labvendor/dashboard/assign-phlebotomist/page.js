@@ -3,9 +3,9 @@ import React, { useState, useEffect } from 'react'
 import { 
   FaUser, FaPhoneAlt, FaMapMarkerAlt, FaTimes, 
   FaPlus, FaTrash, FaLock, FaIdCard, FaCamera, FaCircle, FaTruckLoading, FaFileAlt, 
-  FaUserNurse, FaCheckCircle, FaSpinner, FaTruck, FaMotorcycle
+  FaUserNurse, FaCheckCircle, FaSpinner
 } from 'react-icons/fa'
-import { toast } from 'react-hot-toast'
+import { toast, Toaster } from 'react-hot-toast'
 import LabVendorAPI from '@/app/services/LabVendorAPI';
 
 export default function AssignPhlebotomistPage() {
@@ -14,10 +14,12 @@ export default function AssignPhlebotomistPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   
   // REAL DATA STATES
   const [phlebotomists, setPhlebotomists] = useState([]);
   const [pendingOrders, setPendingOrders] = useState([]);
+  const [assignedOrders, setAssignedOrders] = useState([]); 
   const [availableForAssign, setAvailableForAssign] = useState([]);
   const [isAssignPopupOpen, setIsAssignPopupOpen] = useState(false);
   const [targetOrder, setTargetOrder] = useState(null);
@@ -52,11 +54,19 @@ export default function AssignPhlebotomistPage() {
   };
 
   const getImageUrl = (path) => {
-    if (!path) return 'https://via.placeholder.com/150';
+    if (!path) return 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
     if (path.startsWith('http')) return path;
     const cleanPath = path.replace('public/', '');
-    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, '');
+    const baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5002').replace(/\/$/, '');
     return `${baseUrl}/${cleanPath}`;
+  };
+
+  const getDriverActiveOrder = (driverId) => {
+    if (!driverId) return null;
+    return assignedOrders.find(order => {
+      const pId = order.phlebotomistId?._id || order.phlebotomistId;
+      return pId === driverId;
+    });
   };
 
   useEffect(() => {
@@ -68,7 +78,8 @@ export default function AssignPhlebotomistPage() {
     try {
       setLoading(true);
       const res = await LabVendorAPI.getDrivers();
-      setPhlebotomists(res.data || res || []);
+      const list = res.data?.drivers || res.data?.docs || res.data || res || [];
+      setPhlebotomists(list);
     } catch (error) {
       console.error("Failed to load phlebotomists", error);
       toast.error("Could not fetch staff list");
@@ -79,26 +90,45 @@ export default function AssignPhlebotomistPage() {
 
   const loadPendingOrders = async () => {
     try {
-        const res = await LabVendorAPI.getOrders('Confirmed');
-        // Maps to the "data" array in your provided JSON
-        setPendingOrders(res.data || res || []);
+        const resPending = await LabVendorAPI.getOrders('Confirmed');
+        const pendingList = resPending.data || resPending || [];
+        setPendingOrders(pendingList);
     } catch (error) {
-        console.error("Error loading orders", error);
+        console.error("Error loading pending orders", error);
+    }
+
+    try {
+        const resAssigned = await LabVendorAPI.getOrders('Phlebotomist Assigned');
+        const assignedList = resAssigned.data || resAssigned || [];
+        setAssignedOrders(assignedList);
+    } catch (error) {
+        console.error("Error loading assigned orders", error);
     }
   };
 
   const fetchStaffForAssignment = async () => {
     try {
-        const res = await LabVendorAPI.getDrivers();
-        const all = res.data || res || [];
-        setAvailableForAssign(all.filter(d => d.status === 'Available'));
+        const res = await LabVendorAPI.getAvailablePhlebotomists();
+        const rawList = res.data || res || [];
+        const listArray = Array.isArray(rawList) ? rawList : (Array.isArray(rawList.data) ? rawList.data : []);
+        
+        // Filter out Busy phlebotomists, only showing Available staff
+        const available = listArray.filter(staff => staff.status?.toLowerCase() === 'available');
+        setAvailableForAssign(available);
     } catch (error) {
-        toast.error("Error fetching available staff");
+        console.warn("Falling back to filtered driver list", error);
+        try {
+            const res = await LabVendorAPI.getDrivers();
+            const all = res.data?.drivers || res.data?.docs || res.data || res || [];
+            setAvailableForAssign(all.filter(d => d.status?.toLowerCase() === 'available'));
+        } catch (fallbackError) {
+            toast.error("Error fetching available staff");
+        }
     }
   };
 
   const handleOpenAssignPopup = (e, order) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     setTargetOrder(order);
     setSelectedStaffId(null); 
     fetchStaffForAssignment();
@@ -113,11 +143,12 @@ export default function AssignPhlebotomistPage() {
         await LabVendorAPI.assignStaff(targetOrder._id, selectedStaffId);
         toast.success("Phlebotomist assigned successfully!");
         setIsAssignPopupOpen(false);
-        loadPendingOrders(); 
-        loadPhlebotomists();       
+        setIsModalOpen(false);
+        await loadPendingOrders(); 
+        await loadPhlebotomists();       
     } catch (error) {
         console.error("Assignment Error:", error);
-        toast.error(error.response?.data?.message || "Manual assignment failed");
+        toast.error(error.response?.data?.message || "Operation failed");
     } finally {
         setAssignLoading(false);
     }
@@ -173,9 +204,21 @@ export default function AssignPhlebotomistPage() {
   const assignedList = phlebotomists.filter(d => d.status === 'Busy');
   const unassignedList = phlebotomists.filter(d => d.status === 'Available' || d.status === 'Offline');
 
-  const handleRowClick = (item) => {
-    setSelectedItem(item);
+  const handleRowClick = async (item) => {
+    setSelectedItem(null);
     setIsModalOpen(true);
+    setDetailsLoading(true);
+    try {
+      const res = await LabVendorAPI.getDriverDetails(item._id);
+      const details = res.data || res;
+      setSelectedItem(details);
+    } catch (error) {
+      console.error("Failed to load driver details", error);
+      toast.error("Could not load detailed record");
+      setIsModalOpen(false);
+    } finally {
+      setDetailsLoading(false);
+    }
   };
 
   const closeModal = () => {
@@ -184,7 +227,8 @@ export default function AssignPhlebotomistPage() {
   };
 
   return (
-    <div className="w-full relative p-4 md:p-8 bg-[#fcfdfe] min-h-screen">
+    <div className="w-full relative p-4 md:p-8 bg-[#fcfdfe] min-h-screen text-slate-800">
+      <Toaster position="top-right" />
       
       {/* HEADER & TABS SECTION */}
       <div className="flex flex-col items-center mb-10 gap-8">
@@ -238,6 +282,7 @@ export default function AssignPhlebotomistPage() {
               {activeTab === 'Assigned Phlebotomist' && (
                 <tr>
                   <th className="px-8 py-5 font-black">Staff Details</th>
+                  <th className="px-8 py-5 font-black">Assigned Booking</th>
                   <th className="px-8 py-5 font-black">Vehicle Info</th>
                   <th className="px-8 py-5 font-black text-center">Status</th>
                 </tr>
@@ -256,16 +301,12 @@ export default function AssignPhlebotomistPage() {
               {activeTab === 'Assign Phlebotomist' && pendingOrders.map((order) => (
                 <tr key={order._id} className="hover:bg-slate-50 transition-colors group">
                   <td className="px-8 py-5">
-                    {/* Maps to bookingId from your JSON */}
                     <span className="font-black text-[#08B36A] text-lg">#{order.bookingId || order._id?.slice(-6)}</span>
-                    {/* Maps to userId.name from your JSON */}
                     <p className="font-bold text-slate-800 mt-1">{order.userId?.name || order.patients?.[0]?.name || 'Patient'}</p>
                   </td>
                   <td className="px-8 py-5 text-sm text-slate-500">
                     <div className="flex flex-col gap-1">
-                        {/* Maps to userId.phone from your JSON */}
                         <span className="flex items-center gap-2 font-bold text-slate-700"><FaPhoneAlt size={10}/> {order.userId?.phone || 'N/A'}</span>
-                        {/* Maps to address from your JSON or collectionType */}
                         <span className="text-xs truncate max-w-[250px]"><FaMapMarkerAlt className="inline mr-1"/> {renderAddress(order)}</span>
                     </div>
                   </td>
@@ -280,12 +321,55 @@ export default function AssignPhlebotomistPage() {
                 </tr>
               ))}
 
-              {(activeTab === 'Assigned Phlebotomist' ? assignedList : activeTab === 'Unassigned Phlebotomist' ? unassignedList : []).map((agent) => (
+              {/* Assigned Phlebotomists Tab */}
+              {activeTab === 'Assigned Phlebotomist' && assignedList.map((agent) => {
+                const activeOrder = getDriverActiveOrder(agent._id);
+                return (
+                  <tr key={agent._id} onClick={() => handleRowClick(agent)} className="hover:bg-slate-50 cursor-pointer transition-colors group">
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl border-2 border-white shadow-sm overflow-hidden bg-slate-100">
+                          <img src={getImageUrl(agent.profilePic)} alt={agent.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }} />
+                        </div>
+                        <div>
+                          <span className="font-black text-slate-800 block">{agent.name}</span>
+                          <span className="text-xs text-[#08B36A] font-bold">@{agent.username}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5">
+                      {activeOrder ? (
+                        <div>
+                          <span className="font-black text-[#08B36A] text-sm">#{activeOrder.bookingId}</span>
+                          <p className="text-xs text-slate-600 font-bold mt-0.5">{activeOrder.userId?.name || activeOrder.patients?.[0]?.name || 'Patient'}</p>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">No assigned booking found</span>
+                      )}
+                    </td>
+                    <td className="px-8 py-5 font-bold text-slate-600">
+                      <div className="flex flex-col gap-1">
+                          <span className="text-xs bg-slate-100 px-2 py-1 rounded w-fit text-slate-700">{agent.vehicleNumber || 'No Plate'}</span>
+                          <span className="text-[10px] text-slate-400 flex items-center gap-1"><FaTruckLoading size={10}/> {agent.vehicleType || 'Bike'}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5 text-center">
+                      <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border bg-orange-50 text-orange-600 border-orange-100">
+                        <FaCircle size={6} />
+                        {agent.status}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {/* Unassigned Phlebotomists Tab */}
+              {activeTab === 'Unassigned Phlebotomist' && unassignedList.map((agent) => (
                 <tr key={agent._id} onClick={() => handleRowClick(agent)} className="hover:bg-slate-50 cursor-pointer transition-colors group">
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-2xl border-2 border-white shadow-sm overflow-hidden bg-slate-100">
-                        <img src={getImageUrl(agent.profilePic)} alt={agent.name} className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }} />
+                        <img src={getImageUrl(agent.profilePic)} alt={agent.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }} />
                       </div>
                       <div>
                         <span className="font-black text-slate-800 block">{agent.name}</span>
@@ -296,13 +380,12 @@ export default function AssignPhlebotomistPage() {
                   <td className="px-8 py-5 font-bold text-slate-600">
                     <div className="flex flex-col gap-1">
                         <span className="text-xs bg-slate-100 px-2 py-1 rounded w-fit text-slate-700">{agent.vehicleNumber || 'No Plate'}</span>
-                        <span className="text-[10px] text-slate-400 flex items-center gap-1"><FaTruckLoading size={10}/> {agent.vehicleType}</span>
+                        <span className="text-[10px] text-slate-400 flex items-center gap-1"><FaTruckLoading size={10}/> {agent.vehicleType || 'Bike'}</span>
                     </div>
                   </td>
                   <td className="px-8 py-5 text-center">
                     <span className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
                         agent.status === 'Available' ? 'bg-green-50 text-green-600 border-green-100' : 
-                        agent.status === 'Busy' ? 'bg-orange-50 text-orange-600 border-orange-100' : 
                         'bg-slate-100 text-slate-500 border-slate-200'
                     }`}>
                       <FaCircle size={6} className={agent.status === 'Available' ? 'animate-pulse' : ''}/>
@@ -324,14 +407,16 @@ export default function AssignPhlebotomistPage() {
         </div>
       </div>
 
-      {/* POPUP: ASSIGN AGENT SELECTION */}
+      {/* POPUP: ASSIGN SELECTION */}
       {isAssignPopupOpen && targetOrder && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsAssignPopupOpen(false)}></div>
               <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
                   <div className="p-8 border-b bg-slate-50 flex justify-between items-center">
                       <div>
-                          <h3 className="text-xl font-black text-slate-800 flex items-center gap-2"><FaUserNurse className="text-[#08B36A]"/> Dispatch Staff</h3>
+                          <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                              <FaUserNurse className="text-[#08B36A]"/> Dispatch Staff
+                          </h3>
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Booking #{targetOrder.bookingId || targetOrder._id?.slice(-6)}</p>
                       </div>
                       <button onClick={() => setIsAssignPopupOpen(false)} className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 transition-all"><FaTimes/></button>
@@ -345,7 +430,7 @@ export default function AssignPhlebotomistPage() {
                             onClick={() => setSelectedStaffId(staff._id)}
                           >
                               <div className="w-14 h-14 rounded-xl border-2 border-white shadow-sm overflow-hidden bg-slate-100 shrink-0">
-                                  <img src={getImageUrl(staff.profilePic)} className="w-full h-full object-cover" onError={(e) => e.target.src = 'https://via.placeholder.com/150'} />
+                                  <img src={getImageUrl(staff.profilePic)} className="w-full h-full object-cover" onError={(e) => e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'} />
                               </div>
                               <div className="flex-grow">
                                   <p className="font-black text-slate-800 text-sm">{staff.name}</p>
@@ -508,34 +593,43 @@ export default function AssignPhlebotomistPage() {
       {isModalOpen && selectedItem && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={closeModal}></div>
-          <div className="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden">
-            <div className="px-10 py-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-                <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Detailed Record</h2>
-                <button onClick={closeModal} className="w-8 h-8 flex items-center justify-center bg-white text-slate-300 hover:text-red-500 rounded-full transition-colors"><FaTimes/></button>
-            </div>
+          <div className="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden min-h-[350px] flex flex-col justify-center">
             
-            <div className="p-10">
-                {selectedItem._id ? (
+            {detailsLoading ? (
+              <div className="p-16 text-center flex flex-col items-center justify-center gap-4">
+                <FaSpinner className="animate-spin text-slate-400" size={36} />
+                <p className="text-slate-400 text-xs font-black uppercase tracking-widest">Retrieving files...</p>
+              </div>
+            ) : (
+              <>
+                <div className="px-10 py-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                    <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Detailed Record</h2>
+                    <button onClick={closeModal} className="w-8 h-8 flex items-center justify-center bg-white text-slate-300 hover:text-red-500 rounded-full transition-colors"><FaTimes/></button>
+                </div>
+                
+                <div className="p-10 max-h-[75vh] overflow-y-auto custom-scrollbar">
                     <div className="space-y-8">
-                        <div className="flex items-center gap-6 pb-8 border-b border-slate-50">
-                            <div className="w-24 h-24 rounded-[2rem] overflow-hidden border-4 border-white shadow-2xl bg-slate-50">
-                                <img src={getImageUrl(selectedItem.profilePic)} className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://via.placeholder.com/150' }} />
+                        <div className="flex items-center gap-6 pb-6 border-b border-slate-50">
+                            <div className="w-24 h-24 rounded-[2rem] overflow-hidden border-4 border-white shadow-2xl bg-slate-50 shrink-0">
+                                <img src={getImageUrl(selectedItem.profilePic)} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }} />
                             </div>
                             <div>
                                 <h3 className="text-2xl font-black text-slate-800 leading-tight">{selectedItem.name}</h3>
-                                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-50 text-green-600 rounded-lg text-[10px] font-black uppercase tracking-widest">Record ID: {selectedItem._id.slice(-6)}</div>
+                                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-50 text-green-600 rounded-lg text-[10px] font-black uppercase tracking-widest">Record ID: {selectedItem._id?.slice(-6)}</div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-y-8 gap-x-4">
-                            <div><p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Username</p><p className="font-black text-[#08B36A]">{selectedItem.username || 'N/A'}</p></div>
+                        <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+                            <div><p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Username</p><p className="font-black text-[#08B36A]">@{selectedItem.username || 'N/A'}</p></div>
                             <div><p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Direct Contact</p><p className="font-black text-slate-800">{selectedItem.phone}</p></div>
                             <div><p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Vehicle Plate</p><p className="font-black text-slate-800 uppercase">{selectedItem.vehicleNumber || 'No Plate'}</p></div>
+                            <div><p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Vehicle Type</p><p className="font-black text-slate-800 uppercase">{selectedItem.vehicleType || 'N/A'}</p></div>
+                            <div><p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Aadhaar Card No</p><p className="font-black text-slate-800">{selectedItem.aadhaarNumber || 'N/A'}</p></div>
                             <div><p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Current Status</p><p className="font-black text-orange-500 uppercase">{selectedItem.status || 'Active'}</p></div>
                         </div>
 
                         {selectedItem.documents && (
-                            <div className="grid grid-cols-3 gap-4 pt-4">
+                            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-slate-50">
                                 {['certificate', 'license', 'rcImage'].map((doc) => (
                                 <div key={doc} className="flex flex-col items-center gap-2">
                                     <p className="text-[9px] uppercase font-black text-slate-400">{doc}</p>
@@ -554,8 +648,9 @@ export default function AssignPhlebotomistPage() {
 
                         <button onClick={() => handleDelete(selectedItem._id)} className="w-full mt-6 flex items-center justify-center gap-2 text-red-500 font-black uppercase text-[10px] tracking-widest border-2 border-red-50 border-dashed py-5 rounded-2xl hover:bg-red-500 hover:text-white hover:border-red-500 transition-all"><FaTrash/> Terminate Employment</button>
                     </div>
-                ) : null}
-            </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
