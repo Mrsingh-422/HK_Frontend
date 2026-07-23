@@ -474,6 +474,20 @@ export default function Sidebar() {
                         <span>Manage Lab Report </span>
                     </Link>
                 )}
+                {hasAccess(2) && (
+                    <Link href="/admind/update-request-profile" className={`menu-item ${isActive("/admind/update-request-profile") ? "active" : ""}`}>
+                        <FaBan className="icon" />
+                        <span>Update Profile Request</span>
+                    </Link>
+
+                )}
+                {hasAccess(2) && (
+                    <Link href="/admind/cashondelivery" className={`menu-item ${isActive("/admind/cashondelivery") ? "active" : ""}`}>
+                        <FaBan className="icon" />
+                        <span>Cash On Delivery</span>
+                    </Link>
+
+                )}
 
             </div>
         </div>
