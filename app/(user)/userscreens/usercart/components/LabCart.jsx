@@ -66,7 +66,7 @@ const LabCart = () => {
 
     // Validation: Home collection allowed only for Pathology
     const isHomeCollectionAllowed = useMemo(() => {
-        return cart?.categoryType === 'Pathology';
+        return cart?.categoryType === 'General';
     }, [cart?.categoryType]);
 
     // Force Walk-in if Radiology is detected
