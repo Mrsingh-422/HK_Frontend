@@ -112,13 +112,28 @@ const FireHeadAPI = {
         return response.data;
     },
 
+    // updateHQProfile: async (formData) => {
+    //     // Form Data isliye bheja ja raha hai kyunki Image upload ho sakti hai
+    //     const response = await api.put(`/fireHQ/auth/update`, formData, {
+    //         headers: {
+    //             'Content-Type': 'multipart/form-data', // For profile image upload
+    //         },
+    //     });
+    //     return response.data;
+    // },
+
     updateHQProfile: async (formData) => {
-        // Form Data isliye bheja ja raha hai kyunki Image upload ho sakti hai
         const response = await api.put(`/fireHQ/auth/update`, formData, {
             headers: {
                 'Content-Type': 'multipart/form-data', // For profile image upload
             },
         });
+        return response.data;
+    },
+
+    // GET: Check Request Status for Fire HQ
+    getHQProfileUpdateStatus: async () => {
+        const response = await api.get(`/fireHQ/auth/profile/update-status`);
         return response.data;
     },
 

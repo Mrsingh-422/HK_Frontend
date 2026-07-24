@@ -173,6 +173,13 @@ const UserAPI = {
     },
 
     //Lab Prescription Upload 
+    searchMasterTests: async (query, page = 1) => {
+        const response = await authApi.get("/user/labs/prescription/search-tests", {
+            params: { query, page }
+        });
+        return response.data;
+    },
+
     scanLabPrescription: async (formData) => {
         const response = await authApi.post("/user/labs/scan-rx", formData, {
             headers: {
@@ -584,10 +591,11 @@ const UserAPI = {
         const response = await authApi.get(`/user/labs/coupons`);
         return response.data;
     },
+
     validateCouponCart: async (couponName, labId, totalAmount) => {
         const response = await authApi.post(`/user/labs/validate-coupon`, { couponName, labId, totalAmount });
         return response.data;
-    },
+    },  
     getLabSlots: async (labId, date) => {
         const response = await authApi.get("/user/labs/slots", {
             params: { labId, date }

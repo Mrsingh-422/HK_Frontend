@@ -2,17 +2,19 @@
 import React, { useState, useEffect } from 'react';
 import { 
     FaUserCircle, FaBuilding, FaEnvelope, FaPhoneAlt, 
-    FaMapMarkerAlt, FaCamera, FaSave, FaSpinner, FaCheckCircle
+    FaMapMarkerAlt, FaCamera, FaSave, FaSpinner, FaCheckCircle,
+    FaInfoCircle, FaExclamationTriangle
 } from 'react-icons/fa';
 
-import FireHeadAPI from '@/app/services/FireHeadAPI'; // Path check kar lena
+import FireHeadAPI from '@/app/services/FireHeadAPI';
 
 export default function EditProfilePage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     
-    // Store original profile state to show in the left card
+    // Store profile and update status state
     const [originalProfile, setOriginalProfile] = useState(null);
+    const [pendingRequest, setPendingRequest] = useState(null);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -20,65 +22,67 @@ export default function EditProfilePage() {
         captainName: '',
         email: '',
         phone: '',
+        landline: '',
         country: '',
         state: '',
         city: '',
-        profileImage: null // For new image upload
+        profileImage: null 
     });
 
     // Image Preview State
     const [previewImage, setPreviewImage] = useState(null);
 
-    // ==========================================
-    // 🌟 HELPER: GET FULL IMAGE URL
-    // ==========================================
     const getImageUrl = (imagePath) => {
         if (!imagePath) return null;
-        if (typeof imagePath !== 'string') return URL.createObjectURL(imagePath); // if it's a new File object
+        if (typeof imagePath !== 'string') return URL.createObjectURL(imagePath);
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5002';
         const cleanPath = imagePath.replace(/^public\//, '');
         if (cleanPath.startsWith('http')) return cleanPath;
         return `${backendUrl}/${cleanPath}`;
     };
 
-    // ==========================================
-    // 🌟 FETCH PROFILE DATA ON LOAD
-    // ==========================================
-    useEffect(() => {
-        const fetchProfile = async () => {
-            try {
-                const res = await FireHeadAPI.getHQProfile();
-                if (res.success && res.data) {
-                    setOriginalProfile(res.data);
-                    
-                    setFormData({
-                        stationName: res.data.stationName || '',
-                        captainName: res.data.captainName || '',
-                        email: res.data.email || '',
-                        phone: res.data.phone || '',
-                        country: res.data.country || '',
-                        state: res.data.state || '',
-                        city: res.data.city || '',
-                        profileImage: null // Keep null initially, API se originalImage ayega
-                    });
-                    
-                    if(res.data.profileImage) {
-                        setPreviewImage(getImageUrl(res.data.profileImage));
-                    }
+    const fetchProfileAndStatus = async () => {
+        try {
+            const res = await FireHeadAPI.getHQProfile();
+            if (res.success && res.data) {
+                setOriginalProfile(res.data);
+                
+                setFormData({
+                    stationName: res.data.stationName || '',
+                    captainName: res.data.captainName || '',
+                    email: res.data.email || '',
+                    phone: res.data.phone || '',
+                    landline: res.data.landline || '',
+                    country: res.data.country || '',
+                    state: res.data.state || '',
+                    city: res.data.city || '',
+                    profileImage: null 
+                });
+                
+                if (res.data.profileImage) {
+                    setPreviewImage(getImageUrl(res.data.profileImage));
                 }
-            } catch (error) {
-                console.error("Error fetching profile:", error);
-            } finally {
-                setIsLoading(false);
             }
-        };
 
-        fetchProfile();
+            // 2. Fetch pending request profile details
+            const statusRes = await FireHeadAPI.getHQProfileUpdateStatus();
+            if (statusRes.success && statusRes.data && statusRes.data.status === 'Pending') {
+                setPendingRequest(statusRes.data);
+            } else {
+                setPendingRequest(null);
+            }
+
+        } catch (error) {
+            console.error("Error fetching secure Fire HQ profile flow:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchProfileAndStatus();
     }, []);
 
-    // ==========================================
-    // 🌟 HANDLE INPUTS & FILE UPLOAD
-    // ==========================================
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
@@ -87,13 +91,10 @@ export default function EditProfilePage() {
         const file = e.target.files[0];
         if (file) {
             setFormData({ ...formData, profileImage: file });
-            setPreviewImage(URL.createObjectURL(file)); // Instant Preview
+            setPreviewImage(URL.createObjectURL(file)); 
         }
     };
 
-    // ==========================================
-    // 🌟 HANDLE SAVE / UPDATE PROFILE
-    // ==========================================
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSaving(true);
@@ -109,18 +110,16 @@ export default function EditProfilePage() {
                 }
             });
 
-            // Call Update API
             const res = await FireHeadAPI.updateHQProfile(submitData);
             
             if (res.success) {
-                alert("Profile Updated Successfully!");
-                // Optionally update original profile state so UI reflects changes immediately
-                setOriginalProfile(res.data);
+                alert("Profile updates submitted successfully! Awaiting Admin review.");
+                await fetchProfileAndStatus();
             } else {
-                alert(res.message || "Failed to update profile.");
+                alert(res.message || "Failed to submit updates.");
             }
         } catch (error) {
-            console.error("Error updating profile:", error);
+            console.error("Error submitting profile updates:", error);
             alert("Something went wrong while saving.");
         } finally {
             setIsSaving(false);
@@ -145,6 +144,19 @@ export default function EditProfilePage() {
                 <p className="text-gray-500 mt-1">Manage your Headquarter details and personal information.</p>
             </div>
 
+            {/* --- PENDING REQUEST BANNER --- */}
+            {pendingRequest && (
+              <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-2xl flex items-start gap-3 shadow-sm mb-6">
+                <FaExclamationTriangle className="text-amber-500 text-lg mt-0.5 shrink-0 animate-pulse" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-extrabold text-amber-900">Profile Update Pending Admin Review</h4>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    Your request submitted on <span className="font-bold">{new Date(pendingRequest.createdAt).toLocaleDateString()}</span> is waiting for Admin approval. Edit fields are frozen until review completion.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
                 {/* ⬅️ LEFT COLUMN: Profile Overview Card */}
@@ -160,11 +172,13 @@ export default function EditProfilePage() {
                                     <FaBuilding className="text-4xl text-[#08B36A]/50" />
                                 )}
                             </div>
-                            {/* Overlay Camera Icon */}
-                            <label className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                                <FaCamera className="text-white text-2xl" />
-                                <input type="file" name="profileImage" className="hidden" accept="image/*" onChange={handleFileChange} />
-                            </label>
+                            {/* Disable Overlay Upload trigger if pending request exists */}
+                            {!pendingRequest && (
+                                <label className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                                    <FaCamera className="text-white text-2xl" />
+                                    <input type="file" name="profileImage" className="hidden" accept="image/*" onChange={handleFileChange} />
+                                </label>
+                            )}
                         </div>
 
                         <h2 className="text-xl font-black text-gray-800 leading-tight">
@@ -233,13 +247,13 @@ export default function EditProfilePage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
                                         <label className="block text-[11px] font-black uppercase text-gray-500 mb-2 tracking-wider">Captain Name</label>
-                                        <input type="text" name="captainName" value={formData.captainName} onChange={handleChange} required 
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" />
+                                        <input type="text" name="captainName" value={formData.captainName} onChange={handleChange} required disabled={!!pendingRequest}
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all disabled:opacity-50" />
                                     </div>
                                     <div>
                                         <label className="block text-[11px] font-black uppercase text-gray-500 mb-2 tracking-wider">Headquarter / Station Name</label>
-                                        <input type="text" name="stationName" value={formData.stationName} onChange={handleChange} required 
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" />
+                                        <input type="text" name="stationName" value={formData.stationName} onChange={handleChange} required disabled={!!pendingRequest}
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all disabled:opacity-50" />
                                     </div>
                                 </div>
                             </div>
@@ -250,14 +264,18 @@ export default function EditProfilePage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
                                         <label className="block text-[11px] font-black uppercase text-gray-500 mb-2 tracking-wider">Email Address</label>
-                                        {/* Usually emails shouldn't be edited easily, but if it is allowed, leave it enabled. I have set it to readonly by default based on normal flows. Change 'readOnly' to 'required' if you want it editable. */}
                                         <input type="email" name="email" value={formData.email} onChange={handleChange} readOnly
                                             className="w-full bg-gray-100 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-500 outline-none cursor-not-allowed" title="Email cannot be changed" />
                                     </div>
                                     <div>
                                         <label className="block text-[11px] font-black uppercase text-gray-500 mb-2 tracking-wider">Phone Number</label>
-                                        <input type="text" name="phone" value={formData.phone} onChange={handleChange} required 
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" />
+                                        <input type="text" name="phone" value={formData.phone} onChange={handleChange} required disabled={!!pendingRequest}
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all disabled:opacity-50" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-black uppercase text-gray-500 mb-2 tracking-wider">Landline Number</label>
+                                        <input type="text" name="landline" value={formData.landline} onChange={handleChange} required disabled={!!pendingRequest}
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all disabled:opacity-50" />
                                     </div>
                                 </div>
                             </div>
@@ -268,18 +286,18 @@ export default function EditProfilePage() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div>
                                         <label className="block text-[11px] font-black uppercase text-gray-500 mb-2 tracking-wider">City</label>
-                                        <input type="text" name="city" value={formData.city} onChange={handleChange} required 
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" />
+                                        <input type="text" name="city" value={formData.city} onChange={handleChange} required disabled={!!pendingRequest}
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all disabled:opacity-50" />
                                     </div>
                                     <div>
                                         <label className="block text-[11px] font-black uppercase text-gray-500 mb-2 tracking-wider">State</label>
-                                        <input type="text" name="state" value={formData.state} onChange={handleChange} required 
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" />
+                                        <input type="text" name="state" value={formData.state} onChange={handleChange} required disabled={!!pendingRequest}
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all disabled:opacity-50" />
                                     </div>
                                     <div>
                                         <label className="block text-[11px] font-black uppercase text-gray-500 mb-2 tracking-wider">Country</label>
-                                        <input type="text" name="country" value={formData.country} onChange={handleChange} required 
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" />
+                                        <input type="text" name="country" value={formData.country} onChange={handleChange} required disabled={!!pendingRequest}
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all disabled:opacity-50" />
                                     </div>
                                 </div>
                             </div>
@@ -295,14 +313,25 @@ export default function EditProfilePage() {
                             >
                                 Discard
                             </button>
-                            <button 
-                                type="submit" 
-                                disabled={isSaving}
-                                className="px-10 py-3 bg-[#08B36A] text-white rounded-xl font-bold shadow-lg shadow-green-100 hover:bg-green-600 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
-                            >
-                                {isSaving ? <FaSpinner className="animate-spin" /> : <FaSave />}
-                                {isSaving ? 'Saving Changes...' : 'Save Profile'}
-                            </button>
+                            
+                            {pendingRequest ? (
+                              <button 
+                                type="button"
+                                disabled
+                                className="px-10 py-3 bg-slate-200 text-slate-400 rounded-xl font-bold flex items-center gap-2 cursor-not-allowed"
+                              >
+                                <FaInfoCircle /> Waiting for Admin Review
+                              </button>
+                            ) : (
+                              <button 
+                                  type="submit" 
+                                  disabled={isSaving}
+                                  className="px-10 py-3 bg-[#08B36A] text-white rounded-xl font-bold shadow-lg shadow-green-100 hover:bg-green-600 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                              >
+                                  {isSaving ? <FaSpinner className="animate-spin" /> : <FaSave />}
+                                  {isSaving ? 'Saving Changes...' : 'Save Profile'}
+                              </button>
+                            )}
                         </div>
                     </form>
                 </div>
@@ -310,3 +339,4 @@ export default function EditProfilePage() {
         </div>
     );
 }
+          

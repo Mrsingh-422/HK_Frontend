@@ -1,86 +1,143 @@
 'use client'
 import PoliceAPI from '@/app/services/PoliceAPI';
-import React, { useState, useEffect } from 'react'
-
-import { 
-  FaUserShield, 
-  FaIdBadge, 
-  FaPhoneAlt, 
-  FaEnvelope, 
-  FaMapMarkerAlt, 
-  FaEdit, 
-  FaCamera, 
-  FaTimes, 
-  FaShieldAlt, 
-  FaBriefcase, 
+import React, { useState, useEffect, useRef } from 'react'
+ 
+import {
+  FaUserShield,
+  FaIdBadge,
+  FaPhoneAlt,
+  FaEnvelope,
+  FaMapMarkerAlt,
+  FaEdit,
+  FaCamera,
+  FaTimes,
+  FaShieldAlt,
   FaCalendarAlt,
   FaCheckCircle,
-  FaGlobe
+  FaGlobe,
+  FaInfoCircle,
+  FaExclamationTriangle
 } from 'react-icons/fa'
-
+ 
 export default function PoliceProfilePage() {
+  const fileInputRef = useRef(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
-  
-  // profile state matches your API data structure
+ 
+  // Profile state
   const [profile, setProfile] = useState(null);
-
+  const [pendingRequest, setPendingRequest] = useState(null);
+ 
   // formData state for the update modal
   const [formData, setFormData] = useState({
     hqName: "",
     commissionerName: "",
-    email: "",
-    phone: "",
+    landline: "",
     country: "",
     state: "",
     city: "",
-    address: ""
+    address: "",
+    profileImage: null
   });
-
+ 
+  const [previewImage, setPreviewImage] = useState(null);
+ 
+  // ==========================================
+  // 🌟 HELPER: FORMAT IMAGE URL ABSOLUTELY
+  // ==========================================
+  const formatImageUrl = (url) => {
+    if (!url) return null;
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:image/')) {
+        return url;
+    }
+    let cleanPath = url.trim();
+    if (cleanPath.startsWith('public/')) {
+        cleanPath = cleanPath.replace('public/', '');
+    } else if (cleanPath.startsWith('/public/')) {
+        cleanPath = cleanPath.replace('/public/', '/');
+    }
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://192.168.1.7:5002';
+    const cleanBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
+    const finalUrl = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+    return `${cleanBase}${finalUrl}`;
+  };
+ 
+  const getPreviewUrl = () => {
+    if (!previewImage) return null;
+   
+    // Check if the preview image is a dynamic File object [1]
+    const isFile = previewImage && typeof previewImage === 'object' && typeof previewImage.name === 'string';
+    if (isFile) {
+        return URL.createObjectURL(previewImage);
+    }
+    return formatImageUrl(previewImage);
+  };
+ 
   const fetchProfileData = async () => {
     try {
+      // 1. Fetch current profile details
       const response = await PoliceAPI.getHeadProfile();
-      if (response.success) {
+      if (response.success && response.data) {
         setProfile(response.data);
-        // Initialize form with all API fields
         setFormData({
-          hqName: response.data.hqName,
-          commissionerName: response.data.commissionerName,
-          email: response.data.email,
-          phone: response.data.phone,
-          country: response.data.country,
-          state: response.data.state,
-          city: response.data.city,
-          address: response.data.address
+          hqName: response.data.hqName || "",
+          commissionerName: response.data.commissionerName || "",
+          landline: response.data.landline || "",
+          country: response.data.country || "",
+          state: response.data.state || "",
+          city: response.data.city || "",
+          address: response.data.address || "",
+          profileImage: null // holds null unless new file chosen
         });
+        setPreviewImage(response.data.profileImage || null);
+      }
+ 
+      // 2. Fetch pending status
+      const statusRes = await PoliceAPI.getHeadProfileUpdateStatus();
+      if (statusRes.success && statusRes.data && statusRes.data.status === 'Pending') {
+        setPendingRequest(statusRes.data);
+      } else {
+        setPendingRequest(null);
       }
     } catch (error) {
-      console.error("Error fetching profile:", error);
+      console.error("Error fetching profile details:", error);
     } finally {
       setLoading(false);
     }
   };
-
+ 
   useEffect(() => {
     fetchProfileData();
   }, []);
-
+ 
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        setFormData({ ...formData, profileImage: file });
+        setPreviewImage(file); // Stores file binary dynamically
+    }
+  };
+ 
   const handleUpdateProfile = async () => {
     setIsUpdating(true);
     try {
       const response = await PoliceAPI.updateHeadProfile(formData);
       if (response.success) {
+        alert("Changes submitted to Admin successfully!");
         await fetchProfileData();
         setIsEditModalOpen(false);
+      } else {
+        alert(response.message || "Failed to update profile.");
       }
     } catch (error) {
       console.error("Update failed:", error);
+      alert("Error occurred while saving profile changes.");
     } finally {
       setIsUpdating(false);
     }
   };
-
+ 
   if (loading || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -91,35 +148,46 @@ export default function PoliceProfilePage() {
       </div>
     );
   }
-
+ 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 animate-in fade-in duration-500 font-sans">
-      
-      {/* --- PROFILE HEADER CARD --- */}
-      <div className="max-w-5xl mx-auto">
+     
+      <div className="max-w-5xl mx-auto space-y-6">
+ 
+        {/* --- PENDING REQUEST BANNER --- */}
+        {pendingRequest && (
+          <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-2xl flex items-start gap-3 shadow-sm">
+            <FaExclamationTriangle className="text-amber-500 text-lg mt-0.5 shrink-0 animate-pulse" />
+            <div className="flex-1">
+              <h4 className="text-sm font-extrabold text-amber-900">Profile Update Under Review</h4>
+              <p className="text-xs text-amber-700 mt-0.5">
+                A profile update request submitted on <span className="font-bold">{new Date(pendingRequest.createdAt).toLocaleDateString()}</span> is pending Admin approval. Further modifications are locked until resolved.
+              </p>
+            </div>
+          </div>
+        )}
+ 
+        {/* --- PROFILE HEADER CARD --- */}
         <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden relative">
           <div className="h-48 bg-gradient-to-r from-[#08B36A] to-emerald-700 relative">
              <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
           </div>
-
+ 
           <div className="px-8 pb-8">
             <div className="relative flex flex-col md:flex-row items-end -mt-20 gap-6">
               <div className="relative group">
                 <div className="w-40 h-40 bg-white p-2 rounded-[2.5rem] shadow-xl">
                   <div className="w-full h-full bg-slate-100 rounded-[2rem] flex items-center justify-center text-slate-300 relative overflow-hidden">
                     {profile.profileImage ? (
-                      <img src={profile.profileImage} alt="Profile" className="w-full h-full object-cover" />
+                      <img src={formatImageUrl(profile.profileImage)} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
                       <FaUserShield size={80} className="text-slate-200" />
                     )}
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                      <FaCamera className="text-white" size={24} />
-                    </div>
                   </div>
                 </div>
                 <div className={`absolute bottom-4 right-2 w-6 h-6 border-4 border-white rounded-full ${profile.isActive ? 'bg-[#08B36A]' : 'bg-slate-300'}`}></div>
               </div>
-
+ 
               <div className="flex-1 pb-2">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
@@ -128,24 +196,34 @@ export default function PoliceProfilePage() {
                       <FaShieldAlt /> {profile.role}
                     </p>
                   </div>
-                  <button 
-                    onClick={() => setIsEditModalOpen(true)}
-                    className="flex items-center justify-center gap-2 bg-slate-800 text-white px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all shadow-xl shadow-slate-200 active:scale-95"
-                  >
-                    <FaEdit /> Edit Profile
-                  </button>
+                 
+                  {pendingRequest ? (
+                    <button
+                      disabled
+                      className="flex items-center justify-center gap-2 bg-slate-200 text-slate-400 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest cursor-not-allowed"
+                    >
+                      <FaInfoCircle /> Review Pending
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setIsEditModalOpen(true)}
+                      className="flex items-center justify-center gap-2 bg-slate-800 text-white px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-slate-700 transition-all shadow-xl shadow-slate-200 active:scale-95"
+                    >
+                      <FaEdit /> Edit Profile
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
-
+ 
             {/* QUICK STATS */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12">
               <ProfileStat label="System ID" value={profile._id.substring(profile._id.length - 8).toUpperCase()} icon={<FaIdBadge />} />
-              <ProfileStat label="Location" value={profile.city} icon={<FaGlobe />} />
-              <ProfileStat label="Region" value={profile.state} icon={<FaShieldAlt />} />
+              <ProfileStat label="Location" value={profile.city || 'N/A'} icon={<FaGlobe />} />
+              <ProfileStat label="Coordinates" value={profile.location ? `${profile.location.lat}, ${profile.location.lng}` : 'N/A'} icon={<FaGlobe />} />
               <ProfileStat label="Joined" value={new Date(profile.createdAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })} icon={<FaCalendarAlt />} />
             </div>
-
+ 
             {/* DETAILED INFO GRID */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12">
               <div className="space-y-6">
@@ -154,11 +232,12 @@ export default function PoliceProfilePage() {
                 </h3>
                 <div className="space-y-4">
                   <InfoRow icon={<FaEnvelope />} label="HQ Email" value={profile.email} />
-                  <InfoRow icon={<FaPhoneAlt />} label="Contact Number" value={profile.phone} />
-                  <InfoRow icon={<FaMapMarkerAlt />} label="Full Address" value={profile.address} />
+                  <InfoRow icon={<FaPhoneAlt />} label="Contact Number" value={profile.phone || 'N/A'} />
+                  <InfoRow icon={<FaPhoneAlt />} label="Landline Number" value={profile.landline || 'N/A'} />
+                  <InfoRow icon={<FaMapMarkerAlt />} label="Full Address" value={profile.address || 'N/A'} />
                 </div>
               </div>
-
+ 
               <div className="space-y-6">
                 <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-slate-50 pb-2">
                    Departmental Details
@@ -178,7 +257,7 @@ export default function PoliceProfilePage() {
           </div>
         </div>
       </div>
-
+ 
       {/* --- EDIT PROFILE MODAL --- */}
       {isEditModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -198,8 +277,33 @@ export default function PoliceProfilePage() {
                     <FaTimes size={20} />
                 </button>
             </div>
-
+ 
             <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-5 max-h-[60vh] overflow-y-auto">
+               
+               {/* Image Preview / Input trigger */}
+               <div className="col-span-2 flex justify-center pb-4">
+                  <div className="relative group cursor-pointer" onClick={() => !pendingRequest && fileInputRef.current.click()}>
+                    <div className="w-28 h-24 rounded-full border border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center shadow-inner">
+                      {previewImage ? (
+                        <img src={getPreviewUrl()} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <FaCamera size={24} className="text-slate-300" />
+                      )}
+                    </div>
+                    <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <FaCamera className="text-white text-md animate-bounce" />
+                    </div>
+                    {/* Hidden input trigger */}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+               </div>
+ 
                <div className="col-span-2">
                  <InputLabel label="Commissioner Name" />
                  <input type="text" value={formData.commissionerName} onChange={(e) => setFormData({...formData, commissionerName: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#08B36A]/20" />
@@ -209,12 +313,12 @@ export default function PoliceProfilePage() {
                  <input type="text" value={formData.hqName} onChange={(e) => setFormData({...formData, hqName: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#08B36A]/20" />
                </div>
                <div>
-                 <InputLabel label="Email Address" />
-                 <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#08B36A]/20" />
+                 <InputLabel label="Landline Number" />
+                 <input type="text" value={formData.landline} onChange={(e) => setFormData({...formData, landline: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#08B36A]/20" />
                </div>
                <div>
-                 <InputLabel label="Phone Number" />
-                 <input type="text" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#08B36A]/20" />
+                 <InputLabel label="Country" />
+                 <input type="text" value={formData.country} onChange={(e) => setFormData({...formData, country: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#08B36A]/20" />
                </div>
                <div>
                  <InputLabel label="City" />
@@ -229,11 +333,11 @@ export default function PoliceProfilePage() {
                  <textarea value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#08B36A]/20 h-24 resize-none" />
                </div>
             </div>
-
+ 
             <div className="p-8 bg-slate-50 flex gap-4">
               <button onClick={() => setIsEditModalOpen(false)} className="flex-1 py-4 bg-white border border-slate-200 text-slate-500 font-black text-[11px] uppercase tracking-widest rounded-2xl hover:bg-slate-100 transition-all">Cancel</button>
-              <button 
-                onClick={handleUpdateProfile} 
+              <button
+                onClick={handleUpdateProfile}
                 disabled={isUpdating}
                 className="flex-1 bg-[#08B36A] text-white py-4 rounded-2xl text-[11px] font-black shadow-xl shadow-green-100 uppercase tracking-widest hover:bg-[#07a25f] transition-all disabled:opacity-50"
               >
@@ -246,9 +350,7 @@ export default function PoliceProfilePage() {
     </div>
   )
 }
-
-// --- SUB-COMPONENTS ---
-
+ 
 function ProfileStat({ label, value, icon }) {
   return (
     <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex items-center gap-4 group hover:bg-[#08B36A] transition-all duration-300">
@@ -262,7 +364,7 @@ function ProfileStat({ label, value, icon }) {
     </div>
   )
 }
-
+ 
 function InfoRow({ icon, label, value }) {
   return (
     <div className="flex items-center gap-4 p-1">
@@ -276,7 +378,7 @@ function InfoRow({ icon, label, value }) {
     </div>
   )
 }
-
+ 
 function InputLabel({ label }) {
   return (
     <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] ml-1 mb-2 block">
@@ -284,3 +386,4 @@ function InputLabel({ label }) {
     </label>
   )
 }
+ 
