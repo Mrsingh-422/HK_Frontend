@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-    FaShoppingCart, FaTrashAlt, FaClock, FaVial,
-    FaHistory, FaClinicMedical, FaArrowLeft,
-    FaUserFriends, FaMicroscope, FaExclamationTriangle,
+    FaShoppingCart, FaTrashAlt, FaVial, FaHistory, FaClinicMedical, 
+    FaArrowLeft, FaUserFriends, FaMicroscope, FaExclamationTriangle,
     FaCheckCircle, FaInfoCircle, FaStar, FaBolt
 } from "react-icons/fa";
 import { useCart } from "@/app/context/CartContext";
@@ -16,8 +15,6 @@ import CostoumPopup from "@/lib/CostoumPopup";
 export default function TestDetailPage() {
     const { id } = useParams();
     const router = useRouter();
-
-    // Using context methods
     const { cart, cartItemIds, addItem, removeItem } = useCart();
 
     const [testData, setTestData] = useState(null);
@@ -26,118 +23,87 @@ export default function TestDetailPage() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [pageLoading, setPageLoading] = useState(true);
 
-    // New state for custom warning modal
-    const [showConflictModal, setShowConflictModal] = useState(false);
+    // Modal States
+    const [showConflictModal, setShowConflictModal] = useState(false); // Lab Mismatch
+    const [showRadiologyModal, setShowRadiologyModal] = useState(false); // Radiology Bypass
+    const [backendMessage, setBackendMessage] = useState("");
 
-    // 1. Fetch Test Data using Coordinates from LocalStorage
     useEffect(() => {
         const fetchTestDetails = async () => {
             try {
                 const storedCoords = localStorage.getItem("userCoords");
-                let coords = { lat: 30.737996916027278, lng: 76.66061907396148 };
-
-                if (storedCoords) {
-                    try { coords = JSON.parse(storedCoords); } catch (e) { console.error("Coord parse error"); }
-                }
+                let coords = { lat: 30.7379, lng: 76.6606 };
+                if (storedCoords) coords = JSON.parse(storedCoords);
 
                 const response = await UserAPI.getSingleTestDetails(id, coords);
-
                 if (response.success) {
-                    const data = response.data.testDetails;
-                    const labsData = response.data.availableInLabs || [];
-
-                    setTestData(data);
-                    setLabs(labsData);
-
-                    if (labsData.length > 0) {
-                        setSelectedLab(labsData[0]);
+                    setTestData(response.data.testDetails);
+                    setLabs(response.data.availableInLabs);
+                    if (response.data.availableInLabs.length > 0) {
+                        setSelectedLab(response.data.availableInLabs[0]);
                     }
-                } else {
-                    toast.error(response.message || "Test not found");
                 }
             } catch (error) {
-                console.error("Fetch Error:", error);
-                toast.error("Failed to load test details");
+                toast.error("Failed to load details");
             } finally {
                 setPageLoading(false);
             }
         };
-
         if (id) fetchTestDetails();
     }, [id]);
 
-    /** 
-     * Check if this specific lab's version of the test is in the cart
-     */
-    const isAdded = useMemo(() => {
-        if (!selectedLab) return false;
-        return cartItemIds.includes(selectedLab.labTestId);
-    }, [cartItemIds, selectedLab]);
+    const isAdded = useMemo(() => selectedLab ? cartItemIds.includes(selectedLab.labTestId) : false, [cartItemIds, selectedLab]);
 
-    // Handle the "Clear and Add" confirmation
+    // HANDLER: Confirm Lab Replacement
     const handleConfirmReplace = async () => {
+        setShowConflictModal(false);
+        executeAdd(true, false);
+    };
+
+    // HANDLER: Confirm Radiology Bypass
+    const handleConfirmRadiology = async () => {
+        setShowRadiologyModal(false);
+        executeAdd(false, true);
+    };
+
+    // Core Add Logic
+    const executeAdd = async (forceReplace = false, confirmRadiologyBypass = false) => {
         try {
             setIsProcessing(true);
-            setShowConflictModal(false);
-            // Call addItem with forceReplace = true
-            await addItem(selectedLab.labId, selectedLab.labTestId, 'LabTest', true);
-            CostoumPopup("Cart updated successfully", "success", 3000);
-            router.push("/userscreens/usercart");
+            const result = await addItem(selectedLab.labId, selectedLab.labTestId, 'LabTest', forceReplace, confirmRadiologyBypass);
+
+            if (result.success) {
+                CostoumPopup("Cart updated successfully", "success", 3000);
+                router.push("/userscreens/usercart");
+            } else if (result.confirmRadiologyBypass) {
+                // Intercept Radiology Warning (Status 400 from docs)
+                setBackendMessage(result.message);
+                setShowRadiologyModal(true);
+            } else if (result.canReplace) {
+                // Intercept Lab Mismatch
+                setShowConflictModal(true);
+            } else {
+                toast.error(result.message || "Error adding to cart");
+            }
         } catch (error) {
-            toast.error("Failed to update cart");
+            toast.error("Something went wrong");
         } finally {
             setIsProcessing(false);
         }
     };
 
-    // HANDLER FOR ADD/REMOVE
     const handleAction = async () => {
-        // Check if user is logged in (checking for token in localStorage)
-        const token = typeof window !== "undefined" ? localStorage.getItem("userToken") : null;
-        if (!token) {
-            CostoumPopup("Please Login To Continue", "warning", 4000);
-            return;
-        }
-
-        if (!selectedLab) {
-            CostoumPopup("Please Select a Lab First", "warning", 4000);
-            return;
-        }
+        const token = localStorage.getItem("userToken");
+        if (!token) return CostoumPopup("Please Login To Continue", "warning", 4000);
+        if (!selectedLab) return CostoumPopup("Please Select a Lab First", "warning", 4000);
 
         if (isAdded) {
-            try {
-                setIsProcessing(true);
-                await removeItem(selectedLab.labTestId);
-                toast.success("Removed from cart");
-            } catch (error) {
-                toast.error("Failed to remove test");
-            } finally {
-                setIsProcessing(false);
-            }
+            setIsProcessing(true);
+            await removeItem(selectedLab.labTestId);
+            setIsProcessing(false);
+            toast.success("Removed from cart");
         } else {
-            // CHECK FOR CONFLICT BEFORE ADDING
-            // If cart exists and has items from a different lab or category
-            if (cart && cart.items?.length > 0) {
-                const currentLabId = cart.labId?._id || cart.labId;
-                const currentCategory = cart.categoryType;
-                const newCategory = testData.mainCategory;
-
-                if (currentLabId !== selectedLab.labId || currentCategory !== newCategory) {
-                    setShowConflictModal(true);
-                    return;
-                }
-            }
-
-            try {
-                setIsProcessing(true);
-                await addItem(selectedLab.labId, selectedLab.labTestId, 'LabTest');
-                CostoumPopup("Test added to cart", "success", 3000);
-                router.push("/userscreens/usercart");
-            } catch (error) {
-                console.error("Cart Add Error", error);
-            } finally {
-                setIsProcessing(false);
-            }
+            executeAdd(false, false);
         }
     };
 
@@ -152,35 +118,26 @@ export default function TestDetailPage() {
 
     return (
         <div className="min-h-screen bg-[#FDFDFD] pb-20">
-
-            {/* CUSTOM CONFLICT MODAL */}
+            
+            {/* MODAL 1: LAB CONFLICT */}
             {showConflictModal && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-2 bg-amber-500"></div>
-                        <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mb-6 mx-auto">
-                            <FaExclamationTriangle className="text-amber-600 text-2xl" />
-                        </div>
-                        <h3 className="text-xl font-black text-slate-900 text-center mb-2">Replace Cart?</h3>
-                        <p className="text-slate-500 text-center font-medium text-sm mb-8 leading-relaxed">
-                            Your cart already contains items from <span className="font-bold text-slate-700">{cart.labName || "another laboratory"}</span>. Clear it to add this test?
-                        </p>
-                        <div className="flex flex-col gap-3">
-                            <button
-                                onClick={handleConfirmReplace}
-                                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg"
-                            >
-                                Clear and Add
-                            </button>
-                            <button
-                                onClick={() => setShowConflictModal(false)}
-                                className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <ConflictModal 
+                    title="Replace Cart?"
+                    message={`Your cart contains items from another lab. Clear it to add tests from ${selectedLab?.name}?`}
+                    onConfirm={handleConfirmReplace}
+                    onCancel={() => setShowConflictModal(false)}
+                />
+            )}
+
+            {/* MODAL 2: RADIOLOGY BYPASS (From Documentation) */}
+            {showRadiologyModal && (
+                <ConflictModal 
+                    title="Radiology Warning"
+                    message={backendMessage || "This is a Radiology scan. Adding this will disable 'Home Collection' for the entire order. Proceed?"}
+                    onConfirm={handleConfirmRadiology}
+                    onCancel={() => setShowRadiologyModal(false)}
+                    variant="warning"
+                />
             )}
 
             <main className="max-w-6xl mx-auto px-4 py-8">
@@ -210,7 +167,7 @@ export default function TestDetailPage() {
                             <StatCard icon={<FaMicroscope className="text-emerald-500" />} label="Parameters" value={testData.parameters?.join(", ")} />
                         </div>
 
-                        {/* Lab Selection */}
+                        {/* Lab Selection List */}
                         {labs.length > 0 && (
                             <section className="mb-12">
                                 <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-400 mb-6 flex items-center gap-2">
@@ -304,7 +261,7 @@ export default function TestDetailPage() {
                                 disabled={isProcessing}
                                 onClick={handleAction}
                                 className={`w-full py-6 rounded-3xl font-black text-xs uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 active:scale-95 ${isAdded
-                                    ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
+                                    ? "bg-rose-50 text-rose-600"
                                     : "bg-slate-900 text-white shadow-2xl shadow-slate-300 hover:bg-emerald-600"
                                     }`}
                             >
@@ -321,6 +278,24 @@ export default function TestDetailPage() {
         </div>
     );
 }
+
+// Reusable Modal Component
+const ConflictModal = ({ title, message, onConfirm, onCancel, variant = "danger" }) => (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className={`absolute top-0 left-0 w-full h-2 ${variant === 'danger' ? 'bg-rose-500' : 'bg-amber-500'}`}></div>
+            <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+                <FaExclamationTriangle className={variant === 'danger' ? 'text-rose-600' : 'text-amber-600'} size={24} />
+            </div>
+            <h3 className="text-xl font-black text-slate-900 text-center mb-2">{title}</h3>
+            <p className="text-slate-500 text-center text-sm mb-8 leading-relaxed">{message}</p>
+            <div className="flex flex-col gap-3">
+                <button onClick={onConfirm} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all">Confirm & Proceed</button>
+                <button onClick={onCancel} className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest">Cancel</button>
+            </div>
+        </div>
+    </div>
+);
 
 const StatCard = ({ icon, label, value }) => (
     <div className="bg-white border border-slate-50 p-6 rounded-[2rem] flex flex-col items-center text-center shadow-sm hover:shadow-md transition-all">

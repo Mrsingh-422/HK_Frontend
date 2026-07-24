@@ -692,32 +692,33 @@ const UserAPI = {
 
 
     // --- Cart Management ---
-    getMyCart: async () => {
-        const response = await authApi.get("/user/cart");
-        return response.data;
-    },
+// --- Cart Management ---
+getMyCart: async () => {
+    const response = await authApi.get("/user/cart");
+    return response.data;
+},
 
-    addToCart: async (cartData) => {
-        // cartData should contain testId/packageId, labId, etc.
-        const response = await authApi.post("/user/cart/lab/add", cartData);
-        return response.data;
-    },
+addToCart: async (cartData) => {
+    // cartData includes: labId, itemId, productType, forceReplace, confirmRadiologyBypass
+    const response = await authApi.post("/user/cart/lab/add", cartData);
+    return response.data;
+},
 
-    clearCart: async () => {
-        const response = await authApi.post("/user/cart/lab/clear");
-        return response.data;
-    },
+updateCartQuantity: async (updateData) => {
+    const response = await authApi.put("/user/cart/quantity", updateData);
+    return response.data;
+},
 
+removeCartItem: async (itemId) => {
+    const response = await authApi.delete(`/user/cart/item/${itemId}`);
+    return response.data;
+},
 
-    updateCartQuantity: async (updateData) => {
-        // updateData usually contains itemId and new quantity
-        const response = await authApi.put("/user/cart/quantity", updateData);
-        return response.data;
-    },
-    removeCartItem: async (itemId) => {
-        const response = await authApi.delete(`/user/cart/item/${itemId}`);
-        return response.data;
-    },
+clearCart: async () => {
+    const response = await authApi.post("/user/cart/lab/clear");
+    return response.data;
+},
+
     removePharmacyItem: async (itemId) => {
         const response = await authApi.delete(`/user/cart/pharmacy/item/${itemId}`);
         return response.data;

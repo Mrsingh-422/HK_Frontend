@@ -18,25 +18,14 @@ export const CartProvider = ({ children }) => {
     const fetchCart = async (isBackground = false) => {
         try {
             if (!isBackground) setLoading(true);
-
             const response = await UserAPI.getMyCart();
             if (response.success && response.data) {
-                // Set Lab Cart
                 if (response.data.labCart) {
                     setCart(response.data.labCart);
                     setCartItemIds(response.data.labCart.items.map(i => i.itemId._id || i.itemId));
                 } else {
                     setCart(null);
                     setCartItemIds([]);
-                }
-
-                // Set Pharmacy Cart
-                if (response.data.pharmacyCart) {
-                    setPharmacyCart(response.data.pharmacyCart);
-                    setPharmacyItemIds(response.data.pharmacyCart.items.map(i => i.medicineId._id || i.medicineId));
-                } else {
-                    setPharmacyCart(null);
-                    setPharmacyItemIds([]);
                 }
             }
         } catch (error) {
@@ -46,58 +35,53 @@ export const CartProvider = ({ children }) => {
         }
     };
 
-    useEffect(() => {
-        fetchCart();
-    }, []);
+    useEffect(() => { fetchCart(); }, []);
 
-    // --- LAB CART METHODS ---
-    const updateQuantity = async (itemId, action) => {
+
+    /**
+     * Updated addItem to handle Radiology Bypass and Lab Conflicts
+     */
+    const addItem = async (labId, itemId, productType, forceReplace = false, confirmRadiologyBypass = false) => {
         try {
-            setCart(prev => {
-                const newItems = prev.items.map(item => {
-                    if (item.itemId._id === itemId) {
-                        return { ...item, quantity: action === 'inc' ? item.quantity + 1 : item.quantity - 1 };
-                    }
-                    return item;
-                });
-                return { ...prev, items: newItems };
-            });
-
-            const response = await UserAPI.updateCartQuantity({ itemId, action });
-            if (response.success) {
-                await fetchCart(true);
-            }
-        } catch (error) {
-            fetchCart();
-        }
-    };
-
-    const addItem = async (labId, itemId, productType, forceReplace) => {
-        if (!labId || !itemId || !productType) return;
-        try {
-            const payload = { labId: String(labId), itemId: String(itemId), productType, forceReplace };
+            const payload = { 
+                labId: String(labId), 
+                itemId: String(itemId), 
+                productType, 
+                forceReplace, 
+                confirmRadiologyBypass 
+            };
+            
             const response = await UserAPI.addToCart(payload);
 
             if (response.success) {
-                await fetchCart();
-            } else if (response.canReplace) {
-                const confirmReplace = window.confirm(response.message || "Replace items from another lab?");
-                if (confirmReplace) {
-                    await addItem(labId, itemId, productType, true);
-                }
+                await fetchCart(true);
+                return { success: true };
             }
+            return response; // Return for component-level modal handling
         } catch (error) {
-            console.log(error)
-            // alert(error.response?.data?.message || "Error adding item.");
+            // Handle the 400 Intercept Warning from documentation
+            if (error.response && error.response.data) {
+                return error.response.data; 
+            }
+            throw error;
         }
     };
 
     const removeItem = async (itemId) => {
         try {
             const response = await UserAPI.removeCartItem(itemId);
-            if (response.success) await fetchCart();
+            if (response.success) await fetchCart(true); // Category healing happens automatically on backend
         } catch (error) {
             console.error("Remove Item Error:", error);
+        }
+    };
+
+    const updateQuantity = async (itemId, action) => {
+        try {
+            const response = await UserAPI.updateCartQuantity({ itemId, action });
+            if (response.success) await fetchCart(true); // Category healing happens automatically on backend
+        } catch (error) {
+            console.error("Update Quantity Error:", error);
         }
     };
 

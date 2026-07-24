@@ -148,13 +148,13 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
 
     return (
         <div className="bg-transparent space-y-6 md:space-y-8">
-            <TestDetailsModal
+            {/* <TestDetailsModal
                 isOpen={!!selectedTest}
                 onClose={() => setSelectedTest(null)}
                 test={selectedTest}
                 onAddToCart={(test) => handleCartAction(test)}
                 isAdded={selectedTest && cartItemIds.includes(selectedTest._id)}
-            />
+            /> */}
 
             {/* Clear Cart Conflict Modal */}
             {showClearCartModal && (
