@@ -123,6 +123,23 @@ export default function NurseServiceDetailPage() {
                       </div>
                     </div>
                     <p className="text-slate-500 text-sm mb-6 line-clamp-2">{item.description}</p>
+                    
+                    {/* PRICING GRID ADDED HERE */}
+                    <div className="grid grid-cols-3 gap-2 bg-slate-50 p-4 rounded-2xl mb-6 border border-slate-100">
+                      <div className="text-center border-r border-slate-200">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">One Day</p>
+                        <p className="text-sm font-black text-slate-900">₹{item.pricing?.oneDay?.final}</p>
+                      </div>
+                      <div className="text-center border-r border-slate-200">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Multi-Day</p>
+                        <p className="text-sm font-black text-slate-900">₹{item.pricing?.multipleDays?.final}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Hourly</p>
+                        <p className="text-sm font-black text-slate-900">₹{item.pricing?.hourly?.final}</p>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4 mb-6">
                       <div className="flex items-center gap-2 text-xs font-bold text-slate-600"><FaClock className="text-teal-500" /> {item.duration || "Per Visit"}</div>
                       <div className="flex items-center gap-2 text-slate-600 text-xs font-bold">
@@ -152,6 +169,23 @@ export default function NurseServiceDetailPage() {
                       </div>
                     </div>
                     <p className="text-slate-500 text-sm mb-6 line-clamp-2">{item.description}</p>
+
+                    {/* PRICING GRID ADDED HERE */}
+                    <div className="grid grid-cols-3 gap-2 bg-slate-50 p-4 rounded-2xl mb-6 border border-slate-100">
+                      <div className="text-center border-r border-slate-200">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">One Day</p>
+                        <p className="text-sm font-black text-slate-900">₹{item.pricing?.oneDay?.final}</p>
+                      </div>
+                      <div className="text-center border-r border-slate-200">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Multi-Day</p>
+                        <p className="text-sm font-black text-slate-900">₹{item.pricing?.multipleDays?.final}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Hourly</p>
+                        <p className="text-sm font-black text-slate-900">₹{item.pricing?.hourly?.final}</p>
+                      </div>
+                    </div>
+
                     <button onClick={() => handleProceed(item)} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-teal-600 transition-all">Select & Continue</button>
                   </div>
                 </div>
@@ -225,7 +259,7 @@ export default function NurseServiceDetailPage() {
               <div className="space-y-6">
                 <div className="flex items-center gap-4"><FaPhoneAlt className="text-teal-400" /> <div><p className="text-[10px] text-slate-400">Phone</p><p className="font-bold">{nurseData.phone}</p></div></div>
                 <div className="flex items-center gap-4"><FaEnvelope className="text-teal-400" /> <div><p className="text-[10px] text-slate-400">Email</p><p className="font-bold truncate max-w-[150px]">{nurseData.email}</p></div></div>
-                <button className="w-full bg-teal-500 py-4 rounded-2xl font-black mt-4">Chat with Coordinator</button>
+                {/* <button className="w-full bg-teal-500 py-4 rounded-2xl font-black mt-4">Chat with Coordinator</button> */}
               </div>
             </div>
           </div>

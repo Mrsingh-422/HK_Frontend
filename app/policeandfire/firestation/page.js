@@ -52,7 +52,7 @@ export default function FireStationDashboard() {
     const data = localStorage.getItem('firestationData');
 
     if (!token) {
-        router.push('/policeandfire/login');
+        router.push('/');
         return; 
     }
 

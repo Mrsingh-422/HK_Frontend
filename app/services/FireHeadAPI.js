@@ -161,6 +161,12 @@ const FireHeadAPI = {
         const response = await api.get(`/fireHQ/management/stations`);
         return response.Data;
     },
+       // 🌟 Change Password API
+     changePassword: async (passwordData) => {
+        // passwordData: { oldPassword, newPassword }
+        const response = await api.put('/fireHQ/auth/change-password', passwordData);
+        return response. Data;
+    },
 
 };
 
