@@ -11,25 +11,25 @@ import FireStationAPI from '@/app/services/FireStationAPI'
 
 export default function OngoingCasesPage() {
   const [activeTab, setActiveTab] = useState('All')
-  const[searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   
   // API States
-  const[ongoingCasesData, setOngoingCasesData] = useState([])
+  const [ongoingCasesData, setOngoingCasesData] = useState([])
   const [fireTypesList, setFireTypesList] = useState(['Residential', 'Industrial', 'Forest', 'Vehicle', 'Other'])
   const [isLoading, setIsLoading] = useState(true)
-  const[isSubmitting, setIsSubmitting] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Modal states
-  const[selectedCase, setSelectedCase] = useState(null)
-  const[modalView, setModalView] = useState('details') // 'details' | 'update'
+  const [selectedCase, setSelectedCase] = useState(null)
+  const [modalView, setModalView] = useState('details') // 'details' | 'update'
 
   // Form States
-  const[selectedStatus, setSelectedStatus] = useState('Under Control')
+  const [selectedStatus, setSelectedStatus] = useState('Under Control')
   const [remarks, setRemarks] = useState('')
-  const[selectedImages, setSelectedImages] = useState([])
+  const [selectedImages, setSelectedImages] = useState([])
   
   // Final Report Specific States
-  const[finalReportData, setFinalReportData] = useState({
+  const [finalReportData, setFinalReportData] = useState({
     incidentType: 'Residential',
     damageLevel: 'Minor Structural Damage',
     injuries: 0,
@@ -80,6 +80,12 @@ export default function OngoingCasesPage() {
           } else if (item.status === 'Critical') {
             statusColor = "text-red-600 bg-red-50 border-red-200";
             dotColor = "bg-red-500";
+          } else if (item.status === 'On the way') {
+            statusColor = "text-yellow-600 bg-yellow-50 border-yellow-200";
+            dotColor = "bg-yellow-500";
+          } else if (item.status === 'Arriving Soon') {
+            statusColor = "text-teal-600 bg-teal-50 border-teal-200";
+            dotColor = "bg-teal-500";
           }
 
           return {
@@ -153,18 +159,51 @@ export default function OngoingCasesPage() {
           closeModal();
         }
       } else {
-        const res = await FireStationAPI.UpdateCaseSeverity(selectedCase._id, {
-          status: selectedStatus,
-          remarks: remarks
+        // 🌟 FIXED: Ab yahan 'UpdateCaseStatus' use hoga jo DB mein status ko actual change karega 🌟
+        const formData = new FormData();
+        formData.append('statusLabel', selectedStatus); // Controller expects 'statusLabel'
+        formData.append('situationReport', remarks);     // Controller expects 'situationReport'
+        formData.append('backupRequired', '');           // Default empty
+        
+        // Append images if selected by Captain
+        selectedImages.forEach((file) => {
+          formData.append('incidentImages', file); 
         });
 
+        const res = await FireStationAPI.UpdateCaseStatus(selectedCase._id, formData);
+
         if (res.success) {
+          // Dynamic status colors locally recalculate karein
+          let statusColor = "text-blue-600 bg-blue-50 border-blue-200";
+          let dotColor = "bg-blue-500";
+          
+          if (selectedStatus === 'Under Control') {
+            statusColor = "text-orange-600 bg-orange-50 border-orange-200";
+            dotColor = "bg-orange-500";
+          } else if (selectedStatus === 'Critical') {
+            statusColor = "text-red-600 bg-red-50 border-red-200";
+            dotColor = "bg-red-500";
+          } else if (selectedStatus === 'On the way') {
+            statusColor = "text-yellow-600 bg-yellow-50 border-yellow-200";
+            dotColor = "bg-yellow-500";
+          } else if (selectedStatus === 'Arriving Soon') {
+            statusColor = "text-teal-600 bg-teal-50 border-teal-200";
+            dotColor = "bg-teal-500";
+          }
+
           setOngoingCasesData(prev => prev.map(c => 
             c._id === selectedCase._id 
-              ? { ...c, status: selectedStatus, currentStatusDesc: remarks || c.currentStatusDesc } 
+              ? { 
+                  ...c, 
+                  status: selectedStatus, 
+                  currentStatusDesc: remarks || c.currentStatusDesc,
+                  statusColor,
+                  dotColor
+                } 
               : c
           ));
           closeModal();
+          fetchInitialData(); // Sync with database state
         }
       }
     } catch (error) {
@@ -195,7 +234,7 @@ export default function OngoingCasesPage() {
   const closeModal = () => {
     setSelectedCase(null)
     setModalView('details')
-    setSelectedImages([]) // Cleanup images on close
+    setSelectedImages([]) 
   }
 
   return (
@@ -208,9 +247,9 @@ export default function OngoingCasesPage() {
              <FaSearch className="absolute left-3 top-3 text-gray-400" />
             <input type="text" placeholder="Search ID, location..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20 focus:border-[#08B36A]"/>
           </div>
-          <div className="flex bg-gray-100 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
-            {['All', 'Pending', 'Under Control', 'Critical'].map((tab) => (
-              <button key={tab} onClick={() => setActiveTab(tab)} className={`whitespace-nowrap flex-1 sm:flex-none px-4 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === tab ? 'bg-[#08B36A] text-white shadow-sm' : 'text-gray-500 hover:bg-gray-200'}`}>
+          <div className="flex bg-gray-100 p-1 rounded-xl w-full sm:w-auto overflow-x-auto custom-scrollbar">
+            {['All', 'Pending', 'On the way', 'Arriving Soon', 'Under Control', 'Critical'].map((tab) => (
+              <button key={tab} onClick={() => setActiveTab(tab)} className={`whitespace-nowrap flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === tab ? 'bg-[#08B36A] text-white shadow-sm' : 'text-gray-500 hover:bg-gray-200'}`}>
                 {tab}
               </button>
             ))}
@@ -318,8 +357,8 @@ export default function OngoingCasesPage() {
                 <div className="space-y-3">
                   <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><span className="w-2 h-2 bg-[#08B36A] rounded-full"></span> 1. Operation Status</h3>
                   <div className="grid grid-cols-3 gap-3">
-                    {['Under Control', 'Critical', 'Closed'].map(status => (
-                      <button key={status} onClick={() => setSelectedStatus(status)} className={`py-3 px-4 border-2 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${selectedStatus === status ? status === 'Critical' ? 'border-red-500 bg-red-50 text-red-600' : 'border-[#08B36A] bg-green-50 text-[#08B36A] shadow-sm' : 'border-gray-100 text-gray-500 hover:border-gray-200'}`}>
+                    {['On the way', 'Arriving Soon', 'Under Control', 'Critical', 'Closed'].map(status => (
+                      <button key={status} onClick={() => setSelectedStatus(status)} className={`py-3 px-4 border-2 rounded-2xl text-[11px] font-black uppercase transition-all ${selectedStatus === status ? status === 'Critical' ? 'border-red-500 bg-red-50 text-red-600' : 'border-[#08B36A] bg-green-50 text-[#08B36A]' : 'border-gray-100 text-gray-400 hover:border-gray-200'}`}>
                         {status === 'Closed' && selectedStatus === status && <FaCheckCircle/>}
                         {status}
                       </button>
@@ -461,9 +500,7 @@ export default function OngoingCasesPage() {
                    <button 
                       onClick={handleUpdateSubmit}
                       disabled={isSubmitting || (selectedStatus === 'Closed' && selectedImages.length === 0)}
-                      className={`flex-1 py-4 rounded-2xl text-white font-black text-[13px] uppercase tracking-widest transition-all shadow-lg flex justify-center items-center gap-2 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed ${
-                         selectedStatus === 'Critical' ? 'bg-red-500 shadow-red-200 hover:bg-red-600' : 'bg-[#08B36A] shadow-green-200 hover:bg-[#069356]'
-                      }`}
+                      className={`flex-grow py-4 rounded-2xl text-white font-black text-[13px] uppercase tracking-widest transition-all shadow-lg flex justify-center items-center gap-2 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed bg-[#08B36A] hover:bg-[#069356] shadow-green-200`}
                     >
                      {isSubmitting ? <><FaSpinner className="animate-spin" size={16}/> Saving...</> : <><FaCheckCircle size={16}/> {selectedStatus === 'Closed' ? 'Confirm & Generate Final Report' : 'Save Updates'}</>}
                    </button>

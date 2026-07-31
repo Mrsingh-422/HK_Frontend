@@ -14,21 +14,26 @@ import SecondNavbar from "../../components/SecondNavbar";
 // Helper function to resolve dynamic image paths
 const getImageUrl = (imagePath) => {
     if (!imagePath) return null;
-    const BASE_URL = "http://192.168.1.26:5002";
+    const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://192.168.1.7:5002";
     // Cleans up 'public/' prefix to prevent duplicated path subsegments
     const cleanPath = imagePath.replace(/^public\//, "");
-    return `${BASE_URL}/${cleanPath}`;
+    
+    const base = BASE_URL.replace(/\/+$/, '');
+    const target = cleanPath.replace(/^\/+/, '');
+    
+    return `${base}/${target}`;
 };
 
 // --- REDESIGNED SKELETON COMPONENT ---
 const PharmacyCardSkeleton = () => (
-    <div className="flex-shrink-0 w-[280px] sm:w-[320px] md:w-[360px] h-[340px] bg-white rounded-3xl border border-slate-100 p-4 flex flex-col justify-between animate-pulse shadow-sm">
+    <div className="flex-shrink-0 w-[280px] sm:w-[320px] md:w-[360px] h-[380px] bg-white rounded-3xl border border-slate-100 p-4 flex flex-col justify-between animate-pulse shadow-sm">
         <div>
             <div className="w-full h-40 bg-slate-200 rounded-2xl mb-4"></div>
             <div className="h-5 bg-slate-200 rounded-lg w-2/3 mb-2"></div>
-            <div className="h-4 bg-slate-100 rounded-md w-1/3"></div>
+            <div className="h-4 bg-sl`ate-100 rounded-md w-1/3 mb-4"></div>
+            <div className="h-6 bg-slate-100 rounded-xl w-1/4"></div>
         </div>
-        <div className="flex justify-between items-center pt-3 border-t border-slate-50">
+        <div className="flex justify-between items-center pt-3 border-t border-slate-100">
             <div className="h-4 bg-slate-100 rounded w-1/4"></div>
             <div className="h-8 w-8 bg-slate-200 rounded-xl"></div>
         </div>
@@ -190,11 +195,11 @@ export default function AllMedicinesPage() {
                                         <div
                                             key={pharmacy._id}
                                             onClick={() => router.push(`/buymedicine/singlepharmacydetail/${pharmacy._id}`)}
-                                            className="group flex-shrink-0 cursor-pointer w-[280px] sm:w-[320px] md:w-[360px] bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-emerald-500/10 hover:-translate-y-2 transition-all duration-300 p-4 flex flex-col justify-between h-[350px] relative overflow-hidden"
+                                            className="group flex-shrink-0 cursor-pointer w-[280px] sm:w-[320px] md:w-[360px] bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-emerald-500/10 hover:-translate-y-2 transition-all duration-300 p-4 flex flex-col justify-between h-[380px] relative overflow-hidden"
                                         >
                                             <div>
                                                 {/* PREMIUM VISUAL THUMBNAIL */}
-                                                <div className="relative w-full h-44 bg-slate-100 rounded-2xl overflow-hidden mb-4 shadow-inner">
+                                                <div className="relative w-full h-40 bg-slate-100 rounded-2xl overflow-hidden mb-4 shadow-inner">
                                                     {dynamicImgUrl ? (
                                                         <img
                                                             src={dynamicImgUrl}
@@ -222,7 +227,7 @@ export default function AllMedicinesPage() {
                                                 </div>
 
                                                 {/* CARD BODY CONTENT */}
-                                                <div className="px-1">
+                                                <div className="px-1 pb-3">
                                                     <h3 className="font-black text-lg text-slate-800 group-hover:text-[#08B36A] truncate transition-colors uppercase tracking-tight">
                                                         {pharmacy.name}
                                                     </h3>
@@ -234,8 +239,8 @@ export default function AllMedicinesPage() {
                                                         </span>
                                                     </div>
 
-                                                    {/* TAG FLAGS CONTAINER */}
-                                                    <div className="flex flex-wrap gap-2 mt-4">
+                                                    {/* TAG FLAGS CONTAINER WITH MINIMUM HEIGHT ALIGNMENT */}
+                                                    <div className="flex flex-wrap gap-2 mt-4 min-h-[26px]">
                                                         {pharmacy.isHomeDeliveryAvailable && <Badge icon={<FaTruck size={10} />} text="Delivery" color="emerald" />}
                                                         {pharmacy.is24x7 && <Badge icon={<FaHistory size={10} />} text="24/7" color="blue" />}
                                                     </div>
@@ -245,9 +250,9 @@ export default function AllMedicinesPage() {
                                             {/* FOOTER METRICS */}
                                             <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-100 px-1">
                                                 <div className="flex items-center gap-2">
-                                                    <span className={`flex h-2 w-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] ${pharmacy.is24x7 ? 'bg-emerald-500' : 'bg-emerald-400'}`}></span>
+                                                    <span className={`flex h-2 w-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] ${pharmacy.openStatus === "Open Now" || pharmacy.is24x7 ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
                                                     <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">
-                                                        {pharmacy.is24x7 ? "Always Open" : "Open Now"}
+                                                        {pharmacy.openStatus || (pharmacy.is24x7 ? "Always Open" : "Open Now")}
                                                     </span>
                                                 </div>
                                                 <div className="w-9 h-9 rounded-xl bg-slate-50 text-slate-400 group-hover:bg-[#08B36A] group-hover:text-white flex items-center justify-center transition-all duration-300 shadow-sm">
