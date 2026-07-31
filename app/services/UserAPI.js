@@ -772,7 +772,7 @@ clearCart: async () => {
     },
 
     nurseDeliveryConfig: async (id) => {
-        const response = await authApi.get(`user/nurse/delivery-config/${id}`);
+        const response = await authApi.get(`/user/nurse/delivery-config/${id}`);
         return response.data
     },
 

@@ -9,11 +9,22 @@ import SlotPicker from "../othercomponents/SlotPicker";
 import ConsumablesPicker from "../othercomponents/ConsumablesPicker";
 import UserAPI from "@/app/services/UserAPI";
 
-// Utility to dynamically load the Razorpay SDK script
+// Utility to dynamically load the Razorpay SDK script securely
 const loadRazorpayScript = () => {
     return new Promise((resolve) => {
+        if (typeof window === "undefined") {
+            resolve(false);
+            return;
+        }
         if (window.Razorpay) {
             resolve(true);
+            return;
+        }
+        // Avoid duplicate appends if script is already present in Next.js DOM
+        const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+        if (existingScript) {
+            existingScript.onload = () => resolve(true);
+            existingScript.onerror = () => resolve(false);
             return;
         }
         const script = document.createElement("script");
@@ -23,6 +34,37 @@ const loadRazorpayScript = () => {
         script.onerror = () => resolve(false);
         document.body.appendChild(script);
     });
+};
+
+// Formats YYYY-MM-DD dates to standard ISO strings as required by the backend
+const formatToISO = (dateStr) => {
+    if (!dateStr) return null;
+    if (dateStr.includes("T")) return dateStr; 
+    try {
+        const d = new Date(dateStr);
+        return d.toISOString();
+    } catch (e) {
+        return dateStr;
+    }
+};
+
+// Formats 24h style times (HH:mm) to 12h AM/PM strings as required by the backend
+const formatTimeToAMPM = (timeStr) => {
+    if (!timeStr) return "";
+    if (timeStr.includes("AM") || timeStr.includes("PM")) return timeStr; 
+    try {
+        const [hoursStr, minutesStr] = timeStr.split(":");
+        let hours = parseInt(hoursStr, 10);
+        const minutes = parseInt(minutesStr, 10);
+        const ampm = hours >= 12 ? "PM" : "AM";
+        hours = hours % 12;
+        hours = hours ? hours : 12; 
+        const strMinutes = minutes < 10 ? "0" + minutes : minutes;
+        const strHours = hours < 10 ? "0" + hours : hours;
+        return `${strHours}:${strMinutes} ${ampm}`;
+    } catch (e) {
+        return timeStr;
+    }
 };
 
 function AppointmentSchedulingContent() {
@@ -133,6 +175,7 @@ function AppointmentSchedulingContent() {
                 nurseId: bookingData.nurseId,
                 serviceId: bookingData.serviceId || null,
                 packageId: bookingData.packageId || null,
+                isPackage: !!bookingData.packageId,
 
                 serviceDetails: {
                     title: bookingData.serviceDetails?.title || "",
@@ -144,14 +187,14 @@ function AppointmentSchedulingContent() {
                 },
 
                 patients: bookingData.patients.map(p => ({
-                    patientId: p.patientId || p._id,
+                    patientId: p.patientId || p._id || "Self",
                     name: p.name,
-                    age: p.age,
-                    gender: p.gender,
-                    relation: p.relation
+                    age: Number(p.age) || 30,
+                    gender: p.gender || "Male",
+                    relation: p.relation || "Self"
                 })),
 
-                assessmentLocation: bookingData.assessmentLocation,
+                assessmentLocation: bookingData.assessmentLocation || "At Home",
                 healthDetails: {
                     height: bookingData.healthDetails?.height || "",
                     dob: bookingData.healthDetails?.dob || null,
@@ -160,10 +203,10 @@ function AppointmentSchedulingContent() {
                 },
 
                 schedule: {
-                    startDate: slotInfo.startDate,
-                    endDate: slotInfo.endDate || slotInfo.startDate,
-                    startTime: slotInfo.startTime,
-                    endTime: slotInfo.endTime || slotInfo.startTime,
+                    startDate: formatToISO(slotInfo.startDate),
+                    endDate: formatToISO(slotInfo.endDate || slotInfo.startDate),
+                    startTime: formatTimeToAMPM(slotInfo.startTime),
+                    endTime: formatTimeToAMPM(slotInfo.endTime || slotInfo.startTime),
                     duration: slotInfo.mode
                 },
 
@@ -203,36 +246,49 @@ function AppointmentSchedulingContent() {
                 totalPrice: Math.round(finalTotal),
                 selectedConsumables: selectedConsumables,
                 needConsumable: selectedConsumables.length > 0,
+                paymentMethod: "Online",
+                isFasterService: isExpress
             };
 
             const processRes = await UserAPI.processBooking(finalPayload);
             
             if (processRes?.success) {
-                // --- SKIP RAZORPAY IF TOTAL IS 0 ---
-                if (processRes.totalAmount === 0 || Math.round(finalTotal) === 0) {
+                // --- SKIP RAZORPAY IF TOTAL IS 0 OR IF METHOD IS COD ---
+                if (processRes.totalAmount === 0 || Math.round(finalTotal) === 0 || processRes.amount === 0 || processRes.data?.paymentMethod === "COD" || !processRes.razorpayOrderId) {
                     sessionStorage.removeItem("pendingNurseBooking");
-                    alert(processRes.message || "Booking confirmed using subscription benefit!");
+                    alert(processRes.message || "Booking confirmed!");
                     router.push('/userscreens/previousorders');
                     return;
                 }
 
                 // Load Razorpay script for paid bookings
                 const isScriptLoaded = await loadRazorpayScript();
-                if (!isScriptLoaded) {
-                    alert("Failed to load Razorpay SDK.");
+                if (!isScriptLoaded || typeof window.Razorpay === "undefined") {
+                    alert("Failed to load Razorpay SDK. Please check your network connection.");
                     setIsSubmitting(false);
                     return;
                 }
 
-                const { key_id, amount, razorpayOrderId, appointmentId } = processRes;
+                // Map potential variants of the API response keys defensively
+                const finalKeyId = processRes.key_id || processRes.key || processRes.keyId;
+                const finalOrderId = processRes.razorpayOrderId || processRes.orderId || processRes.razorpay_order_id;
+                const finalAmount = processRes.amount || processRes.totalAmount;
+
+                // Validate inputs before initiating Razorpay to prevent internal SDK crashes
+                if (!finalKeyId || !finalOrderId || !finalAmount) {
+                    console.error("Missing payment parameters:", { finalKeyId, finalOrderId, finalAmount });
+                    alert(`Payment gateway configuration failed. Missing: ${!finalKeyId ? 'Key ID ' : ''}${!finalOrderId ? 'Order ID ' : ''}${!finalAmount ? 'Amount' : ''}`);
+                    setIsSubmitting(false);
+                    return;
+                }
 
                 const options = {
-                    key: key_id,
-                    amount: amount,
+                    key: finalKeyId,
+                    amount: finalAmount,
                     currency: "INR",
                     name: "HK Healthcare App",
                     description: "Nurse Consultation Fee",
-                    order_id: razorpayOrderId,
+                    order_id: finalOrderId,
                     prefill: {
                         name: bookingData.patients?.[0]?.name || "Patient Name",
                         contact: selectedAddress?.phone || ""
@@ -243,7 +299,7 @@ function AppointmentSchedulingContent() {
                         try {
                             setIsSubmitting(true);
                             const verificationRes = await UserAPI.verifyPaymentNurse({
-                                appointmentId: appointmentId,
+                                appointmentId: processRes.appointmentId || processRes.data?._id || processRes.id,
                                 razorpayOrderId: response.razorpay_order_id,
                                 razorpayPaymentId: response.razorpay_payment_id,
                                 razorpaySignature: response.razorpay_signature
@@ -272,7 +328,8 @@ function AppointmentSchedulingContent() {
                 setIsSubmitting(false);
             }
         } catch (error) {
-            alert("Something went wrong");
+            console.error("Booking Payment Exception:", error);
+            alert(error?.message || "Something went wrong");
             setIsSubmitting(false);
         }
     };

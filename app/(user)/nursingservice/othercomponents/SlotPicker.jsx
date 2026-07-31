@@ -9,7 +9,7 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [currentMonth, setCurrentMonth] = useState(moment("2026-05-01")); 
+    const [currentMonth, setCurrentMonth] = useState(moment()); // Dynamically defaults to today's month
 
     const [selectedSlot, setSelectedSlot] = useState(null);
     const [hourlyStartSlot, setHourlyStartSlot] = useState(null);
@@ -101,7 +101,7 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
             startTime,
             endTime,
             extraFee: totalSurcharge,
-            basePrice: currentBasePrice, // NEW: Sending the specific mode's base price
+            basePrice: currentBasePrice, 
             totalPrice: calculatedTotalPrice,
             displayTime: mode === "One day One Time" ? selectedSlot?.displayTime : 
                          mode === "Acc. To Per/Hours" ? (hourlyStartSlot && hourlyEndSlot ? `${hourlyStartSlot.displayTime} - ${hourlyEndSlot.displayTime}` : "") :
@@ -184,23 +184,28 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                     
                     const displayPrice = mode === "One day One Time" ? dateInfo?.pricing?.oneDayPrice : dateInfo?.pricing?.multipleDayPrice;
 
+                    // Safety boundaries to prevent selection of historic dates
+                    const today = moment().startOf('day');
+                    const isPastDate = date.isBefore(today, 'day');
+
                     return (
                         <button
                             key={dStr}
-                            disabled={loading || !isCurrentMonth}
+                            disabled={loading || !isCurrentMonth || isPastDate}
                             onClick={() => handleDateClick(dStr)}
                             className={`h-16 rounded-2xl flex flex-col items-center justify-center border transition-all ${
                                 !isCurrentMonth ? "opacity-20 cursor-not-allowed" :
+                                isPastDate ? "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed" :
                                 isSel ? "bg-teal-500 text-white border-teal-500 shadow-lg" :
                                 inRange ? "bg-teal-50 border-teal-100 text-teal-700" :
                                 isPremium ? "bg-rose-50 border-rose-100 hover:border-rose-300" : "bg-teal-50/30 border-teal-50 hover:border-teal-100"
                             }`}
                         >
-                            <span className={`text-[11px] font-black ${!isSel && isPremium ? "text-rose-600" : !isSel ? "text-teal-700" : ""}`}>{date.date()}</span>
-                            {displayPrice && mode !== "Acc. To Per/Hours" && (
+                            <span className={`text-[11px] font-black ${isPastDate ? "text-slate-300" : !isSel && isPremium ? "text-rose-600" : !isSel ? "text-teal-700" : ""}`}>{date.date()}</span>
+                            {displayPrice && mode !== "Acc. To Per/Hours" && !isPastDate && (
                                 <span className={`text-[7px] font-bold ${isSel ? "text-white/80" : "text-slate-400"}`}>₹{displayPrice}</span>
                             )}
-                            {dateInfo?.pricing?.extraFee > 0 && (
+                            {dateInfo?.pricing?.extraFee > 0 && !isPastDate && (
                                 <span className={`text-[6px] font-black ${isSel ? 'text-white' : 'text-rose-500 underline'}`}>+₹{dateInfo.pricing.extraFee}</span>
                             )}
                         </button>
