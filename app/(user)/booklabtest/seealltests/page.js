@@ -14,11 +14,28 @@ import {
     FaTag,
     FaSearch
 } from "react-icons/fa";
-import TestDetailsModal from "../components/otherComponents/TestDetailsModal";
 import UserAPI from "@/app/services/UserAPI";
 import AllPackagesList from "./components/otherComponents/AllPackagesList";
 import AllSingleTestsList from "./components/otherComponents/AllSingleTestsList";
 import { useGlobalContext } from "@/app/context/GlobalContext";
+
+const IMAGE_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://192.168.1.7:5002";
+
+// Helper function to dynamically construct the lab profile image URL
+const getLabImage = (path) => {
+    if (!path) return null;
+    // If it's already an absolute URL, return it directly
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+        return path;
+    }
+    // Remove leading 'public/' if present in the database path
+    const cleanedPath = path.replace(/^public\//, '');
+    // Trim trailing slashes on base URL and leading slashes on cleaned path
+    const base = IMAGE_BASE_URL.replace(/\/+$/, '');
+    const target = cleanedPath.replace(/^\/+/, '');
+
+    return `${base}/${target}`;
+};
 
 // --- SKELETON COMPONENT ---
 const LabCardSkeleton = () => (
@@ -42,7 +59,6 @@ function AllTestsPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const { location } = useGlobalContext();
-    // alert(location?.lat + " " + location?.lng);
 
     // Lab Data States
     const [labs, setLabs] = useState([]);
@@ -56,7 +72,6 @@ function AllTestsPage() {
 
     // Location State (Retrieved from LocalStorage)
     const [coords, setCoords] = useState({ lat: null, lng: null });
-    // alert(coords.lat + " " + coords.lng);
 
     // Fetch Labs Logic
     const fetchLabs = useCallback(async () => {
@@ -65,10 +80,7 @@ function AllTestsPage() {
             const payload = {
                 lat: coords.lat,
                 lng: coords.lng,
-                // lat: location?.lat,
-                // lng: location?.lng,
                 search: labSearchQuery,
-                // City/State/Country removed as we rely on coords
             };
 
             const response = await UserAPI.getLabsList(payload);
@@ -137,7 +149,6 @@ function AllTestsPage() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <TestDetailsModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} pkg={selectedItem} />
 
             {/* Navigation Header */}
             <div className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -231,56 +242,73 @@ function AllTestsPage() {
                             {loadingLabs ? (
                                 [1, 2, 3].map((i) => <LabCardSkeleton key={i} />)
                             ) : labs.length > 0 ? (
-                                labs.map((lab) => (
-                                    <div
-                                        key={lab._id}
-                                        onClick={() => handleLabClick(lab._id)}
-                                        className="group flex-shrink-0 cursor-pointer w-[360px] bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300 p-5"
-                                    >
-                                        <div className="flex gap-4">
-                                            <div className="w-16 h-16 rounded-xl bg-gray-100 flex-shrink-0 flex items-center justify-center text-gray-400 overflow-hidden">
-                                                {lab.profileImage ? (
-                                                    <img src={lab.profileImage} alt={lab.name} className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <FaHospital size={28} />
-                                                )}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex justify-between items-start gap-2">
-                                                    <h3 className="font-semibold text-gray-900 truncate">{lab.name}</h3>
-                                                    <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg">
-                                                        <FaStar size={10} className="text-amber-500" />
-                                                        <span className="text-xs font-semibold text-amber-700">{lab.rating || "New"}</span>
+                                labs.map((lab) => {
+                                    const isOffline = lab.isOnline === false;
+                                    return (
+                                        <div
+                                            key={lab._id}
+                                            onClick={() => !isOffline && handleLabClick(lab._id)}
+                                            className={`group flex-shrink-0 w-[360px] bg-white rounded-xl border border-gray-200 transition-all duration-300 p-5 relative ${
+                                                isOffline ? "cursor-not-allowed" : "cursor-pointer hover:shadow-lg"
+                                            }`}
+                                        >
+                                            {/* Blurred visual wrapper if offline */}
+                                            <div className={isOffline ? "filter blur-[1.5px] opacity-60 select-none pointer-events-none" : ""}>
+                                                <div className="flex gap-4">
+                                                    <div className="w-16 h-16 rounded-xl bg-gray-100 flex-shrink-0 flex items-center justify-center text-gray-400 overflow-hidden">
+                                                        {lab.profileImage ? (
+                                                            <img src={getLabImage(lab.profileImage)} alt={lab.name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <FaHospital size={28} />
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex justify-between items-start gap-2">
+                                                            <h3 className="font-semibold text-gray-900 truncate">{lab.name}</h3>
+                                                            <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg">
+                                                                <FaStar size={10} className="text-amber-500" />
+                                                                <span className="text-xs font-semibold text-amber-700">{lab.rating || "New"}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                                            {lab.distance && (
+                                                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                                                    <FaMapMarkerAlt size={10} /> {lab.distance} km
+                                                                </span>
+                                                            )}
+                                                            {lab.startingPrice > 0 && (
+                                                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                                                    <FaTag size={10} /> From ₹{lab.startingPrice}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                                    {lab.distance && (
-                                                        <span className="text-xs text-gray-500 flex items-center gap-1">
-                                                            <FaMapMarkerAlt size={10} /> {lab.distance} km
-                                                        </span>
-                                                    )}
-                                                    {lab.startingPrice > 0 && (
-                                                        <span className="text-xs text-gray-500 flex items-center gap-1">
-                                                            <FaTag size={10} /> From ₹{lab.startingPrice}
-                                                        </span>
-                                                    )}
+
+                                                <div className="mt-4 pt-4 border-t border-gray-100">
+                                                    <p className="text-xs text-gray-700 font-medium">{lab.city}, {lab.state}</p>
+                                                    <p className="text-xs text-gray-400 mt-0.5 truncate">{lab.address}</p>
+                                                </div>
+
+                                                <div className="mt-4 pt-3 flex items-center justify-between border-t border-gray-100">
+                                                    <span className="text-xs text-emerald-600 font-medium bg-emerald-50 px-2 py-0.5 rounded">Available now</span>
+                                                    <button className="flex items-center gap-2 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors">
+                                                        View Lab <FaChevronRight size={12} />
+                                                    </button>
                                                 </div>
                                             </div>
-                                        </div>
 
-                                        <div className="mt-4 pt-4 border-t border-gray-100">
-                                            <p className="text-xs text-gray-700 font-medium">{lab.city}, {lab.state}</p>
-                                            <p className="text-xs text-gray-400 mt-0.5 truncate">{lab.address}</p>
+                                            {/* Offline Overlay Badge */}
+                                            {isOffline && (
+                                                <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                                                    <span className="bg-slate-900/90 text-white text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-widest shadow-xl border border-slate-700/50">
+                                                        Offline
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
-
-                                        <div className="mt-4 pt-3 flex items-center justify-between border-t border-gray-100">
-                                            <span className="text-xs text-emerald-600 font-medium bg-emerald-50 px-2 py-0.5 rounded">Available now</span>
-                                            <button className="flex items-center gap-2 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors">
-                                                View Lab <FaChevronRight size={12} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))
+                                    );
+                                })
                             ) : (
                                 <div className="w-full py-10 px-10 text-center bg-white rounded-xl border border-dashed border-gray-300 min-w-[300px]">
                                     <p className="text-gray-500 text-sm font-medium">No diagnostic centers found near you.</p>

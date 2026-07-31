@@ -182,7 +182,7 @@ export default function OurPartners() {
         const res = await UserAPI.getLabsList(payload);
         if (res?.success) {
           // Show only top 4 labs as requested
-          setLabs(res.data.slice(0, 4));
+          setLabs(res.data.slice(0, 3));
         }
       } catch (error) {
         console.error("Error fetching labs:", error);

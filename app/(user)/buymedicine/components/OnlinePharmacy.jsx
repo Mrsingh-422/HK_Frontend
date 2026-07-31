@@ -49,7 +49,21 @@ function OnlinePharmacy() {
   });
 
   // Your local network backend image assets path
-  const IMAGE_BASE_URL = "http://192.168.1.26:5002/";
+  const IMAGE_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://192.168.1.7:5002";
+
+  // Resolves the medicine product image using the API array fallback rules
+  const getMedImage = (med) => {
+    const path = med.image_url?.[0] || med.image || med.profileImage;
+    if (!path) return "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTXcBKQGSyQzxK18TWiEw7uVtX2JD-LgIdSWQ&s";
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    // Fallback for placeholder strings
+    if (path.startsWith('img_')) return "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTXcBKQGSyQzxK18TWiEw7uVtX2JD-LgIdSWQ&s";
+
+    const cleanedPath = path.replace(/^public\//, '');
+    const base = IMAGE_BASE_URL.replace(/\/+$/, '');
+    const target = cleanedPath.replace(/^\/+/, '');
+    return `${base}/${target}`;
+  };
 
   // Initial Content and Category Mount Load
   useEffect(() => {
@@ -208,14 +222,14 @@ function OnlinePharmacy() {
                             className="flex items-center gap-4 p-4 hover:bg-slate-50/80 cursor-pointer transition-colors border-b border-slate-100 last:border-0"
                           >
                             <div className="w-11 h-11 bg-slate-50 rounded-xl flex-shrink-0 overflow-hidden border border-slate-100">
-                              <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTXcBKQGSyQzxK18TWiEw7uVtX2JD-LgIdSWQ&s" className="w-full h-full object-cover" alt="" />
+                              <img src={getMedImage(item)} className="w-full h-full object-cover" alt="" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <h4 className="text-[14px] font-bold text-slate-800 truncate">{item.name}</h4>
                               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide truncate mt-0.5">{item.salt}</p>
                             </div>
                             <div className="text-right shrink-0">
-                              <span className="text-sm font-extrabold text-slate-900">₹{item.price}</span>
+                              <span className="text-sm font-extrabold text-slate-900">₹{item.best_price || item.bestPrice || item.price || 0}</span>
                               {item.discount && <span className="block text-[10px] font-bold text-emerald-600 mt-0.5">{item.discount} Off</span>}
                             </div>
                           </div>
@@ -263,8 +277,9 @@ function OnlinePharmacy() {
 
           {dynamicCategories.map((cat, idx) => {
             const isSelected = activeCat === cat.name;
-            // Clean absolute URL configuration utilizing your local server IP string rule
-            const categoryImageSrc = cat.image?.startsWith('http') ? cat.image : `${IMAGE_BASE_URL}${cat.image}`;
+            const base = IMAGE_BASE_URL.replace(/\/+$/, '');
+            const target = (cat.image || '').replace(/^\/+/, '');
+            const categoryImageSrc = cat.image?.startsWith('http') ? cat.image : `${base}/${target}`;
             const fallbackIcon = FALLBACK_ICONS[cat.name] || <FaThLarge size={14} />;
 
             return (
@@ -358,43 +373,46 @@ function OnlinePharmacy() {
             </div>
           ) : filteredMedicines.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 sm:gap-6">
-              {filteredMedicines.slice(0, 8).map((med, index) => (
-                <div
-                  key={med._id || med.Id || index}
-                  onClick={() => router.push(`/buymedicine/singleproductdetail/${med._id || med.Id}`)}
-                  className="group cursor-pointer flex flex-col bg-white border border-slate-100 rounded-3xl overflow-hidden hover:border-transparent hover:shadow-[0_22px_50px_rgba(148,163,184,0.12)] transition-all duration-500"
-                >
-                  <div className="relative aspect-square bg-slate-50/60 overflow-hidden flex items-center justify-center">
-                    <img
-                      src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTXcBKQGSyQzxK18TWiEw7uVtX2JD-LgIdSWQ&s"
-                      alt={med.name}
-                      className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                    />
-                    {med.discont_percent && parseInt(med.discont_percent) > 0 && (
-                      <div className="absolute top-4 right-4 bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm tracking-wide">
-                        {med.discont_percent} Off
-                      </div>
-                    )}
-                  </div>
+              {filteredMedicines.slice(0, 8).map((med, index) => {
+                const displayPrice = med.best_price || med.bestPrice || med.minimumPrice || 0;
+                return (
+                  <div
+                    key={med._id || med.Id || index}
+                    onClick={() => router.push(`/buymedicine/singleproductdetail/${med._id || med.Id}`)}
+                    className="group cursor-pointer flex flex-col bg-white border border-slate-100 rounded-3xl overflow-hidden hover:border-transparent hover:shadow-[0_22px_50px_rgba(148,163,184,0.12)] transition-all duration-500"
+                  >
+                    <div className="relative aspect-square bg-slate-50/60 overflow-hidden flex items-center justify-center">
+                      <img
+                        src={getMedImage(med)}
+                        alt={med.name}
+                        className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                      />
+                      {med.discont_percent && parseInt(med.discont_percent) > 0 && (
+                        <div className="absolute top-4 right-4 bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm tracking-wide">
+                          {med.discont_percent} Off
+                        </div>
+                      )}
+                    </div>
 
-                  <div className="p-5 flex flex-col flex-1 bg-white">
-                    <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wide mb-1 truncate block">{med.manufacturers || "Premium Formulation"}</span>
-                    <h3 className="text-[15px] font-bold text-slate-800 line-clamp-2 h-11 leading-snug group-hover:text-emerald-700 transition-colors duration-300">{med.name}</h3>
+                    <div className="p-5 flex flex-col flex-1 bg-white">
+                      <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wide mb-1 truncate block">{med.manufacturers || "Premium Formulation"}</span>
+                      <h3 className="text-[15px] font-bold text-slate-800 line-clamp-2 h-11 leading-snug group-hover:text-emerald-700 transition-colors duration-300">{med.name}</h3>
 
-                    <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
-                      <div>
-                        {med.mrp && parseFloat(med.mrp) > parseFloat(med.best_price || 0) && (
-                          <span className="text-xs text-slate-300 line-through font-medium block mb-0.5">₹{med.mrp}</span>
-                        )}
-                        <span className="text-lg font-extrabold text-slate-900 tracking-tight">₹{med.minimumPrice}</span>
-                      </div>
-                      <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-emerald-600 transition-all duration-300 shadow-md hover:shadow-emerald-100 active:scale-95 shrink-0">
-                        <FaPlus size={11} />
+                      <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+                        <div>
+                          {med.mrp && parseFloat(med.mrp) > parseFloat(displayPrice || 0) && (
+                            <span className="text-xs text-slate-300 line-through font-medium block mb-0.5">₹{med.mrp}</span>
+                          )}
+                          <span className="text-lg font-extrabold text-slate-900 tracking-tight">₹{displayPrice}</span>
+                        </div>
+                        <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-emerald-600 transition-all duration-300 shadow-md hover:shadow-emerald-100 active:scale-95 shrink-0">
+                          <FaPlus size={11} />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="w-full text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200 shadow-sm">
@@ -413,7 +431,7 @@ function OnlinePharmacy() {
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
               Authentic Meds. <br className="sm:hidden" /><span className="text-emerald-500">Verified Partners.</span>
             </h2>
-            <p className="text-slate-400 font-medium text-sm sm:text-base max-w-md mx-auto">Join 50k+ users who trust our system logistics map for their monthly healthcare essentials.</p>
+            <p className="text-slate-400 font-medium text-sm sm:text-base max-w-md mx-auto">Join 50k+ users who trust our system logistics map for their healthcare essentials.</p>
             <div className="pt-4">
               <Link href="/buymedicine/seeallmed">
                 <button className="bg-white text-slate-900 px-8 py-4 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-emerald-600 hover:text-white transition-all duration-300 shadow-md">Browse Store</button>
