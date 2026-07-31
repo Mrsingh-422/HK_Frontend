@@ -353,8 +353,11 @@ const UserAPI = {
     },
     //Family Members of user 
     addFamilyMember: async (familyData) => {
-        console.log(familyData.profilePic);
-        const response = await authApi.post("/api/auth/user/add-family", familyData);
+        const response = await authApi.post("/api/auth/user/add-family", familyData,  {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
         return response.data;
     },
     getFamilyMembers: async () => {
@@ -362,12 +365,19 @@ const UserAPI = {
         return response.data;
     },
     editFamilyMember: async (itemId, updateData) => {
-        console.log(updateData.profilePic);
-        const response = await authApi.put(`/api/auth/user/edit-family-member/${itemId}`, updateData);
+        const response = await authApi.put(`/api/auth/user/edit-family-member/${itemId}`, updateData,  {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
         return response.data;
     },
     removeFamilyMember: async (itemId) => {
-        const response = await authApi.delete(`/api/auth/user/remove-family-member/${itemId}`);
+        const response = await authApi.delete(`/api/auth/user/remove-family-member/${itemId}`, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
         return response.data;
     },
     getUserHealthInsuranses: async () => {
