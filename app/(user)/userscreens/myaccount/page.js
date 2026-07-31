@@ -303,9 +303,26 @@ function MyAccount() {
                                     <span className="text-[#08b36a]"><FaBirthdayCake /></span> Date of Birth
                                 </label>
                                 {isEditingProfile ? (
-                                    <input name="dob" type="date" value={tempProfile.dob || ""} onChange={handleInputChange} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold focus:outline-[#08b36a]" />
+                                    <input
+                                        name="dob"
+                                        type="date"
+                                        value={tempProfile.dob ? tempProfile.dob.split("T")[0] : ""}
+                                        onChange={handleInputChange}
+                                        className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold focus:outline-[#08b36a]"
+                                    />
                                 ) : (
-                                    <p className="text-gray-800 font-bold text-sm truncate">{userData.dob || "—"}</p>
+                                    <p className="text-gray-800 font-bold text-sm truncate">
+                                        {userData.dob ? (() => {
+                                            try {
+                                                const datePart = userData.dob.split("T")[0];
+                                                const [year, month, day] = datePart.split("-");
+                                                const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                                                return `${day} ${months[parseInt(month, 10) - 1]} ${year}`;
+                                            } catch (e) {
+                                                return userData.dob.split("T")[0]; // Fallback to raw YYYY-MM-DD if parser fails
+                                            }
+                                        })() : "—"}
+                                    </p>
                                 )}
                             </div>
 
