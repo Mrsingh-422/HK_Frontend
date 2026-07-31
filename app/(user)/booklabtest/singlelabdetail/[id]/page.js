@@ -62,11 +62,16 @@ export default function LabDetailsPage() {
         // Remove leading 'public/' if present in the database path
         const cleanedPath = path.replace(/^public\//, '');
         // Trim trailing slashes on base URL and leading slashes on cleaned path
-        const base = IMAGE_BASE_URL.replace(/\/+$/, '');
+        const base = (IMAGE_BASE_URL || '').replace(/\/+$/, '');
         const target = cleanedPath.replace(/^\/+/, '');
 
         return `${base}/${target}`;
     };
+
+    // Use lab.gallery, falling back to documents.labImages if gallery is empty
+    const galleryImages = (lab.gallery && lab.gallery.length > 0) 
+        ? lab.gallery 
+        : (lab.documents?.labImages || []);
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] font-sans">
@@ -130,10 +135,13 @@ export default function LabDetailsPage() {
                                 </div>
                             </div>
 
-                            {/* Timing Labels and Open Status Badge */}
+                            {/* Timing Labels, Open Status, and Online/Offline Badge */}
                             <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 mb-5">
-                                <span className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider ${lab.openStatus === "Open Now" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-rose-50 text-rose-600 border border-rose-100"}`}>
+                                {/* <span className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider ${lab.openStatus === "Open Now" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-rose-50 text-rose-600 border border-rose-100"}`}>
                                     {lab.openStatus || "Closed Now"}
+                                </span> */}
+                                <span className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider ${lab.isOnline ? "bg-blue-50 text-blue-600 border border-blue-100" : "bg-slate-100 text-slate-500 border border-slate-200"}`}>
+                                    {lab.isOnline ? "Online" : "Offline"}
                                 </span>
                                 <span className="text-slate-500 font-bold text-xs flex items-center gap-1.5">
                                     <FaClock className="text-slate-400" /> {lab.timingLabel || "Opening timings unspecified"}
@@ -141,11 +149,11 @@ export default function LabDetailsPage() {
                             </div>
 
                             <p className="text-slate-500 text-base max-w-2xl mb-8 font-medium leading-relaxed">
-                                {lab.description || `Leading diagnostic facility in ${lab.city}, providing world-class laboratory services with high precision and digital report delivery.`}
+                                {lab.description || `Leading diagnostic facility in ${lab.city}, providing laboratory services with precision and digital report delivery.`}
                             </p>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-5 gap-x-12">
-                                <InfoItem icon={<FaMapMarkerAlt />} label="Location" value={`${lab.address || lab.city}, ${lab.state}`} />
+                                <InfoItem icon={<FaMapMarkerAlt />} label="Location" value={`${lab.address || lab.city}, ${lab.state}${lab.country ? `, ${lab.country}` : ""}`} />
                                 <InfoItem icon={<FaPhone />} label="Helpdesk" value={lab.phone || "Verified Contact"} />
                                 <InfoItem icon={<FaShieldAlt />} label="Certification" value="NABL & ISO Accredited" />
                             </div>
@@ -216,7 +224,7 @@ export default function LabDetailsPage() {
                 </div>
 
                 {/* Laboratory Gallery Showcase Card */}
-                {lab.gallery && lab.gallery.length > 0 && (
+                {galleryImages && galleryImages.length > 0 && (
                     <div className="bg-white rounded-[2.5rem] border border-slate-200 p-8 shadow-xs">
                         <div className="flex items-center gap-2 mb-6">
                             <span className="bg-emerald-50 text-emerald-600 p-2 rounded-xl">
@@ -225,7 +233,7 @@ export default function LabDetailsPage() {
                             <h2 className="text-lg font-black uppercase text-slate-800 tracking-wider">Facility Gallery</h2>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                            {lab.gallery.map((imgUrl, i) => (
+                            {galleryImages.map((imgUrl, i) => (
                                 <div key={i} className="aspect-square bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 relative group">
                                     <img
                                         src={getLabImage(imgUrl)}
