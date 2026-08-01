@@ -28,7 +28,7 @@ import { useCart } from '@/app/context/CartContext';
 import { toast } from 'react-hot-toast';
 import CostoumPopup from '@/lib/CostoumPopup';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5002";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://192.168.1.7:5002";
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=800&auto=format&fit=crop";
 
 function ProductDetailPage() {
@@ -143,14 +143,17 @@ function ProductDetailPage() {
         const vendor = selectedVendor || vendors[selectedVendorIndex] || vendors[0];
 
         if (!vendor) {
-            CostoumPopup("No pharmacy available for this product", "success", 3000);
+            CostoumPopup("No pharmacy available for this product", "warning", 3000);
             return;
         }
+
+        // Normalize the target pharmacy ID cleanly to handle both string and object shapes
+        const targetPharmacyId = vendor.pharmacyId?._id || (typeof vendor.pharmacyId === 'string' ? vendor.pharmacyId : null) || vendor.vendorId || vendor._id;
 
         if (!isAdded || selectedVendor) {
             const currentPharmacyIdInCart = pharmacyCart?.items?.[0]?.pharmacyId?._id || pharmacyCart?.items?.[0]?.pharmacyId;
 
-            if (currentPharmacyIdInCart && currentPharmacyIdInCart !== vendor.pharmacyId) {
+            if (currentPharmacyIdInCart && currentPharmacyIdInCart !== targetPharmacyId) {
                 setPendingVendor(vendor);
                 setShowConflictModal(true);
                 return;
@@ -165,15 +168,13 @@ function ProductDetailPage() {
                 CostoumPopup("Product removed from cart", "success", 3000);
             } else {
                 await addPharmacyToCart(
-                    vendor.pharmacyId,
+                    targetPharmacyId,
                     id,
                     quantity,
                     "Full Course"
                 );
-                // toast.success(`Added to cart from ${vendor.name}`);
                 CostoumPopup("Product added to cart", "success", 3000);
                 router.push("/userscreens/usercart");
-
             }
         } catch (error) {
             console.error("Cart Error:", error);
@@ -185,11 +186,15 @@ function ProductDetailPage() {
 
     const handleConfirmClearCart = async () => {
         if (!pendingVendor) return;
+        
+        // Normalize the target pharmacy ID safely
+        const targetPharmacyId = pendingVendor.pharmacyId?._id || (typeof pendingVendor.pharmacyId === 'string' ? pendingVendor.pharmacyId : null) || pendingVendor.vendorId || pendingVendor._id;
+
         try {
             setProcessingId(id);
             await clearFullCart();
             await addPharmacyToCart(
-                pendingVendor.pharmacyId,
+                targetPharmacyId,
                 id,
                 quantity,
                 "Full Course"

@@ -22,6 +22,7 @@ export const CartProvider = ({ children }) => {
             if (response.success && response.data) {
                 if (response.data.labCart) {
                     setCart(response.data.labCart);
+                    setPharmacyCart(response.data.pharmacyCart || null);
                     setCartItemIds(response.data.labCart.items.map(i => i.itemId._id || i.itemId));
                 } else {
                     setCart(null);
