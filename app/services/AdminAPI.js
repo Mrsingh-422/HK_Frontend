@@ -823,7 +823,26 @@ const AdminAPI = {
             isCodAvailable
         });
         return response.data;
-    }
+    },
+
+    // Fetches all pharmacy requests for medicine additions or MRP increases
+    getMedicineIncreaseRequests: async (params = {}) => {
+        // params: { status, page, limit }
+        const response = await api.get("/admin/pharmacy/medicine/increase/requests", { 
+            params 
+        });
+        return response.data;
+    },
+
+    // Handles the approval or rejection of a medicine/MRP request
+    handleMedicineIncreaseRequestAction: async (requestId, action, adminComment = "") => {
+        // payload: { action: 'Approved' | 'Rejected', adminComment }
+        const response = await api.post(`/admin/pharmacy/medicine/increase/requests/${requestId}`, {
+            action,
+            adminComment
+        });
+        return response.data;
+    },
 
 
 

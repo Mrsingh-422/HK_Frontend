@@ -227,6 +227,7 @@ export default function Sidebar() {
                                 <Link href="/admind/managemedicines/approvedmedicines" className={`submenu-link ${isActive("/admind/managemedicines/approvedmedicines") ? "sub-active" : ""}`}>Approve Medicine</Link>
                                 <Link href="/admind/managemedicines/manageallmedicines" className={`submenu-link ${isActive("/admind/managemedicines/manageallmedicines") ? "sub-active" : ""}`}>Manage All Medicines</Link>
                                 <Link href="/admind/managemedicines/managecategories" className={`submenu-link ${isActive("/admind/managemedicines/managecategories") ? "sub-active" : ""}`}>Manage Categories </Link>
+                                <Link href="/admind/managemedicines/managepricerequests" className={`submenu-link ${isActive("/admind/managemedicines/managepricerequests") ? "sub-active" : ""}`}>Manage Price Requests</Link>
                             </div>
                         )}
                     </>
