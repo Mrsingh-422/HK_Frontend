@@ -25,8 +25,7 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const hydrateAuth = () => {
             try {
-
-                // 2. User & Admin Hydration
+                // User & Admin Hydration
                 const storedUToken = localStorage.getItem("userToken");
                 const storedUser = localStorage.getItem("user");
                 const storedAdmin = localStorage.getItem("admin");
@@ -34,19 +33,19 @@ export const AuthProvider = ({ children }) => {
                 if (storedUser) setUser(JSON.parse(storedUser));
                 if (storedAdmin) setAdmin(JSON.parse(storedAdmin));
 
-                // 3. Lab Vendor Hydration
+                // Lab Vendor Hydration
                 const storedLToken = localStorage.getItem("labToken");
                 const storedLProvider = localStorage.getItem("labProvider");
                 if (storedLToken) setLabToken(storedLToken);
                 if (storedLProvider) setProvider(JSON.parse(storedLProvider));
 
-                // 4. Nursing Vendor Hydration
+                // Nursing Vendor Hydration
                 const storedNToken = localStorage.getItem("nursingToken");
                 const storedNProvider = localStorage.getItem("nursingProvider");
                 if (storedNToken) setNursingToken(storedNToken);
                 if (storedNProvider) setProvider(JSON.parse(storedNProvider));
 
-                // 5. Pharmacy Vendor Hydration
+                // Pharmacy Vendor Hydration
                 const storedPToken = localStorage.getItem("pharmacyToken");
                 const storedPProvider = localStorage.getItem("pharmacyProvider");
                 if (storedPToken) setPharmacyToken(storedPToken);
@@ -71,7 +70,6 @@ export const AuthProvider = ({ children }) => {
         return "provider";
     };
 
-
     const loginAsAdmin = async (userData) => {
         try {
             setLoading(true);
@@ -87,8 +85,7 @@ export const AuthProvider = ({ children }) => {
 
             return response.data;
         } catch (error) {
-            const message =
-                error.response?.data?.message || "Login failed";
+            const message = error.response?.data?.message || "Login failed";
             return Promise.reject(message);
         } finally {
             setLoading(false);
@@ -104,11 +101,14 @@ export const AuthProvider = ({ children }) => {
             // SAVE BOTH TO LOCAL STORAGE
             localStorage.setItem("userToken", token);
             localStorage.setItem("user", JSON.stringify(user));
+            
+            // UPDATE STATE FOR IMMEDIATE RE-RENDERING
             setUser(user);
+            setUserToken(token);
+            
             return response.data;
         } catch (error) {
-            const message =
-                error.response?.data?.message || "Registration failed";
+            const message = error.response?.data?.message || "Registration failed";
             return Promise.reject(message);
         } finally {
             setLoading(false);
@@ -125,7 +125,10 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem("userToken", token);
             localStorage.setItem("user", JSON.stringify(user));
 
+            // UPDATE STATE FOR IMMEDIATE RE-RENDERING
             setUser(user);
+            setUserToken(token);
+            
             return response.data;
         } catch (error) {
             const message = error.response?.data?.message || "Login failed";
@@ -134,7 +137,6 @@ export const AuthProvider = ({ children }) => {
             setLoading(false);
         }
     };
-
 
     const uploadHospitalDocuments = async (userData) => {
         try {
@@ -145,7 +147,7 @@ export const AuthProvider = ({ children }) => {
                 userData,
                 {
                     headers: {
-                        'Authorization': `Bearer ${hospitalToken}` // Send token as Bearer token
+                        'Authorization': `Bearer ${hospitalToken}`
                     }
                 }
             );
@@ -157,16 +159,16 @@ export const AuthProvider = ({ children }) => {
             setLoading(false);
         }
     };
+
     // Verify OTP & Save Token
     const verifyDoctorOtp = async (phone, otp) => {
         const response = await axios.post(`${API_URL}/api/auth/doctor/verify-otp`, { phone, otp });
         if (response.data.token) {
             localStorage.setItem("doctorToken", response.data.token);
-            setUser(response.data.user); // Now set user in context
+            setUser(response.data.user);
         }
         return response.data;
     };
-    // Upload Documents (Step 3)
 
     const uploadDoctorDocuments = async (formData) => {
         try {
@@ -193,10 +195,8 @@ export const AuthProvider = ({ children }) => {
             const response = await axios.post(`${API_URL}/api/auth/provider/register`, userData);
             const { token, data } = response.data;
 
-            // Determine key (nursingToken, pharmacyToken, or labToken)
             const key = getProviderKey(userData.category);
 
-            // SAVE TO LOCAL STORAGE WITH DYNAMIC KEYS
             localStorage.setItem(`${key}Token`, token);
             localStorage.setItem(`${key}User`, JSON.stringify(data));
 
@@ -212,7 +212,6 @@ export const AuthProvider = ({ children }) => {
         }
     }
 
-
     // ================= LOGIN SERVICE PROVIDER =================
     const loginAsServiceProvider = async (userData) => {
         try {
@@ -226,8 +225,6 @@ export const AuthProvider = ({ children }) => {
     const uploadLabDocuments = async (userData) => {
         try {
             setLoading(true);
-
-            // Retrieve the specific token for the Lab vendor
             const labToken = localStorage.getItem("labToken");
 
             const response = await axios.put(`${API_URL}/api/auth/provider/upload-docs/lab`,
@@ -235,7 +232,7 @@ export const AuthProvider = ({ children }) => {
                 {
                     headers: {
                         "Content-Type": "multipart/form-data",
-                        'Authorization': `Bearer ${labToken}` // Send token as Bearer token
+                        'Authorization': `Bearer ${labToken}`
                     }
                 }
             );
@@ -252,8 +249,6 @@ export const AuthProvider = ({ children }) => {
     const uploadPharmacyDocuments = async (userData) => {
         try {
             setLoading(true);
-
-            // Retrieve the specific token for the Pharmacy vendor
             const pharmacyToken = localStorage.getItem("pharmacyToken");
 
             const response = await axios.put(`${API_URL}/api/auth/provider/upload-docs/pharmacy`,
@@ -261,7 +256,7 @@ export const AuthProvider = ({ children }) => {
                 {
                     headers: {
                         "Content-Type": "multipart/form-data",
-                        'Authorization': `Bearer ${pharmacyToken}` // Send token as Bearer token
+                        'Authorization': `Bearer ${pharmacyToken}`
                     }
                 }
             );
@@ -278,8 +273,6 @@ export const AuthProvider = ({ children }) => {
     const uploadNurseDocuments = async (userData) => {
         try {
             setLoading(true);
-
-            // Retrieve the specific token for the Nurse vendor
             const nurseToken = localStorage.getItem("nurseToken");
 
             const response = await axios.put(`${API_URL}/api/auth/provider/upload-docs/nurse`,
@@ -287,7 +280,7 @@ export const AuthProvider = ({ children }) => {
                 {
                     headers: {
                         "Content-Type": "multipart/form-data",
-                        'Authorization': `Bearer ${nurseToken}` // Send token as Bearer token
+                        'Authorization': `Bearer ${nurseToken}`
                     }
                 }
             );
@@ -317,8 +310,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-
-    // 1️⃣ SEND OTP
     const forgotPassword = async (email) => {
         const res = await axios.post(
             `${API_URL}/api/password/forgot-password`,
@@ -327,7 +318,6 @@ export const AuthProvider = ({ children }) => {
         return res.data;
     };
 
-    // 2️⃣ VERIFY OTP
     const verifyOtp = async (email, otp) => {
         const res = await axios.post(
             `${API_URL}/api/password/verify-otp`,
@@ -336,16 +326,13 @@ export const AuthProvider = ({ children }) => {
         return res.data;
     };
 
-    // 3️⃣ RESET PASSWORD
     const resetPassword = async (email, newPassword, confirmPassword) => {
-        alert(email, newPassword, confirmPassword);
         const res = await axios.post(
             `${API_URL}/api/password/reset-password`,
             { email, newPassword, confirmPassword }
         );
         return res.data;
     };
-
 
     const logout = () => {
         localStorage.removeItem("userToken");
@@ -355,10 +342,10 @@ export const AuthProvider = ({ children }) => {
         setUserToken(null);
     };
 
-
     return (
         <AuthContext.Provider value={{
             user,
+            userToken, // EXPOSED SO NAVBAR CAN REACT TO CHANGES INSTANTLY
             admin,
             loading,
             logout,
