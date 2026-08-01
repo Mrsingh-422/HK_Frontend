@@ -21,7 +21,7 @@ const NearByMedicines = () => {
 
                 if (res?.success && res.data) {
                     let extractedData = [];
-                    
+
                     // Direct support for the nested response payload architecture
                     if (res.data.medicineDetails) {
                         extractedData = Array.isArray(res.data.medicineDetails)
@@ -30,7 +30,7 @@ const NearByMedicines = () => {
                     } else if (Array.isArray(res.data)) {
                         extractedData = res.data;
                     }
-                    
+
                     setMedicines(extractedData);
                 }
             } catch (error) {
@@ -61,7 +61,7 @@ const NearByMedicines = () => {
     return (
         <div className="bg-[#FAFBFD] py-16 px-4 sm:px-6 lg:px-8 font-['Plus_Jakarta_Sans'] overflow-hidden">
             <div className="max-w-7xl mx-auto">
-                
+
                 {/* Header Section */}
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-12 px-1">
                     <div className="space-y-1.5">
@@ -73,7 +73,9 @@ const NearByMedicines = () => {
                         <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Medicines Near You</h2>
                         <p className="text-slate-500 text-sm max-w-xl">Get your essential medicines delivered instantly from verified healthcare hubs matching your area code.</p>
                     </div>
-                    <button className="text-slate-500 font-bold text-xs uppercase tracking-wider hover:text-slate-900 transition-colors shrink-0 pb-1 border-b border-dashed border-slate-300 hover:border-slate-900">
+                    <button
+                        onClick={() => router.push('/buymedicine/seeallmed')}
+                        className="text-slate-500 font-bold text-xs uppercase tracking-wider hover:text-slate-900 transition-colors shrink-0 pb-1 border-b border-dashed border-slate-300 hover:border-slate-900">
                         View All Stores
                     </button>
                 </div>

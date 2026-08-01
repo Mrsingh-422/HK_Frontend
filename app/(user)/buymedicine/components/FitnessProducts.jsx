@@ -28,8 +28,8 @@ const FitnessProducts = () => {
                 setLoading(true);
                 const response = await UserAPI.getNonPrescriptionProducts("Fitness & Supplements", 1, 8);
                 if (response.success && response.data) {
-                    const dataArray = Array.isArray(response.data) ? response.data : 
-                                    response.data.medicineDetails ? [response.data.medicineDetails] : [];
+                    const dataArray = Array.isArray(response.data) ? response.data :
+                        response.data.medicineDetails ? [response.data.medicineDetails] : [];
                     setProducts(dataArray.slice(0, 8));
                 }
             } catch (error) {
@@ -59,7 +59,7 @@ const FitnessProducts = () => {
     return (
         <div className="bg-[#FAFBFD] py-16 px-4 sm:px-6 lg:px-8 font-['Plus_Jakarta_Sans'] overflow-hidden">
             <div className="max-w-7xl mx-auto">
-                
+
                 {/* Clean Header */}
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-12 px-1">
                     <div className="space-y-1.5">
@@ -69,11 +69,11 @@ const FitnessProducts = () => {
                         </div>
                         <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Fitness & Supplements</h2>
                     </div>
-                    <button 
-                        onClick={() => router.push('/buymedicine/category/Fitness & Supplements')}
+                    <button
+                        onClick={() => router.push('/buymedicine/seeallmed')}
                         className="group flex items-center gap-2 text-slate-500 font-semibold text-xs uppercase tracking-wider hover:text-emerald-600 transition-colors w-fit"
                     >
-                        View Full Catalog 
+                        View Full Catalog
                         <FaChevronRight className="text-[10px] transform group-hover:translate-x-1 transition-transform duration-300" />
                     </button>
                 </div>
@@ -106,7 +106,7 @@ const FitnessProducts = () => {
                                         alt={item.name}
                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                                     />
-                                    
+
                                     <div className="absolute inset-0 bg-gradient-to-t from-slate-900/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                 </div>
 

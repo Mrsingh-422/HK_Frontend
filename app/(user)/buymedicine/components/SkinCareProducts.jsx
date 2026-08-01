@@ -27,7 +27,7 @@ const WomenCareProducts = () => {
                 setLoading(true);
                 // Category: Women Care, Page: 1, Limit: 7
                 const response = await UserAPI.getNonPrescriptionProducts("Women Care", 1, 7);
-                
+
                 if (response.success && response.data) {
                     // Handling both standard array response and the medicineDetails nested structure
                     let dataArray = [];
@@ -36,7 +36,7 @@ const WomenCareProducts = () => {
                     } else if (response.data.medicineDetails) {
                         dataArray = [response.data.medicineDetails];
                     }
-                    
+
                     setProducts(dataArray.slice(0, 7)); // Strictly only 7 products
                 }
             } catch (error) {
@@ -74,8 +74,8 @@ const WomenCareProducts = () => {
                         <span className="text-emerald-600 font-bold uppercase tracking-widest text-xs">Specially Curated</span>
                         <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 mt-1 tracking-tight">Women Care</h2>
                     </div>
-                    <button 
-                        onClick={() => router.push('/buymedicine/category/Women Care')}
+                    <button
+                        onClick={() => router.push('/buymedicine/seeallmed')}
                         className="bg-white border border-slate-200/80 px-5 py-2.5 rounded-xl text-slate-700 font-semibold text-xs tracking-wide hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all duration-300 shadow-sm hover:shadow-md"
                     >
                         View All
@@ -113,7 +113,7 @@ const WomenCareProducts = () => {
                                             alt={item.name}
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                                         />
-                                        
+
                                         {/* Soft elegant gradient layer overlay */}
                                         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                     </div>

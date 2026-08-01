@@ -11,15 +11,15 @@ function SuperSaving() {
     const router = useRouter();
 
     const dummyImages = [
-    "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?q=80&w=500&auto=format&fit=crop", // Medicine bottles
-    "https://images.unsplash.com/photo-1580281657527-47f249e8f4df?q=80&w=500&auto=format&fit=crop", // Prescription medicine
-    "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?q=80&w=500&auto=format&fit=crop", // Pharmacy shelf
-    "https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=500&auto=format&fit=crop", // Medicines
-    "https://images.unsplash.com/photo-1585435557343-3b092031a831?q=80&w=500&auto=format&fit=crop", // Tablets
-    "https://images.unsplash.com/photo-1607619056574-7b8d3ee536b2?q=80&w=500&auto=format&fit=crop", // Capsules
-    "https://images.unsplash.com/photo-1628771065518-0d82f1938462?q=80&w=500&auto=format&fit=crop", // Medical products
-    "https://images.unsplash.com/photo-1580281657527-47f249e8f4df?q=80&w=500&auto=format&fit=crop", // Prescription medicine
-];
+        "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?q=80&w=500&auto=format&fit=crop", // Medicine bottles
+        "https://images.unsplash.com/photo-1580281657527-47f249e8f4df?q=80&w=500&auto=format&fit=crop", // Prescription medicine
+        "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?q=80&w=500&auto=format&fit=crop", // Pharmacy shelf
+        "https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=500&auto=format&fit=crop", // Medicines
+        "https://images.unsplash.com/photo-1585435557343-3b092031a831?q=80&w=500&auto=format&fit=crop", // Tablets
+        "https://images.unsplash.com/photo-1607619056574-7b8d3ee536b2?q=80&w=500&auto=format&fit=crop", // Capsules
+        "https://images.unsplash.com/photo-1628771065518-0d82f1938462?q=80&w=500&auto=format&fit=crop", // Medical products
+        "https://images.unsplash.com/photo-1580281657527-47f249e8f4df?q=80&w=500&auto=format&fit=crop", // Prescription medicine
+    ];
 
     useEffect(() => {
         const fetchProducts = async () => {
@@ -28,8 +28,8 @@ function SuperSaving() {
                 // Dynamically requesting your super saving products API endpoint
                 const response = await UserAPI.superSavingProducts(1, 8);
                 if (response.success && response.data) {
-                    const dataArray = Array.isArray(response.data) ? response.data : 
-                                    response.data.medicineDetails ? [response.data.medicineDetails] : [];
+                    const dataArray = Array.isArray(response.data) ? response.data :
+                        response.data.medicineDetails ? [response.data.medicineDetails] : [];
                     setProducts(dataArray.slice(0, 8));
                 }
             } catch (error) {
@@ -59,7 +59,7 @@ function SuperSaving() {
     return (
         <div className="bg-[#FAFBFD] py-16 px-4 sm:px-6 lg:px-8 font-['Plus_Jakarta_Sans'] overflow-hidden">
             <div className="max-w-7xl mx-auto">
-                
+
                 {/* Section Header with High-Saving Emphasis */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 border-b border-slate-100 pb-6 px-1">
                     <div>
@@ -72,11 +72,11 @@ function SuperSaving() {
                         </div>
                         <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Super Saving Deals</h2>
                     </div>
-                    <button 
-                        onClick={() => router.push('/buymedicine/offers')}
+                    <button
+                        onClick={() => router.push('/buymedicine/seeallmed')}
                         className="group flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 rounded-2xl px-4 py-2.5 text-xs font-bold transition-all shadow-sm w-fit"
                     >
-                        View All Offers 
+                        View All Offers
                         <FaChevronRight className="text-[9px] text-slate-400 group-hover:text-rose-600 transform group-hover:translate-x-0.5 transition-all" />
                     </button>
                 </div>
@@ -86,8 +86,8 @@ function SuperSaving() {
                     <div className="flex overflow-x-auto gap-6 pb-8 snap-x snap-mandatory [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:bg-slate-200 hover:[&::-webkit-scrollbar-thumb]:bg-rose-200 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:rounded-full">
                         {products.map((item, index) => {
                             // Determine display percentage text dynamically if field format changes
-                            const discountValue = item.discont_percent && item.discont_percent !== "0%" 
-                                ? item.discountPercentage 
+                            const discountValue = item.discont_percent && item.discont_percent !== "0%"
+                                ? item.discountPercentage
                                 : "MAX";
 
                             return (
@@ -149,7 +149,7 @@ function SuperSaving() {
                                                     )}
                                                 </div>
                                             </div>
-                                            
+
                                             {/* Action Trigger button */}
                                             <button
                                                 onClick={(e) => {
