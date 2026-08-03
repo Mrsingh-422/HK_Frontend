@@ -16,6 +16,7 @@ import NurseHero from './components/NurseHero'
 import NursingPlans from './components/NursingPlans'
 import DailyCarePlan from './components/DailyCarePlan'
 import BookingSteps from './components/BookingSteps'
+import ShowNursingServices from './components/ShowNursingServices'
 
 function page() {
     return (
@@ -23,6 +24,7 @@ function page() {
             <SecondNavbar />
             <NurseHero />
             <FindMyNurse />
+            <ShowNursingServices />
             <DailyCarePlan />
             <NursingPlans />
             <BookingSteps />

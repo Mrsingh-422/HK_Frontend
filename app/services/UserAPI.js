@@ -277,8 +277,7 @@ const UserAPI = {
     //     return response.data;
     // },
     searchMedicineSuggestions: async (data) => {
-        const response = await publicApi.post(
-            `/user/pharmacy/search-suggestions`,
+        const response = await publicApi.post( `/user/pharmacy/search-suggestions`,
             data
         );
         return response.data;
@@ -353,7 +352,7 @@ const UserAPI = {
     },
     //Family Members of user 
     addFamilyMember: async (familyData) => {
-        const response = await authApi.post("/api/auth/user/add-family", familyData,  {
+        const response = await authApi.post("/api/auth/user/add-family", familyData, {
             headers: {
                 "Content-Type": "multipart/form-data",
             },
@@ -365,7 +364,7 @@ const UserAPI = {
         return response.data;
     },
     editFamilyMember: async (itemId, updateData) => {
-        const response = await authApi.put(`/api/auth/user/edit-family-member/${itemId}`, updateData,  {
+        const response = await authApi.put(`/api/auth/user/edit-family-member/${itemId}`, updateData, {
             headers: {
                 "Content-Type": "multipart/form-data",
             },
@@ -605,7 +604,7 @@ const UserAPI = {
     validateCouponCart: async (couponName, labId, totalAmount) => {
         const response = await authApi.post(`/user/labs/validate-coupon`, { couponName, labId, totalAmount });
         return response.data;
-    },  
+    },
     getLabSlots: async (labId, date) => {
         const response = await authApi.get("/user/labs/slots", {
             params: { labId, date }
@@ -702,32 +701,31 @@ const UserAPI = {
 
 
     // --- Cart Management ---
-// --- Cart Management ---
-getMyCart: async () => {
-    const response = await authApi.get("/user/cart");
-    return response.data;
-},
+    getMyCart: async () => {
+        const response = await authApi.get("/user/cart");
+        return response.data;
+    },
 
-addToCart: async (cartData) => {
-    // cartData includes: labId, itemId, productType, forceReplace, confirmRadiologyBypass
-    const response = await authApi.post("/user/cart/lab/add", cartData);
-    return response.data;
-},
+    addToCart: async (cartData) => {
+        // cartData includes: labId, itemId, productType, forceReplace, confirmRadiologyBypass
+        const response = await authApi.post("/user/cart/lab/add", cartData);
+        return response.data;
+    },
 
-updateCartQuantity: async (updateData) => {
-    const response = await authApi.put("/user/cart/quantity", updateData);
-    return response.data;
-},
+    updateCartQuantity: async (updateData) => {
+        const response = await authApi.put("/user/cart/quantity", updateData);
+        return response.data;
+    },
 
-removeCartItem: async (itemId) => {
-    const response = await authApi.delete(`/user/cart/item/${itemId}`);
-    return response.data;
-},
+    removeCartItem: async (itemId) => {
+        const response = await authApi.delete(`/user/cart/item/${itemId}`);
+        return response.data;
+    },
 
-clearCart: async () => {
-    const response = await authApi.post("/user/cart/lab/clear");
-    return response.data;
-},
+    clearCart: async () => {
+        const response = await authApi.post("/user/cart/lab/clear");
+        return response.data;
+    },
 
     removePharmacyItem: async (itemId) => {
         const response = await authApi.delete(`/user/cart/pharmacy/item/${itemId}`);
@@ -795,6 +793,21 @@ clearCart: async () => {
         const response = await authApi.get("/user/nurse/my-appointments");
         return response.data
     },
+
+    // Fetches the global list of unique nursing services with their lowest starting prices [2]
+    getGlobalNursingServices: async () => {
+        const response = await authApi.get("/user/nurse/services/global");
+        return response.data;
+    },
+
+    // Fetches certified nursing bureaus and dynamic pricing sheets for a selected service title
+    getProvidersForService: async (serviceTitle) => {
+        const response = await authApi.get("/user/nurse/services/providers", {
+            params: { serviceTitle }
+        });
+        return response.data;
+    },
+    
 
 
     //Doctor apis

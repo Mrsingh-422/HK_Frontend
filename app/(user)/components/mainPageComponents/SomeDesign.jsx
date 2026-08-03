@@ -78,7 +78,7 @@ export default function SomeDesign() {
         </Link>
 
         {/* Shop Medicines Card */}
-        <Link href='/buymedicine' className="bg-white border border-slate-100 rounded-[24px] p-6 flex items-center justify-between group cursor-pointer hover:border-[#08B36A] hover:shadow-xl hover:shadow-[#08B36A]/5 transition-all">
+        <Link href='/buymedicine/seeallmed' className="bg-white border border-slate-100 rounded-[24px] p-6 flex items-center justify-between group cursor-pointer hover:border-[#08B36A] hover:shadow-xl hover:shadow-[#08B36A]/5 transition-all">
           <div className="flex items-center gap-6">
             <div className="w-16 h-16 bg-[#08B36A]/10 rounded-2xl flex items-center justify-center text-[#08B36A] group-hover:scale-110 transition-transform">
               <FaNotesMedical size={30} />
