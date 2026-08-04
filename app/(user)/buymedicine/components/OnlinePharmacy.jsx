@@ -263,7 +263,7 @@ function OnlinePharmacy() {
       </section>
 
       {/* --- DYNAMIC CATEGORY BAR --- */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 relative z-20">
+      {/* <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 relative z-20">
         <div className="bg-white rounded-3xl shadow-[0_15px_40px_rgba(148,163,184,0.08)] border border-slate-100 p-4 sm:p-6 flex gap-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <button
             onClick={() => setActiveCat("All")}
@@ -313,11 +313,11 @@ function OnlinePharmacy() {
             );
           })}
         </div>
-      </div>
+      </div> */}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16 space-y-20">
         {/* Trust Signals */}
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* <section className="grid grid-cols-2 lg:grid-cols-4 gap-5">
           <div className="flex items-center gap-4 p-5 bg-white rounded-2xl border border-slate-100 shadow-sm">
             <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
               <FaTruck className="text-emerald-600 text-base" />
@@ -354,7 +354,7 @@ function OnlinePharmacy() {
               <p className="text-[11px] text-slate-400 font-medium mt-0.5">Certified Partners</p>
             </div>
           </div>
-        </section>
+        </section> */}
 
         {/* Medicine Grid */}
         <section>

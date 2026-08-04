@@ -277,9 +277,16 @@ const UserAPI = {
     //     return response.data;
     // },
     searchMedicineSuggestions: async (data) => {
-        const response = await publicApi.post( `/user/pharmacy/search-suggestions`,
+        const response = await publicApi.post(`/user/pharmacy/search-suggestions`,
             data
         );
+        return response.data;
+    },
+    searchAlternativeBrand: async (name) => {
+        console.log(name);
+        const response = await publicApi.get(`/user/pharmacy/search-alternate`, {
+            params: { name }
+        });
         return response.data;
     },
     addPharmacyToCart: async (cartData) => {
@@ -807,7 +814,7 @@ const UserAPI = {
         });
         return response.data;
     },
-    
+
 
 
     //Doctor apis

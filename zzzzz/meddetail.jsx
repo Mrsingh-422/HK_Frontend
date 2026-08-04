@@ -57,9 +57,6 @@ function ProductDetailPage() {
     // Lightbox State
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
-    // Tracking which alternative brand is currently being queried
-    const [searchingBrand, setSearchingBrand] = useState(null);
-
     const cartProduct = pharmacyCart?.items?.find(item =>
         (item.medicineId?._id === id || item.medicineId === id)
     );
@@ -189,7 +186,7 @@ function ProductDetailPage() {
 
     const handleConfirmClearCart = async () => {
         if (!pendingVendor) return;
-
+        
         // Normalize the target pharmacy ID safely
         const targetPharmacyId = pendingVendor.pharmacyId?._id || (typeof pendingVendor.pharmacyId === 'string' ? pendingVendor.pharmacyId : null) || pendingVendor.vendorId || pendingVendor._id;
 
@@ -212,44 +209,10 @@ function ProductDetailPage() {
         }
     };
 
-    // Queries alternate brand information and redirects on success
-    const handleAlternativeBrandClick = async (name) => {
-        if (!name) return;
-        setSearchingBrand(name);
-        try {
-            const res = await UserAPI.searchAlternativeBrand(name);
-            // alert(res.data.details._id)
-            if (res && res.success) {
-                router.push(`/buymedicine/singleproductdetail/${res.data.details._id}`);
-            } else {
-                toast.error("Medicine details not found for this alternative");
-            }
-        } catch (error) {
-            console.error("Error navigating to alternative brand:", error);
-            toast.error("Failed to load alternative brand details");
-        } finally {
-            setSearchingBrand(null);
-        }
-    };
-
     const getImageUrl = (path) => {
         if (!path) return FALLBACK_IMAGE;
         if (path.startsWith('http')) return path;
         return `${BACKEND_URL}/${path.replace('public/', '')}`;
-    };
-
-    // Helper to safely parse pipe-separated alternative brands from the response
-    const parseAlternateBrands = (altString) => {
-        if (!altString) return [];
-        return altString.split('|').map(item => {
-            const parts = item.split('::').map(p => p.trim());
-            return {
-                name: parts[0] || '',
-                manufacturer: parts[1] || '',
-                priceInfo: parts[2] || '',
-                savingsInfo: parts[3] || ''
-            };
-        }).filter(brand => brand.name);
     };
 
     if (loading) return (
@@ -269,13 +232,6 @@ function ProductDetailPage() {
     const currentPrice = vendors[selectedVendorIndex]?.price || product.best_price;
     const currentMrp = vendors[selectedVendorIndex]?.mrp || product.mrp;
     const savings = parseInt(currentMrp) - parseInt(currentPrice);
-
-    // Dynamic Image Determination
-    const displayImage = product.image_url && product.image_url.length > 0
-        ? getImageUrl(product.image_url[0])
-        : FALLBACK_IMAGE;
-
-    const alternateBrandsList = parseAlternateBrands(product.alternate_brand);
 
     return (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
@@ -314,7 +270,7 @@ function ProductDetailPage() {
                         <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-8 sticky top-20">
                             <div className="relative aspect-square bg-slate-50 rounded-xl flex items-center justify-center overflow-hidden">
                                 <img
-                                    src={displayImage}
+                                    src={FALLBACK_IMAGE}
                                     alt={product.name}
                                     onClick={() => setIsLightboxOpen(true)}
                                     className="w-4/5 h-4/5 object-contain cursor-zoom-in transition-opacity hover:opacity-90"
@@ -341,30 +297,19 @@ function ProductDetailPage() {
 
                             <div className="flex flex-wrap gap-2 mb-8">
                                 <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 text-[11px] font-medium text-slate-600">
-                                    <FlaskRound size={14} className="text-emerald-500" /> <span className="font-bold mr-1">Composition:</span> {product.salt_composition}
+                                    <FlaskRound size={14} className="text-emerald-500" /> {product.salt_composition}
                                 </div>
                                 <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 text-[11px] font-medium text-slate-600">
                                     <ThermometerSnowflake size={14} className="text-blue-400" /> {product.storage}
                                 </div>
-                                {product.primary_use && (
-                                    <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 text-[11px] font-medium text-slate-600">
-                                        <CheckCircle2 size={14} className="text-emerald-500" /> {product.primary_use}
-                                    </div>
-                                )}
                             </div>
-
-                            {product.description && (
-                                <p className="text-slate-600 text-sm leading-relaxed mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                    {product.description}
-                                </p>
-                            )}
 
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pt-6 border-t border-slate-100">
                                 <div>
                                     <div className="flex items-baseline gap-2">
                                         <span className="text-3xl font-bold text-slate-900">₹{currentPrice}</span>
                                         <span className="text-slate-400 line-through text-sm">MRP ₹{currentMrp}</span>
-                                        {savings > 0 && <span className="text-emerald-600 text-xs font-bold bg-emerald-50 px-2 py-0.5 rounded">Save {product.discont_percent || `${Math.round((savings / currentMrp) * 100)}%`}</span>}
+                                        {savings > 0 && <span className="text-emerald-600 text-xs font-bold bg-emerald-50 px-2 py-0.5 rounded">Save ₹{savings}</span>}
                                     </div>
                                     <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Inclusive of all taxes</p>
                                 </div>
@@ -450,61 +395,35 @@ function ProductDetailPage() {
                                     <h4 className="text-xs font-bold text-slate-400 uppercase mb-3">Introduction</h4>
                                     <p className="text-sm md:text-base text-slate-600 leading-relaxed">{product.introduction}</p>
                                 </div>
-                                {product.benefits && (
-                                    <div>
-                                        <h4 className="text-xs font-bold text-slate-400 uppercase mb-4">Key Benefits</h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {product.benefits?.split('.').map((b, i) => b.trim() && (
-                                                <div key={i} className="flex gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100 text-xs font-medium text-slate-700">
-                                                    <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">{i + 1}</div>
-                                                    {b}
-                                                </div>
-                                            ))}
-                                        </div>
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-400 uppercase mb-4">Key Benefits</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {product.benefits?.split('.').map((b, i) => b.trim() && (
+                                            <div key={i} className="flex gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100 text-xs font-medium text-slate-700">
+                                                <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">{i + 1}</div>
+                                                {b}
+                                            </div>
+                                        ))}
                                     </div>
-                                )}
-                                {product.side_effect && (
-                                    <div className="border-t border-slate-100 pt-6">
-                                        <h4 className="text-xs font-bold text-slate-400 uppercase mb-3">Side Effects</h4>
-                                        <div className="flex flex-wrap gap-2">
-                                            {product.side_effect.split('|').map((effect, idx) => (
-                                                <span key={idx} className="bg-red-50 text-red-700 border border-red-100 text-xs px-3 py-1 rounded-full font-medium">
-                                                    {effect.trim()}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                {product.how_crop_side_effects && (
-                                    <div className="bg-amber-50/50 border border-amber-100 p-4 rounded-xl">
-                                        <h4 className="text-xs font-bold text-amber-800 uppercase mb-2">How to Manage Side Effects</h4>
-                                        <p className="text-xs md:text-sm text-amber-900 leading-relaxed font-medium">{product.how_crop_side_effects}</p>
-                                    </div>
-                                )}
+                                </div>
                             </div>
                         )}
 
                         {activeTab === 'usage' && (
                             <div className="max-w-3xl space-y-8">
-                                {product.how_works && (
-                                    <div className="bg-emerald-50 p-6 rounded-xl border border-emerald-100">
-                                        <h4 className="text-xs font-bold text-emerald-700 uppercase mb-2">How it works</h4>
-                                        <p className="text-sm font-medium text-emerald-900 leading-relaxed italic">"{product.how_works}"</p>
-                                    </div>
-                                )}
+                                <div className="bg-emerald-50 p-6 rounded-xl border border-emerald-100">
+                                    <h4 className="text-xs font-bold text-emerald-700 uppercase mb-2">How it works</h4>
+                                    <p className="text-sm font-medium text-emerald-900 leading-relaxed italic">"{product.how_works}"</p>
+                                </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {product.how_to_use && (
-                                        <div className="p-4 rounded-xl border border-slate-100">
-                                            <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2">Usage Guide</h4>
-                                            <p className="text-sm text-slate-700 font-medium">{product.how_to_use}</p>
-                                        </div>
-                                    )}
-                                    {product.if_miss && (
-                                        <div className="p-4 rounded-xl border border-slate-100">
-                                            <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2">Missed Dose</h4>
-                                            <p className="text-sm text-slate-700 font-medium">{product.if_miss}</p>
-                                        </div>
-                                    )}
+                                    <div className="p-4 rounded-xl border border-slate-100">
+                                        <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2">Usage Guide</h4>
+                                        <p className="text-sm text-slate-700 font-medium">{product.how_to_use}</p>
+                                    </div>
+                                    <div className="p-4 rounded-xl border border-slate-100">
+                                        <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2">Missed Dose</h4>
+                                        <p className="text-sm text-slate-700 font-medium">{product.if_miss}</p>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -513,79 +432,12 @@ function ProductDetailPage() {
                             <div className="max-w-3xl space-y-6">
                                 <div className="bg-red-50 p-6 rounded-xl border border-red-100">
                                     <h4 className="text-xs font-bold text-red-700 uppercase mb-2">Safety Advice</h4>
-                                    <p className="text-slate-700 leading-relaxed text-sm">
-                                        {product.safety_advise || product.safety_advice || "Please consult your doctor before using this medicine."}
-                                    </p>
+                                    <p className="text-slate-600 leading-relaxed text-sm">{product.safety_advice || "Please consult your doctor before using this medicine."}</p>
                                 </div>
-                                {product.manufaturer_address && (
-                                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 text-xs text-slate-500 space-y-1">
-                                        <h4 className="font-bold text-slate-700 uppercase mb-1">Manufacturer Address</h4>
-                                        <p>{product.manufacturers}</p>
-                                        <p>{product.manufaturer_address}</p>
-                                    </div>
-                                )}
                             </div>
                         )}
                     </div>
                 </div>
-                {/* Alternative Brands Section at Bottom */}
-                {alternateBrandsList.length > 0 && (
-                    <div className="mt-8 bg-slate-50/70 rounded-2xl p-6 md:p-8">
-                        <div className="mb-6">
-                            <h3 className="text-xl font-bold text-slate-900">Alternative Brands</h3>
-                            <p className="text-sm text-slate-500 mt-1">Other medications with equivalent therapeutic effects</p>
-                        </div>
-                        <div className="flex flex-col">
-                            {alternateBrandsList.map((brand, index) => {
-                                const isSearchingThis = searchingBrand === brand.name;
-                                const isLastItem = index === alternateBrandsList.length - 1;
-                                const isCostlier = brand.savingsInfo?.toLowerCase().includes('costlier');
-
-                                return (
-                                    <div
-                                        key={index}
-                                        onClick={() => !searchingBrand && handleAlternativeBrandClick(brand.name)}
-                                        className={`py-4 flex items-center justify-between cursor-pointer transition-all
-                            ${!isLastItem ? 'border-b border-dashed border-slate-200' : ''}
-                            ${searchingBrand && !isSearchingThis ? 'opacity-50 pointer-events-none' : ''}`}
-                                    >
-                                        {/* Left: Brand Name & Manufacturer */}
-                                        <div className="pr-4">
-                                            <h4 className="font-bold text-base text-slate-900">{brand.name}</h4>
-                                            <p className="text-xs text-slate-500 mt-0.5">by {brand.manufacturer}</p>
-                                        </div>
-
-                                        {/* Right: Price, Savings Info & Chevron / Spinner */}
-                                        <div className="flex items-center gap-4 shrink-0 text-right">
-                                            <div>
-                                                <p className="text-sm font-medium text-slate-800">{brand.priceInfo}</p>
-                                                {brand.savingsInfo && (
-                                                    <p className={`text-xs font-bold mt-0.5 ${isCostlier ? 'text-red-500' : 'text-emerald-600'}`}>
-                                                        {brand.savingsInfo}
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            {/* Indicator Arrow or Loading Spinner */}
-                                            {isSearchingThis ? (
-                                                <div className="w-5 h-5 border-2 border-slate-600 border-t-transparent rounded-full animate-spin shrink-0" />
-                                            ) : (
-                                                <svg
-                                                    className="w-5 h-5 text-slate-800 shrink-0"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    viewBox="0 0 24 24"
-                                                >
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                                                </svg>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
             </main>
 
             {/* LIGHTBOX / FULL SCREEN MODAL */}
@@ -602,7 +454,7 @@ function ProductDetailPage() {
                             <X size={24} />
                         </button>
                         <img
-                            src={displayImage}
+                            src={FALLBACK_IMAGE}
                             className="max-w-full max-h-full object-contain rounded-2xl animate-in zoom-in-95 duration-200 cursor-default"
                             alt={product.name}
                             onClick={(e) => e.stopPropagation()}
@@ -610,6 +462,18 @@ function ProductDetailPage() {
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+function TrustCard({ icon, title, desc }) {
+    return (
+        <div className="flex gap-3">
+            <div className="shrink-0 w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center">{icon}</div>
+            <div>
+                <h4 className="text-[10px] font-bold text-slate-900 uppercase tracking-wider">{title}</h4>
+                <p className="text-[11px] text-slate-500 font-medium">{desc}</p>
+            </div>
         </div>
     );
 }
