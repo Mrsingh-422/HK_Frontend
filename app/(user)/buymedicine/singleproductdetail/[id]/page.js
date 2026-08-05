@@ -609,22 +609,35 @@ function ProductDetailPage() {
                     </div>
                 </div>
 
-                {/* Same Composition Substitutes Section */}
+{/* Same Composition Substitutes Section */}
                 {substitutes.length > 0 && (
                     <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_4px_30px_rgba(0,0,0,0.015)] p-6 md:p-8">
                         <div className="border-b border-slate-100 pb-4 mb-6">
                             <h3 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">Same Composition Substitutes</h3>
                             <p className="text-xs md:text-sm text-slate-500 mt-0.5">Other brands with identical active ingredients</p>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-                            {substitutes.map((sub) => {
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 items-stretch">
+                            {substitutes.map((sub, index) => {
                                 const hasDiscount = sub.discount > 0;
+                                const isCheapest = index === 0;
+
                                 return (
                                     <div
                                         key={sub.medicineId}
                                         onClick={() => router.push(`/buymedicine/singleproductdetail/${sub.medicineId}`)}
-                                        className="group bg-white border border-slate-100 hover:border-emerald-500/30 hover:shadow-[0_12px_30px_rgba(16,185,129,0.06)] rounded-2xl p-4 transition-all duration-300 flex flex-col justify-between cursor-pointer"
+                                        className={`group border transition-all duration-300 flex flex-col justify-between cursor-pointer rounded-2xl relative
+                                            ${isCheapest 
+                                                ? "bg-emerald-50/15 border-emerald-500 ring-2 ring-emerald-500/10 shadow-[0_15px_40px_rgba(16,185,129,0.12)] hover:border-emerald-600 hover:shadow-[0_15px_45px_rgba(16,185,129,0.18)] pt-10 p-4" 
+                                                : "bg-white border-slate-100 hover:border-slate-200 hover:shadow-[0_12px_30px_rgba(0,0,0,0.03)] p-4"
+                                            }`}
                                     >
+                                        {/* Premium Absolute Header Banner for the Cheapest Alternative */}
+                                        {isCheapest && (
+                                            <div className="absolute top-0 left-0 right-0 bg-emerald-600 text-white text-[8px] md:text-[9px] font-black py-2 text-center uppercase tracking-widest rounded-t-[14px] shadow-sm flex items-center justify-center gap-1">
+                                                <span>⭐</span> Cheapest Alternative
+                                            </div>
+                                        )}
+
                                         <div>
                                             {/* Card Image */}
                                             <div className="relative aspect-square w-full bg-[#F8FAFC] rounded-xl flex items-center justify-center overflow-hidden mb-3.5 border border-slate-50">
@@ -639,25 +652,48 @@ function ProductDetailPage() {
                                                         Rx
                                                     </span>
                                                 )}
+                                                {isCheapest && (
+                                                    <span className="absolute top-2 right-2 bg-emerald-50 text-emerald-700 text-[8px] font-extrabold px-1.5 py-0.5 rounded-md border border-emerald-100 shadow-sm uppercase tracking-wide">
+                                                        Best Price
+                                                    </span>
+                                                )}
                                             </div>
 
                                             {/* Content */}
-                                            <h4 className="font-extrabold text-xs md:text-sm text-slate-900 group-hover:text-emerald-600 transition-colors line-clamp-1">{sub.name}</h4>
+                                            <h4 className={`font-extrabold text-xs md:text-sm line-clamp-1 transition-colors ${
+                                                isCheapest ? "text-emerald-900 group-hover:text-emerald-700" : "text-slate-900 group-hover:text-emerald-600"
+                                            }`}>
+                                                {sub.name}
+                                            </h4>
                                             <p className="text-[9px] md:text-[10px] text-slate-400 mt-1 truncate font-medium">{sub.salt}</p>
                                             <p className="text-[9px] md:text-[10px] text-slate-400 mt-0.5 font-semibold">{sub.packaging}</p>
                                         </div>
 
-                                        <div className="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between">
-                                            <div className="flex items-baseline gap-1.5">
-                                                <span className="text-xs md:text-sm font-black text-slate-900">₹{sub.bestPrice}</span>
-                                                {sub.mrp > sub.bestPrice && (
-                                                    <span className="text-slate-300 line-through text-[9px] md:text-[10px]">₹{sub.mrp}</span>
+                                        <div className="mt-4 pt-3 border-t border-slate-50 flex flex-col gap-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-baseline gap-1.5">
+                                                    <span className={`text-xs md:text-sm font-black ${
+                                                        isCheapest ? "text-emerald-700 text-sm md:text-base" : "text-slate-900"
+                                                    }`}>
+                                                        ₹{sub.bestPrice}
+                                                    </span>
+                                                    {sub.mrp > sub.bestPrice && (
+                                                        <span className="text-slate-300 line-through text-[9px] md:text-[10px]">₹{sub.mrp}</span>
+                                                    )}
+                                                </div>
+                                                {hasDiscount && (
+                                                    <span className="text-[8px] md:text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100/50 px-1.5 py-0.5 rounded">
+                                                        {sub.discount}% OFF
+                                                    </span>
                                                 )}
                                             </div>
-                                            {hasDiscount && (
-                                                <span className="text-[8px] md:text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100/50 px-1.5 py-0.5 rounded">
-                                                    {sub.discount}% OFF
-                                                </span>
+
+                                            {/* Explicit Dynamic Savings Calculation Bar */}
+                                            {isCheapest && sub.mrp > sub.bestPrice && (
+                                                <div className="bg-emerald-50/50 border border-emerald-100/40 rounded-lg py-1 px-2.5 text-[9px] font-bold text-emerald-700 flex items-center justify-between">
+                                                    <span>Savings:</span>
+                                                    <span>₹{(sub.mrp - sub.bestPrice).toFixed(0)} Saved</span>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
