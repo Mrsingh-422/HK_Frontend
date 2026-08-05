@@ -18,14 +18,13 @@ import {
 import UserAPI from '@/app/services/UserAPI';
 
 // Local network asset configuration setup
-const IMAGE_BASE_URL = "http://192.168.1.26:5002/";
+const IMAGE_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.healthkartlabs.com";
 
 const RANDOM_IMAGES = [
-    "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=500&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?q=80&w=500&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1607619056574-7b8d3ee536b2?q=80&w=500&auto=format&fit=crop",
-    "https://cdn.pixabay.com/photo/2020/10/02/09/01/tablets-5620566_1280.jpg",
-    "https://images.unsplash.com/photo-1628771065518-0d82f1938462?q=80&w=500&auto=format&fit=crop"
+    "https://png.pngtree.com/png-clipart/20240619/original/pngtree-drug-capsule-pill-from-prescription-in-drugstore-pharmacy-for-treatment-health-png-image_15366552.png",
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQoCeZWPrZTbRmEPXrqFtm1_6dqQIB0sQzkVhd_x154tg&s",
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQv-J7r_z4VKOmVifDiSnHDtqViF1AciVwbhdBu0SRoBkgfycz7xyzYwPo&s=10",
+
 ];
 
 function AllPharmacyProducts() {
@@ -100,15 +99,15 @@ function AllPharmacyProducts() {
         router.push(`/buymedicine/singleproductdetail/${productId}`);
     };
 
-    return (
-        <div className="min-h-screen bg-[#F8FAFC] font-sans pb-20">
+return (
+        <div className="min-h-screen bg-[#F8FAFC] font-sans pb-20 selection:bg-emerald-100">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 md:pt-10">
 
                 {/* --- METRICS SUB HEADER BRAND TRACKING BAR --- */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4 px-1">
                     <div className="flex flex-col gap-1.5">
                         <h2 className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                            Browsing Scope <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md font-extrabold">{activeCategory}</span>
+                            Browsing Scope <span className="text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg font-black">{activeCategory}</span>
                         </h2>
                         <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white border border-slate-200/60 rounded-lg text-slate-500 font-bold text-[10px] md:text-xs w-fit shadow-sm">
                             {totalProducts} Matches Found
@@ -133,10 +132,11 @@ function AllPharmacyProducts() {
                             {/* Global Base Scope Selection Capsule */}
                             <button
                                 onClick={() => handleCategorySelect("All")}
-                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border tracking-tight transition-all shrink-0 shadow-sm ${activeCategory === "All"
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border tracking-tight transition-all shrink-0 shadow-sm ${
+                                    activeCategory === "All"
                                         ? "bg-slate-900 border-slate-900 text-white"
                                         : "bg-white border-slate-200/70 text-slate-600 hover:border-slate-300"
-                                    }`}
+                                }`}
                             >
                                 <Grid size={13} />
                                 <span>All Categories</span>
@@ -149,10 +149,11 @@ function AllPharmacyProducts() {
                                     <button
                                         key={cat.name || idx}
                                         onClick={() => handleCategorySelect(cat.name)}
-                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border tracking-tight transition-all shrink-0 shadow-sm ${isTargetActive
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border tracking-tight transition-all shrink-0 shadow-sm ${
+                                            isTargetActive
                                                 ? "bg-emerald-600 border-emerald-600 text-white"
                                                 : "bg-white border-slate-200/70 text-slate-600 hover:border-emerald-500/30 hover:text-emerald-600"
-                                            }`}
+                                        }`}
                                     >
                                         {cat.image && (
                                             <img
@@ -191,38 +192,54 @@ function AllPharmacyProducts() {
                                 ? (nativeImg.startsWith('http') ? nativeImg : `${IMAGE_BASE_URL}${nativeImg}`)
                                 : RANDOM_IMAGES[index % RANDOM_IMAGES.length];
 
-                            const discountPercent = product.discont_percent || product.discount;
+                            // Safe pricing extraction handles string/number formatting gracefully
+                            const discountPercentStr = product.discont_percent || product.discount || "";
+                            const discountPercentVal = parseInt(discountPercentStr.toString().replace('%', '')) || 0;
                             const priceBest = parseFloat(product.best_price || product.bestPrice || 0);
-                            const priceMrp = parseFloat(product.mrp || 0);
+                            const priceMrp = parseFloat(product.mrp || 0) || priceBest;
+
+                            // Out of stock evaluation from schema flags
+                            const isOutOfStock = product.isAvailable === false || product.isAvailable === "false" || product.vendorCount === 0;
 
                             return (
                                 <div
                                     key={product._id || index}
                                     onClick={() => handleProductClick(product._id)}
-                                    className="group flex flex-col bg-white border border-slate-100 rounded-2xl md:rounded-[2.5rem] p-3 md:p-5 hover:shadow-[0_22px_50px_rgba(15,23,42,0.06)] hover:border-slate-200/50 transition-all duration-500 cursor-pointer relative"
+                                    className={`group flex flex-col bg-white border border-slate-100 rounded-2xl md:rounded-[2.5rem] p-3 md:p-5 hover:shadow-[0_22px_50px_rgba(15,23,42,0.06)] hover:border-slate-200/50 transition-all duration-500 cursor-pointer relative ${
+                                        isOutOfStock ? "opacity-85" : ""
+                                    }`}
                                 >
                                     {/* Image Container Aspect Wrapper Frame */}
                                     <div className="relative aspect-square w-full mb-4 bg-slate-50/70 rounded-xl md:rounded-3xl overflow-hidden shrink-0 flex items-center justify-center">
                                         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
+                                        {/* Prescription Required Indicator */}
                                         {product.prescription_required === "YES" && (
                                             <div className="absolute top-2 left-2 z-10 bg-white/95 backdrop-blur-md text-red-600 text-[8px] md:text-[9px] font-bold px-2 py-0.5 rounded-md border border-red-100/50 flex items-center gap-1 shadow-sm uppercase tracking-wider">
-                                                <span className="w-1 h-1 bg-red-500 rounded-full animate-pulse" /> Rx
+                                                <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" /> Rx
                                             </div>
                                         )}
 
-                                        {discountPercent && parseInt(discountPercent) > 0 && (
-                                            <div className="absolute top-2 right-2 z-10 bg-emerald-600 text-white text-[9px] md:text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md uppercase tracking-tight">
-                                                {parseInt(discountPercent)}% OFF
+                                        {/* Dynamic Stock State / Discount Tag Overlay */}
+                                        {isOutOfStock ? (
+                                            <div className="absolute top-2 right-2 z-10 bg-rose-50 text-rose-600 border border-rose-100 text-[8px] md:text-[9px] font-extrabold px-2 py-0.5 rounded-md shadow-sm uppercase tracking-wider">
+                                                Out of Stock
                                             </div>
+                                        ) : (
+                                            discountPercentVal > 0 && (
+                                                <div className="absolute top-2 right-2 z-10 bg-emerald-600 text-white text-[9px] md:text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md uppercase tracking-tight">
+                                                    {discountPercentVal}% OFF
+                                                </div>
+                                            )
                                         )}
 
                                         <img
                                             src={completeImgPath}
                                             alt={product.name}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                                            className={`w-full h-full object-cover transition-transform duration-700 ease-out ${
+                                                isOutOfStock ? "grayscale opacity-50" : "group-hover:scale-105"
+                                            }`}
                                             onError={(e) => {
-                                                // Fallback to random stock illustration if asset breaks
                                                 e.target.src = RANDOM_IMAGES[index % RANDOM_IMAGES.length];
                                             }}
                                         />
@@ -234,7 +251,9 @@ function AllPharmacyProducts() {
                                             {product.bread_crumb?.split('>').pop().trim() || activeCategory}
                                         </span>
 
-                                        <h3 className="text-[12px] md:text-[14px] font-bold text-slate-800 line-clamp-2 h-9 md:h-11 mb-1 leading-snug group-hover:text-emerald-600 transition-colors">
+                                        <h3 className={`text-[12px] md:text-[14px] font-bold text-slate-800 line-clamp-2 h-9 md:h-11 mb-1 leading-snug transition-colors ${
+                                            isOutOfStock ? "text-slate-500" : "group-hover:text-emerald-600"
+                                        }`}>
                                             {product.name}
                                         </h3>
 
@@ -245,7 +264,9 @@ function AllPharmacyProducts() {
                                         <div className="mt-auto">
                                             <div className="flex items-baseline justify-between mb-4 gap-2">
                                                 <div className="flex items-baseline gap-1.5 flex-wrap">
-                                                    <span className="text-base md:text-xl font-extrabold text-slate-900 tracking-tight">₹{priceBest}</span>
+                                                    <span className={`text-base md:text-xl font-extrabold tracking-tight ${isOutOfStock ? "text-slate-500" : "text-slate-900"}`}>
+                                                        ₹{priceBest}
+                                                    </span>
                                                     {priceMrp > priceBest && (
                                                         <span className="text-[10px] md:text-xs text-slate-300 line-through font-medium">₹{priceMrp}</span>
                                                     )}
@@ -256,14 +277,19 @@ function AllPharmacyProducts() {
                                             </div>
 
                                             <button
+                                                disabled={isOutOfStock}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    handleProductClick(product._id);
+                                                    if (!isOutOfStock) handleProductClick(product._id);
                                                 }}
-                                                className="w-full flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-emerald-600 text-white py-2.5 md:py-3.5 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md active:scale-95"
+                                                className={`w-full flex items-center justify-center gap-1.5 py-2.5 md:py-3.5 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md ${
+                                                    isOutOfStock 
+                                                        ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none" 
+                                                        : "bg-slate-900 hover:bg-emerald-600 text-white active:scale-95"
+                                                }`}
                                             >
-                                                <span>View Details</span>
-                                                <ArrowRight size={13} className="group-hover:translate-x-1 transition-transform" />
+                                                <span>{isOutOfStock ? "Temporarily Unavailable" : "View Details"}</span>
+                                                {!isOutOfStock && <ArrowRight size={13} className="group-hover:translate-x-1 transition-transform" />}
                                             </button>
                                         </div>
                                     </div>
