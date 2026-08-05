@@ -272,26 +272,6 @@ function BookYourDiseaseTest() {
       </div>
 
       <main className="w-full max-w-7xl mx-auto px-4 mt-12 sm:mt-20 space-y-16 sm:space-y-24">
-        {/* --- CATEGORY NAV --- */}
-        <section>
-          <div className="flex items-center justify-between mb-6 sm:mb-8">
-            <h2 className="text-xl sm:text-2xl font-black text-slate-800 uppercase tracking-tight">Browse by Category</h2>
-            <button onClick={handleSeeAll} className="text-[#08B36A] font-black text-[10px] sm:text-xs uppercase hover:underline">See All</button>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
-            {["All", "Women", "Radiology", "Heart", "Diabetes", "Full Body"].map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`flex items-center gap-3 px-8 py-3 rounded-full font-black text-[10px] sm:text-xs transition-all border-2 whitespace-nowrap
-                  ${activeCategory === cat ? 'bg-slate-900 border-slate-900 text-white shadow-md' : 'bg-white border-slate-100 text-slate-500 hover:border-[#08B36A]'}`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </section>
-
         {/* --- PRODUCT GRID --- */}
         <section>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 sm:mb-10 gap-4">
