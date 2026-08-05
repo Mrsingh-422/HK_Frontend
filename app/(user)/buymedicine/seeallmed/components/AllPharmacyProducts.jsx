@@ -18,7 +18,7 @@ import {
 import UserAPI from '@/app/services/UserAPI';
 
 // Local network asset configuration setup
-const IMAGE_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.healthkartlabs.com";
+const IMAGE_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 const RANDOM_IMAGES = [
     "https://png.pngtree.com/png-clipart/20240619/original/pngtree-drug-capsule-pill-from-prescription-in-drugstore-pharmacy-for-treatment-health-png-image_15366552.png",
