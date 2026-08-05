@@ -289,6 +289,10 @@ const UserAPI = {
         });
         return response.data;
     },
+    getSameCompositionMedicine: async (id) => {
+        const response = await publicApi.get(`/user/pharmacy/medicine-details/${id}/substitutes`);
+        return response.data;
+    },
     addPharmacyToCart: async (cartData) => {
         // cartData should contain productId, pharmacyId, quantity, etc.
         const response = await authApi.post("/user/cart/pharmacy/add", cartData);
