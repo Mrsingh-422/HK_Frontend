@@ -2,18 +2,17 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {
-    FaStar, FaFlask, FaChevronRight, FaClinicMedical,
-    FaCheckCircle, FaChevronLeft, FaClock
-} from "react-icons/fa";
+import { FaStar, FaFlask, FaChevronRight, FaClinicMedical, FaCheckCircle, FaChevronLeft } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
+import { useCart } from "@/app/context/CartContext";
 
 // Fallback image URL for medical/lab packages
 const FALLBACK_IMAGE = "https://www.pathofast.com/images/packages/cro/renamed/hero/full-body-health-checkup-vitamins-and-screening-tests.png";
 
 function PackagesList({ searchTerm = "", selectedLabId = null }) {
     const router = useRouter();
-
+    const { cartItemIds } = useCart();
+    
     // Data State
     const [packages, setPackages] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -32,15 +31,15 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
             if (selectedLabId && selectedLabId !== "undefined") {
                 if (searchTerm) {
                     // Search within a specific lab's inventory
-                    response = await UserAPI.searchLabInventoryPackages(selectedLabId, {
+                    response = await UserAPI.searchLabInventoryPackages(selectedLabId, { 
                         query: searchTerm,
-                        page: currentPage
+                        page: currentPage 
                     });
                 } else {
                     // Fetch full inventory for a specific lab
-                    response = await UserAPI.getLabInventoryPackages(selectedLabId, {
+                    response = await UserAPI.getLabInventoryPackages(selectedLabId, { 
                         page: currentPage,
-                        limit: 12
+                        limit: 12 
                     });
                 }
             } else {
@@ -55,11 +54,11 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
             if (response.success) {
                 // Mapping the response keys (data or packages depending on endpoint)
                 setPackages(response.data || response.packages || []);
-
+                
                 // Pagination mapping from backend response
                 setTotalPages(response.pages || response.totalPages || 1);
                 setTotalResults(response.total || 0);
-
+                
                 // Sync current page if backend sends it
                 if (response.page) {
                     setCurrentPage(response.page);
@@ -86,8 +85,8 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
     }, [fetchPackages]);
 
     const handleCardClick = (pkg) => {
-        const targetId = pkg.masterPackageId || pkg._id;
-        router.push(`/booklabtest/packagedetails/${targetId}`);
+        // alert(pkg.masterPackageId);
+        router.push(`/booklabtest/packagedetails/${pkg.masterPackageId}`);
     };
 
     const handlePageChange = (newPage) => {
@@ -119,25 +118,18 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
 
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
                 {packages.map((pkg) => {
+                    const isAdded = cartItemIds.includes(pkg._id);
+                    
                     // NORMALIZE PRICING FOR BOTH APIS
                     const displayPrice = pkg.discountPrice ?? pkg.offerPrice ?? pkg.minPrice ?? pkg.amount;
                     const strikePrice = pkg.amount ?? pkg.mrp ?? pkg.standardMRP;
 
                     // NORMALIZE NAMES & PARAMETERS COUNT
-                    const displayName = pkg.packageName || pkg.testName;
-                    const testCount = pkg.totalTestsIncluded || pkg.tests?.length || pkg.testCount || 1;
+                    const displayName = pkg.testName || pkg.packageName;
+                    const testCount = pkg.masterTestId?.parameters?.length || pkg.testCount || pkg.totalTestsIncluded || 1;
 
                     // NORMALIZE IMAGE
                     const imageSrc = pkg.image && pkg.image !== "" ? pkg.image : FALLBACK_IMAGE;
-
-                    // ADDITIONAL API KEYS
-                    const isCustom = pkg.isCustom ?? false;
-                    const sampleTypes = Array.isArray(pkg.sampleType) ? pkg.sampleType : [pkg.sampleType || "Blood"];
-                    const reportTime = pkg.reportTime || "24 Hours";
-                    const precaution = pkg.precaution || "";
-                    const gender = pkg.gender || "Both";
-                    const ageGroup = pkg.ageGroup || "All";
-                    const testList = pkg.tests || [];
 
                     return (
                         <div
@@ -155,15 +147,6 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                                 </div>
                             )}
 
-                            {/* Custom Package Tag */}
-                            {isCustom && (
-                                <div className="absolute top-2 md:top-4 right-2 md:right-4 z-10 bg-amber-500 text-white px-2 py-0.5 md:py-1 rounded-md md:rounded-xl shadow-sm">
-                                    <span className="text-[6px] md:text-[8px] font-extrabold uppercase tracking-wider">
-                                        Custom
-                                    </span>
-                                </div>
-                            )}
-
                             {/* Image Section */}
                             <div className="relative h-28 sm:h-36 md:h-48 w-full overflow-hidden bg-slate-100">
                                 <img
@@ -171,7 +154,7 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                                     className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
                                     alt={displayName}
                                     onError={(e) => {
-                                        e.target.src = FALLBACK_IMAGE;
+                                        e.target.src = FALLBACK_IMAGE; 
                                     }}
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
@@ -185,20 +168,13 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
 
                             {/* Content Section */}
                             <div className="p-3 md:p-6 flex-1 flex flex-col">
-                                <div className="flex justify-between items-center mb-2 md:mb-3 gap-2">
+                                <div className="flex justify-between items-start mb-2 md:mb-3">
                                     <span className="text-[7px] md:text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg uppercase tracking-wider">
                                         {pkg.mainCategory || pkg.category || 'Wellness'}
                                     </span>
-                                    <div className="flex items-center gap-1.5">
-                                        {gender && (
-                                            <span className="text-[7px] md:text-[9px] font-semibold text-slate-500 bg-slate-100 px-1.5 md:px-2 py-0.5 md:py-1 rounded-md">
-                                                {gender}
-                                            </span>
-                                        )}
-                                        <div className="flex items-center gap-1 bg-amber-50 px-1 md:px-2 py-0.5 md:py-1 rounded-md md:rounded-lg border border-amber-100">
-                                            <FaStar className="text-amber-400 text-[8px] md:text-[10px]" />
-                                            <span className="text-slate-700 font-bold text-[8px] md:text-[10px]">4.9</span>
-                                        </div>
+                                    <div className="flex items-center gap-1 bg-amber-50 px-1 md:px-2 py-0.5 md:py-1 rounded-md md:rounded-lg border border-amber-100">
+                                        <FaStar className="text-amber-400 text-[8px] md:text-[10px]" />
+                                        <span className="text-slate-700 font-bold text-[8px] md:text-[10px]">4.9</span>
                                     </div>
                                 </div>
 
@@ -206,52 +182,22 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                                     {displayName}
                                 </h3>
 
-                                {/* Diagnostic Details Row */}
-                                <div className="flex flex-wrap items-center gap-x-2 md:gap-x-4 gap-y-1 mb-3">
-                                    <div className="flex items-center gap-1">
-                                        <FaFlask className="text-emerald-500 text-[9px] md:text-xs" />
-                                        <span className="text-[8px] md:text-xs font-medium text-slate-500">
-                                            {sampleTypes.join(", ")}
+                                <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-3 md:mb-6">
+                                    <div className="flex items-center gap-1 md:gap-1.5">
+                                        <div className="w-4 h-4 md:w-6 md:h-6 rounded-full bg-slate-50 flex items-center justify-center">
+                                            <FaFlask className="text-emerald-500 text-[8px] md:text-[10px]" />
+                                        </div>
+                                        <span className="text-[9px] md:text-xs font-medium text-slate-500">
+                                            {testCount} Tests
                                         </span>
                                     </div>
-                                    <div className="w-px h-3 bg-slate-200" />
-                                    <div className="flex items-center gap-1">
-                                        <FaClock className="text-slate-400 text-[9px] md:text-xs" />
-                                        <span className="text-[8px] md:text-xs font-medium text-slate-500">
-                                            {reportTime.includes("Hour") || reportTime.includes("h") ? reportTime : `${reportTime} Hrs`}
-                                        </span>
+                                    <div className="hidden sm:flex items-center gap-1.5">
+                                        <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center">
+                                            <FaCheckCircle className="text-blue-500 text-[10px]" />
+                                        </div>
+                                        <span className="text-xs font-medium text-slate-500">Verified</span>
                                     </div>
-                                    <div className="w-px h-3 bg-slate-200" />
-                                    <span className="text-[8px] md:text-xs font-medium text-slate-500">
-                                        {testCount} {testCount === 1 ? "Test" : "Tests"}
-                                    </span>
                                 </div>
-
-                                {/* Included Tests List Pills */}
-                                {testList.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mb-3">
-                                        {testList.slice(0, 3).map((t) => (
-                                            <span key={t._id} className="text-[7px] md:text-[9px] bg-slate-50 border border-slate-100 text-slate-600 px-2 py-0.5 rounded-full line-clamp-1">
-                                                {t.testName}
-                                            </span>
-                                        ))}
-                                        {testList.length > 3 && (
-                                            <span className="text-[7px] md:text-[9px] bg-emerald-50 border border-emerald-100 text-emerald-600 font-semibold px-2 py-0.5 rounded-full">
-                                                +{testList.length - 3} More
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Precaution/Preparation Warning */}
-                                {precaution && (
-                                    <div className="mb-4 p-1.5 md:p-2 bg-slate-50 rounded-lg border border-slate-100 flex items-center gap-1.5">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                                        <span className="text-[8px] md:text-[10px] font-medium text-slate-600 line-clamp-1">
-                                            Req: {precaution}
-                                        </span>
-                                    </div>
-                                )}
 
                                 {/* Pricing & Action */}
                                 <div className="mt-auto pt-3 md:pt-5 border-t border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 md:gap-4">
@@ -269,10 +215,14 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                                             e.stopPropagation();
                                             handleCardClick(pkg);
                                         }}
-                                        className="w-full sm:w-auto px-3 md:px-6 py-2 md:py-3 rounded-xl md:rounded-2xl font-bold text-[9px] md:text-xs flex items-center justify-center gap-1 md:gap-2 transition-all duration-300 shadow-md active:scale-95 bg-emerald-600 text-white hover:bg-slate-900 shadow-emerald-200"
+                                        className={`w-full sm:w-auto px-3 md:px-6 py-2 md:py-3 rounded-xl md:rounded-2xl font-bold text-[9px] md:text-xs flex items-center justify-center gap-1 md:gap-2 transition-all duration-300 shadow-md active:scale-95 ${
+                                            isAdded 
+                                            ? "bg-slate-100 text-slate-400 cursor-default" 
+                                            : "bg-emerald-600 text-white hover:bg-slate-900 shadow-emerald-200"
+                                        }`}
                                     >
-                                        View Details
-                                        <FaChevronRight size={8} className="md:size-[10px]" />
+                                        {isAdded ? "In Cart" : "View Details"}
+                                        {!isAdded && <FaChevronRight size={8} className="md:size-[10px]" />}
                                     </button>
                                 </div>
                             </div>
@@ -291,7 +241,7 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                     >
                         <FaChevronLeft className="text-slate-600 text-[10px] md:text-xs" />
                     </button>
-
+                    
                     {[...Array(totalPages)].map((_, i) => {
                         const pageNum = i + 1;
                         if (totalPages > 5 && Math.abs(pageNum - currentPage) > 1) {
@@ -303,10 +253,11 @@ function PackagesList({ searchTerm = "", selectedLabId = null }) {
                             <button
                                 key={pageNum}
                                 onClick={() => handlePageChange(pageNum)}
-                                className={`w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold transition-all ${currentPage === pageNum
+                                className={`w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold transition-all ${
+                                    currentPage === pageNum
                                         ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200"
                                         : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-                                    }`}
+                                }`}
                             >
                                 {pageNum}
                             </button>

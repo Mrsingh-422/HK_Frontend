@@ -69,8 +69,8 @@ export default function LabDetailsPage() {
     };
 
     // Use lab.gallery, falling back to documents.labImages if gallery is empty
-    const galleryImages = (lab.gallery && lab.gallery.length > 0) 
-        ? lab.gallery 
+    const galleryImages = (lab.gallery && lab.gallery.length > 0)
+        ? lab.gallery
         : (lab.documents?.labImages || []);
 
     return (

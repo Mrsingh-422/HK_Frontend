@@ -6,8 +6,9 @@ import UserAPI from "@/app/services/UserAPI";
 import {
     FaStar, FaFlask, FaChevronRight, FaVial,
     FaCheckCircle, FaPrescriptionBottleAlt, FaChevronLeft,
-    FaClipboardList, FaClock
+    FaExclamationTriangle, FaTrashAlt
 } from "react-icons/fa";
+import { useCart } from "@/app/context/CartContext";
 
 const CATEGORY_IMAGES = {
     Radiology: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR2lytqry1YYLSNxtpI-zSkQAtuOmDzscJlcg&s",
@@ -17,6 +18,7 @@ const CATEGORY_IMAGES = {
 
 const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
     const router = useRouter();
+    const { cartItemIds, addItem, removeItem, clearFullCart } = useCart();
 
     // Data State
     const [tests, setTests] = useState([]);
@@ -26,6 +28,11 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalResults, setTotalResults] = useState(0);
+
+    // Conflict/Clear Cart State
+    const [showClearCartModal, setShowClearCartModal] = useState(false);
+    const [pendingTest, setPendingTest] = useState(null);
+    const [isClearing, setIsClearing] = useState(false);
 
     const fetchTests = useCallback(async () => {
         try {
@@ -80,10 +87,56 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
         }
     };
 
-    const handleCardClick = (test, e) => {
+    const handleCartAction = async (test, e) => {
         if (e) e.stopPropagation();
-        const targetId = test.masterTestId?._id || test._id;
-        router.push(`/booklabtest/testdetails/${targetId}`);
+        const isAlreadyAdded = cartItemIds.includes(test._id);
+
+        if (isAlreadyAdded) {
+            removeItem(test._id);
+        } else {
+            const targetLabId = selectedLabId || test.labId || test.minPriceLabId;
+            if (!targetLabId) {
+                handleCardClick(test);
+                return;
+            }
+
+            try {
+                const result = await addItem(targetLabId, test._id, 'LabTest');
+
+                if (result && result.error && (result.type === 'LAB_MISMATCH' || result.type === 'CATEGORY_MISMATCH')) {
+                    setPendingTest(test);
+                    setShowClearCartModal(true);
+                }
+            } catch (error) {
+                if (error.message?.includes('different lab') || error.message?.includes('category')) {
+                    setPendingTest(test);
+                    setShowClearCartModal(true);
+                } else {
+                    console.error("Add to cart error:", error);
+                }
+            }
+        }
+    };
+
+    const handleClearAndAdd = async () => {
+        if (!pendingTest) return;
+        try {
+            setIsClearing(true);
+            await clearFullCart();
+            const targetLabId = selectedLabId || pendingTest.labId || pendingTest.minPriceLabId;
+            await addItem(targetLabId, pendingTest._id, 'LabTest');
+            setShowClearCartModal(false);
+            setPendingTest(null);
+        } catch (error) {
+            console.error("Clear and add error:", error);
+        } finally {
+            setIsClearing(false);
+        }
+    };
+
+    const handleCardClick = (test) => {
+        // alert(test._id)
+        router.push(`/booklabtest/testdetails/${test.masterTestId._id}`);
     };
 
     if (loading) return (
@@ -96,6 +149,47 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
 
     return (
         <div className="bg-transparent space-y-6 md:space-y-8">
+            {/* Clear Cart Conflict Modal */}
+            {showClearCartModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 max-w-md w-full shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-300">
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-rose-50 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6">
+                            <FaExclamationTriangle className="text-rose-500 text-xl md:text-2xl" />
+                        </div>
+
+                        <h3 className="text-lg md:text-xl font-black text-slate-800 mb-2">Replace Cart Items?</h3>
+                        <p className="text-slate-500 text-[12px] md:text-sm leading-relaxed mb-6 md:mb-8">
+                            Your cart contains items from a different Lab or Category (Pathology/Radiology).
+                            You can only book tests from one lab and one category at a time.
+                        </p>
+
+                        <div className="flex flex-col gap-3">
+                            <button
+                                onClick={handleClearAndAdd}
+                                disabled={isClearing}
+                                className="w-full py-3 md:py-4 bg-slate-900 hover:bg-rose-600 text-white rounded-xl md:rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center justify-center gap-2"
+                            >
+                                {isClearing ? (
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                    <>
+                                        <FaTrashAlt size={14} />
+                                        Clear & Add New
+                                    </>
+                                )}
+                            </button>
+                            <button
+                                onClick={() => { setShowClearCartModal(false); setPendingTest(null); }}
+                                disabled={isClearing}
+                                className="w-full py-3 md:py-4 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm transition-all"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Result Stats */}
             {totalResults > 0 && (
                 <div className="flex items-center gap-2 mb-2 px-1 md:px-2">
@@ -107,38 +201,23 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
 
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
                 {tests.map((test) => {
+                    const isAdded = cartItemIds.includes(test._id);
                     const displayPrice = test.discountPrice || test.minPrice || test.amount || test.mrp;
                     const strikePrice = test.amount || test.standardMRP || test.mrp;
                     const category = test.masterTestId?.mainCategory || test.mainCategory || 'Pathology';
                     const testImage = CATEGORY_IMAGES[category] || CATEGORY_IMAGES.Default;
 
-                    // Extracted values from the detailed JSON structure
-                    const testCode = test.masterTestId?.testCode || "";
-                    const parameters = test.masterTestId?.parameters || [];
-                    const precaution = test.precaution || test.masterTestId?.pretestPreparation || "";
-                    const gender = test.masterTestId?.gender || "Both";
-
                     return (
                         <div
                             key={test._id}
-                            onClick={(e) => handleCardClick(test, e)}
+                            onClick={() => handleCardClick(test)}
                             className="group relative bg-white rounded-2xl md:rounded-[2rem] border border-slate-100 hover:border-emerald-500/30 hover:shadow-[0_20px_50px_rgba(8,179,106,0.12)] transition-all duration-500 flex flex-col overflow-hidden cursor-pointer"
                         >
-                            {/* Category and Test Code Tags */}
-                            <div className="absolute top-2 md:top-4 left-2 md:left-4 z-10 flex flex-col gap-1 items-start">
-                                <div className="bg-white/90 backdrop-blur-md px-1.5 md:px-3 py-0.5 md:py-1.5 rounded-lg md:rounded-2xl shadow-sm flex items-center gap-1 md:gap-2 border border-slate-100">
-                                    <FaVial className="text-emerald-500 text-[8px] md:text-[10px]" />
-                                    <span className="text-[7px] md:text-[10px] font-black text-slate-700 uppercase tracking-tight">
-                                        {category}
-                                    </span>
-                                </div>
-                                {testCode && (
-                                    <div className="bg-slate-900/80 backdrop-blur-md px-1.5 md:px-2.5 py-0.5 rounded-md md:rounded-xl shadow-sm">
-                                        <span className="text-[6px] md:text-[8px] font-bold text-white tracking-wider">
-                                            {testCode}
-                                        </span>
-                                    </div>
-                                )}
+                            <div className="absolute top-2 md:top-4 left-2 md:left-4 z-10 bg-white/90 backdrop-blur-md px-1.5 md:px-3 py-0.5 md:py-1.5 rounded-lg md:rounded-2xl shadow-sm flex items-center gap-1 md:gap-2 border border-slate-100">
+                                <FaVial className="text-emerald-500 text-[8px] md:text-[10px]" />
+                                <span className="text-[7px] md:text-[10px] font-black text-slate-700 uppercase tracking-tight">
+                                    {category}
+                                </span>
                             </div>
 
                             <div className="relative h-28 sm:h-40 w-full overflow-hidden">
@@ -157,21 +236,14 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                             </div>
 
                             <div className="p-3 md:p-6 flex-1 flex flex-col">
-                                <div className="flex justify-between items-center mb-2 md:mb-3">
+                                <div className="flex justify-between items-start mb-2 md:mb-3">
                                     <div className="flex items-center gap-1 bg-blue-50 px-1.5 md:px-2 py-0.5 md:py-1 rounded-md md:rounded-lg">
                                         <FaCheckCircle className="text-blue-500 text-[8px] md:text-[10px]" />
                                         <span className="text-[7px] md:text-[10px] font-bold text-blue-600 uppercase">Verified</span>
                                     </div>
-                                    <div className="flex items-center gap-1.5">
-                                        {gender && (
-                                            <span className="text-[7px] md:text-[9px] font-semibold text-slate-500 bg-slate-100 px-1.5 md:px-2 py-0.5 md:py-1 rounded-md">
-                                                {gender}
-                                            </span>
-                                        )}
-                                        <div className="flex items-center gap-0.5 md:gap-1 bg-amber-50 px-1 md:px-2 py-0.5 md:py-1 rounded-md md:rounded-lg border border-amber-100">
-                                            <FaStar className="text-amber-400 text-[8px] md:text-[10px]" />
-                                            <span className="text-slate-700 font-bold text-[8px] md:text-[10px]">4.8</span>
-                                        </div>
+                                    <div className="flex items-center gap-0.5 md:gap-1 bg-amber-50 px-1 md:px-2 py-0.5 md:py-1 rounded-md md:rounded-lg border border-amber-100">
+                                        <FaStar className="text-amber-400 text-[8px] md:text-[10px]" />
+                                        <span className="text-slate-700 font-bold text-[8px] md:text-[10px]">4.8</span>
                                     </div>
                                 </div>
 
@@ -179,39 +251,14 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                                     {test.testName}
                                 </h3>
 
-                                {/* Diagnostic Details Row */}
-                                <div className="flex flex-wrap items-center gap-x-2 md:gap-x-4 gap-y-1 mb-3 md:mb-4">
-                                    <div className="flex items-center gap-1">
-                                        <FaFlask className="text-emerald-500 text-[9px] md:text-xs" />
-                                        <span className="text-[8px] md:text-xs font-medium text-slate-500">{test.sampleType || 'Blood'}</span>
+                                <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-3 md:mb-5">
+                                    <div className="flex items-center gap-1 md:gap-1.5">
+                                        <FaFlask className="text-emerald-500 text-[10px] md:text-xs" />
+                                        <span className="text-[9px] md:text-xs font-medium text-slate-500">{test.sampleType || 'Blood'}</span>
                                     </div>
-                                    <div className="w-px h-3 bg-slate-200" />
-                                    <div className="flex items-center gap-1">
-                                        <FaClock className="text-slate-400 text-[9px] md:text-xs" />
-                                        <span className="text-[8px] md:text-xs font-medium text-slate-500">{test.reportTime || '24'} hrs</span>
-                                    </div>
-                                    {parameters.length > 0 && (
-                                        <>
-                                            <div className="w-px h-3 bg-slate-200" />
-                                            <div className="flex items-center gap-1">
-                                                <FaClipboardList className="text-blue-500 text-[9px] md:text-xs" />
-                                                <span className="text-[8px] md:text-xs font-medium text-slate-500">
-                                                    {parameters.length} {parameters.length === 1 ? 'Parameter' : 'Parameters'}
-                                                </span>
-                                            </div>
-                                        </>
-                                    )}
+                                    <div className="hidden sm:block w-px h-3 bg-slate-200" />
+                                    <span className="text-[9px] md:text-xs font-medium text-slate-500">{test.reportTime || '24'}h</span>
                                 </div>
-
-                                {/* Precaution/Preparation Warning */}
-                                {precaution && (
-                                    <div className="mb-4 p-1.5 md:p-2 bg-slate-50 rounded-lg border border-slate-100 flex items-center gap-1.5">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                                        <span className="text-[8px] md:text-[10px] font-medium text-slate-600 line-clamp-1">
-                                            {precaution}
-                                        </span>
-                                    </div>
-                                )}
 
                                 <div className="mt-auto pt-3 md:pt-5 border-t border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 md:gap-4">
                                     <div>
@@ -224,11 +271,14 @@ const SingleTestsList = ({ searchTerm = "", selectedLabId = null }) => {
                                     </div>
 
                                     <button
-                                        onClick={(e) => handleCardClick(test, e)}
-                                        className="w-full sm:w-auto px-3 md:px-5 py-2 md:py-2.5 rounded-xl md:rounded-2xl font-bold text-[9px] md:text-xs flex items-center justify-center gap-1.5 md:gap-2 transition-all duration-300 shadow-md active:scale-95 bg-emerald-600 text-white hover:bg-slate-900 shadow-emerald-200"
+                                        onClick={(e) => handleCartAction(test, e)}
+                                        className={`w-full sm:w-auto px-3 md:px-5 py-2 md:py-2.5 rounded-xl md:rounded-2xl font-bold text-[9px] md:text-xs flex items-center justify-center gap-1.5 md:gap-2 transition-all duration-300 shadow-md active:scale-95 ${isAdded
+                                            ? "bg-rose-50 text-rose-500 hover:bg-rose-100"
+                                            : "bg-emerald-600 text-white hover:bg-slate-900 shadow-emerald-200"
+                                            }`}
                                     >
-                                        View Details
-                                        <FaChevronRight size={8} className="md:size-[10px]" />
+                                        {isAdded ? "Remove" : "Book"}
+                                        {!isAdded && <FaChevronRight size={8} className="md:size-[10px]" />}
                                     </button>
                                 </div>
                             </div>
