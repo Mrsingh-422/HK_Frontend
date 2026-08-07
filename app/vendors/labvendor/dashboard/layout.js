@@ -29,7 +29,8 @@ const menuItems = [
     { name: 'Wallet & Earning', href: '/vendors/labvendor/dashboard/wallet', icon: FaWallet },
     { name: 'Availability', href: '/vendors/labvendor/dashboard/availability', icon: FaCalendarCheck },
     { name: 'Delivery Charges', href: '/vendors/labvendor/dashboard/delivery-charge', icon: FaTruck },
-    { name: 'Manage Banking', href: '/vendors/labvendor/dashboard/ManageBanking', icon: FaUniversity }, // ADDED MANAGE BANKING TO SETTINGS SECTION
+    { name: 'Manage Banking', href: '/vendors/labvendor/dashboard/ManageBanking', icon: FaUniversity }, 
+    { name: 'Change Password', href: '/vendors/labvendor/dashboard/change-password', icon: FaTruck },// ADDED MANAGE BANKING TO SETTINGS SECTION
     
 ];
 

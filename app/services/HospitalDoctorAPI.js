@@ -360,7 +360,48 @@ const HospitalDoctorAPI = {
         } catch (error) {
             return Promise.reject(error.response?.data?.message || "Failed to self-assign case");
         }
+    },
+     /**
+     * Hospital Doctor - Change Password API
+     * HTTP Method: PATCH
+     * Route: /hospital-doctor/panel/profile/change-password
+     */
+    changePassword: async ({ oldPassword, newPassword }) => {
+        try {
+            const response = await hospitalDoctorApi.patch('/hospital-doctor/panel/profile/change-password', {
+                oldPassword,
+                newPassword
+            });
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error.response?.data?.message || "Failed to update password");
+        }
+    },
+    // SUBMIT DISCHARGE SUMMARY & UPLOAD COMPILED PDF
+   // DELETE this whole block (item #10 in your file):
+submitDischargeSummary: async (body) => {
+    try {
+        let data = body;
+        let appointmentId = body?.appointmentId;
+        if (body && !(body instanceof FormData)) {
+            data = new FormData();
+            Object.keys(body).forEach(key => {
+                data.append(key, body[key]);
+            });
+        } else if (body instanceof FormData) {
+            appointmentId = body.get('appointmentId');
+        }
+        const url = appointmentId 
+            ? `/hospital-doctor/panel/case/discharge-summary?appointmentId=${encodeURIComponent(appointmentId)}`
+            : '/hospital-doctor/panel/case/discharge-summary';
+        const response = await hospitalDoctorApi.post(url, data, { 
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    } catch (error) {
+        return Promise.reject(error.response?.data?.message || "Failed to submit discharge summary");
     }
+},
 };
  
 export default HospitalDoctorAPI;

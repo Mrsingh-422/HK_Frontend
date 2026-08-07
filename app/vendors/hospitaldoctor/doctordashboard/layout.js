@@ -224,7 +224,8 @@ export default function DoctorVendorLayout({ children }) {
             isSubmenu: true,
             submenuItems: [
                 { name: 'Profile', href: '/vendors/hospitaldoctor/doctordashboard/profile', icon: FaUserCircle },
-                { name: 'Terms & Conditions', href: '/vendors/hospitaldoctor/doctordashboard/terms-and-conditions', icon: FaFileContract }
+                { name: 'Terms & Conditions', href: '/vendors/hospitaldoctor/doctordashboard/terms-and-conditions', icon: FaFileContract },
+                { name: 'Change Password', href: '/vendors/hospitaldoctor/doctordashboard/change-password', icon: FaFileContract }
             ]
         }
     ];

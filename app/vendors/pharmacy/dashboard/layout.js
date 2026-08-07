@@ -188,6 +188,7 @@ export default function PharmacyVendorLayout({ children }) {
         { name: 'Manage Banking', href: '/vendors/pharmacy/dashboard/ManageBanking', icon: FaUniversity },
         { name: 'Manage Delivery Charges', href: '/vendors/pharmacy/dashboard/delivery-charges', icon: FaMoneyBillWave },
         { name: 'Wallet & Earning', href: '/vendors/pharmacy/dashboard/wallet', icon: FaWallet },
+        { name: 'Change Password', href: '/vendors/pharmacy/dashboard/change-password', icon: FaWallet },
     ];
 
     return (

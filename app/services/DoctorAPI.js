@@ -443,7 +443,37 @@ const DoctorAPI = {
         } catch (error) {
             console.error("API Error in getDoctorChatHistory:", error);
         }
-    }
+    },
+    // ==========================================
+    // DOCTOR APPOINTMENT MANAGEMENT
+    // ==========================================
+
+    // UPDATED: CANCEL APPOINTMENT (Supports { reason, isPermanent })
+    cancelAppointment: async (id, payload) => {
+        try {
+            const body = typeof payload === 'string' 
+                ? { reason: payload, isPermanent: false } 
+                : payload;
+
+            const response = await doctorApi.patch(`/doctor/appointments/cancel/${id}`, body);
+            return response.data;
+        } catch (error) {
+            console.error('Cancel Appointment Error:', error);
+            throw error;
+        }
+    },
+     /**
+   * Independent Doctor - Change Password API
+   * HTTP Method: PATCH
+   * Route: /api/auth/doctor/change-password
+   */
+     changePassword: async ({ oldPassword, newPassword }) => {
+        const response = await doctorApi.patch('/api/auth/doctor/change-password', {
+            oldPassword,
+            newPassword,
+        });
+        return response.data;
+    },
 };
 
 export default DoctorAPI;

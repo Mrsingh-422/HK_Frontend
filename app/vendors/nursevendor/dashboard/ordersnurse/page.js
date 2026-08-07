@@ -6,7 +6,7 @@ import {
     FaTimesCircle, FaExclamationTriangle, FaIdCard, FaSpinner,
     FaStethoscope, FaBoxOpen, FaInfoCircle, FaTrashAlt, FaChevronLeft, FaChevronRight,
     FaSyncAlt, FaFileMedical, FaSearch, FaUserNurse, FaTimes, FaAward,
-    FaUserCircle // Added to resolve the ReferenceError
+    FaUserCircle, FaClock, FaTag
 } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import NurseAPI from '@/app/services/NurseAPI';
@@ -40,9 +40,26 @@ const getPrescriptionImageUrl = (imagePath, baseUrl) => {
 
 const handleImageError = (e) => {
     const currentSrc = e.target.src;
-    // Fallback: If image fails to load with "/public/..." prefix, attempt to pull directly from root static path
     if (currentSrc.includes('/public/')) {
         e.target.src = currentSrc.replace('/public/', '/');
+    }
+};
+
+const formatOrderDateTime = (dateStr, timeStr) => {
+    if (!dateStr) return 'N/A';
+    try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return 'N/A';
+        const formattedDate = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        
+        let formattedTime = timeStr || '';
+        if (!formattedTime && (date.getHours() !== 0 || date.getMinutes() !== 0)) {
+            formattedTime = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        }
+        
+        return formattedTime ? `${formattedDate} at ${formattedTime}` : formattedDate;
+    } catch (e) {
+        return 'N/A';
     }
 };
 
@@ -79,6 +96,11 @@ const UnifiedOrderDetailModal = ({
     const isIncomingPrescription = activeTab === 'Prescription Nursing' && prescriptionSubTab === 'Incoming';
     const isHistory = activeTab === 'Approved' || activeTab === 'Rejected';
     const isRejected = activeTab === 'Rejected';
+
+    // Priority Check
+    const isPriorityOrder = order.isPriority === true || 
+                            (order.priceBreakdown?.fasterServiceCharge > 0) || 
+                            activeTab === 'Priority Requests';
 
     // Normalize address rendering across dynamic schemas
     const addressDetails = order.location?.address || order.address;
@@ -144,7 +166,6 @@ const UnifiedOrderDetailModal = ({
         try {
             setIsSubmitting(true);
 
-            // Construct payload structured exactly as specified
             const payload = {
                 requestId: order._id || order.requestId,
                 servicesPricing: targetServices.map(s => ({
@@ -201,11 +222,20 @@ const UnifiedOrderDetailModal = ({
                 {/* Modal Header */}
                 <div className={`${isRejected ? 'bg-red-500' : isIncomingPrescription ? 'bg-indigo-600' : 'bg-[#08B36A]'} p-6 text-white flex justify-between items-center`}>
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center border border-white/30 backdrop-blur-sm">
+                        <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center border border-white/30 backdrop-blur-sm shrink-0">
                             <FaIdCard size={24} />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold">{isIncomingPrescription ? 'Create Pricing Proposal' : (order.serviceDetails?.title || 'Prescription Details')}</h2>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h2 className="text-xl font-bold">
+                                    {isIncomingPrescription ? 'Create Pricing Proposal' : (order.serviceDetails?.title || 'Prescription Details')}
+                                </h2>
+                                {isPriorityOrder && (
+                                    <span className="px-2.5 py-0.5 bg-amber-400 text-amber-950 font-black text-[10px] rounded-full uppercase tracking-wider flex items-center gap-1 animate-pulse shadow-sm">
+                                        <FaTag size={8} /> PRIORITY BOOKING
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-xs text-white/90 mt-1 uppercase tracking-widest">
                                 ID: {order.bookingId || order._id?.slice(-8)}
                             </p>
@@ -217,7 +247,22 @@ const UnifiedOrderDetailModal = ({
                 </div>
 
                 {/* Modal Content */}
-                <div className="p-8 max-h-[65vh] overflow-y-auto custom-scrollbar">
+                <div className="p-8 max-h-[65vh] overflow-y-auto custom-scrollbar space-y-6">
+
+                    {/* PRIORITY TAG BANNER INSIDE ORDER DETAILS */}
+                    {isPriorityOrder && (
+                        <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-center justify-between shadow-xs">
+                            <div className="flex items-center gap-2 text-amber-800 font-extrabold text-xs uppercase tracking-wider">
+                                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                                <FaTag className="text-amber-600" size={12} />
+                                Priority Booking Request
+                            </div>
+                            <span className="px-3 py-1 bg-amber-500 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-xs">
+                                EXPRESS PRIORITY
+                            </span>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         
                         {/* Profile Details */}
@@ -239,6 +284,43 @@ const UnifiedOrderDetailModal = ({
                                         {order.userId?.gender || 'N/A'}{order.userId?.age ? ` / ${order.userId.age} yrs` : ''}
                                     </span>
                                 </div>
+                                
+                                {/* ORDER DATE & TIME DISPLAY */}
+                                <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                                    <span className="text-gray-400 flex items-center gap-1">
+                                        <FaClock className="text-gray-400" size={10} /> Order Date & Time:
+                                    </span> 
+                                    <span className="font-bold text-gray-900 text-xs">
+                                        {formatOrderDateTime(
+                                            order.createdAt || order.bookingDate || order.schedule?.startDate, 
+                                            order.appointmentTime || order.timeSlot || order.schedule?.startTime
+                                        )}
+                                    </span>
+                                </div>
+
+                                {/* SCHEDULED SERVICE DATE & TIME */}
+                                {(order.schedule?.startDate || order.appointmentDate) && (
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-400 flex items-center gap-1">
+                                            <FaCalendarAlt className="text-gray-400" size={10} /> Scheduled Slot:
+                                        </span> 
+                                        <span className="font-bold text-gray-800 text-xs">
+                                            {formatOrderDateTime(
+                                                order.schedule?.startDate || order.appointmentDate, 
+                                                order.schedule?.startTime || order.appointmentTime || order.timeSlot
+                                            )}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {isPriorityOrder && (
+                                    <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                                        <span className="text-gray-400">Priority Status:</span> 
+                                        <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 font-extrabold text-[10px] uppercase rounded-full tracking-wider">
+                                            Priority Request
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -424,16 +506,18 @@ const UnifiedOrderDetailModal = ({
                         )}
 
                         {/* Price Breakdown Preview */}
-                        {!isIncomingPrescription && order.priceBreakdown && (
+                        {!isIncomingPrescription && (
                             <div className="md:col-span-2 space-y-3">
-                                <div className="flex justify-between text-sm bg-gray-50 p-4 rounded-2xl border font-bold">
+                                <div className="flex justify-between text-sm bg-gray-50 p-4 rounded-2xl border font-bold items-center">
                                     <span className="text-gray-400">Total Charged Price:</span>
-                                    <span className="text-[#08B36A] text-lg">₹{order.priceBreakdown?.totalPrice || order.totalPrice}</span>
+                                    <span className="text-[#08B36A] text-lg font-black">
+                                        ₹{order.priceBreakdown?.totalPrice || order.totalPrice || 'N/A'}
+                                    </span>
                                 </div>
                             </div>
                         )}
 
-                        {/* Prescription Media (Resolves path and applies self-healing image loader) */}
+                        {/* Prescription Media */}
                         {order.prescriptionImage && (
                             <div className="md:col-span-2 space-y-3">
                                 <div className="flex items-center gap-2 border-b pb-2">
@@ -512,19 +596,24 @@ const OrderHistoryRow = ({ order, activeTab, onRowClick, onAssignClick, formatDa
                 <div className="font-black text-gray-900 text-base group-hover:text-[#08B36A] transition-colors">
                     {order.patients?.[0]?.name || order.address?.name || 'N/A'}
                 </div>
-                <div className="flex items-center gap-2 mt-1.5">
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${activeTab === 'Approved' ? 'bg-green-50 text-[#08B36A]' : 'bg-red-50 text-red-400'}`}>
                         ID: {order.bookingId || order._id?.slice(-8)}
                     </span>
                     <span className="text-[11px] text-gray-400 font-bold uppercase">
-                        {formatDate(order.schedule?.startDate)}
+                        {formatDate(order.createdAt || order.schedule?.startDate)}
                     </span>
+                    {(order.isPriority || order.priceBreakdown?.fasterServiceCharge > 0) && (
+                        <span className="text-[9px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded uppercase tracking-wider">
+                            Priority
+                        </span>
+                    )}
                 </div>
             </td>
 
             <td className="px-8 py-6">
                 <div className="flex items-start gap-2.5 max-w-[280px]">
-                    <div className="mt-1 p-1.5 bg-gray-100 rounded-lg text-gray-400">
+                    <div className="mt-1 p-1.5 bg-gray-100 rounded-lg text-gray-400 shrink-0">
                         <FaMapMarkerAlt size={12} />
                     </div>
                     <span className="text-sm text-gray-600 font-medium leading-relaxed line-clamp-2">
@@ -536,7 +625,7 @@ const OrderHistoryRow = ({ order, activeTab, onRowClick, onAssignClick, formatDa
             <td className="px-8 py-6">
                 {activeTab === 'Approved' ? (
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-600 rounded-full">
+                        <div className="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-600 rounded-full shrink-0">
                             <FaPhoneAlt size={10} />
                         </div>
                         <span className="text-sm font-black text-gray-700">{order.address?.phone || 'N/A'}</span>
@@ -953,6 +1042,7 @@ export default function NurseOrdersPage() {
 
                                     const isIncomingPrescriptionItem = activeTab === 'Prescription Nursing' && prescriptionSubTab === 'Incoming';
                                     const isConfirmedPrescriptionItem = activeTab === 'Prescription Nursing' && prescriptionSubTab === 'Confirmed';
+                                    const isExpress = item.priceBreakdown?.fasterServiceCharge > 0 || item.isPriority === true;
 
                                     return (
                                         <tr key={item._id || index} onClick={() => openDetails(item)} className="hover:bg-gray-50 transition-colors cursor-pointer group">
@@ -982,7 +1072,7 @@ export default function NurseOrdersPage() {
                                                     <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-green-50 text-[#08B36A]">
                                                         ID: {item.bookingId || item._id?.slice(-8)}
                                                     </span>
-                                                    {item.priceBreakdown?.fasterServiceCharge > 0 && (
+                                                    {isExpress && (
                                                         <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded uppercase tracking-wider">
                                                             Priority
                                                         </span>

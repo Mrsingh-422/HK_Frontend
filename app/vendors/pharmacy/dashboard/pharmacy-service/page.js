@@ -5,6 +5,26 @@ import PharmacyVendorAPI from '@/app/services/PharmacyVendorAPI';
 import AddInventoryModal from './components/AddInventoryModal';
 import MedicineViewModal from './components/MedicineViewModal';
 
+// Safe Image component with automatic broken link fallback
+function MedicineImage({ src }) {
+  const [error, setError] = useState(false);
+  if (error || !src) {
+    return (
+      <div className="h-full w-full bg-slate-50 flex items-center justify-center">
+        <FaCapsules className="text-slate-300 text-lg" />
+      </div>
+    );
+  }
+  return (
+    <img 
+      src={src} 
+      onError={() => setError(true)} 
+      className="w-full h-full object-cover animate-fade-in" 
+      alt="med" 
+    />
+  );
+}
+
 export default function InventoryPage() {
   const [inventory, setInventory] = useState([]);
   const [masterList, setMasterList] = useState([]); 
@@ -39,7 +59,8 @@ export default function InventoryPage() {
   const filteredInventory = useMemo(() => {
     return inventory.filter(item => 
       item.medicineId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.medicineId?.manufacturers?.toLowerCase().includes(searchTerm.toLowerCase())
+      item.medicineId?.manufacturers?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.batch_number?.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [inventory, searchTerm]);
 
@@ -48,15 +69,27 @@ export default function InventoryPage() {
     try {
       let res;
       if (selectedItem?._id) {
-          res = await PharmacyVendorAPI.updateInventory(selectedItem._id, payload);
+          // Endpoint 6: Fully edit/update any custom batch attributes dynamically
+          const updatePayload = {
+            batch_number: payload.batch_number.trim(),
+            mrp: Number(payload.mrp),
+            vendor_price: Number(payload.vendor_price),
+            stock_quantity: Number(payload.stock_quantity),
+            expiry_date: payload.expiry_date,
+            manufacturing_date: payload.manufacturing_date,
+            hsn_number: payload.hsn_number
+          };
+          res = await PharmacyVendorAPI.updateInventory(selectedItem._id, updatePayload);
       } else {
+          // Endpoint 3: Complete batch payload details
           res = await PharmacyVendorAPI.addToInventory(payload);
       }
 
-      if (res.success) {
+      if (res.success || res) {
         setIsModalOpen(false);
         setSelectedItem(null);
         fetchInitialData(); 
+        alert(res.message || "Inventory details updated successfully.");
       }
     } catch (err) {
       alert(err.response?.data?.message || "Action failed");
@@ -65,33 +98,38 @@ export default function InventoryPage() {
     }
   };
 
-  /**
-   * PROPER DELETE FUNCTION
-   * Deletes the item from your specific inventory list.
-   */
   const handleDelete = async (inventoryId) => {
       if (!inventoryId) return;
       
-      const confirmDelete = window.confirm("Are you sure you want to remove this medicine from your store's stock list?");
+      const confirmDelete = window.confirm("Are you sure you want to remove this medicine batch from your store's stock list?");
       if (!confirmDelete) return;
 
       try {
-          // Sending the item's _id from your JSON (e.g., 69e39e87...)
           const res = await PharmacyVendorAPI.deleteInventory(inventoryId);
-          
           if (res.success || res) {
-              // Filter the local state using the same ID
               setInventory(prev => prev.filter(item => item._id !== inventoryId));
-              alert("Item successfully removed from your store.");
+              alert("Item batch successfully removed from your store.");
           }
       } catch (err) {
           console.error("Delete Error:", err);
           if (err.response?.status === 404) {
-              alert("API Error: The server could not find the delete route. Check if the backend uses /delete/:id or /remove/:id.");
+              alert("API Error: The server could not find the delete route.");
           } else {
               alert(err.response?.data?.message || "Could not delete. Item might be linked to active orders.");
           }
       }
+  };
+
+  const resolveImageUrl = (imageUrlArray) => {
+    const primaryImage = imageUrlArray?.[0];
+    if (!primaryImage) return null;
+    if (primaryImage.startsWith('http://') || primaryImage.startsWith('https://')) {
+      return primaryImage;
+    }
+    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+    const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    const cleanImage = primaryImage.startsWith('/') ? primaryImage.slice(1) : primaryImage;
+    return `${cleanBase}/${cleanImage}`;
   };
 
   return (
@@ -123,14 +161,14 @@ export default function InventoryPage() {
                 <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
                 <input 
                     type="text" 
-                    placeholder="Search your store inventory..." 
+                    placeholder="Search store inventory or batch no..." 
                     className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl text-sm font-bold shadow-sm outline-none focus:ring-2 ring-emerald-500 transition-all"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
             <div className="flex bg-slate-100 p-1.5 rounded-2xl border text-[10px] font-black uppercase text-emerald-600">
-                <div className="px-4 py-2 bg-white rounded-xl shadow-sm">My Active Stock: {inventory.length}</div>
+                <div className="px-4 py-2 bg-white rounded-xl shadow-sm">My Active Batches: {inventory.length}</div>
             </div>
         </div>
 
@@ -146,6 +184,7 @@ export default function InventoryPage() {
                 <thead>
                   <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b bg-slate-50/50">
                     <th className="px-8 py-6">Item Description</th>
+                    <th className="px-8 py-6">Batch No. & Expiry</th>
                     <th className="px-8 py-6">Price Point</th>
                     <th className="px-8 py-6">Stock Level</th>
                     <th className="px-8 py-6">Status</th>
@@ -157,11 +196,8 @@ export default function InventoryPage() {
                     <tr key={item._id} className="hover:bg-emerald-50/30 transition-colors">
                       <td className="px-8 py-6">
                          <div className="flex items-center gap-4">
-                            <div className="h-10 w-10 bg-slate-100 rounded-xl flex items-center justify-center text-xs font-black text-slate-400 overflow-hidden border">
-                                {item.medicineId?.image_url?.[0] ? 
-                                    <img src={item.medicineId.image_url[0]} className="w-full h-full object-cover" alt="med" /> : 
-                                    'MED'
-                                }
+                            <div className="h-10 w-10 bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden border shrink-0">
+                                <MedicineImage src={resolveImageUrl(item.medicineId?.image_url)} />
                             </div>
                             <div>
                                 <p className="font-black text-slate-700 text-sm">{item.medicineId?.name}</p>
@@ -169,10 +205,30 @@ export default function InventoryPage() {
                             </div>
                          </div>
                       </td>
+
+                      {/* BATCH NO & EXPIRY COLUMN */}
                       <td className="px-8 py-6">
-                        <div className="flex flex-col">
+                        <div className="flex flex-col gap-1">
+                            <span className="px-2.5 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-black rounded-lg uppercase tracking-wider w-fit border border-slate-200">
+                                {item.batch_number || 'GENERIC'}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-bold">
+                                Exp: {item.expiry_date ? new Date(item.expiry_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
+                            </span>
+                        </div>
+                      </td>
+
+                      <td className="px-8 py-6">
+                        <div className="flex flex-col gap-0.5">
                             <span className="text-sm font-black text-emerald-600">₹{item.vendor_price}</span>
-                            <span className="text-[9px] text-slate-300 font-bold uppercase tracking-tighter">MRP ₹{item.medicineId?.mrp}</span>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                              Batch MRP: ₹{item.mrp ?? item.medicineId?.mrp ?? 'N/A'}
+                            </span>
+                            {(item.medicineId?.masterMrp || item.medicineId?.mrp) && (
+                              <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">
+                                Ceiling: ₹{item.medicineId.masterMrp || item.medicineId.mrp}
+                              </span>
+                            )}
                         </div>
                       </td>
                       <td className="px-8 py-6">

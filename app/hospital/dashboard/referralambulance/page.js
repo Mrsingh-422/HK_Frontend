@@ -19,6 +19,13 @@ const ReferralBookings = () => {
   const [reassignSubmitLoading, setReassignSubmitLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState({ type: '', text: '' });
 
+  // Referral Card Zoom Modal States
+  const [isReferralCardZoomOpen, setIsReferralCardZoomOpen] = useState(false);
+  const [zoomScale, setZoomScale] = useState(1);
+  const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
   useEffect(() => {
     fetchReferrals();
     fetchAmbulances();
@@ -48,6 +55,57 @@ const ReferralBookings = () => {
       console.error("Error fetching ambulances:", error);
     }
   };
+
+  // Zoom & Pan Reset Helper
+  const resetZoomState = () => {
+    setZoomScale(1);
+    setPanPosition({ x: 0, y: 0 });
+    setIsDragging(false);
+  };
+
+  // Zoom Handlers
+  const handleZoomIn = () => setZoomScale(prev => Math.min(prev + 0.5, 5));
+
+  const handleZoomOut = () => {
+    setZoomScale(prev => {
+      const nextScale = Math.max(prev - 0.5, 1);
+      if (nextScale === 1) setPanPosition({ x: 0, y: 0 });
+      return nextScale;
+    });
+  };
+
+  const handleWheelZoom = (e) => {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      handleZoomIn();
+    } else {
+      handleZoomOut();
+    }
+  };
+
+  const handleMouseDown = (e) => {
+    if (zoomScale > 1) {
+      e.preventDefault();
+      setIsDragging(true);
+      setDragStart({
+        x: e.clientX - panPosition.x,
+        y: e.clientY - panPosition.y
+      });
+    }
+  };
+
+  const handleMouseMove = (e) => {
+    if (isDragging && zoomScale > 1) {
+      e.preventDefault();
+      setPanPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      });
+    }
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+  const handleMouseLeave = () => setIsDragging(false);
 
   // Memoized Categorization Logic
   const categorizedBookings = useMemo(() => {
@@ -300,7 +358,14 @@ const ReferralBookings = () => {
                   <h2 className="text-2xl font-black text-gray-900">Referral Details</h2>
                   <p className="text-[#08B36A] font-bold text-xs uppercase tracking-[0.2em] mt-1">Booking ID: {selectedBooking.bookingId}</p>
                </div>
-               <button onClick={() => setSelectedBooking(null)} className="text-gray-400 hover:text-red-500 bg-gray-50 w-10 h-10 flex items-center justify-center rounded-full transition-all border border-gray-200">
+               <button 
+                 onClick={() => {
+                   setSelectedBooking(null);
+                   setIsReferralCardZoomOpen(false);
+                   resetZoomState();
+                 }} 
+                 className="text-gray-400 hover:text-red-500 bg-gray-50 w-10 h-10 flex items-center justify-center rounded-full transition-all border border-gray-200"
+               >
                  <CloseIcon className="w-5 h-5"/>
                </button>
             </div>
@@ -394,10 +459,26 @@ const ReferralBookings = () => {
                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <InfoSection title="📄 Referral Card">
                     {selectedBooking.patientDetails?.referralCard ? (
-                      <div className="group relative rounded-2xl overflow-hidden border-2 border-gray-100 h-64 bg-gray-50">
-                         <img src={getFullUrl(selectedBooking.patientDetails.referralCard)} className="w-full h-full object-contain" alt="Referral Card" />
-                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
-                            <button onClick={() => window.open(getFullUrl(selectedBooking.patientDetails.referralCard), '_blank')} className="bg-white text-black px-6 py-2 rounded-full font-black text-xs">View Full Image</button>
+                      <div 
+                        className="group relative rounded-2xl overflow-hidden border-2 border-gray-100 h-64 bg-gray-50 flex items-center justify-center cursor-pointer transition-all hover:border-[#08B36A]/40"
+                        onClick={() => {
+                          resetZoomState();
+                          setIsReferralCardZoomOpen(true);
+                        }}
+                      >
+                         <img src={getFullUrl(selectedBooking.patientDetails.referralCard)} className="w-full h-full object-contain p-2" alt="Referral Card" />
+                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-all">
+                            <button 
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                resetZoomState();
+                                setIsReferralCardZoomOpen(true);
+                              }} 
+                              className="bg-white text-gray-900 px-5 py-2.5 rounded-full font-black text-xs shadow-lg hover:bg-gray-100 transition-all flex items-center gap-1.5"
+                            >
+                               🔍 Zoom & View Card
+                            </button>
                          </div>
                       </div>
                     ) : (
@@ -423,6 +504,98 @@ const ReferralBookings = () => {
                </div>
 
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* REFERRAL CARD ZOOM MODAL */}
+      {isReferralCardZoomOpen && selectedBooking?.patientDetails?.referralCard && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/85 backdrop-blur-md animate-fadeIn">
+          <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden relative border border-gray-100 flex flex-col max-h-[90vh]">
+            
+            {/* Zoom Modal Header */}
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center shrink-0">
+              <div>
+                <h3 className="text-lg font-black text-gray-800">Referral Card Inspector</h3>
+                <p className="text-[10px] text-[#08B36A] font-extrabold uppercase tracking-widest mt-0.5">
+                  Booking ID: #{selectedBooking.bookingId} {zoomScale > 1 && `• ${(zoomScale * 100).toFixed(0)}% Zoom`}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button 
+                  type="button" 
+                  onClick={handleZoomOut} 
+                  className="p-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 rounded-xl transition-all shadow-xs text-xs font-bold"
+                  title="Zoom Out"
+                >
+                  🔍−
+                </button>
+                <button 
+                  type="button" 
+                  onClick={resetZoomState} 
+                  className="p-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 rounded-xl transition-all shadow-xs text-xs font-bold"
+                  title="Reset Zoom"
+                >
+                  ↻ Reset
+                </button>
+                <button 
+                  type="button" 
+                  onClick={handleZoomIn} 
+                  className="p-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 rounded-xl transition-all shadow-xs text-xs font-bold"
+                  title="Zoom In"
+                >
+                  🔍+
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => window.open(getFullUrl(selectedBooking.patientDetails.referralCard), '_blank')} 
+                  className="px-3 py-2 bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200 rounded-xl transition-all shadow-xs text-xs font-bold flex items-center gap-1"
+                  title="Open in New Tab"
+                >
+                  ↗ New Tab
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => { setIsReferralCardZoomOpen(false); resetZoomState(); }} 
+                  className="w-9 h-9 flex items-center justify-center bg-gray-100 text-gray-500 hover:text-red-500 rounded-full transition-all border border-gray-200 ml-2"
+                >
+                  <CloseIcon className="w-5 h-5"/>
+                </button>
+              </div>
+            </div>
+
+            {/* Interactive Zoom Canvas */}
+            <div 
+              className="relative w-full h-[70vh] bg-gray-900/90 overflow-hidden flex items-center justify-center select-none"
+              onWheel={handleWheelZoom}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseLeave}
+              style={{
+                cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+              }}
+            >
+              <img 
+                src={getFullUrl(selectedBooking.patientDetails.referralCard)} 
+                draggable={false}
+                style={{ 
+                  transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomScale})`, 
+                  transition: isDragging ? 'none' : 'transform 0.15s ease-out' 
+                }} 
+                className="max-w-full max-h-full object-contain pointer-events-none" 
+                alt="Referral Card Zoom Preview" 
+              />
+
+              {/* Helpful User Indicator */}
+              <div className="absolute bottom-4 left-4 bg-gray-900/80 backdrop-blur-md text-white px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider pointer-events-none border border-white/10 flex items-center gap-2">
+                <span>Scroll to Zoom</span>
+                <span>•</span>
+                <span>{zoomScale > 1 ? 'Drag to Pan' : 'Zoom in to Drag'}</span>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

@@ -59,22 +59,71 @@ export default function PackagesPage() {
     );
   }, [masterPackages, searchTerm]);
 
-  // Unified Save Function (Handles both Create and Edit)
+  // Unified Save Function (Constructs multipart/form-data)
   const handleSave = async (payload) => {
     setActionLoading(true);
     try {
-      // FIX: Check if we are in Edit mode by looking for an ID in the selected state
       const isEdit = !!(selected && selected._id);
       
-      const finalPayload = isEdit 
-        ? { ...payload, _id: selected._id } // Force the original ID into the payload
-        : payload;
+      const formDataToSend = new FormData();
+      
+      // Check for configuration updates or direct templates
+      if (isEdit) {
+        formDataToSend.append('id', selected._id);
+      } else if (!payload.isCustom && payload.masterPackageId) {
+        formDataToSend.append('masterPackageId', payload.masterPackageId);
+      }
+      
+      // Basic text properties
+      if (payload.isCustom || isEdit) {
+        formDataToSend.append('packageName', payload.packageName || '');
+      }
+      
+      formDataToSend.append('mrp', Number(payload.mrp || 0));
+      formDataToSend.append('discountPercent', Number(payload.discountPercent || 0));
+      formDataToSend.append('reportTime', payload.reportTime || '');
+      
+      // Match shortDescription & longDescription mapping specs
+      formDataToSend.append('shortDescription', payload.description || '');
+      formDataToSend.append('longDescription', payload.description || '');
+      
+      formDataToSend.append('isFastingRequired', String(payload.isFastingRequired ?? false));
+      formDataToSend.append('fastingDuration', payload.fastingDuration || '');
+      formDataToSend.append('gender', payload.gender || 'Both');
+      formDataToSend.append('ageGroup', payload.ageGroup || 'All');
+      formDataToSend.append('mainCategory', payload.mainCategory || 'Pathology');
+      formDataToSend.append('category', payload.category || '');
 
-      const response = await LabVendorAPI.saveLabPackage(finalPayload);
+      // Parse array structures to match target API specifications
+      formDataToSend.append('tests', JSON.stringify(payload.tests || []));
+      formDataToSend.append('preparations', JSON.stringify(payload.preparations || []));
+      formDataToSend.append('detailedDescription', JSON.stringify(payload.detailedDescription || []));
+      formDataToSend.append('faqs', JSON.stringify(payload.faqs || []));
+      formDataToSend.append('tags', JSON.stringify(payload.tags || []));
+
+      const lifestyleTagsArray = String(payload.lifestyleTags || '')
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(t => t !== '');
+      formDataToSend.append('lifestyleTags', JSON.stringify(lifestyleTagsArray));
+
+      // Append optional banner/image assets
+      if (payload.photoFile) {
+        formDataToSend.append('photos', payload.photoFile);
+      }
+
+      let response;
+      if (isEdit) {
+        // PUT API: /provider/labs/services/update-package
+        response = await LabVendorAPI.updateLabPackage(formDataToSend);
+      } else {
+        // POST API: /provider/labs/services/packages/save
+        response = await LabVendorAPI.saveLabPackage(formDataToSend);
+      }
       
       if (response && response.success) {
         toast.success(isEdit ? "Package updated successfully" : "New package listed successfully");
-        await fetchData(); // Refresh list to show changes
+        await fetchData(); // Refresh inventory layout
         setIsModalOpen(false);
         setSelected(null);
       } else {
@@ -107,7 +156,7 @@ export default function PackagesPage() {
     <div className="min-h-screen bg-[#f8fafc] pb-20">
       
       {/* LUXURY HEADER - Updated to Emerald Theme */}
-      <div className="bg-white border-b border-emerald-100 py-6 px-8  top-0 z-40 backdrop-blur-md bg-white/80">
+      <div className="bg-white border-b border-emerald-100 py-6 px-8 top-0 z-40 backdrop-blur-md bg-white/80">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-emerald-600 rounded-[1.5rem] flex items-center justify-center text-white shadow-xl shadow-emerald-100">

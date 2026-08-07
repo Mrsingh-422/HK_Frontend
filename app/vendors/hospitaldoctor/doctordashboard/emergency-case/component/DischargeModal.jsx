@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef } from 'react';
-import { FaArrowLeft, FaFilePdf, FaPlus, FaCheckCircle, FaCalendarAlt } from 'react-icons/fa';
+import { FaArrowLeft, FaFilePdf, FaPlus, FaCheckCircle, FaCalendarAlt, FaTimes } from 'react-icons/fa';
 
 export default function DischargeModal({
     isOpen,
@@ -43,9 +43,9 @@ export default function DischargeModal({
     };
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-6 backdrop-blur-md bg-slate-900/40">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6 backdrop-blur-md bg-slate-900/50 overflow-y-auto">
             <div className="absolute inset-0" onClick={onClose}></div>
-            <div className="relative bg-white w-full max-w-4xl rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200 border border-slate-100">
+            <div className="relative bg-white w-full max-w-4xl rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] overflow-hidden max-h-[92vh] flex flex-col my-auto border border-slate-100 z-10">
 
                 <input
                     type="file"
@@ -56,43 +56,53 @@ export default function DischargeModal({
                     className="hidden"
                 />
 
-                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
-                    <button onClick={onClose} className="p-2.5 text-slate-400 hover:bg-slate-50 rounded-full transition-colors">
-                        <FaArrowLeft size={16} />
+                {/* Header */}
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-20 shrink-0">
+                    <div className="flex items-center gap-3">
+                        <button onClick={onClose} className="p-2.5 text-slate-400 hover:bg-slate-50 hover:text-slate-700 rounded-full transition-colors">
+                            <FaArrowLeft size={16} />
+                        </button>
+                        <div>
+                            <h3 className="text-xl font-extrabold text-slate-800">Fill Discharge Manifest</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Fields filled here reflect live on Digital Template</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-rose-500 rounded-full">
+                        <FaTimes size={18} />
                     </button>
-                    <h3 className="text-xl font-bold text-slate-800">Submit Discharge Summary</h3>
-                    <div className="w-8"></div>
                 </div>
 
-                <div className="p-8 overflow-y-auto space-y-6 bg-slate-50/50 flex-1 grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                {/* Body Form */}
+                <div className="p-6 sm:p-8 overflow-y-auto space-y-6 bg-slate-50/50 flex-1 grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
 
+                    {/* Left Column: File Uploads & Core Clinical Observations */}
                     <div className="space-y-4">
-                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">Report Payload</h4>
+                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">Report Payload & Notes</h4>
 
                         <div
                             onClick={triggerFileSelect}
-                            className="p-12 border-2 border-dashed border-slate-200 rounded-3xl bg-white flex flex-col items-center justify-center text-center hover:border-emerald-500 hover:bg-emerald-50/5 transition-all cursor-pointer group"
+                            className="p-8 border-2 border-dashed border-slate-200 rounded-3xl bg-white flex flex-col items-center justify-center text-center hover:border-emerald-500 hover:bg-emerald-50/5 transition-all cursor-pointer group"
                         >
-                            <div className="w-20 h-20 bg-slate-50 group-hover:bg-emerald-100/50 text-slate-400 group-hover:text-emerald-500 rounded-2xl flex items-center justify-center mb-4 border border-slate-100 group-hover:border-emerald-200 transition-colors">
-                                <FaFilePdf size={36} />
+                            <div className="w-16 h-16 bg-slate-50 group-hover:bg-emerald-100/50 text-slate-400 group-hover:text-emerald-500 rounded-2xl flex items-center justify-center mb-3 border border-slate-100 group-hover:border-emerald-200 transition-colors">
+                                <FaFilePdf size={28} />
                             </div>
-                            <span className="text-sm font-extrabold text-slate-500 block group-hover:text-emerald-700">Add clinical findings PDF</span>
-                            <p className="text-xs text-slate-400 mt-1">Upload clinical diagnostic findings & test sheets.</p>
+                            <span className="text-xs font-extrabold text-slate-600 block group-hover:text-emerald-700">Add Clinical Findings PDF / Reports</span>
+                            <p className="text-[10px] text-slate-400 mt-1">Upload clinical diagnostic findings & test sheets.</p>
                         </div>
 
                         {clinicalReports.length > 0 && (
-                            <div className="space-y-2 mt-4 max-h-40 overflow-y-auto pr-1">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Selected Files ({clinicalReports.length})</label>
+                            <div className="space-y-2 mt-2 max-h-36 overflow-y-auto pr-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Selected Reports ({clinicalReports.length})</label>
                                 {clinicalReports.map((file, idx) => (
                                     <div
                                         key={idx}
                                         className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-sm"
                                     >
-                                        <span className="truncate max-w-[200px]">{file.name}</span>
+                                        <span className="truncate max-w-[220px]">{file.name}</span>
                                         <button
                                             type="button"
                                             onClick={() => handleRemoveFile(idx)}
-                                            className="text-slate-400 hover:text-rose-600 font-extrabold text-sm ml-2 px-1 hover:bg-slate-50 rounded-md"
+                                            className="text-slate-400 hover:text-rose-600 font-extrabold text-sm ml-2 px-1.5 hover:bg-slate-50 rounded-md"
                                         >
                                             &times;
                                         </button>
@@ -100,10 +110,6 @@ export default function DischargeModal({
                                 ))}
                             </div>
                         )}
-                    </div>
-
-                    <div className="space-y-4">
-                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">Clinical Manifestations</h4>
 
                         <div>
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Chief Complaints</label>
@@ -111,8 +117,8 @@ export default function DischargeModal({
                                 type="text"
                                 value={dischargeForm.chiefComplaints || ''}
                                 onChange={(e) => handleFormUpdate('chiefComplaints', e.target.value)}
-                                placeholder="e.g. High fever, mild dry cough"
-                                className="w-full px-4 py-3.5 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
+                                placeholder="e.g. High fever, mild dry cough, chest tightness"
+                                className="w-full px-4 py-3 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
                             />
                         </div>
 
@@ -122,8 +128,8 @@ export default function DischargeModal({
                                 type="text"
                                 value={dischargeForm.diagnosis || ''}
                                 onChange={(e) => handleFormUpdate('diagnosis', e.target.value)}
-                                placeholder="e.g. Acute Viral Pharyngitis"
-                                className="w-full px-4 py-3.5 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
+                                placeholder="e.g. Acute Coronary Syndrome"
+                                className="w-full px-4 py-3 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
                             />
                         </div>
 
@@ -134,7 +140,7 @@ export default function DischargeModal({
                                 value={dischargeForm.advisedInvestigations || ''}
                                 onChange={(e) => handleFormUpdate('advisedInvestigations', e.target.value)}
                                 placeholder="e.g. ECG Normal, Blood counts stable"
-                                className="w-full px-4 py-3.5 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
+                                className="w-full px-4 py-3 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
                             />
                         </div>
 
@@ -144,8 +150,8 @@ export default function DischargeModal({
                                 type="text"
                                 value={dischargeForm.adviceGiven || ''}
                                 onChange={(e) => handleFormUpdate('adviceGiven', e.target.value)}
-                                placeholder="Follow-up instructions"
-                                className="w-full px-4 py-3.5 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
+                                placeholder="e.g. Avoid excess salt and drink warm water."
+                                className="w-full px-4 py-3 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
                             />
                         </div>
 
@@ -155,12 +161,38 @@ export default function DischargeModal({
                                 type="text"
                                 value={dischargeForm.specialInstructions || ''}
                                 onChange={(e) => handleFormUpdate('specialInstructions', e.target.value)}
-                                placeholder="Any special directives"
-                                className="w-full px-4 py-3.5 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
+                                placeholder="e.g. Avoid heavy strain, take medication strictly on time"
+                                className="w-full px-4 py-3 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
                             />
                         </div>
+                    </div>
 
-                        {/* Parameter Inputs */}
+                    {/* Right Column: Dates & Discharge Status Conditions */}
+                    <div className="space-y-4">
+                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">Clinical Parameters & Timeline</h4>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Date of Admission (Optional)</label>
+                                <input
+                                    type="date"
+                                    value={dischargeForm.dateOfAdmission || ''}
+                                    onChange={(e) => handleFormUpdate('dateOfAdmission', e.target.value)}
+                                    className="w-full px-4 py-3 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Date of Discharge (Optional)</label>
+                                <input
+                                    type="date"
+                                    value={dischargeForm.dateOfDischarge || ''}
+                                    onChange={(e) => handleFormUpdate('dateOfDischarge', e.target.value)}
+                                    className="w-full px-4 py-3 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
+                                />
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Date of Surgery (Optional)</label>
@@ -168,7 +200,7 @@ export default function DischargeModal({
                                     type="date"
                                     value={dischargeForm.dateOfSurgery || ''}
                                     onChange={(e) => handleFormUpdate('dateOfSurgery', e.target.value)}
-                                    className="w-full px-4 py-3.5 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
+                                    className="w-full px-4 py-3 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
                                 />
                             </div>
 
@@ -179,10 +211,10 @@ export default function DischargeModal({
                                         type="date"
                                         value={dischargeForm.nextAppointment || ''}
                                         onChange={(e) => handleFormUpdate('nextAppointment', e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3.5 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
+                                        className="w-full pl-10 pr-4 py-3 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
                                     />
-                                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
-                                        <FaCalendarAlt size={14} />
+                                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                                        <FaCalendarAlt size={13} />
                                     </div>
                                 </div>
                             </div>
@@ -195,7 +227,7 @@ export default function DischargeModal({
                                 value={dischargeForm.conditionDuringAdmission || ''}
                                 onChange={(e) => handleFormUpdate('conditionDuringAdmission', e.target.value)}
                                 placeholder="e.g. Critical, managed on telemetry desk"
-                                className="w-full px-4 py-3.5 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
+                                className="w-full px-4 py-3 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
                             />
                         </div>
 
@@ -205,8 +237,8 @@ export default function DischargeModal({
                                 type="text"
                                 value={dischargeForm.conditionDuringDischarge || ''}
                                 onChange={(e) => handleFormUpdate('conditionDuringDischarge', e.target.value)}
-                                placeholder="e.g. Fully recovered and ambulatory"
-                                className="w-full px-4 py-3.5 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-[#08B36A] focus:ring-2 focus:ring-[#08B36A]/10 transition-all font-semibold text-slate-700"
+                                placeholder="e.g. Fully recovered and stable"
+                                className="w-full px-4 py-3 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-[#08B36A] focus:ring-2 focus:ring-[#08B36A]/10 transition-all font-semibold text-slate-700"
                             />
                         </div>
 
@@ -216,43 +248,46 @@ export default function DischargeModal({
                                 rows="3"
                                 value={dischargeForm.clinicalNotes || ''}
                                 onChange={(e) => handleFormUpdate('clinicalNotes', e.target.value)}
-                                placeholder="Treatment result & clinical notes summary"
-                                className="w-full px-4 py-3.5 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-[#08B36A] focus:ring-2 focus:ring-[#08B36A]/10 resize-none transition-all font-semibold text-slate-700"
+                                placeholder="e.g. Recovered & Stable"
+                                className="w-full px-4 py-3 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-[#08B36A] focus:ring-2 focus:ring-[#08B36A]/10 resize-none transition-all font-semibold text-slate-700"
                             />
                         </div>
                     </div>
                 </div>
 
-                <div className="p-6 border-t border-slate-100 bg-white grid grid-cols-2 gap-4 sticky bottom-0 z-10">
-                    <div className="flex flex-col items-center">
+                {/* Footer Controls */}
+                <div className="p-5 border-t border-slate-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-4 sticky bottom-0 z-20 shrink-0">
+                    <div className="flex items-center gap-4 w-full sm:w-auto">
                         <button
                             type="button"
                             onClick={triggerFileSelect}
-                            className="w-14 h-14 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center shadow-sm hover:shadow active:scale-95 transition-all mb-1.5 border border-slate-200"
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all"
                         >
-                            <FaFilePdf size={20} />
+                            <FaFilePdf size={14} className="text-slate-500" />
+                            <span>Reports ({clinicalReports.length})</span>
                         </button>
-                        <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">
-                            Upload Reports ({clinicalReports.length})
-                        </span>
-                    </div>
 
-                    <div className="flex flex-col items-center">
                         <button
                             type="button"
                             onClick={onAddMedicineDetail}
-                            className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-all mb-1.5 ${
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
                                 addedMedicinesCount > 0
-                                ? 'bg-emerald-600 text-white shadow-emerald-100 hover:bg-emerald-700'
-                                : 'bg-emerald-500 text-white shadow-emerald-100 hover:bg-emerald-600'
+                                ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                             }`}
                         >
-                            {addedMedicinesCount > 0 ? <FaCheckCircle size={20} /> : <FaPlus size={20} />}
+                            {addedMedicinesCount > 0 ? <FaCheckCircle size={14} className="text-emerald-600" /> : <FaPlus size={14} />}
+                            <span>{addedMedicinesCount > 0 ? `${addedMedicinesCount} Meds Staged` : 'Add Medicines'}</span>
                         </button>
-                        <span className="text-[10px] text-emerald-600 font-extrabold uppercase tracking-wider">
-                            {addedMedicinesCount > 0 ? `${addedMedicinesCount} Meds Staged` : 'Add Medicine Details'}
-                        </span>
                     </div>
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="w-full sm:w-auto px-8 py-3 bg-[#08B36A] hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-100 transition-all active:scale-95"
+                    >
+                        Save & Preview Summary
+                    </button>
                 </div>
             </div>
         </div>

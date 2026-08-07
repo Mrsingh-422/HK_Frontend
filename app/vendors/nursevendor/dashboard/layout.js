@@ -47,6 +47,7 @@ export default function LabVendorLayout({ children }) {
         { name: 'Manage Delivery Charges', href: '/vendors/nursevendor/dashboard/deliverycharges', icon: FaTruck },
         { name: 'Wallet & Earning', href: '/vendors/nursevendor/dashboard/wallet&earning', icon: FaWallet },
          { name: 'Manage Banking', href: '/vendors/nursevendor/dashboard/ManageBanking', icon: FaWallet },
+         { name: 'Change Password', href: '/vendors/nursevendor/dashboard/change-password', icon: FaWallet },
     ];
  
     return (

@@ -399,11 +399,16 @@ export default function TrackPharmacyDrivers() {
                             )}
                           </td>
 
+                          {/* UPDATED: CURRENT ORDER ASSIGNMENT COLUMN (SHOWS USER / CUSTOMER NAME) */}
                           <td className="px-6 py-4">
                             {activeOrder ? (
-                              <div className="flex flex-col">
+                              <div className="flex flex-col gap-0.5">
                                 <span className="font-bold text-[#1e3a8a]">{activeOrder.orderId}</span>
-                                <span className="text-[11px] text-gray-400 mt-0.5">
+                                <span className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                                  <FaUser className="text-[10px] text-gray-400 shrink-0" />
+                                  {activeOrder.userId?.name || activeOrder.address?.name || 'N/A'}
+                                </span>
+                                <span className="text-[11px] text-gray-400">
                                   {activeOrder.deliveryStatus}
                                 </span>
                               </div>
@@ -585,17 +590,27 @@ export default function TrackPharmacyDrivers() {
                       
                       {/* Technical Reference Box */}
                       <div className="bg-white p-4 rounded-xl border border-gray-100 space-y-3 text-xs shadow-xs">
-                        <div className="flex justify-between">
+                        <div className="flex justify-between items-center">
                           <span className="text-gray-400">Order ID:</span>
                           <span className="font-bold text-gray-800">#{selectedDriverDetails.currentActiveOrder.orderId}</span>
                         </div>
-                        <div className="flex justify-between">
+                        
+                        {/* UPDATED: USER / CUSTOMER NAME ROW */}
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">Customer Name:</span>
+                          <span className="font-bold text-gray-800 flex items-center gap-1">
+                            <FaUser className="text-[10px] text-gray-400" />
+                            {selectedDriverDetails.currentActiveOrder.userId?.name || selectedDriverDetails.currentActiveOrder.address?.name || 'N/A'}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center">
                           <span className="text-gray-400">Created:</span>
                           <span className="font-semibold text-gray-800">
                             {new Date(selectedDriverDetails.currentActiveOrder.createdAt).toLocaleDateString()}
                           </span>
                         </div>
-                        <div className="flex justify-between">
+                        <div className="flex justify-between items-center">
                           <span className="text-gray-400">Total Bill Amount:</span>
                           <span className="font-bold text-[#08B36A] bg-green-50 px-2.5 py-0.5 rounded">
                             ₹{selectedDriverDetails.currentActiveOrder.billSummary?.totalAmount ?? 0}
@@ -622,7 +637,7 @@ export default function TrackPharmacyDrivers() {
                                 <FaUser className="text-[10px]" />
                               </div>
                               <span className="font-bold text-gray-800 truncate">
-                                {selectedDriverDetails.currentActiveOrder.address?.name || 'Customer'}
+                                {selectedDriverDetails.currentActiveOrder.address?.name || selectedDriverDetails.currentActiveOrder.userId?.name || 'Customer'}
                               </span>
                             </div>
                             {selectedDriverDetails.currentActiveOrder.address?.addressType && (

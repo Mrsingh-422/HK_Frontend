@@ -12,7 +12,6 @@ import {
 import PharmacyVendorAPI from '@/app/services/PharmacyVendorAPI';
 import { toast } from 'react-hot-toast';
 
-// Exported as default so external files can import OrderTable directly
 export default function OrderTable({ orders = [], refresh, hideActions = false, isPrescription = false }) {
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -265,7 +264,8 @@ export default function OrderTable({ orders = [], refresh, hideActions = false, 
                         <tr className="bg-slate-50/50 border-b text-[10px] uppercase tracking-widest text-slate-400 font-black">
                             <th className="p-5 pl-8">Order ID</th>
                             <th className="p-5">Customer</th>
-                            {isPrescription && <th className="p-5">Rx</th>}
+                            {isPrescription ? <th className="p-5">Rx</th> : null}
+                            <th className="p-5">Driver</th>
                             <th className="p-5">Bill</th>
                             <th className="p-5">Location</th>
                             <th className="p-5">Status</th>
@@ -275,7 +275,7 @@ export default function OrderTable({ orders = [], refresh, hideActions = false, 
                     <tbody className="divide-y divide-slate-50">
                         {paginatedOrders.length === 0 ? (
                             <tr>
-                                <td colSpan={isPrescription ? 7 : 6} className="p-10 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest">
+                                <td colSpan={isPrescription ? 8 : 7} className="p-10 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest">
                                     No {subTab.toLowerCase()} orders found
                                 </td>
                             </tr>
@@ -283,7 +283,6 @@ export default function OrderTable({ orders = [], refresh, hideActions = false, 
                             paginatedOrders.map((order) => {
                                 const isDriverAssignable = order.status === 'Placed'; 
                                 
-                                // Find combo parameters to show rules in table
                                 const comboItem = order.items?.find(item => item.isComboApplied && item.comboOfferId);
                                 const comboRuleText = comboItem 
                                     ? `Buy ${comboItem.comboOfferId.buyQty} Get ${comboItem.comboOfferId.getFreeQty} Free`
@@ -301,7 +300,6 @@ export default function OrderTable({ orders = [], refresh, hideActions = false, 
                                         }
                                     }}>
                                         <td className="p-5 pl-8">
-                                            {/* Larger and clean design for BOGO applied tags */}
                                             <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
                                                 <span className="font-black text-slate-700 text-sm">{order.orderId}</span>
                                                 {order.hasComboApplied && (
@@ -325,7 +323,7 @@ export default function OrderTable({ orders = [], refresh, hideActions = false, 
                                                 <div className="font-black text-slate-700 text-xs truncate max-w-[120px]">{order.userId?.name}</div>
                                             </div>
                                         </td>
-                                        {isPrescription && (
+                                        {isPrescription ? (
                                             <td className="p-5">
                                                 {order.prescriptionImages?.length > 0 ? (
                                                     <div className="w-10 h-10 rounded-lg overflow-hidden border-2 border-white shadow-sm bg-slate-100">
@@ -335,7 +333,30 @@ export default function OrderTable({ orders = [], refresh, hideActions = false, 
                                                     <FaFilePrescription className="text-slate-200" size={18} />
                                                 )}
                                             </td>
-                                        )}
+                                        ) : null}
+                                        <td className="p-5">
+                                            {order.driverId?.name ? (
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                                                        <FaMotorcycle size={11} />
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-black text-slate-700 text-xs truncate max-w-[110px]">
+                                                            {order.driverId.name}
+                                                        </span>
+                                                        {order.driverId.phone && (
+                                                            <span className="text-[9px] text-slate-400 font-bold">
+                                                                {order.driverId.phone}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <span className="text-[10px] text-slate-300 font-bold italic uppercase tracking-wider">
+                                                    Unassigned
+                                                </span>
+                                            )}
+                                        </td>
                                         <td className="p-5">
                                             <div className="text-sm font-black text-slate-800 whitespace-nowrap">₹{order.billSummary?.totalAmount}</div>
                                         </td>
@@ -644,8 +665,6 @@ export default function OrderTable({ orders = [], refresh, hideActions = false, 
                                         <div className="bg-emerald-600 rounded-[32px] p-6 text-white shadow-xl shadow-emerald-100 relative overflow-hidden">
                                             <p className="text-[10px] font-black uppercase mb-4 flex items-center gap-2 opacity-80"><FaCreditCard /> Bill Summary</p>
                                             <div className="space-y-2 text-xs font-bold">
-                                                
-                                                {/* Breakout representing originalItemTotal, comboSavings and Net Item Total */}
                                                 {selectedOrder.billSummary?.originalItemTotal !== undefined ? (
                                                     <>
                                                         <div className="flex justify-between opacity-75 text-[11px]">

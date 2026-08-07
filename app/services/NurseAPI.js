@@ -275,6 +275,17 @@ const NurseAPI = {
         const response = await nurseVendorApi.get('/provider/nurse/dash/orders/history');
         return response.data;
     },
+    // Fetch current active job for staff member
+// Fetch current active job for staff member
+    getStaffActiveJob: async (staffId) => {
+        try {
+            const response = await nurseVendorApi.get(`/provider/nurse/dash/staff/active-job/${staffId}`);
+            return response.data;
+        } catch (error) {
+            console.error('getStaffActiveJob Error:', error);
+            throw error;
+        }
+    },
  
     // ==========================================
     // CONSUMABLES SECTION
@@ -371,6 +382,23 @@ const NurseAPI = {
     trackLiveNurse: async (bookingId) => {
         const response = await nurseVendorApi.get(`/provider/nurse/dash/track/${bookingId}`);
         return response.data;
+    },
+     /**
+     * Nurse Bureau - Change Password API
+     * HTTP Method: PATCH
+     * Route: /provider/nurse/dash/profile/change-password
+     * Authentication Role: 'nurse'
+     */
+    changePassword: async ({ oldPassword, newPassword }) => {
+        try {
+            const response = await nurseVendorApi.patch('/provider/nurse/dash/profile/change-password', {
+                oldPassword,
+                newPassword,
+            });
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error);
+        }
     },
  
 };

@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { 
     FaFilePrescription, FaUser, FaPhoneAlt, FaMapMarkerAlt, FaFileMedical,
     FaSyncAlt, FaEye, FaSearchPlus, FaSearchMinus, FaRedo, FaExpand, FaCompress,
-    FaCheck, FaTimes, FaSearch, FaTrash, FaShoppingCart, FaMotorcycle, FaExclamationCircle,
-    FaBox, FaClock, FaSpinner, FaCheckCircle, FaBan, FaPlus
+    FaCheck, FaTrash, FaMotorcycle, FaExclamationCircle,
+    FaBox, FaClock, FaCheckCircle, FaEnvelope, FaVenusMars, FaClipboardList
 } from 'react-icons/fa';
 import { IoCloseOutline } from 'react-icons/io5';
 import { toast, Toaster } from 'react-hot-toast';
@@ -13,7 +13,7 @@ import LabVendorAPI from '@/app/services/LabVendorAPI';
 export default function ProviderPrescriptionDashboard() {
     const [inquiries, setInquiries] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'Pending Review' | 'Reviewing' | 'Bill Generated' | 'Rejected'
+    const [activeTab, setActiveTab] = useState('ALL'); 
     
     // Details Modal States
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -27,15 +27,20 @@ export default function ProviderPrescriptionDashboard() {
     // Bill Generation Workspace States
     const [invoiceTests, setInvoiceTests] = useState([]);
     const [invoicePackages, setInvoicePackages] = useState([]);
-    const [homeVisitCharge, setHomeVisitCharge] = useState(40);
+    const [homeVisitCharge, setHomeVisitCharge] = useState(100);
     const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState([]);
-    const [searchLoading, setSearchLoading] = useState(false);
 
     // Rejection State
     const [rejectPopupOpen, setRejectPopupOpen] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
     const [actionLoading, setActionLoading] = useState(false);
+
+    // Status Helpers based on the JSON status field
+    const currentStatus = selectedInquiry?.status || 'Pending Review';
+    const isPendingReview = currentStatus === 'Pending Review';
+    const isReviewing = currentStatus === 'Reviewing';
+    const isBillGenerated = currentStatus === 'Bill Generated' || currentStatus === 'Pending Payment' || currentStatus === 'Paid';
+    const isRejected = currentStatus === 'Rejected';
 
     useEffect(() => {
         fetchInquiries();
@@ -66,12 +71,36 @@ export default function ProviderPrescriptionDashboard() {
             setIsDetailsModalOpen(true);
             const res = await LabVendorAPI.getProviderRequestDetails(id);
             if (res && res.success && res.data) {
-                setSelectedInquiry(res.data);
-                setInvoiceTests(res.data.verifiedBill?.tests || []);
-                setInvoicePackages(res.data.verifiedBill?.packages || []);
-                setHomeVisitCharge(res.data.verifiedBill?.homeVisitCharge || 40);
+                const data = res.data;
+                setSelectedInquiry(data);
+                
+                // Assign home collection fee
+                const parsedHomeVisitCharge = data.verifiedBill?.homeVisitCharge !== undefined 
+                    ? data.verifiedBill.homeVisitCharge 
+                    : 100;
+                setHomeVisitCharge(parsedHomeVisitCharge);
+
+                // --- ONLY LOAD VALID TESTS FROM API ---
+                const verifiedTests = (data.verifiedBill?.tests || []).filter(t => t && t.name && t.name.trim() !== '');
+                
+                if (verifiedTests.length > 0) {
+                    setInvoiceTests(verifiedTests);
+                } else if (data.requestedTests && data.requestedTests.length > 0) {
+                    const validRequestedTests = data.requestedTests.filter(rt => rt && rt.name && rt.name.trim() !== '');
+                    const autoMapped = validRequestedTests.map(rt => ({
+                        testId: rt.masterId || null,
+                        name: rt.name,
+                        mrp: rt.price || 0,
+                        pricePerUnit: rt.price || 0,
+                        precaution: "No special preparation required."
+                    }));
+                    setInvoiceTests(autoMapped);
+                } else {
+                    setInvoiceTests([]);
+                }
+
+                setInvoicePackages(data.verifiedBill?.packages || []);
                 setSearchQuery('');
-                setSearchResults([]);
             } else {
                 toast.error("Failed to fetch request detail profile.");
                 setIsDetailsModalOpen(false);
@@ -92,7 +121,7 @@ export default function ProviderPrescriptionDashboard() {
             const res = await LabVendorAPI.startPrescriptionReview(selectedInquiry._id);
             if (res && res.success) {
                 toast.success("Review session started successfully");
-                setSelectedInquiry(prev => ({ ...prev, status: 'Reviewing' }));
+                setSelectedInquiry(prev => prev ? { ...prev, status: 'Reviewing' } : null);
                 fetchInquiries();
             } else {
                 toast.error(res?.message || "Failed to lock review session");
@@ -105,59 +134,48 @@ export default function ProviderPrescriptionDashboard() {
         }
     };
 
-    // Live Database Master Lab Test Search
-    const handleTestSearch = async (val) => {
-        setSearchQuery(val);
-        if (!val.trim()) {
-            setSearchResults([]);
-            return;
-        }
-        try {
-            setSearchLoading(true);
-            if (typeof LabVendorAPI.searchMasterTests === 'function') {
-                const res = await LabVendorAPI.searchMasterTests(val);
-                if (res && res.success) {
-                    setSearchResults(res.data || []);
-                }
-            } else {
-                setSearchResults([]);
-            }
-        } catch (error) {
-            console.error("Test search error: ", error);
-        } finally {
-            setSearchLoading(false);
-        }
-    };
-
-    const handleAddSearchItem = (test) => {
-        const isDuplicate = invoiceTests.some(item => item.testId === test._id);
+    const handleAddClientRequestedTest = (test) => {
+        if (!test || !test.name || !test.name.trim()) return;
+        const isDuplicate = invoiceTests.some(item => item.name.toLowerCase() === test.name.toLowerCase());
         if (isDuplicate) {
-            toast.error("Test already added to bill mapping");
+            toast.error("This test is already in the list");
             return;
         }
         setInvoiceTests(prev => [
             ...prev,
             {
-                testId: test._id,
+                testId: test.masterId || null,
                 name: test.name,
-                mrp: test.mrp || 300,
-                pricePerUnit: test.price || 250
+                mrp: test.price || 0,
+                pricePerUnit: test.price || 0,
+                precaution: "No special preparation required."
             }
         ]);
-        setSearchQuery('');
-        setSearchResults([]);
+        toast.success(`Added ${test.name}`);
     };
 
-    const handleAddManualTestRow = () => {
-        setInvoiceTests(prev => [
-            ...prev,
-            {
-                testId: `temp_${Date.now()}`,
-                name: '',
-                mrp: 0,
-                pricePerUnit: 0
+    const handleImportAllRequestedTests = () => {
+        if (!selectedInquiry?.requestedTests) return;
+        const newTests = [];
+        selectedInquiry.requestedTests.forEach(rt => {
+            if (!rt || !rt.name || !rt.name.trim()) return;
+            const isDuplicate = invoiceTests.some(item => item.name.toLowerCase() === rt.name.toLowerCase());
+            if (!isDuplicate) {
+                newTests.push({
+                    testId: rt.masterId || null,
+                    name: rt.name,
+                    mrp: rt.price || 0,
+                    pricePerUnit: rt.price || 0,
+                    precaution: "No special preparation required."
+                });
             }
-        ]);
+        });
+        if (newTests.length === 0) {
+            toast.error("All requested tests are already added");
+            return;
+        }
+        setInvoiceTests(prev => [...prev, ...newTests]);
+        toast.success(`Imported ${newTests.length} tests`);
     };
 
     const handleUpdateBillItem = (index, key, val) => {
@@ -172,31 +190,37 @@ export default function ProviderPrescriptionDashboard() {
         setInvoiceTests(prev => prev.filter((_, i) => i !== index));
     };
 
-    const calculateTotalAmount = () => {
-        const testsSum = invoiceTests.reduce((acc, t) => acc + parseFloat(t.pricePerUnit || 0), 0);
-        const packagesSum = invoicePackages.reduce((acc, p) => acc + parseFloat(p.pricePerUnit || 0), 0);
-        return testsSum + packagesSum + parseFloat(homeVisitCharge || 0);
+    const calculateTotals = () => {
+        const validTests = invoiceTests.filter(t => t && t.name && t.name.trim() !== '');
+        const singlePatientTestsTotal = validTests.reduce((acc, t) => acc + parseFloat(t.pricePerUnit || 0), 0);
+        const singlePatientPackagesTotal = invoicePackages.reduce((acc, p) => acc + parseFloat(p.pricePerUnit || 0), 0);
+        const patientCount = selectedInquiry?.patients?.length || 1;
+        const itemTotal = (singlePatientTestsTotal + singlePatientPackagesTotal) * patientCount;
+        const grandTotal = itemTotal + parseFloat(homeVisitCharge || 0);
+        
+        return {
+            itemTotal,
+            grandTotal,
+            patientCount
+        };
     };
 
     const handleSubmitBill = async () => {
-        if (invoiceTests.length === 0 && invoicePackages.length === 0) {
-            return toast.error("Please add at least one test to generate the invoice");
-        }
-        const hasMissingIds = invoiceTests.some(item => !item.testId);
-        if (hasMissingIds) {
-            return toast.error("Please ensure all tests are linked to a database test ID");
+        const validTests = invoiceTests.filter(t => t && t.name && t.name.trim() !== '');
+        if (validTests.length === 0 && invoicePackages.length === 0) {
+            return toast.error("Please add at least one test from the API request to generate the invoice");
         }
 
         try {
             setActionLoading(true);
             const payload = {
-                tests: invoiceTests,
+                tests: validTests,
                 packages: invoicePackages,
                 homeVisitCharge: Number(homeVisitCharge)
             };
             const res = await LabVendorAPI.submitReviewAndBill(selectedInquiry._id, payload);
             if (res && res.success) {
-                toast.success("Bill generated and transmitted to the customer");
+                toast.success("Suggested bill generated and sent successfully!");
                 setIsDetailsModalOpen(false);
                 fetchInquiries();
             } else {
@@ -241,7 +265,6 @@ export default function ProviderPrescriptionDashboard() {
         return `${process.env.NEXT_PUBLIC_BACKEND_URL}/${cleanPath}`;
     };
 
-    // Zoom and Pan Handlers
     const handleZoomIn = () => setZoomScale(prev => Math.min(prev + 0.5, 5));
     const handleZoomOut = () => setZoomScale(prev => Math.max(prev - 0.5, 0.5));
     const handleResetZoom = () => setZoomScale(1);
@@ -255,9 +278,11 @@ export default function ProviderPrescriptionDashboard() {
         const formatStatus = status ? status.toLowerCase() : 'pending review';
         switch (formatStatus) {
             case 'paid':
-            case 'bill generated':
                 return "bg-emerald-50 text-emerald-700 border-emerald-100 text-[9px] font-black tracking-wider uppercase px-2.5 py-1 rounded-lg border";
+            case 'bill generated':
+                return "bg-blue-50 text-blue-700 border-blue-100 text-[9px] font-black tracking-wider uppercase px-2.5 py-1 rounded-lg border";
             case 'pending payment':
+                return "bg-purple-50 text-purple-700 border-purple-100 text-[9px] font-black tracking-wider uppercase px-2.5 py-1 rounded-lg border";
             case 'pending review':
                 return "bg-amber-50 text-amber-700 border-amber-100 text-[9px] font-black tracking-wider uppercase px-2.5 py-1 rounded-lg border";
             case 'rejected':
@@ -269,21 +294,17 @@ export default function ProviderPrescriptionDashboard() {
         }
     };
 
-    // Filter inquiries by selected tab and local search query
     const filteredInquiries = inquiries.filter(item => {
         const matchesTab = activeTab === 'ALL' || (item.status && item.status.toLowerCase() === activeTab.toLowerCase());
         const matchesSearch = 
             (item.requestId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (item.patients?.[0]?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+            (item.patients?.[0]?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (item.userId?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
         return matchesTab && matchesSearch;
     });
 
-    // Normalized logic states based on current selected status
-    const statusLower = selectedInquiry?.status?.toLowerCase() || 'pending review';
-    const isPendingReview = statusLower === 'pending review';
-    const isReviewing = statusLower === 'reviewing';
-    const isBillGenerated = ['bill generated', 'paid'].includes(statusLower);
-    const isRejected = statusLower === 'rejected';
+    const calculatedBillSummary = calculateTotals();
+    const validInvoiceTests = invoiceTests.filter(item => item && item.name && item.name.trim() !== '');
 
     return (
         <div className="min-h-screen bg-slate-50/50 p-4 md:p-8 font-sans text-slate-800">
@@ -305,7 +326,9 @@ export default function ProviderPrescriptionDashboard() {
                             { label: 'Pending Review', value: 'Pending Review' },
                             { label: 'Reviewing', value: 'Reviewing' },
                             { label: 'Bill Generated', value: 'Bill Generated' },
-                            { label: 'Rejected', value: 'Rejected' }
+                            { label: 'Rejected', value: 'Rejected' },
+                            { label: 'Pending Payment', value: 'Pending Payment' },
+                            { label: 'Paid', value: 'Paid' }
                         ].map((t) => (
                             <button
                                 key={t.value}
@@ -345,13 +368,13 @@ export default function ProviderPrescriptionDashboard() {
                                 {inquiries.filter(i => i.status?.toLowerCase() === 'reviewing').length}
                             </h3>
                         </div>
-                        <span className="p-3 rounded-xl bg-blue-50 text-blue-500"><FaSpinner className="animate-spin" size={16} /></span>
+                        <span className="p-3 rounded-xl bg-blue-50 text-blue-500"><FaSyncAlt className="animate-spin" size={16} /></span>
                     </div>
                     <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
                         <div>
-                            <span className="text-[10px] font-black tracking-wider text-slate-400 uppercase">Finalized</span>
+                            <span className="text-[10px] font-black tracking-wider text-slate-400 uppercase">Finalized (Paid)</span>
                             <h3 className="text-xl font-black mt-1 text-[#08B36A]">
-                                {inquiries.filter(i => ['paid', 'bill generated'].includes(i.status?.toLowerCase())).length}
+                                {inquiries.filter(i => i.status?.toLowerCase() === 'paid').length}
                             </h3>
                         </div>
                         <span className="p-3 rounded-xl bg-[#08B36A]/10 text-[#08B36A]"><FaCheckCircle size={16} /></span>
@@ -376,6 +399,8 @@ export default function ProviderPrescriptionDashboard() {
                                     <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
                                         <th className="p-6 pl-8">Inquiry ID</th>
                                         <th className="p-6">Client Recipient</th>
+                                        <th className="p-6">Appointment Details</th>
+                                        <th className="p-6">Requested Tests</th>
                                         <th className="p-6">Status State</th>
                                         <th className="p-6 text-right pr-8">Audit Portal</th>
                                     </tr>
@@ -387,10 +412,40 @@ export default function ProviderPrescriptionDashboard() {
                                                 <div className="font-extrabold text-slate-800 text-sm flex items-center gap-1.5">
                                                     <FaFileMedical className="text-emerald-500" size={12} /> {inquiry.requestId}
                                                 </div>
+                                                {inquiry.createdAt && (
+                                                    <p className="text-[9px] text-slate-400 font-semibold mt-1 uppercase tracking-wider">
+                                                        Received: {new Date(inquiry.createdAt).toLocaleDateString()}
+                                                    </p>
+                                                )}
                                             </td>
                                             <td className="p-6">
-                                                <p className="font-extrabold text-slate-700 text-sm">{inquiry.patients?.[0]?.name || 'Inquiry Contact'}</p>
+                                                <p className="font-extrabold text-slate-700 text-sm">{inquiry.patients?.[0]?.name || inquiry.userId?.name || 'Inquiry Contact'}</p>
                                                 <p className="text-[10px] text-slate-400 font-medium">{inquiry.address?.houseNo ? `${inquiry.address.houseNo}, ${inquiry.address.city}` : 'Walk-in Collection'}</p>
+                                            </td>
+                                            <td className="p-6">
+                                                {inquiry.appointmentDate ? (
+                                                    <div className="space-y-0.5 text-xs text-slate-700">
+                                                        <p className="font-extrabold">{new Date(inquiry.appointmentDate).toLocaleDateString()}</p>
+                                                        {inquiry.appointmentTime && (
+                                                            <p className="text-[10px] text-emerald-600 font-black uppercase tracking-wider">{inquiry.appointmentTime}</p>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-400 italic text-[10px]">No schedule specified</span>
+                                                )}
+                                            </td>
+                                            <td className="p-6">
+                                                {inquiry.requestedTests && inquiry.requestedTests.length > 0 ? (
+                                                    <div className="flex flex-wrap gap-1 max-w-xs">
+                                                        {inquiry.requestedTests.map((test, index) => (
+                                                            <span key={test._id || index} className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded text-[9px] font-bold">
+                                                                {test.name}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-400 italic text-[10px]">Unspecified / Rx Upload Only</span>
+                                                )}
                                             </td>
                                             <td className="p-6">
                                                 <span className={`px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider border ${getStatusBadgeStyles(inquiry.status)}`}>
@@ -413,7 +468,7 @@ export default function ProviderPrescriptionDashboard() {
 
             {/* --- DETAILED INTERACTION WORKSPACE MODAL --- */}
             {isDetailsModalOpen && selectedInquiry && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md font-sans">
                     <div className="bg-white rounded-[32px] w-full max-w-6xl overflow-hidden flex flex-col max-h-[92vh] shadow-2xl relative border border-slate-100 animate-in fade-in duration-300">
                         
                         {/* Modal Header */}
@@ -442,7 +497,7 @@ export default function ProviderPrescriptionDashboard() {
                                 <div className="py-24 text-center flex flex-col items-center gap-3">
                                     <FaSyncAlt className="animate-spin text-emerald-500 text-3xl" />
                                     <p className="text-[10px] font-black text-slate-400 tracking-wider">Acquiring profiles...</p>
-                                </div>
+                               </div>
                             ) : (
                                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative">
                                     
@@ -488,26 +543,145 @@ export default function ProviderPrescriptionDashboard() {
                                             
                                             {/* Client Info Grid */}
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 mb-2"><FaUser /> Patient Profile</p>
-                                                    <p className="text-sm font-extrabold text-slate-700">
-                                                        {selectedInquiry.patients?.[0]?.name || 'Nishant'}
-                                                        {selectedInquiry.patients?.[0]?.age ? ` (${selectedInquiry.patients[0].age} yrs)` : ''}
-                                                    </p>
-                                                    <p className="text-xs font-bold text-emerald-600 mt-0.5">{selectedInquiry.address?.phone || 'No Contact Number'}</p>
-                                                </div>
-                                                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 mb-2"><FaMapMarkerAlt /> Address Details</p>
-                                                    {selectedInquiry.address ? (
-                                                        <>
-                                                            <p className="text-xs text-slate-600 font-bold leading-relaxed">{selectedInquiry.address.houseNo}, {selectedInquiry.address.city}</p>
-                                                            <span className="inline-block mt-2 px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[8px] font-black rounded uppercase tracking-wider">{selectedInquiry.collectionType || 'Standard collection'}</span>
-                                                        </>
-                                                    ) : (
-                                                        <p className="text-xs text-slate-400 font-bold italic">No physical coordinates linked.</p>
+                                                
+                                                {/* Patient & Client Account Profiles */}
+                                                <div className="space-y-4">
+                                                    {selectedInquiry.userId && (
+                                                        <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2.5">
+                                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                                                                <FaUser /> Registered Client Account
+                                                            </p>
+                                                            <div className="space-y-1 text-xs">
+                                                                <p className="font-extrabold text-slate-700">{selectedInquiry.userId.name || 'Anonymous User'}</p>
+                                                                <p className="text-slate-400 flex items-center gap-1.5"><FaEnvelope size={10} /> {selectedInquiry.userId.email}</p>
+                                                                <p className="text-emerald-600 font-bold flex items-center gap-1.5"><FaPhoneAlt size={10} /> {selectedInquiry.userId.phone}</p>
+                                                                {selectedInquiry.userId.gender && (
+                                                                    <p className="text-slate-400 flex items-center gap-1.5 capitalize"><FaVenusMars size={10} /> {selectedInquiry.userId.gender}</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {selectedInquiry.patients && selectedInquiry.patients.length > 0 && (
+                                                        <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
+                                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                                                                <FaUser className="text-emerald-600" /> Patient Profile List
+                                                            </p>
+                                                            <div className="space-y-2">
+                                                                {selectedInquiry.patients.map((pat, idx) => (
+                                                                    <div key={pat._id || idx} className="p-3 bg-white rounded-lg border border-slate-100 flex justify-between items-center text-xs">
+                                                                        <div>
+                                                                            <p className="font-extrabold text-slate-700">{pat.name}</p>
+                                                                            <p className="text-[10px] text-slate-400 font-semibold uppercase">Relation: {pat.relation || 'Self'}</p>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <p className="font-extrabold text-slate-600">{pat.age} Years</p>
+                                                                            <p className="text-[10px] font-bold text-slate-400 uppercase">{pat.gender}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
                                                     )}
                                                 </div>
+
+                                                {/* Logistics, Address & Appointment Details */}
+                                                <div className="space-y-4">
+                                                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2.5 h-full flex flex-col justify-between">
+                                                        <div>
+                                                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 mb-2">
+                                                                <FaMapMarkerAlt /> Address Details
+                                                            </p>
+                                                            {selectedInquiry.address ? (
+                                                                <div className="text-xs text-slate-600 space-y-1">
+                                                                    <p className="font-extrabold text-slate-700">{selectedInquiry.address.name || 'Recipient'}</p>
+                                                                    <p className="font-medium leading-relaxed">
+                                                                        {selectedInquiry.address.houseNo}, {selectedInquiry.address.sector || ''} {selectedInquiry.address.city}
+                                                                    </p>
+                                                                    {selectedInquiry.address.pincode && (
+                                                                        <p className="font-bold text-slate-400">PIN: {selectedInquiry.address.pincode}</p>
+                                                                    )}
+                                                                    {selectedInquiry.address.addressType && (
+                                                                        <span className="inline-block mt-1 px-2 py-0.5 bg-slate-200/55 text-slate-600 text-[8px] font-extrabold rounded uppercase tracking-wider">
+                                                                            {selectedInquiry.address.addressType}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <p className="text-xs text-slate-400 font-bold italic">No physical coordinates linked.</p>
+                                                            )}
+                                                        </div>
+
+                                                        {selectedInquiry.appointmentDate && (
+                                                            <div className="pt-2 border-t border-slate-200/60 mt-2 space-y-0.5 text-xs">
+                                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                                                                    <FaClock /> Chosen Schedule
+                                                                </p>
+                                                                <p className="font-extrabold text-slate-700">
+                                                                    {new Date(selectedInquiry.appointmentDate).toLocaleDateString()}
+                                                                </p>
+                                                                {selectedInquiry.appointmentTime && (
+                                                                    <p className="text-[10px] text-emerald-600 font-black uppercase tracking-wider">
+                                                                        {selectedInquiry.appointmentTime}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {selectedInquiry.address?.phone && (
+                                                            <div className="pt-2 border-t border-slate-200/60 mt-2">
+                                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Scheduler Contact Phone</p>
+                                                                <p className="text-xs font-bold text-emerald-600 mt-0.5">{selectedInquiry.address.phone}</p>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        <div className="mt-2">
+                                                            <span className="inline-block px-2 py-1 bg-emerald-50 text-emerald-600 text-[8px] font-black rounded uppercase tracking-wider border border-emerald-100">
+                                                                {selectedInquiry.collectionType || 'Standard Collection'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
                                             </div>
+
+                                            {/* Client Requested Tests Quick Bar */}
+                                            {selectedInquiry.requestedTests && selectedInquiry.requestedTests.filter(t => t && t.name && t.name.trim() !== '').length > 0 && (
+                                                <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl space-y-3">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/40 pb-2">
+                                                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest flex items-center gap-1.5">
+                                                            <FaFilePrescription /> Client Requested Tests ({selectedInquiry.requestedTests.filter(t => t && t.name && t.name.trim() !== '').length})
+                                                        </p>
+                                                        {isReviewing && (
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={handleImportAllRequestedTests}
+                                                                className="text-[9px] bg-amber-600 text-white font-black uppercase px-3 py-1 rounded-lg hover:bg-amber-700 transition"
+                                                            >
+                                                                Import All Tests
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {selectedInquiry.requestedTests.filter(t => t && t.name && t.name.trim() !== '').map((test, index) => (
+                                                            <button 
+                                                                type="button"
+                                                                key={test._id || index} 
+                                                                disabled={!isReviewing}
+                                                                onClick={() => handleAddClientRequestedTest(test)}
+                                                                className={`px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 shadow-sm flex items-center gap-2 border text-left transition-all ${
+                                                                    isReviewing 
+                                                                        ? 'bg-white hover:bg-amber-100 border-amber-200 cursor-pointer hover:scale-[1.02]' 
+                                                                        : 'bg-slate-50 border-slate-100'
+                                                                }`}
+                                                            >
+                                                                <span>{test.name}</span>
+                                                                <span className="text-[10px] text-emerald-600 font-extrabold">(MRP: ₹{test.price || 0})</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             {/* WORKSPACE LOGIC SECTION */}
                                             {isPendingReview && (
@@ -515,9 +689,9 @@ export default function ProviderPrescriptionDashboard() {
                                                     <FaExclamationCircle className="text-amber-500 text-3xl mx-auto" />
                                                     <div>
                                                         <h4 className="text-sm font-black text-slate-800">Inquiry Lock Required</h4>
-                                                        <p className="text-xs text-slate-400 mt-1">Acquire and lock this lab prescription session before editing or building the verified laboratory invoice.</p>
+                                                        <p className="text-xs text-slate-400 mt-1">Acquire and lock this prescription session before setting price and precautions.</p>
                                                     </div>
-                                                    <button onClick={handleStartReview} disabled={actionLoading} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase rounded-xl shadow-lg shadow-emerald-50 tracking-widest flex items-center justify-center gap-2">
+                                                    <button onClick={handleStartReview} disabled={actionLoading} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase rounded-xl shadow-lg shadow-emerald-50 tracking-widest flex items-center justify-center gap-2 transition-colors">
                                                         {actionLoading ? <FaSyncAlt className="animate-spin" /> : <FaCheck />} Lock & Begin Audit
                                                     </button>
                                                 </div>
@@ -526,148 +700,173 @@ export default function ProviderPrescriptionDashboard() {
                                             {isReviewing && (
                                                 <div className="space-y-4 border-t pt-4 border-slate-100">
                                                     <div className="flex justify-between items-center">
-                                                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Lab Technician Verified Bill Editor</h3>
-                                                        <button 
-                                                            type="button"
-                                                            onClick={handleAddManualTestRow}
-                                                            className="text-[10px] text-emerald-600 font-black tracking-wider uppercase bg-emerald-50 px-3 py-1.5 rounded-xl hover:bg-emerald-100 transition flex items-center gap-1.5"
-                                                        >
-                                                            <FaPlus size={8} /> Add Row
-                                                        </button>
+                                                        <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                                                            <FaClipboardList className="text-emerald-600" /> Bill & Instructions Editor
+                                                        </h3>
                                                     </div>
-                                                    
-                                                    {/* Local Search and Map from Master */}
-                                                    {typeof LabVendorAPI.searchMasterTests === 'function' && (
-                                                        <div className="relative">
-                                                            <div className="flex items-center bg-slate-50 border border-slate-100 rounded-xl px-3 py-1.5 focus-within:ring-2 focus-within:ring-emerald-500">
-                                                                <FaSearch className="text-slate-400 mr-2" size={12} />
-                                                                <input 
-                                                                    type="text" 
-                                                                    placeholder="Search test panel database to link..." 
-                                                                    value={searchQuery}
-                                                                    onChange={(e) => handleTestSearch(e.target.value)}
-                                                                    className="bg-transparent outline-none text-xs text-slate-700 w-full placeholder-slate-400"
-                                                                />
-                                                                {searchLoading && <FaSyncAlt className="animate-spin text-slate-400 ml-2" size={12} />}
-                                                            </div>
-                                                            {searchResults.length > 0 && (
-                                                                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-100 rounded-xl shadow-xl max-h-48 overflow-y-auto z-[20] divide-y divide-slate-50">
-                                                                    {searchResults.map((test) => (
-                                                                        <div key={test._id} onClick={() => handleAddSearchItem(test)} className="p-3 hover:bg-emerald-50/50 cursor-pointer text-xs font-bold text-slate-700 transition-colors flex justify-between items-center">
-                                                                            <span>{test.name}</span>
-                                                                            <span className="text-[10px] text-emerald-600 font-extrabold">₹{test.price}</span>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
 
-                                                    {/* Verified Bill Invoice List */}
-                                                    <div className="space-y-3">
-                                                        <div className="max-h-52 overflow-y-auto space-y-2">
-                                                            {invoiceTests.length === 0 ? (
-                                                                <div className="p-6 bg-slate-50 border border-dashed border-slate-200 text-center rounded-2xl text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                                                                    Add laboratory tests and panels to begin mapping
-                                                                </div>
-                                                            ) : (
-                                                                invoiceTests.map((item, idx) => (
-                                                                    <div key={item.testId || idx} className="p-3 bg-white border border-slate-100 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm">
-                                                                        <div className="flex-1 min-w-0">
-                                                                            <input 
-                                                                                type="text" 
-                                                                                placeholder="Enter test panel name..." 
-                                                                                value={item.name || ''} 
-                                                                                onChange={(e) => handleUpdateBillItem(idx, 'name', e.target.value)}
-                                                                                className="font-extrabold text-slate-800 bg-transparent outline-none border-b border-transparent focus:border-slate-300 w-full truncate"
-                                                                            />
-                                                                            <span className="text-[8px] text-slate-400 uppercase block mt-1">Row Ref: {item.testId?.substring(0, 8) || 'Manual'}</span>
+                                                    {/* Streamlined Test Card List - ONLY API TESTS DISPLAYED */}
+                                                    <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                                                        {validInvoiceTests.length === 0 ? (
+                                                            <div className="p-8 bg-slate-50 border border-dashed border-slate-200 text-center rounded-2xl">
+                                                                <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">
+                                                                    No requested tests found from API for this inquiry.
+                                                                </p>
+                                                            </div>
+                                                        ) : (
+                                                            validInvoiceTests.map((item, idx) => (
+                                                                <div 
+                                                                    key={item.testId || idx} 
+                                                                    className="p-4 bg-white border border-slate-200 rounded-2xl space-y-3 shadow-sm hover:border-emerald-300 transition-all"
+                                                                >
+                                                                    {/* Row 1: Test Name & Read-Only System MRP */}
+                                                                    <div className="flex items-center justify-between gap-3">
+                                                                        <div className="flex items-center gap-2 min-w-0">
+                                                                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                                                            <h4 className="font-extrabold text-slate-800 text-sm truncate" title={item.name}>
+                                                                                {item.name}
+                                                                            </h4>
                                                                         </div>
-                                                                        <div className="flex items-center gap-2 shrink-0">
-                                                                            {/* Base MRP Input */}
-                                                                            <div className="flex items-center border rounded px-1.5 py-1 bg-slate-50">
-                                                                                <span className="text-slate-400 mr-1 text-[10px]">MRP ₹</span>
-                                                                                <input 
-                                                                                    type="number" 
-                                                                                    value={item.mrp || ''} 
-                                                                                    onChange={(e) => handleUpdateBillItem(idx, 'mrp', parseFloat(e.target.value) || 0)}
-                                                                                    className="w-12 bg-transparent outline-none font-bold text-right text-slate-700 text-[10px]"
-                                                                                />
-                                                                            </div>
-                                                                            {/* Selling Price Input */}
-                                                                            <div className="flex items-center border rounded px-1.5 py-1 bg-slate-50">
-                                                                                <span className="text-slate-400 mr-1 text-[10px]">Price ₹</span>
-                                                                                <input 
-                                                                                    type="number" 
-                                                                                    value={item.pricePerUnit || ''} 
-                                                                                    onChange={(e) => handleUpdateBillItem(idx, 'pricePerUnit', parseFloat(e.target.value) || 0)}
-                                                                                    className="w-12 bg-transparent outline-none font-bold text-right text-slate-700 text-[10px]"
-                                                                                />
-                                                                            </div>
-                                                                            <button onClick={() => handleRemoveBillItem(idx)} className="p-2 hover:bg-rose-50 text-slate-300 hover:text-rose-500 rounded-lg transition-all"><FaTrash size={10} /></button>
+                                                                        <div className="flex items-center gap-3 shrink-0">
+                                                                            <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
+                                                                                MRP: <span className="text-slate-800 font-extrabold">₹{item.mrp || 0}</span>
+                                                                            </span>
+                                                                            <button 
+                                                                                type="button"
+                                                                                onClick={() => handleRemoveBillItem(idx)} 
+                                                                                className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
+                                                                                title="Remove Test"
+                                                                            >
+                                                                                <FaTrash size={12} />
+                                                                            </button>
                                                                         </div>
                                                                     </div>
-                                                                ))
-                                                            )}
-                                                        </div>
+
+                                                                    {/* Row 2: Price & Precaution Inputs */}
+                                                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-2 border-t border-slate-100">
+                                                                        {/* 1. Price Input */}
+                                                                        <div className="sm:col-span-4 flex flex-col gap-1">
+                                                                            <label className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
+                                                                                Price (₹) <span className="text-emerald-600">*</span>
+                                                                            </label>
+                                                                            <div className="relative flex items-center">
+                                                                                <span className="absolute left-3 text-slate-400 font-bold text-xs">₹</span>
+                                                                                <input 
+                                                                                    type="number" 
+                                                                                    min="0"
+                                                                                    placeholder="0"
+                                                                                    value={item.pricePerUnit !== undefined ? item.pricePerUnit : ''} 
+                                                                                    onChange={(e) => handleUpdateBillItem(idx, 'pricePerUnit', parseFloat(e.target.value) || 0)}
+                                                                                    className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white focus:ring-2 ring-emerald-500/20 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* 2. Precaution Input */}
+                                                                        <div className="sm:col-span-8 flex flex-col gap-1">
+                                                                            <label className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
+                                                                                Precaution / Instructions
+                                                                            </label>
+                                                                            <input 
+                                                                                type="text"
+                                                                                placeholder="e.g. Fasting of 8-10 hours is recommended."
+                                                                                value={item.precaution || ''}
+                                                                                onChange={(e) => handleUpdateBillItem(idx, 'precaution', e.target.value)}
+                                                                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white focus:ring-2 ring-emerald-500/20 rounded-xl text-xs font-semibold text-slate-700 placeholder-slate-400 outline-none transition-all"
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))
+                                                        )}
                                                     </div>
 
-                                                    {/* Home collection charges & Grand Total Details */}
-                                                    <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 space-y-3">
+                                                    {/* Home Collection & Grand Total Box */}
+                                                    <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100 space-y-3">
                                                         <div className="flex justify-between items-center text-xs">
-                                                            <span className="font-bold text-slate-600 flex items-center gap-1.5"><FaMotorcycle className="text-slate-400" /> Home Visit / Collection Dispatch Surcharge</span>
-                                                            <input 
-                                                                type="number" 
-                                                                value={homeVisitCharge} 
-                                                                onChange={(e) => setHomeVisitCharge(parseFloat(e.target.value) || 0)}
-                                                                className="w-16 px-2 py-1 border rounded bg-white text-right font-extrabold text-slate-700 text-xs"
-                                                            />
+                                                            <span className="font-bold text-slate-600 flex items-center gap-1.5">
+                                                                <FaMotorcycle className="text-slate-400" /> Home Visit Charge
+                                                            </span>
+                                                            <div className="flex items-center">
+                                                                <span className="text-slate-400 font-bold mr-1">₹</span>
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={homeVisitCharge} 
+                                                                    onChange={(e) => setHomeVisitCharge(parseFloat(e.target.value) || 0)}
+                                                                    className="w-20 px-2 py-1 border border-emerald-200 rounded-lg bg-white text-right font-black text-slate-800 text-xs outline-none focus:ring-2 ring-emerald-500/20"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-xs text-slate-500 pt-2 border-t border-emerald-100">
+                                                            <span>Patient Count:</span>
+                                                            <span className="font-bold text-slate-700">{calculatedBillSummary.patientCount} Patient(s)</span>
                                                         </div>
                                                         <div className="flex justify-between items-center pt-2 border-t border-emerald-100">
-                                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Estimated Invoice Total</span>
-                                                            <span className="text-lg font-black text-emerald-700">₹{calculateTotalAmount()}</span>
+                                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Final Total</span>
+                                                            <span className="text-lg font-black text-emerald-700">₹{calculatedBillSummary.grandTotal}</span>
                                                         </div>
                                                     </div>
                                                 </div>
                                             )}
 
-                                            {/* Finished Status Invoice Summary (Read-Only) */}
+                                            {/* Read-Only Bill Summary when Bill is Generated / Paid */}
                                             {isBillGenerated && (
-                                                <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-100 space-y-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <FaCheckCircle className="text-emerald-600" />
-                                                        <h4 className="text-xs font-black text-emerald-800 uppercase tracking-wider">Final Verified Invoice Summary</h4>
+                                                <div className="space-y-4">
+                                                    <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-blue-700 font-bold text-xs flex items-center gap-2">
+                                                        <FaClock />
+                                                        <span>
+                                                            {currentStatus.toLowerCase() === 'paid' 
+                                                                ? 'Payment completed successfully.' 
+                                                                : 'Suggested invoice sent. Awaiting patient payment.'}
+                                                        </span>
                                                     </div>
-                                                    
-                                                    {invoiceTests.length > 0 && (
-                                                        <div className="space-y-2 border-b border-emerald-100/50 pb-3">
-                                                            <p className="text-[10px] font-black uppercase text-emerald-700">Mapped Diagnostic Tests</p>
-                                                            {invoiceTests.map((t, index) => (
-                                                                <div key={index} className="flex justify-between text-xs text-slate-600">
-                                                                    <span>{t.name}</span>
-                                                                    <span className="font-bold text-slate-800">₹{t.pricePerUnit}</span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    )}
 
-                                                    <div className="space-y-1.5 pb-3 text-xs text-slate-600">
-                                                        <div className="flex justify-between">
-                                                            <span>Home Collection Fee</span>
-                                                            <span className="font-bold text-slate-800">₹{homeVisitCharge}</span>
+                                                    <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-100 space-y-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <FaCheckCircle className="text-emerald-600" />
+                                                            <h4 className="text-xs font-black text-emerald-800 uppercase tracking-wider">Final Verified Invoice</h4>
                                                         </div>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-sm font-black text-emerald-700 pt-2 border-t border-emerald-100">
-                                                        <span>Grand Total</span>
-                                                        <span>₹{calculateTotalAmount()}</span>
+                                                        
+                                                        {validInvoiceTests.length > 0 && (
+                                                            <div className="space-y-2 border-b border-emerald-100 pb-3">
+                                                                <p className="text-[10px] font-black uppercase text-emerald-700 tracking-wider mb-2">Tests Breakdown</p>
+                                                                {validInvoiceTests.map((t, index) => (
+                                                                    <div key={index} className="flex justify-between text-xs text-slate-700">
+                                                                        <span className="font-bold">{t.name}</span>
+                                                                        <span className="font-extrabold text-slate-800">₹{t.pricePerUnit}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Delivery / Home Collection Charges Display */}
+                                                        <div className="space-y-2 border-b border-emerald-100 pb-3 text-xs text-slate-600">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="font-semibold flex items-center gap-1.5">
+                                                                    <FaMotorcycle className="text-emerald-600" /> Delivery / Home Visit Charge
+                                                                </span>
+                                                                <span className="font-extrabold text-slate-800">₹{homeVisitCharge || 0}</span>
+                                                            </div>
+                                                            {calculatedBillSummary.patientCount > 1 && (
+                                                                <div className="flex justify-between items-center text-[11px] text-slate-500">
+                                                                    <span>Patient Multiplier</span>
+                                                                    <span className="font-bold">{calculatedBillSummary.patientCount} Patient(s)</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="flex justify-between items-center text-sm font-black text-emerald-800 pt-1">
+                                                            <span>Grand Total</span>
+                                                            <span>₹{calculatedBillSummary.grandTotal}</span>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
 
                                             {isRejected && (
-                                                <div className="p-5 rounded-2xl bg-rose-50 border border-rose-100/50 space-y-3">
+                                                <div className="p-5 rounded-2xl bg-rose-50 border border-rose-100 space-y-3">
                                                     <div className="flex items-center gap-2"><FaExclamationCircle className="text-rose-500" /><h4 className="text-xs font-black text-rose-800 uppercase tracking-wider">Rejection Record</h4></div>
-                                                    <p className="text-xs text-rose-900 font-bold italic bg-white/50 p-3 rounded-xl border border-rose-100/50">"{selectedInquiry.rejectReason || "Unspecified rejection reason."}"</p>
+                                                    <p className="text-xs text-rose-900 font-bold italic bg-white/50 p-3 rounded-xl border border-rose-100">"{selectedInquiry.rejectReason || "Unspecified rejection reason."}"</p>
                                                 </div>
                                             )}
 
@@ -684,7 +883,7 @@ export default function ProviderPrescriptionDashboard() {
                             {selectedInquiry && isReviewing && (
                                 <>
                                     <button onClick={() => setRejectPopupOpen(true)} className="px-6 py-3 bg-rose-100 hover:bg-rose-200 text-rose-600 font-black rounded-xl text-[10px] uppercase tracking-widest transition-all">Reject Request</button>
-                                    <button onClick={handleSubmitBill} disabled={actionLoading} className="px-10 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-50 tracking-widest flex items-center justify-center gap-2">
+                                    <button onClick={handleSubmitBill} disabled={actionLoading} className="px-10 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-50 flex items-center justify-center gap-2 transition-all">
                                         {actionLoading ? <FaSyncAlt className="animate-spin" /> : <FaCheck />} Send Verified Bill
                                     </button>
                                 </>
@@ -705,7 +904,7 @@ export default function ProviderPrescriptionDashboard() {
                         </div>
                         <textarea 
                             rows="3" 
-                            placeholder="Provide rejection audit details (e.g., blurry image, outdated prescription date)..." 
+                            placeholder="Provide rejection audit details..." 
                             value={rejectReason} 
                             onChange={(e) => setRejectReason(e.target.value)} 
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-semibold focus:ring-2 ring-rose-500 outline-none resize-none transition-all placeholder-slate-400 text-slate-700"

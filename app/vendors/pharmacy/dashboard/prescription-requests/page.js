@@ -19,8 +19,11 @@ export default function PrescriptionRequestsPage() {
     const [selectedRequest, setSelectedRequest] = useState(null);
     const [detailsLoading, setDetailsLoading] = useState(false);
 
-    // Zoom & Focus States
+    // Document Inspector Zoom & Pan (Drag) States
     const [zoomScale, setZoomScale] = useState(1);
+    const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [isImageFocused, setIsImageFocused] = useState(false);
 
     // Bill Generation Workspace States
@@ -53,10 +56,17 @@ export default function PrescriptionRequestsPage() {
         }
     };
 
+    const resetInspector = () => {
+        setZoomScale(1);
+        setPanPosition({ x: 0, y: 0 });
+        setIsDragging(false);
+    };
+
     const handleOpenDetails = async (requestId) => {
         try {
             setDetailsLoading(true);
             setIsDetailsModalOpen(true);
+            resetInspector();
             const res = await PharmacyVendorAPI.getPrescriptionRequestDetails(requestId);
             if (res.success) {
                 setSelectedRequest(res.data);
@@ -202,17 +212,51 @@ export default function PrescriptionRequestsPage() {
         return `${process.env.NEXT_PUBLIC_BACKEND_URL}/${cleanPath}`;
     };
 
-    // Zoom and Pan Handlers
+    // =========================================================
+    // DOCUMENT INSPECTOR ZOOM & PAN (DRAG) HANDLERS
+    // =========================================================
     const handleZoomIn = () => setZoomScale(prev => Math.min(prev + 0.5, 5));
-    const handleZoomOut = () => setZoomScale(prev => Math.max(prev - 0.5, 0.5));
-    const handleResetZoom = () => setZoomScale(1);
+    const handleZoomOut = () => {
+        setZoomScale(prev => {
+            const nextScale = Math.max(prev - 0.5, 1);
+            if (nextScale === 1) setPanPosition({ x: 0, y: 0 });
+            return nextScale;
+        });
+    };
+    const handleResetZoom = () => resetInspector();
 
     const handleWheel = (e) => {
-        if (e.deltaY < 0) handleZoomIn();
-        else handleZoomOut();
+        e.preventDefault();
+        if (e.deltaY < 0) {
+            handleZoomIn();
+        } else {
+            handleZoomOut();
+        }
     };
 
-    const getInitials = (name) => name ? name.substring(0, 2).toUpperCase() : '??';
+    const handleMouseDown = (e) => {
+        if (zoomScale > 1) {
+            e.preventDefault();
+            setIsDragging(true);
+            setDragStart({
+                x: e.clientX - panPosition.x,
+                y: e.clientY - panPosition.y
+            });
+        }
+    };
+
+    const handleMouseMove = (e) => {
+        if (isDragging && zoomScale > 1) {
+            e.preventDefault();
+            setPanPosition({
+                x: e.clientX - dragStart.x,
+                y: e.clientY - dragStart.y
+            });
+        }
+    };
+
+    const handleMouseUp = () => setIsDragging(false);
+    const handleMouseLeave = () => setIsDragging(false);
 
     return (
         <div className="min-h-screen bg-slate-50/50 p-4 md:p-8 font-sans text-slate-800">
@@ -233,7 +277,7 @@ export default function PrescriptionRequestsPage() {
                             { label: 'All', value: '' },
                             { label: 'Pending Review', value: 'Pending Review' },
                             { label: 'Reviewing', value: 'Reviewing' },
-                            { label: 'Bill Generated', value: 'Bill Generated' },
+                            { label: 'Payment Pending from User', value: 'Bill Generated' },
                             { label: 'Rejected', value: 'Rejected' }
                         ].map((t) => (
                             <button
@@ -287,10 +331,10 @@ export default function PrescriptionRequestsPage() {
                                                 <span className={`px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider border ${
                                                     req.status === 'Pending Review' ? 'bg-amber-50 text-amber-600 border-amber-100' :
                                                     req.status === 'Reviewing' ? 'bg-cyan-50 text-cyan-600 border-cyan-100' :
-                                                    req.status === 'Bill Generated' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                    req.status === 'Bill Generated' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                                     'bg-rose-50 text-rose-600 border-rose-100'
                                                 }`}>
-                                                    {req.status}
+                                                    {req.status === 'Bill Generated' ? 'Payment Pending from User' : req.status}
                                                 </span>
                                             </td>
                                             <td className="p-6 pr-8 text-right" onClick={(e) => e.stopPropagation()}>
@@ -319,11 +363,17 @@ export default function PrescriptionRequestsPage() {
                                     Rx Inquiry Session <span className="text-emerald-600">#{selectedRequest.requestId}</span>
                                 </h2>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                                    Current Audit Stage: {selectedRequest.status}
+                                    Current Audit Stage: {selectedRequest.status === 'Bill Generated' ? 'Payment Pending from User' : selectedRequest.status}
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
-                                <button onClick={() => setIsImageFocused(!isImageFocused)} className="p-2 bg-white rounded-full text-slate-400 border hover:bg-slate-50 transition-all">
+                                <button 
+                                    onClick={() => {
+                                        setIsImageFocused(!isImageFocused);
+                                        resetInspector();
+                                    }} 
+                                    className="p-2 bg-white rounded-full text-slate-400 border hover:bg-slate-50 transition-all"
+                                >
                                     {isImageFocused ? <FaCompress size={16} /> : <FaExpand size={16} />}
                                 </button>
                                 <button onClick={() => setIsDetailsModalOpen(false)} className="p-2 bg-white rounded-full text-slate-300 hover:text-rose-500 border transition-all">
@@ -342,35 +392,65 @@ export default function PrescriptionRequestsPage() {
                             ) : (
                                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative">
                                     
-                                    {/* PRESCRIPTION ENHANCED INSPECTOR */}
+                                    {/* PRESCRIPTION ENHANCED INSPECTOR (PROPER ZOOM & PAN DRAG) */}
                                     {selectedRequest.prescriptionImage && (
-                                        <div className={`${isImageFocused ? 'absolute inset-0 z-[90] bg-white' : 'lg:col-span-6'} flex flex-col space-y-4`}>
+                                        <div className={`${isImageFocused ? 'absolute inset-0 z-[90] bg-white p-4' : 'lg:col-span-6'} flex flex-col space-y-4`}>
                                             <div className="flex items-center justify-between">
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                                    <FaFilePrescription /> Document Inspector
+                                                    <FaFilePrescription className="text-emerald-500" /> Document Inspector
+                                                    {zoomScale > 1 && (
+                                                        <span className="text-[9px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded font-mono font-bold">
+                                                            {(zoomScale * 100).toFixed(0)}%
+                                                        </span>
+                                                    )}
                                                 </p>
-                                                <div className="flex gap-1.5">
-                                                    <button onClick={handleZoomOut} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-600 border border-slate-100"><FaSearchMinus size={10} /></button>
-                                                    <button onClick={handleResetZoom} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-600 border border-slate-100"><FaRedo size={10} /></button>
-                                                    <button onClick={handleZoomIn} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-600 border border-slate-100"><FaSearchPlus size={10} /></button>
+                                                <div className="flex gap-1.5 items-center">
+                                                    <button onClick={handleZoomOut} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-600 border border-slate-100 transition-all active:scale-95" title="Zoom Out"><FaSearchMinus size={10} /></button>
+                                                    <button onClick={handleResetZoom} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-600 border border-slate-100 transition-all active:scale-95" title="Reset"><FaRedo size={10} /></button>
+                                                    <button onClick={handleZoomIn} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-600 border border-slate-100 transition-all active:scale-95" title="Zoom In"><FaSearchPlus size={10} /></button>
                                                     {isImageFocused && (
-                                                        <button onClick={() => setIsImageFocused(false)} className="px-3.5 py-1.5 bg-rose-500 text-white rounded-lg font-bold text-[10px] uppercase flex items-center gap-1.5 tracking-wider">
-                                                            <FaCompress /> Exit
+                                                        <button 
+                                                            onClick={() => {
+                                                                setIsImageFocused(false);
+                                                                resetInspector();
+                                                            }} 
+                                                            className="px-3.5 py-1.5 bg-rose-500 text-white rounded-lg font-bold text-[10px] uppercase flex items-center gap-1.5 tracking-wider ml-2"
+                                                        >
+                                                            <FaCompress /> Exit Focus
                                                         </button>
                                                     )}
                                                 </div>
                                             </div>
 
+                                            {/* IMAGE CONTAINER WITH ZOOM, WHEEL, & DRAG/PAN */}
                                             <div 
-                                                className="relative w-full aspect-[4/5] bg-slate-100 rounded-2xl border-2 border-slate-100 overflow-hidden flex items-center justify-center cursor-move"
+                                                className={`relative w-full ${isImageFocused ? 'h-[75vh]' : 'aspect-[4/5]'} bg-slate-100 rounded-2xl border-2 border-slate-100 overflow-hidden flex items-center justify-center select-none`}
                                                 onWheel={handleWheel}
+                                                onMouseDown={handleMouseDown}
+                                                onMouseMove={handleMouseMove}
+                                                onMouseUp={handleMouseUp}
+                                                onMouseLeave={handleMouseLeave}
+                                                style={{
+                                                    cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+                                                }}
                                             >
                                                 <img 
                                                     src={getImgUrl(selectedRequest.prescriptionImage)} 
-                                                    style={{ transform: `scale(${zoomScale})`, transition: 'transform 0.1s ease-out' }} 
-                                                    className="max-w-full max-h-full object-contain" 
+                                                    draggable={false}
+                                                    style={{ 
+                                                        transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomScale})`, 
+                                                        transition: isDragging ? 'none' : 'transform 0.15s ease-out' 
+                                                    }} 
+                                                    className="max-w-full max-h-full object-contain pointer-events-none" 
                                                     alt="Rx Upload" 
                                                 />
+
+                                                {/* Helpful Controls Badge */}
+                                                <div className="absolute bottom-3 left-3 bg-slate-900/70 backdrop-blur-md text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider flex items-center gap-2 pointer-events-none">
+                                                    <span>Scroll to Zoom</span>
+                                                    <span>•</span>
+                                                    <span>{zoomScale > 1 ? 'Drag to Pan' : 'Zoom in to Drag'}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     )}
@@ -531,7 +611,15 @@ export default function PrescriptionRequestsPage() {
                                             {/* Finished Status Invoice Summary (Read-Only) */}
                                             {selectedRequest.status === 'Bill Generated' && (
                                                 <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-100 space-y-4">
-                                                    <div className="flex items-center gap-2"><FaShoppingCart className="text-emerald-600" /><h4 className="text-xs font-black text-emerald-800 uppercase tracking-wider">Final Verified Invoice Summary</h4></div>
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <FaShoppingCart className="text-emerald-600" />
+                                                            <h4 className="text-xs font-black text-emerald-800 uppercase tracking-wider">Final Verified Invoice Summary</h4>
+                                                        </div>
+                                                        <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-[9px] font-black uppercase tracking-wider border border-amber-200">
+                                                            Payment Pending from User
+                                                        </span>
+                                                    </div>
                                                     <div className="space-y-1.5 border-b border-emerald-100/50 pb-3 text-xs text-slate-600">
                                                         <div className="flex justify-between"><span>Verified Medicine Items Total</span><span className="font-bold text-slate-800">₹{selectedRequest.verifiedBill?.itemTotal || 0}</span></div>
                                                         <div className="flex justify-between"><span>Delivery/Surcharge Fees</span><span className="font-bold text-slate-800">₹{selectedRequest.verifiedBill?.deliveryCharge || 0}</span></div>

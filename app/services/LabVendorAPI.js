@@ -494,7 +494,113 @@ const LabVendorAPI = {
         const response = await labVendorApi.post(`/provider/labs/prescription-request/reject/${requestId}`, { reason });
         return response.data;
     },
-    
+  /**
+     * Traditional Change Password (Logged in session required)
+     */
+   changePassword: async ({ oldPassword, newPassword }) => {
+    try {
+        const response = await labVendorApi.patch('/provider/labs/profile/change-password', {
+            oldPassword,
+            newPassword,
+        });
+        return response.data;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+},
+
+    /**
+     * Email-Based OTP Reset Flow - Step 1: Send OTP to Email
+     * Route: POST /api/password/forgot-password
+     */
+    forgotPassword: async (email) => {
+        try {
+            const response = await labVendorApi.post('/api/password/forgot-password', {
+                email,
+            });
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error);
+        }
+    },
+
+    /**
+     * Email-Based OTP Reset Flow - Step 2: Verify Email OTP Code
+     * Route: POST /api/password/verify-otp
+     */
+    verifyOtp: async (email, otp) => {
+        try {
+            const response = await labVendorApi.post('/api/password/verify-otp', {
+                email,
+                otp,
+            });
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error);
+        }
+    },
+
+    /**
+     * Email-Based OTP Reset Flow - Step 3: Set New Password
+     * Route: POST /api/password/reset-password
+     */
+    resetPassword: async ({ email, newPassword, confirmPassword }) => {
+        try {
+            const response = await labVendorApi.post('/api/password/reset-password', {
+                email,
+                newPassword,
+                confirmPassword,
+            });
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error);
+        }
+    },
+
+    /**
+     * Mobile SMS (Firebase OTP) Reset Flow - Step 1: Verify Phone Number Exists
+     * Route: POST /api/password/forgot-password-phone
+     */
+    verifyForgotPasswordPhone: async (phone) => {
+        try {
+            const response = await labVendorApi.post('/api/password/forgot-password-phone', {
+                phone,
+            });
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error);
+        }
+    },
+
+    // In LabVendorAPI.js - update verifyFirebaseOtp
+verifyFirebaseOtp: async ({ phone, idToken, selectedRole }) => {
+    try {
+        const response = await labVendorApi.post('/api/password/verify-firebase-otp', {
+            phone,
+            idToken,
+            selectedRole, // ✅ Add this
+        });
+        return response.data;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+},
+
+// Update resetPasswordPhone
+resetPasswordPhone: async ({ phone, resetToken, selectedRole, newPassword, confirmPassword }) => {
+    try {
+        const response = await labVendorApi.post('/api/password/reset-password-phone', {
+            phone,
+            resetToken,
+            selectedRole, // ✅ Add this
+            newPassword,
+            confirmPassword,
+        });
+        return response.data;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+},
 };
  
 export default LabVendorAPI;

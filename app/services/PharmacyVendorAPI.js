@@ -78,10 +78,18 @@ const PharmacyVendorAPI = {
         return response.data;
     },
 
-     submitNewMasterRequest: async (payload) => {
-        const response = await pharmacyVendorApi.post('/provider/pharmacy/inventory/request-add', payload);
-        return response.data;
-    },
+    // Add this inside the exported object in @/app/services/PharmacyVendorAPI.js
+
+submitNewMasterRequest: async (payload) => {
+    const response = await pharmacyVendorApi.post('/provider/pharmacy/inventory/request-add', payload);
+    return response.data;
+},
+
+// ADD THIS METHOD:
+requestMrpIncrease: async (payload) => {
+    const response = await pharmacyVendorApi.post('/provider/pharmacy/inventory/request-mrp-increase', payload);
+    return response.data;
+},
 
     // --- PHARMACY ORDERS MANAGEMENT ---
     listPharmacyOrders: async () => {
@@ -357,6 +365,23 @@ const PharmacyVendorAPI = {
                 success: false,
                 message: error.response?.data?.message || "Failed to update bank details"
             };
+        }
+    },
+     /**
+     * Pharmacy Bureau - Change Password API
+     * HTTP Method: PATCH
+     * Route: /provider/pharmacy/profile/change-password
+     * Authentication Role: 'pharmacy'
+     */
+    changePassword: async ({ oldPassword, newPassword }) => {
+        try {
+            const response = await pharmacyVendorApi.patch('/provider/pharmacy/profile/change-password', {
+                oldPassword,
+                newPassword,
+            });
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error);
         }
     },
 };

@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react'
 import {
     FaCalendarAlt, FaHome, FaClock,
     FaVideo, FaHospital, FaCheck, FaTimes, FaUndo, FaSpinner, FaInfoCircle, FaUser,
-    FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaWallet, FaStethoscope
+    FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaWallet, FaStethoscope, FaExclamationTriangle,
+    FaExchangeAlt, FaMoneyBillWave
 } from 'react-icons/fa'
 import { IoCloseOutline } from "react-icons/io5";
 import DoctorAPI from '@/app/services/DoctorAPI';
@@ -30,9 +31,11 @@ export default function AppointmentsPage() {
     // Modal States
     const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false); // Cancel Modal State
     const [selectedAppointment, setSelectedAppointment] = useState(null);
 
     const [rescheduleData, setRescheduleData] = useState({ date: '', time: '', reason: '' });
+    const [cancelData, setCancelData] = useState({ reason: 'Doctor has emergency shift', isPermanent: false });
     const [submitting, setSubmitting] = useState(false);
 
     const [activeCallId, setActiveCallId] = useState(null);
@@ -98,18 +101,61 @@ export default function AppointmentsPage() {
 
     const handleAction = async (e, id, action) => {
         e.stopPropagation(); 
+        if (action === 'cancel') {
+            const appt = appointments.find(a => a._id === id);
+            openCancelModal(e, appt || { _id: id });
+            return;
+        }
+
         try {
             setSubmitting(true);
             let res;
             if (action === 'confirm') res = await DoctorAPI.confirmAppointment(id);
-            if (action === 'cancel') res = await DoctorAPI.cancelAppointment(id, "Doctor unavailable");
 
             if (res.success) {
-                toast.success(`Appointment ${action}ed successfully`);
+                toast.success(`Appointment confirmed successfully`);
                 fetchData();
             }
         } catch (error) {
             toast.error("Action failed");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const openCancelModal = (e, appt) => {
+        if (e) e.stopPropagation();
+        setSelectedAppointment(appt);
+        setCancelData({
+            reason: 'Doctor has emergency shift',
+            isPermanent: false
+        });
+        setIsCancelModalOpen(true);
+    };
+
+    const handleCancelSubmit = async () => {
+        if (!selectedAppointment) return;
+        if (!cancelData.reason.trim()) return toast.error("Please enter a valid cancellation reason");
+
+        try {
+            setSubmitting(true);
+            const payload = {
+                reason: cancelData.reason.trim(),
+                isPermanent: Boolean(cancelData.isPermanent)
+            };
+
+            const res = await DoctorAPI.cancelAppointment(selectedAppointment._id, payload);
+            if (res && res.success) {
+                toast.success(res.message || "Appointment cancelled successfully");
+                setIsCancelModalOpen(false);
+                setIsViewModalOpen(false);
+                fetchData();
+            } else {
+                toast.error(res?.message || "Failed to cancel appointment");
+            }
+        } catch (error) {
+            console.error("Cancellation Submit Error:", error);
+            toast.error(error.response?.data?.message || "Error cancelling appointment");
         } finally {
             setSubmitting(false);
         }
@@ -497,8 +543,9 @@ export default function AppointmentsPage() {
                                                         <>
                                                             <button
                                                                 disabled={submitting}
-                                                                onClick={(e) => handleAction(e, appt._id, 'cancel')}
+                                                                onClick={(e) => openCancelModal(e, appt)}
                                                                 className="p-3 rounded-2xl text-red-500 bg-red-50 hover:bg-red-100 transition-all active:scale-90"
+                                                                title="Cancel Appointment"
                                                             >
                                                                 <FaTimes />
                                                             </button>
@@ -506,6 +553,7 @@ export default function AppointmentsPage() {
                                                                 disabled={submitting}
                                                                 onClick={(e) => handleAction(e, appt._id, 'confirm')}
                                                                 className="p-3 rounded-2xl text-white bg-[#08B36A] hover:bg-green-600 shadow-lg shadow-green-100 transition-all active:scale-90"
+                                                                title="Confirm Appointment"
                                                             >
                                                                 <FaCheck />
                                                             </button>
@@ -532,6 +580,13 @@ export default function AppointmentsPage() {
                                                                     Start Case
                                                                 </button>
                                                             )}
+                                                            <button
+                                                                onClick={(e) => openCancelModal(e, appt)}
+                                                                className="p-3 rounded-2xl text-red-500 bg-red-50 hover:bg-red-100 transition-all active:scale-90"
+                                                                title="Cancel Appointment"
+                                                            >
+                                                                <FaTimes />
+                                                            </button>
                                                             <button
                                                                 onClick={(e) => openRescheduleModal(e, appt)}
                                                                 className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-gray-100 text-gray-500 hover:bg-gray-50 transition-all"
@@ -616,6 +671,41 @@ export default function AppointmentsPage() {
                                     <p className="text-xs font-black text-orange-500 uppercase">{selectedAppointment.paymentStatus}</p>
                                 </div>
                             </div>
+
+                            {/* CANCELLATION DETAILS SECTION */}
+                            {(isCancelledStatus(selectedAppointment.status) || selectedAppointment.cancellationDetails) && (
+                                <div className="space-y-3">
+                                    <h4 className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                        <FaExclamationTriangle size={10} className="text-red-500" /> Cancellation Details
+                                    </h4>
+                                    <div className="p-5 bg-red-50/70 border border-red-100 rounded-[2rem] space-y-3 text-xs">
+                                        <div className="flex justify-between border-b border-red-100 pb-2">
+                                            <span className="font-bold text-gray-500">Reason</span>
+                                            <span className="font-black text-red-700 italic">
+                                                "{selectedAppointment.cancellationDetails?.reason || selectedAppointment.cancelReason || 'Doctor unavailable'}"
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between border-b border-red-100 pb-2">
+                                            <span className="font-bold text-gray-500">Cancellation Mode</span>
+                                            <span className={`font-black uppercase ${selectedAppointment.cancellationDetails?.isPermanent ? 'text-red-600' : 'text-blue-600'}`}>
+                                                {selectedAppointment.cancellationDetails?.isPermanent ? 'Permanent Refund Initiated' : 'Reschedule-Ready (Free)'}
+                                            </span>
+                                        </div>
+                                        {selectedAppointment.cancellationDetails?.refundAmountCalculated > 0 && (
+                                            <div className="flex justify-between border-b border-red-100 pb-2">
+                                                <span className="font-bold text-gray-500">Refund Amount</span>
+                                                <span className="font-black text-green-700">₹{selectedAppointment.cancellationDetails.refundAmountCalculated}</span>
+                                            </div>
+                                        )}
+                                        {selectedAppointment.cancellationDetails?.cancelledAt && (
+                                            <div className="flex justify-between">
+                                                <span className="font-bold text-gray-500">Cancelled On</span>
+                                                <span className="font-bold text-gray-700">{new Date(selectedAppointment.cancellationDetails.cancelledAt).toLocaleString()}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="grid md:grid-cols-2 gap-8">
                                 <div className="space-y-4">
@@ -745,6 +835,12 @@ export default function AppointmentsPage() {
                                             </button>
                                         )}
                                         <button
+                                            onClick={(e) => openCancelModal(e, selectedAppointment)}
+                                            className="px-5 py-4 rounded-2xl bg-red-50 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-100 transition-all"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
                                             onClick={(e) => {
                                                 setIsViewModalOpen(false);
                                                 openRescheduleModal(e, selectedAppointment);
@@ -757,6 +853,124 @@ export default function AppointmentsPage() {
                                 )
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* DOCTOR CANCELLATION MODAL (PATCH /doctor/appointments/cancel/:id) */}
+            {isCancelModalOpen && selectedAppointment && (
+                <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[130] p-4 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[3rem] w-full max-w-lg overflow-hidden relative shadow-2xl animate-in zoom-in-95 duration-300 border border-gray-100">
+                        
+                        {/* Header */}
+                        <div className="p-8 border-b border-gray-50 bg-red-50/50 flex justify-between items-center">
+                            <div>
+                                <h2 className="text-lg font-black text-red-600 uppercase tracking-tight flex items-center gap-2">
+                                    <FaExclamationTriangle /> Cancel Appointment
+                                </h2>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                                    Booking ID: #{selectedAppointment.bookingId}
+                                </p>
+                            </div>
+                            <button onClick={() => setIsCancelModalOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-400 hover:text-red-500 transition-all border border-gray-100">
+                                <IoCloseOutline size={24} />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-8 space-y-6">
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">
+                                    Reason for Cancellation <span className="text-red-500">*</span>
+                                </label>
+                                <textarea
+                                    rows={3}
+                                    placeholder="e.g. Doctor has emergency surgery or shift conflict"
+                                    value={cancelData.reason}
+                                    onChange={(e) => setCancelData({ ...cancelData, reason: e.target.value })}
+                                    className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-bold text-xs text-gray-800 focus:ring-4 focus:ring-red-50 focus:border-red-500 outline-none transition-all resize-none"
+                                />
+                            </div>
+
+                            {/* Option Selector Cards */}
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 block">
+                                    Select Cancellation Mode
+                                </label>
+
+                                {/* Option 1: Reschedule-Ready (isPermanent: false) */}
+                                <div 
+                                    onClick={() => setCancelData({ ...cancelData, isPermanent: false })}
+                                    className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3.5 ${
+                                        !cancelData.isPermanent 
+                                            ? 'border-[#08B36A] bg-green-50/40 shadow-xs' 
+                                            : 'border-gray-100 bg-white hover:border-gray-200'
+                                    }`}
+                                >
+                                    <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${!cancelData.isPermanent ? 'bg-[#08B36A] text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                        <FaExchangeAlt size={14} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between items-center">
+                                            <p className="font-extrabold text-gray-900 text-xs">Allow Free Reschedule</p>
+                                            <span className="text-[9px] font-black text-[#08B36A] uppercase bg-green-100 px-2 py-0.5 rounded">
+                                                Recommended
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-gray-500 font-medium leading-relaxed mt-1">
+                                            Frees up your calendar slot. The payment stays active so the patient can reschedule for free anytime.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Option 2: Permanent Cancellation & Refund (isPermanent: true) */}
+                                <div 
+                                    onClick={() => setCancelData({ ...cancelData, isPermanent: true })}
+                                    className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3.5 ${
+                                        cancelData.isPermanent 
+                                            ? 'border-red-500 bg-red-50/40 shadow-xs' 
+                                            : 'border-gray-100 bg-white hover:border-gray-200'
+                                    }`}
+                                >
+                                    <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${cancelData.isPermanent ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                        <FaMoneyBillWave size={14} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between items-center">
+                                            <p className="font-extrabold text-gray-900 text-xs">Permanent Refund</p>
+                                            <span className="text-[9px] font-black text-red-600 uppercase bg-red-100 px-2 py-0.5 rounded">
+                                                Full Refund
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-gray-500 font-medium leading-relaxed mt-1">
+                                            Permanently terminates the booking and initiates a full financial refund back to the patient.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer Controls */}
+                        <div className="p-8 pt-0 flex gap-3">
+                            <button
+                                onClick={() => setIsCancelModalOpen(false)}
+                                className="flex-1 py-4 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 font-black rounded-2xl text-[10px] uppercase tracking-widest transition-all"
+                            >
+                                Back
+                            </button>
+                            <button
+                                disabled={submitting}
+                                onClick={handleCancelSubmit}
+                                className={`flex-[2] py-4 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg ${
+                                    cancelData.isPermanent 
+                                        ? 'bg-red-500 hover:bg-red-600 shadow-red-100' 
+                                        : 'bg-[#08B36A] hover:bg-green-600 shadow-green-100'
+                                }`}
+                            >
+                                {submitting ? <FaSpinner className="animate-spin" /> : 'Confirm Cancellation'}
+                            </button>
+                        </div>
+
                     </div>
                 </div>
             )}

@@ -649,7 +649,19 @@ const HospitalAPI = {
       };
     }
   },
-
+  
+/**
+   * Hospital Change Password API
+   * HTTP Method: PATCH
+   * Route: /api/auth/hospital/change-password
+   */
+  changePassword: async ({ oldPassword, newPassword }) => {
+    const response = await hospitalVendorApi.patch('/api/auth/hospital/change-password', {
+      oldPassword,
+      newPassword
+    });
+    return response.data;
+  },
 
 
 }

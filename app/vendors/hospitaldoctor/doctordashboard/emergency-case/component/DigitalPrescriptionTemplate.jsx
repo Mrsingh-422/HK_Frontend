@@ -1,12 +1,13 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import HospitalDoctorAPI from '@/app/services/HospitalDoctorAPI';
-import { FaSpinner } from 'react-icons/fa';
+import { FaSpinner, FaPrint, FaFilePdf } from 'react-icons/fa';
+import { toast } from 'react-hot-toast';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5002";
 
 const getFormattedLogoUrl = (logoPath) => {
-    if (!logoPath) return null;
+    if (!logoPath || typeof logoPath !== 'string') return null;
     if (logoPath.startsWith("http://") || logoPath.startsWith("https://")) return logoPath;
     const cleanBaseUrl = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
     const cleanPath = logoPath.startsWith('/') ? logoPath : `/${logoPath}`;
@@ -20,12 +21,8 @@ const isValidObjectId = (id) => {
 
 const resolvePayload = (raw) => {
     if (!raw) return null;
-    if (raw.data && raw.data.data) {
-        return raw.data.data;
-    }
-    if (raw.data) {
-        return raw.data;
-    }
+    if (raw.data && raw.data.data) return raw.data.data;
+    if (raw.data) return raw.data;
     return raw;
 };
 
@@ -39,6 +36,180 @@ const normalizeMedicine = (med) => {
     };
 };
 
+const formatDisplayDate = (dateStr) => {
+    if (!dateStr || dateStr === 'N/A') return 'N/A';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    } catch (e) {
+        return dateStr;
+    }
+};
+
+// --- Replace loadHtml2Pdf with this ---
+const loadScriptOnce = (id, src) => {
+    return new Promise((resolve, reject) => {
+        if (typeof window === 'undefined') return reject(new Error('No window'));
+        const existing = document.getElementById(id);
+        if (existing) {
+            if (existing.dataset.loaded === 'true') return resolve();
+            existing.addEventListener('load', () => resolve());
+            existing.addEventListener('error', reject);
+            return;
+        }
+        const script = document.createElement('script');
+        script.id = id;
+        script.src = src;
+        script.onload = () => { script.dataset.loaded = 'true'; resolve(); };
+        script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+        document.head.appendChild(script);
+    });
+};
+
+const loadPdfEngines = async () => {
+    // html2canvas-pro attaches itself to window.html2canvas — it's a compatible
+    // drop-in replacement that additionally supports lab()/oklch()/color().
+    await loadScriptOnce(
+        'html2canvas-pro-script',
+        'https://cdn.jsdelivr.net/npm/html2canvas-pro@1.5.8/dist/html2canvas-pro.min.js'
+    );
+    await loadScriptOnce(
+        'jspdf-script',
+        'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+    );
+    return {
+        html2canvas: window.html2canvas,
+        jsPDF: window.jspdf.jsPDF
+    };
+};
+
+// --- Replace generateDischargePdfFile with this shared function ---
+const generatePdfFromElement = async (targetElement, filenamePrefix) => {
+    const { html2canvas, jsPDF } = await loadPdfEngines();
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.left = "-99999px";
+    iframe.style.top = "0";
+    iframe.style.width = "210mm";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+
+    try {
+        const doc = iframe.contentWindow.document;
+        const existingStyles = getPageStylesHTML();
+
+        doc.open();
+        doc.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8" />
+                <title>Discharge Summary</title>
+                ${existingStyles}
+                <style>
+                    html, body { margin: 0; padding: 0; background: #fff; }
+                    tr { page-break-inside: avoid; }
+                    .print-target {
+                        box-shadow: none !important;
+                        border: none !important;
+                        border-radius: 0 !important;
+                    }
+                </style>
+            </head>
+            <body>${targetElement.outerHTML}</body>
+            </html>
+        `);
+        doc.close();
+
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        const iframeTarget = doc.querySelector(".print-target");
+        if (iframeTarget) {
+            await inlineImagesForPdf(iframeTarget);
+        }
+
+        const elementToRender = iframeTarget || doc.body;
+
+        const canvas = await html2canvas(elementToRender, {
+            scale: 3,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: "#ffffff",
+            logging: false,
+            scrollX: 0,
+            scrollY: 0
+        });
+
+        const imgData = canvas.toDataURL("image/jpeg", 1.0);
+        const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const imgWidth = pageWidth;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+        let heightLeft = imgHeight;
+        let position = 0;
+
+        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+
+        while (heightLeft > 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+
+        const pdfBlob = pdf.output("blob");
+        return new File([pdfBlob], `${filenamePrefix}.pdf`, { type: "application/pdf" });
+    } finally {
+        if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+        }
+    }
+};
+
+const toDataURL = async (url) => {
+    try {
+        const response = await fetch(url, { mode: 'cors' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        return await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (e) {
+        console.warn(`Could not inline image for PDF export: ${url}`, e);
+        return null;
+    }
+};
+
+const inlineImagesForPdf = async (rootElement) => {
+    if (!rootElement) return;
+    const images = Array.from(rootElement.querySelectorAll('img'));
+    await Promise.all(images.map(async (img) => {
+        const src = img.getAttribute('src');
+        if (!src || src.startsWith('data:')) return;
+        try {
+            const absoluteUrl = new URL(src, window.location.origin).href;
+            const dataUrl = await toDataURL(absoluteUrl);
+            if (dataUrl) img.src = dataUrl;
+        } catch (e) {
+            console.warn(`Could not inline image: ${src}`, e);
+        }
+    }));
+};
+
+const getPageStylesHTML = () => {
+    const headNodes = document.querySelectorAll('style, link[rel="stylesheet"]');
+    return Array.from(headNodes).map(node => node.outerHTML).join('\n');
+};
+
 export default function DigitalPrescriptionTemplate({
     isOpen,
     onClose,
@@ -48,42 +219,35 @@ export default function DigitalPrescriptionTemplate({
     isBedsideFlow,
     onCompleteBedside,
     dischargeForm,
-    medicines: stagedMedicines
+    medicines: stagedMedicines,
+    clinicalReports = []
 }) {
     const [fetchedData, setFetchedData] = useState(null);
     const [doctorProfile, setDoctorProfile] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [submittingDischarge, setSubmittingDischarge] = useState(false);
 
     const isLivePreview = Boolean(isDischargeFlow && dischargeForm);
 
     useEffect(() => {
         const loadPrintData = async () => {
             let targetId = null;
-            if (typeof data === 'string' && isValidObjectId(data)) {
+            if (typeof data === 'string') {
                 targetId = data;
             } else if (data && typeof data === 'object') {
-                targetId = isValidObjectId(data?._id) ? data._id : (isValidObjectId(data?.appointmentId) ? data.appointmentId : null);
+                targetId = data._id || data.appointmentId || null;
             }
 
-            if (!targetId) {
-                console.warn("Skipping dynamic print fetch: No valid MongoDB ObjectId found.");
-                return;
-            }
+            if (!targetId) return;
 
             try {
                 setLoading(true);
                 const response = await HospitalDoctorAPI.getDischargePrintData(targetId);
-
                 if (response) {
-                    if (response.success && response.data) {
-                        setFetchedData(response.data);
-                    } else if (response.header || response.patientDetails) {
-                        setFetchedData(response);
-                    } else if (response.data) {
-                        setFetchedData(response.data);
-                    } else {
-                        setFetchedData(response);
-                    }
+                    if (response.success && response.data) setFetchedData(response.data);
+                    else if (response.header || response.patientDetails) setFetchedData(response);
+                    else if (response.data) setFetchedData(response.data);
+                    else setFetchedData(response);
                 }
             } catch (err) {
                 console.error("Failed to fetch print data:", err);
@@ -104,9 +268,7 @@ export default function DigitalPrescriptionTemplate({
         };
 
         if (isOpen) {
-            if (!isLivePreview) {
-                loadPrintData();
-            }
+            if (!isLivePreview) loadPrintData();
             loadDoctorProfile();
         } else {
             setFetchedData(null);
@@ -123,6 +285,7 @@ export default function DigitalPrescriptionTemplate({
     const followUp = activePayload?.followUp || {};
     const medications = activePayload?.medications || [];
     const savedClinicalNotes = activePayload?.clinicalNotes || "";
+    const clinicalSummary = activePayload?.clinicalSummary || {};
 
     const hospitalName = header?.hospitalName || activePayload?.hospitalName || "";
     const hospitalAddress = header?.hospitalAddress || activePayload?.hospitalAddress || "";
@@ -141,10 +304,10 @@ export default function DigitalPrescriptionTemplate({
         "";
 
     const signatureUrl = getFormattedLogoUrl(mainDoctorSignature);
-
     const collaborativeDoctors = header?.collaborativeDoctors || activePayload?.bedsideCareTeam || [];
 
-    const appointmentId = patientDetails?.appointmentId || activePayload?.appointmentId || "xxxxxxxxxxxxxxxx";
+    const rawAppointmentId = patientDetails?.appointmentId || activePayload?.appointmentId || activePayload?._id || (typeof data === 'string' ? data : data?._id);
+    const appointmentId = rawAppointmentId || "N/A";
     const date = patientDetails?.date || activePayload?.date || "XX/XX/XXXX";
     const time = patientDetails?.time || activePayload?.time || "XX:XX";
 
@@ -153,32 +316,36 @@ export default function DigitalPrescriptionTemplate({
     const age = patientDetails?.age || activePayload?.age || "";
     const address = patientDetails?.address || activePayload?.address || "";
 
-    const chiefComplaints = dischargeForm?.chiefComplaints || patientDetails?.chiefComplaints || activePayload?.chiefComplaints || "";
-
-    // The 9 Dynamic Clinical Parameters
-    const dateOfAdmission = patientDetails?.dateOfAdmission || activePayload?.dateOfAdmission || "N/A";
-    const department = patientDetails?.department || activePayload?.department || "Department of Medicine, Unit - 1";
-    const dateOfDischarge = patientDetails?.dateOfDischarge || activePayload?.dateOfDischarge || "N/A";
-    const dateOfSurgery = dischargeForm?.dateOfSurgery || patientDetails?.dateOfSurgery || activePayload?.dateOfSurgery || "N/A";
+    const chiefComplaints = dischargeForm?.chiefComplaints || patientDetails?.chiefComplaints || clinicalSummary?.chiefComplaint || activePayload?.chiefComplaints || "N/A";
+    const diagnosis = dischargeForm?.diagnosis || patientDetails?.diagnosis || clinicalSummary?.diagnosis || activePayload?.diagnosis || "N/A";
+    
+    const dateOfAdmission = dischargeForm?.dateOfAdmission || patientDetails?.dateOfAdmission || activePayload?.dateOfAdmission || "N/A";
+    const department = patientDetails?.department || activePayload?.department || "Department of Medicine";
+    const dateOfDischarge = dischargeForm?.dateOfDischarge || patientDetails?.dateOfDischarge || activePayload?.dateOfDischarge || "N/A";
+    const dateOfSurgery = dischargeForm?.dateOfSurgery || patientDetails?.dateOfSurgery || clinicalSummary?.dateOfSurgery || activePayload?.dateOfSurgery || "N/A";
+    
     const insuranceStatus = patientDetails?.insuranceStatus || activePayload?.insuranceStatus || "N/A";
     const paymentStatus = patientDetails?.paymentStatus || activePayload?.paymentStatus || "Paid";
     const paymentType = patientDetails?.paymentType || activePayload?.paymentType || "UPI";
-    const conditionDuringAdmission = dischargeForm?.conditionDuringAdmission || patientDetails?.conditionDuringAdmission || activePayload?.conditionDuringAdmission || "N/A";
-    const conditionDuringDischarge = dischargeForm?.conditionDuringDischarge || patientDetails?.conditionDuringDischarge || activePayload?.conditionDuringDischarge || "N/A";
+    
+    const conditionDuringAdmission = dischargeForm?.conditionDuringAdmission || patientDetails?.conditionDuringAdmission || clinicalSummary?.conditionDuringAdmission || activePayload?.conditionDuringAdmission || "N/A";
+    const conditionDuringDischarge = dischargeForm?.conditionDuringDischarge || patientDetails?.conditionDuringDischarge || clinicalSummary?.conditionDuringDischarge || activePayload?.conditionDuringDischarge || "N/A";
 
-    const diagnosis = dischargeForm?.diagnosis || patientDetails?.diagnosis || activePayload?.diagnosis || "";
-    const advisedInvestigations = dischargeForm?.advisedInvestigations || followUp?.adviseInvestigation || activePayload?.investigations || "N/A";
-    const adviceGiven = dischargeForm?.adviceGiven || followUp?.adviceGiven || activePayload?.advice || "N/A";
-    const specialInstructions = dischargeForm?.specialInstructions || followUp?.anySpecialInstructionGiven || activePayload?.specialInstructions || "N/A";
+    const advisedInvestigations = dischargeForm?.advisedInvestigations || followUp?.adviseInvestigation || clinicalSummary?.investigation || activePayload?.investigations || "N/A";
+    const adviceGiven = dischargeForm?.adviceGiven || followUp?.adviceGiven || clinicalSummary?.dischargeNote || activePayload?.advice || "N/A";
+    const specialInstructions = dischargeForm?.specialInstructions || followUp?.anySpecialInstructionGiven || clinicalSummary?.dischargeNote || activePayload?.specialInstructions || "N/A";
     const nextAppointment = dischargeForm?.nextAppointment || followUp?.nextAppointment || activePayload?.nextAppointment || "";
-    const clinicalNotes = dischargeForm?.clinicalNotes || savedClinicalNotes || "";
+    const clinicalNotes = dischargeForm?.clinicalNotes || clinicalSummary?.treatmentResult || savedClinicalNotes || "";
 
     const rawMedicines =
         (stagedMedicines && stagedMedicines.length > 0)
             ? stagedMedicines
             : (medications.length > 0 ? medications : (activePayload?.medicines || []));
 
-    const paddedMedicines = Array.from({ length: 10 }, (_, index) => normalizeMedicine(rawMedicines[index]));
+   // Replace displayCount + paddedMedicines with this:
+const paddedMedicines = rawMedicines
+    .map(normalizeMedicine)
+    .filter((med) => med && med.name && med.name.trim() !== "");
 
     const qrDataText = `Health Kangaroo Smart Discharge Summary
 =======================================
@@ -192,67 +359,236 @@ Verified       : Authentic Document`;
 
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrDataText)}`;
 
-    const handlePrint = () => {
-        const printContent = document.querySelector('.print-target');
-        if (!printContent) return;
+    const getTargetAppointmentId = () => {
+        if (typeof data === 'string' && isValidObjectId(data)) return data;
+        if (data && isValidObjectId(data._id)) return data._id;
+        if (data && isValidObjectId(data.appointmentId)) return data.appointmentId;
+        if (activePayload && isValidObjectId(activePayload._id)) return activePayload._id;
+        if (activePayload && isValidObjectId(activePayload.appointmentId)) return activePayload.appointmentId;
+        if (patientDetails && isValidObjectId(patientDetails.appointmentId)) return patientDetails.appointmentId;
+        
+        return activePayload?._id || data?._id || rawAppointmentId;
+    };
 
-        const iframe = document.createElement('iframe');
-        iframe.style.position = 'fixed';
-        iframe.style.right = '0';
-        iframe.style.bottom = '0';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.border = '0';
+    const generateDischargePdfFile = async (targetElement, idStr) => {
+        const iframe = document.createElement("iframe");
+
+        iframe.style.position = "fixed";
+        iframe.style.left = "-99999px";
+        iframe.style.top = "0";
+        iframe.style.width = "210mm";
+        iframe.style.height = "297mm";
+        iframe.style.border = "0";
+
         document.body.appendChild(iframe);
 
-        const doc = iframe.contentWindow.document;
-        doc.open();
-        doc.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8" />
-                <title>Discharge Summary</title>
-                <script src="https://cdn.tailwindcss.com"><\/script>
-                <style>
-                    @page {
-                        size: A4 portrait;
-                        margin: 15mm;
-                    }
-                    html, body {
-                        margin: 0;
-                        padding: 0;
-                        -webkit-print-color-adjust: exact;
-                        print-color-adjust: exact;
-                    }
-                    tr {
-                        page-break-inside: avoid;
-                    }
-                </style>
-            </head>
-            <body>
-                ${printContent.outerHTML}
-            </body>
-            </html>
-        `);
-        doc.close();
+        try {
+            const doc = iframe.contentWindow.document;
+            const existingStyles = getPageStylesHTML();
 
-        const triggerPrint = () => {
-            setTimeout(() => {
-                iframe.contentWindow.focus();
-                iframe.contentWindow.print();
-                setTimeout(() => {
-                    document.body.removeChild(iframe);
-                }, 1000);
-            }, 600);
-        };
+            doc.open();
+            doc.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Discharge Summary</title>
+                    ${existingStyles}
+                    <script src="https://cdn.tailwindcss.com"><\/script>
+                    <style>
+                        @page { size: A4 portrait; margin: 15mm; }
+                        html, body {
+                            margin: 0;
+                            padding: 0;
+                            background: #fff;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                        tr { page-break-inside: avoid; }
+                        .print-target {
+                            box-shadow: none !important;
+                            border: none !important;
+                            border-radius: 0 !important;
+                        }
+                    </style>
+                </head>
+                <body>
+                    ${targetElement.outerHTML}
+                </body>
+                </html>
+            `);
 
-        if (iframe.contentWindow.document.readyState === 'complete') {
-            triggerPrint();
-        } else {
-            iframe.onload = triggerPrint;
+            doc.close();
+
+            await new Promise(resolve => setTimeout(resolve, 800));
+
+            const iframeTarget = doc.querySelector(".print-target");
+            if (iframeTarget) {
+                await inlineImagesForPdf(iframeTarget);
+            }
+
+            const html2pdf = await loadHtml2Pdf();
+
+            const worker = html2pdf().set({
+                margin: 15,
+                filename: `discharge-${idStr}.pdf`,
+                image: { type: "jpeg", quality: 1 },
+                html2canvas: {
+                    scale: 3,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: "#ffffff",
+                    logging: false,
+                    scrollX: 0,
+                    scrollY: 0
+                },
+                jsPDF: {
+                    unit: "mm",
+                    format: "a4",
+                    orientation: "portrait"
+                }
+            }).from(iframeTarget || targetElement);
+
+            const pdfBlob = await worker.outputPdf("blob");
+
+            return new File(
+                [pdfBlob],
+                `discharge-${idStr}.pdf`,
+                { type: "application/pdf" }
+            );
+
+        } finally {
+            if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
+            }
         }
     };
+
+    const handleCompileAndSubmitDischarge = async () => {
+        const targetId = getTargetAppointmentId();
+
+        if (!targetId) {
+            toast.error("Admission Appointment ID is missing.");
+            return;
+        }
+
+        const rawTargetNode = document.querySelector(".print-target");
+        if (!rawTargetNode) {
+            toast.error("Summary layout element not found.");
+            return;
+        }
+
+        try {
+            setSubmittingDischarge(true);
+            toast.loading("Compiling Discharge PDF Layout...", { id: "discharge-upload" });
+
+            const targetElement = rawTargetNode.cloneNode(true);
+            targetElement.style.width = "210mm";
+            targetElement.style.maxWidth = "210mm";
+            targetElement.style.background = "#fff";
+            targetElement.style.padding = "15mm";
+            targetElement.style.boxSizing = "border-box";
+            targetElement.style.border = "none";
+            targetElement.style.boxShadow = "none";
+
+           // --- handleCompileAndSubmitDischarge: swap the call ---
+const compiledPdfFile = await generatePdfFromElement(targetElement, `discharge-${targetId}`);
+// (everything else in this function stays the same)
+
+            const submitData = new FormData();
+            
+            submitData.append('appointmentId', String(targetId));
+            submitData.append('diagnosis', (diagnosis && diagnosis !== 'N/A') ? String(diagnosis) : '');
+            submitData.append('investigation', (advisedInvestigations && advisedInvestigations !== 'N/A') ? String(advisedInvestigations) : '');
+            submitData.append('treatmentResult', String(clinicalNotes || conditionDuringDischarge || "Stable"));
+            submitData.append('dischargeNote', String(specialInstructions || adviceGiven || "Follow up as advised."));
+            
+            if (dateOfSurgery && dateOfSurgery !== 'N/A') {
+                submitData.append('dateOfSurgery', String(dateOfSurgery));
+            }
+            if (conditionDuringAdmission && conditionDuringAdmission !== 'N/A') {
+                submitData.append('conditionDuringAdmission', String(conditionDuringAdmission));
+            }
+            if (conditionDuringDischarge && conditionDuringDischarge !== 'N/A') {
+                submitData.append('conditionDuringDischarge', String(conditionDuringDischarge));
+            }
+
+            if (compiledPdfFile) {
+                submitData.append('dischargePdf', compiledPdfFile, `discharge-${targetId}.pdf`);
+            }
+
+            const reportsArray = (Array.isArray(clinicalReports) && clinicalReports.length > 0)
+                ? clinicalReports
+                : (Array.isArray(dischargeForm?.clinicalReports) ? dischargeForm.clinicalReports : []);
+
+            if (reportsArray && reportsArray.length > 0) {
+                reportsArray.forEach((file) => {
+                    if (file && (file instanceof File || file instanceof Blob)) {
+                        submitData.append('clinicalReports', file, file.name || 'report.pdf');
+                    }
+                });
+            }
+
+            const response = await HospitalDoctorAPI.submitDischargeSummary(submitData);
+
+            if (response && (response.success || response._id || response.data)) {
+                toast.success(response.message || "Discharge Summary & PDF uploaded successfully!", { id: "discharge-upload" });
+                if (onCompleteDischarge) {
+                    await onCompleteDischarge();
+                }
+                onClose();
+            } else {
+                toast.error(response?.message || "Failed to record discharge summary.", { id: "discharge-upload" });
+            }
+        } catch (err) {
+            console.error("Discharge Submission Error:", err);
+            toast.error(err?.response?.data?.message || err?.message || "Failed to submit discharge summary.", { id: "discharge-upload" });
+        } finally {
+            setSubmittingDischarge(false);
+        }
+    };
+
+   // --- Replace handlePrint with this ---
+const handlePrint = async () => {
+    const printContent = document.querySelector('.print-target');
+    if (!printContent) return;
+
+    try {
+        toast.loading("Preparing PDF...", { id: "print-pdf" });
+
+        const clone = printContent.cloneNode(true);
+        clone.style.width = "210mm";
+        clone.style.maxWidth = "210mm";
+        clone.style.background = "#fff";
+        clone.style.padding = "15mm";
+        clone.style.boxSizing = "border-box";
+        clone.style.border = "none";
+        clone.style.boxShadow = "none";
+
+        const idForFilename = getTargetAppointmentId() || 'summary';
+        const pdfFile = await generatePdfFromElement(clone, `discharge-${idForFilename}`);
+        const url = URL.createObjectURL(pdfFile);
+
+        toast.dismiss("print-pdf");
+
+        const printWindow = window.open(url, '_blank');
+        if (!printWindow) {
+            toast.error("Popup blocked — please allow popups to print/download.");
+            return;
+        }
+        printWindow.addEventListener('load', () => {
+            printWindow.focus();
+            printWindow.print();
+        });
+    } catch (err) {
+        console.error("Print Error:", err);
+        toast.dismiss("print-pdf");
+        toast.error("Failed to generate PDF.");
+    }
+};
+    const isMale = gender?.toLowerCase() === 'male' || gender?.toLowerCase() === 'm';
+    const isFemale = gender?.toLowerCase() === 'female' || gender?.toLowerCase() === 'f';
+    const isOtherGender = Boolean(gender) && !isMale && !isFemale;
 
     return (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto font-sans print-root">
@@ -263,7 +599,8 @@ Verified       : Authentic Document`;
                 <div className="flex justify-between items-center pb-4 mb-4 border-b border-slate-100 no-print gap-3 flex-wrap">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
+                        disabled={submittingDischarge}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
                     >
                         Close Preview
                     </button>
@@ -273,25 +610,26 @@ Verified       : Authentic Document`;
                     <div className="flex items-center gap-2">
                         <button
                             onClick={handlePrint}
-                            disabled={loading}
-                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
+                            disabled={loading || submittingDischarge}
+                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                         >
-                            Print / Download PDF
+                            <FaPrint /> Print / Download PDF
                         </button>
-                        {isDischargeFlow && onCompleteDischarge && (
+                        {(isDischargeFlow || onCompleteDischarge) && (
                             <button
-                                onClick={onCompleteDischarge}
-                                disabled={loading}
-                                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-md transition-all disabled:opacity-50"
+                                onClick={handleCompileAndSubmitDischarge}
+                                disabled={loading || submittingDischarge}
+                                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                             >
-                                Complete Discharge
+                                {submittingDischarge ? <FaSpinner className="animate-spin" /> : <FaFilePdf />}
+                                {submittingDischarge ? 'Uploading PDF...' : 'Complete & Submit Discharge'}
                             </button>
                         )}
                         {isBedsideFlow && onCompleteBedside && (
                             <button
                                 onClick={onCompleteBedside}
-                                disabled={loading}
-                                className="px-5 py-2.5 bg-[#08B36A] hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition-all disabled:opacity-50"
+                                disabled={loading || submittingDischarge}
+                                className="px-5 py-2.5 bg-[#08B36A] hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition-all disabled:opacity-50 cursor-pointer"
                             >
                                 Complete Bedside Shift
                             </button>
@@ -327,9 +665,7 @@ Verified       : Authentic Document`;
                                                     src="/logo.png"
                                                     alt="Health Kangaroo Logo"
                                                     className="h-10 w-auto object-contain"
-                                                    onError={(e) => {
-                                                        e.currentTarget.style.display = 'none';
-                                                    }}
+                                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                                 />
                                             </div>
                                             <div className="leading-tight">
@@ -344,11 +680,9 @@ Verified       : Authentic Document`;
                                             <div className="flex items-center">
                                                 <img
                                                     src={hospitalLogo}
-                                                    alt="Hospital Photo"
+                                                    alt="Hospital Logo"
                                                     className="h-11 w-auto object-contain rounded-lg max-w-[120px]"
-                                                    onError={(e) => {
-                                                        e.currentTarget.style.display = 'none';
-                                                    }}
+                                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                                 />
                                             </div>
                                         )}
@@ -367,8 +701,8 @@ Verified       : Authentic Document`;
                                             {collaborativeDoctors && collaborativeDoctors.length > 0 && (
                                                 <div className="mt-1 text-[9px] text-slate-400 font-bold space-y-0.5 uppercase tracking-wide">
                                                     {collaborativeDoctors.map((team, idx) => {
-                                                        const specName = team.doctorId?.name || team.name || "";
-                                                        const specDept = team.doctorId?.speciality || team.department || "";
+                                                        const specName = team?.doctorId?.name || team?.name || "";
+                                                        const specDept = team?.doctorId?.speciality || team?.department || "";
                                                         if (!specName) return null;
                                                         return (
                                                             <p key={idx}>
@@ -412,9 +746,8 @@ Verified       : Authentic Document`;
                                                     <label className="flex items-center gap-1.5 cursor-pointer">
                                                         <input
                                                             type="radio"
-                                                            name="gender_print"
-                                                            checked={gender?.toLowerCase() === 'male' || gender?.toLowerCase() === 'm'}
-                                                            readOnly
+                                                            checked={isMale}
+                                                            onChange={() => {}}
                                                             className="w-3.5 h-3.5 text-[#08B36A] focus:ring-[#08B36A] border-slate-300"
                                                         />
                                                         <span>Male</span>
@@ -422,9 +755,8 @@ Verified       : Authentic Document`;
                                                     <label className="flex items-center gap-1.5 cursor-pointer">
                                                         <input
                                                             type="radio"
-                                                            name="gender_print"
-                                                            checked={gender?.toLowerCase() === 'female' || gender?.toLowerCase() === 'f'}
-                                                            readOnly
+                                                            checked={isFemale}
+                                                            onChange={() => {}}
                                                             className="w-3.5 h-3.5 text-[#08B36A] focus:ring-[#08B36A] border-slate-300"
                                                         />
                                                         <span>Female</span>
@@ -432,9 +764,8 @@ Verified       : Authentic Document`;
                                                     <label className="flex items-center gap-1.5 cursor-pointer">
                                                         <input
                                                             type="radio"
-                                                            name="gender_print"
-                                                            checked={gender?.toLowerCase() !== 'male' && gender?.toLowerCase() !== 'm' && gender?.toLowerCase() !== 'female' && gender?.toLowerCase() !== 'f'}
-                                                            readOnly
+                                                            checked={isOtherGender}
+                                                            onChange={() => {}}
                                                             className="w-3.5 h-3.5 text-[#08B36A] focus:ring-[#08B36A] border-slate-300"
                                                         />
                                                         <span>Other</span>
@@ -472,7 +803,7 @@ Verified       : Authentic Document`;
                                             <div className="flex items-end">
                                                 <span className="w-36 font-bold flex-shrink-0 text-slate-800">Date of Admission</span>
                                                 <span className="mr-1.5 font-bold">:</span>
-                                                <span className="flex-1 font-medium text-slate-600 truncate border-b border-dashed border-slate-200">{dateOfAdmission}</span>
+                                                <span className="flex-1 font-medium text-slate-600 truncate border-b border-dashed border-slate-200">{formatDisplayDate(dateOfAdmission)}</span>
                                             </div>
                                             <div className="flex items-end">
                                                 <span className="w-36 font-bold flex-shrink-0 text-slate-800">Department</span>
@@ -484,12 +815,12 @@ Verified       : Authentic Document`;
                                             <div className="flex items-end">
                                                 <span className="w-36 font-bold flex-shrink-0 text-slate-800">Date of Discharge</span>
                                                 <span className="mr-1.5 font-bold">:</span>
-                                                <span className="flex-1 font-medium text-slate-600 truncate border-b border-dashed border-slate-200">{dateOfDischarge}</span>
+                                                <span className="flex-1 font-medium text-slate-600 truncate border-b border-dashed border-slate-200">{formatDisplayDate(dateOfDischarge)}</span>
                                             </div>
                                             <div className="flex items-end">
                                                 <span className="w-36 font-bold flex-shrink-0 text-slate-800">Date of Surgery</span>
                                                 <span className="mr-1.5 font-bold">:</span>
-                                                <span className="flex-1 font-medium text-slate-600 truncate border-b border-dashed border-slate-200">{dateOfSurgery}</span>
+                                                <span className="flex-1 font-medium text-slate-600 truncate border-b border-dashed border-slate-200">{formatDisplayDate(dateOfSurgery)}</span>
                                             </div>
                                             <div className="flex items-end">
                                                 <span className="w-36 font-bold flex-shrink-0 text-slate-800">Insurance Status</span>
@@ -545,9 +876,7 @@ Verified       : Authentic Document`;
                                             src="/logo.png"
                                             alt="Watermark"
                                             className="w-72 h-auto"
-                                            onError={(e) => {
-                                                e.currentTarget.style.display = 'none';
-                                            }}
+                                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                         />
                                     </div>
 
@@ -561,20 +890,20 @@ Verified       : Authentic Document`;
                                                 <th className="py-2.5 px-3 w-24 text-center">Duration</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
-                                            {paddedMedicines.map((med, index) => {
-                                                const serialNo = String(index + 1).padStart(2, '0') + '.';
-                                                return (
-                                                    <tr key={index} className="border-b border-slate-100 h-8 font-sans">
-                                                        <td className="text-center font-bold text-[#08B36A] border-r border-slate-100">{serialNo}</td>
-                                                        <td className="font-extrabold text-slate-800 px-3 border-r border-slate-100">{med ? med.name : ""}</td>
-                                                        <td className="text-center font-semibold text-slate-700 border-r border-slate-100">{med ? med.dose : ""}</td>
-                                                        <td className="text-center font-medium text-slate-600 border-r border-slate-100">{med ? med.time : ""}</td>
-                                                        <td className="text-center font-semibold text-slate-700">{med ? med.duration : ""}</td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
+                                       <tbody>
+    {paddedMedicines.map((med, index) => {
+        const serialNo = String(index + 1).padStart(2, '0') + '.';
+        return (
+            <tr key={index} className="border-b border-slate-100 h-8 font-sans">
+                <td className="text-center font-bold text-[#08B36A] border-r border-slate-100">{serialNo}</td>
+                <td className="font-extrabold text-slate-800 px-3 border-r border-slate-100">{med.name}</td>
+                <td className="text-center font-semibold text-slate-700 border-r border-slate-100">{med.dose}</td>
+                <td className="text-center font-medium text-slate-600 border-r border-slate-100">{med.time}</td>
+                <td className="text-center font-semibold text-slate-700">{med.duration}</td>
+            </tr>
+        );
+    })}
+</tbody>
                                     </table>
                                 </div>
 
@@ -604,9 +933,7 @@ Verified       : Authentic Document`;
                                                     src={signatureUrl}
                                                     alt="Doctor Signature"
                                                     className="h-10 w-auto object-contain mb-1 mix-blend-multiply"
-                                                    onError={(e) => {
-                                                        e.currentTarget.style.display = 'none';
-                                                    }}
+                                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                                 />
                                             ) : (
                                                 <div className="h-10"></div>
@@ -619,7 +946,7 @@ Verified       : Authentic Document`;
 
                                     <div className="border border-emerald-100 bg-emerald-50/10 rounded-2xl p-4 w-52 text-center shadow-sm">
                                         <span className="text-[#08B36A] font-extrabold text-[11px] block">Next Appointment</span>
-                                        <p className="text-slate-600 font-bold mt-1">{nextAppointment || "......./......./............"}</p>
+                                        <p className="text-slate-600 font-bold mt-1">{formatDisplayDate(nextAppointment) || "......./......./............"}</p>
                                     </div>
 
                                     <div className="flex flex-col items-center gap-1.5">
@@ -651,11 +978,7 @@ Verified       : Authentic Document`;
 
             <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
-                    @page {
-                        size: A4 portrait;
-                        margin: 0 !important;
-                    }
-
+                    @page { size: A4 portrait; margin: 0 !important; }
                     html, body, div, section, main, [role="dialog"] {
                         overflow: visible !important;
                         max-height: none !important;
@@ -664,24 +987,18 @@ Verified       : Authentic Document`;
                         background: transparent !important;
                         box-shadow: none !important;
                     }
-
-                    body * {
-                        visibility: hidden !important;
-                    }
-
+                    body * { visibility: hidden !important; }
                     .print-target, .print-target * {
                         visibility: visible !important;
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
                     }
-
                     .print-root {
                         display: block !important;
                         padding: 0 !important;
                         margin: 0 !important;
                         background: none !important;
                     }
-
                     .print-modal-wrapper {
                         display: block !important;
                         padding: 0 !important;
@@ -690,13 +1007,11 @@ Verified       : Authentic Document`;
                         border-radius: 0 !important;
                         overflow: visible !important;
                     }
-
                     .print-scroll-wrapper {
                         padding: 0 !important;
                         max-height: none !important;
                         overflow: visible !important;
                     }
-
                     .print-target {
                         position: absolute !important;
                         left: 0 !important;
@@ -709,16 +1024,8 @@ Verified       : Authentic Document`;
                         box-shadow: none !important;
                         background: #fff !important;
                     }
-
-                    .no-print {
-                        display: none !important;
-                        height: 0 !important;
-                        width: 0 !important;
-                    }
-
-                    tr {
-                        page-break-inside: avoid !important;
-                    }
+                    .no-print { display: none !important; height: 0 !important; width: 0 !important; }
+                    tr { page-break-inside: avoid !important; }
                 }
             ` }} />
         </div>

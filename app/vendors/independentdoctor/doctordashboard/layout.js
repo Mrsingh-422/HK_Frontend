@@ -173,7 +173,7 @@ export default function IndependentDoctorLayout({ children }) {
             submenuItems: [
                 { name: 'Profile', href: '/vendors/independentdoctor/doctordashboard/profile', icon: FaUserCircle },
                 { name: 'Manage Banking', href: '/vendors/independentdoctor/doctordashboard/managebanking', icon: FaUniversity },
-                
+                { name: 'Change Password', href: '/vendors/independentdoctor/doctordashboard/change-password', icon: FaUniversity },
             ]
         }
     ];

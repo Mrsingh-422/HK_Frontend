@@ -12,6 +12,8 @@ import PrescriptionModal from '../emergency-case/component/PrescriptionModal';
 import BedsideFeedbackModal from '../emergency-case/component/BedsideFeedbackModal';
 import DigitalPrescriptionTemplate from '../emergency-case/component/DigitalPrescriptionTemplate';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://192.168.1.7:5002';
+
 const getDoctorIdFromToken = () => {
     if (typeof window === 'undefined') return null;
     try {
@@ -56,26 +58,25 @@ export default function DoctorAdmissionCasesPage() {
     const [assignPriority, setAssignPriority] = useState('Routine');
 
     const [clinicalReports, setClinicalReports] = useState([]);
+    const [stagedMedicines, setStagedMedicines] = useState([]);
     const [prescriptionSource, setPrescriptionSource] = useState('discharge'); 
 
     const [isDischargeOpen, setIsDischargeOpen] = useState(false);
     const [dischargeForm, setDischargeForm] = useState({
+        chiefComplaints: '',
         diagnosis: '',
-        investigation: '',
-        advice: '',
-        specialInstruction: '',
-        treatmentResult: ''
+        advisedInvestigations: '',
+        adviceGiven: '',
+        specialInstructions: '',
+        nextAppointment: '',
+        clinicalNotes: '',
+        dateOfSurgery: '',
+        conditionDuringAdmission: '',
+        conditionDuringDischarge: ''
     });
 
     const [isPrescriptionOpen, setIsPrescriptionOpen] = useState(false);
     const [medicinesList, setMedicinesList] = useState([]);
-    const [selectedMedicine, setSelectedMedicine] = useState('');
-    const [prescriptionFrequency, setPrescriptionFrequency] = useState({
-        morning: false,
-        afternoon: false,
-        evening: false
-    });
-    const [prescriptionDays, setPrescriptionDays] = useState('3 days');
 
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [feedbackForm, setFeedbackForm] = useState({
@@ -86,6 +87,13 @@ export default function DoctorAdmissionCasesPage() {
 
     const [isPrescriptionPreviewOpen, setIsPrescriptionPreviewOpen] = useState(false);
     const [prescriptionPreviewData, setPrescriptionPreviewData] = useState(null);
+
+    // Helper to format image and logo URLs
+    const getImageUrl = (path) => {
+        if (!path) return null;
+        if (path.startsWith('http://') || path.startsWith('https://')) return path;
+        return `${API_BASE_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
+    };
 
     const getErrorMessage = (err) => {
         if (!err) return "An unexpected error occurred";
@@ -119,7 +127,6 @@ export default function DoctorAdmissionCasesPage() {
                 tabParam = 'unassigned';
             }
             
-            // Updated to call getCases instead of getAdmissionCases
             const response = await HospitalDoctorAPI.getCases(tabParam);
             if (response.success) {
                 setCases(response.data || []);
@@ -388,9 +395,9 @@ export default function DoctorAdmissionCasesPage() {
             const formData = new FormData();
             formData.append('appointmentId', selectedCaseId);
             formData.append('diagnosis', dischargeForm.diagnosis || "Undisclosed Diagnosis");
-            formData.append('investigation', dischargeForm.investigation || "Standard followups");
-            formData.append('treatmentResult', dischargeForm.treatmentResult || "Standard summary submitted");
-            formData.append('dischargeNote', dischargeForm.specialInstruction || "N/A");
+            formData.append('investigation', dischargeForm.advisedInvestigations || "Standard followups");
+            formData.append('treatmentResult', dischargeForm.clinicalNotes || "Standard summary submitted");
+            formData.append('dischargeNote', dischargeForm.specialInstructions || "N/A");
 
             clinicalReports.forEach((file) => {
                 formData.append('clinicalReports', file);
@@ -402,6 +409,7 @@ export default function DoctorAdmissionCasesPage() {
                 setIsDischargeOpen(false);
                 setIsDetailsOpen(false);
                 setClinicalReports([]);
+                setStagedMedicines([]);
                 setActiveStatus('Discharged');
                 fetchAdmissionCases();
             }
@@ -415,27 +423,13 @@ export default function DoctorAdmissionCasesPage() {
     const handleFinalizeDischarge = async () => {
         try {
             setActionLoading(true);
-
-            const formData = new FormData();
-            formData.append('appointmentId', selectedCaseId);
-            formData.append('diagnosis', dischargeForm.diagnosis || "Undisclosed Diagnosis");
-            formData.append('investigation', dischargeForm.investigation || "Standard followups");
-            formData.append('treatmentResult', dischargeForm.treatmentResult || "Standard summary submitted");
-            formData.append('dischargeNote', dischargeForm.specialInstruction || "N/A");
-
-            clinicalReports.forEach((file) => {
-                formData.append('clinicalReports', file);
-            });
-
-            const response = await HospitalDoctorAPI.submitDischargeSummary(formData);
-            if (response.success) {
-                alert("Patient discharged successfully!");
-                setIsPrescriptionPreviewOpen(false);
-                setIsDetailsOpen(false);
-                setClinicalReports([]);
-                setActiveStatus('Discharged');
-                fetchAdmissionCases();
-            }
+            setIsPrescriptionPreviewOpen(false);
+            setIsDischargeOpen(false);
+            setIsDetailsOpen(false);
+            setActiveStatus('Discharged');
+            setClinicalReports([]);
+            setStagedMedicines([]);
+            fetchAdmissionCases();
         } catch (err) {
             alert(getErrorMessage(err));
         } finally {
@@ -463,65 +457,73 @@ export default function DoctorAdmissionCasesPage() {
     const handleProcessPrescriptionSubmit = async (finalMedicines, dietPlanFile) => {
         try {
             setActionLoading(true);
+            setStagedMedicines(finalMedicines);
 
-            const diagnosisText = dischargeForm.diagnosis || (prescriptionSource === 'bedside' ? "Specialist Bedside Treatment" : "Undisclosed Diagnosis");
+            const diagnosisText = dischargeForm.diagnosis || (prescriptionSource === 'bedside' ? "Specialist Bedside Treatment" : "");
             const diagnosisArray = [diagnosisText];
 
             const formData = new FormData();
             formData.append('appointmentId', selectedCaseId);
             formData.append('diagnosis', JSON.stringify(diagnosisArray));
             formData.append('medicines', JSON.stringify(finalMedicines));
-            formData.append('advice', dischargeForm.advice || "Take prescription medicines on time");
+            formData.append('advice', dischargeForm.adviceGiven || "");
+            formData.append('advisedInvestigations', dischargeForm.advisedInvestigations || "");
+            formData.append('adviceGiven', dischargeForm.adviceGiven || "");
+            formData.append('specialInstructions', dischargeForm.specialInstructions || "");
+            formData.append('nextAppointment', dischargeForm.nextAppointment || "");
             if (dietPlanFile) {
                 formData.append('dietPlanPdf', dietPlanFile);
             }
 
             await HospitalDoctorAPI.addPrescription(formData);
 
-            if (prescriptionSource === 'discharge') {
-                const activePatientObj = caseDetails?.patients?.[0] || {};
+            const activePatientObj = caseDetails?.patients?.[0] || {};
+            
+            const previewPayload = {
+                _id: selectedCaseId || caseDetails?._id, 
+                appointmentId: caseDetails?.bookingId || "N/A",
+                date: new Date().toLocaleDateString('en-GB'),
+                time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                patientName: activePatientObj.patientName || caseDetails?.userId?.name || "N/A",
+                gender: activePatientObj.gender || caseDetails?.userId?.gender || "N/A",
+                age: activePatientObj.patientAge || caseDetails?.userId?.age || "N/A",
+                address: caseDetails?.address?.addressType || "N/A",
+                chiefComplaints: dischargeForm.chiefComplaints || caseDetails?.chiefComplaints || "N/A",
+                diagnosis: diagnosisText,
+                medicines: finalMedicines.map(m => ({
+                    name: m.name,
+                    dose: m.dosage,
+                    time: m.frequency,
+                    duration: m.duration
+                })),
+                investigations: dischargeForm.advisedInvestigations || "",
+                advice: dischargeForm.adviceGiven || "",
+                specialInstructions: dischargeForm.specialInstructions || "",
+                nextAppointment: dischargeForm.nextAppointment || "",
                 
-                const previewPayload = {
-                    _id: selectedCaseId || caseDetails?._id, 
-                    appointmentId: caseDetails?.bookingId || "N/A",
-                    date: new Date().toLocaleDateString('en-GB'),
-                    time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-                    patientName: activePatientObj.patientName || caseDetails?.userId?.name || "N/A",
-                    gender: activePatientObj.gender || caseDetails?.userId?.gender || "N/A",
-                    age: activePatientObj.patientAge || caseDetails?.userId?.age || "N/A",
-                    address: caseDetails?.address?.addressType || "N/A",
-                    chiefComplaints: caseDetails?.chiefComplaints || "N/A",
-                    diagnosis: diagnosisText,
-                    medicines: finalMedicines.map(m => ({
-                        name: m.name,
-                        dose: m.dosage,
-                        time: m.frequency,
-                        duration: m.duration
-                    })),
-                    investigations: dischargeForm.investigation || "Standard followups",
-                    advice: dischargeForm.advice || "Take prescription medicines on time",
-                    specialInstructions: dischargeForm.specialInstruction || "N/A",
-                    nextAppointment: "After 1 week",
-                    
-                    hospitalName: caseDetails?.hospitalId?.name || "Fortis Hospital Mohali",
-                    hospitalAddress: caseDetails?.hospitalId?.address || "Sector 62, Sahibzada Ajit Singh Nagar, Punjab 160062",
-                    mainDoctorName: caseDetails?.doctorId?.name || "Dr. Deepak Joshi",
-                    mainDoctorQualification: caseDetails?.doctorId?.qualification || "Professor & Head: Department of Medicine",
-                    bedsideCareTeam: caseDetails?.bedsideCareTeam || []
-                };
+                dateOfAdmission: caseDetails?.startDate ? new Date(caseDetails.startDate).toLocaleDateString('en-GB') : "N/A",
+                department: caseDetails?.doctorId?.speciality || "Department of Medicine, Unit - 1",
+                dateOfDischarge: new Date().toLocaleDateString('en-GB'),
+                dateOfSurgery: dischargeForm.dateOfSurgery || "",
+                insuranceStatus: caseDetails?.hasInsurance ? "Verified (Cashless)" : "N/A",
+                paymentStatus: caseDetails?.paymentStatus || "Paid",
+                paymentType: caseDetails?.paymentMethod || "UPI",
+                conditionDuringAdmission: dischargeForm.conditionDuringAdmission || "",
+                conditionDuringDischarge: dischargeForm.conditionDuringDischarge || "",
 
-                setPrescriptionPreviewData(previewPayload);
-                setIsPrescriptionPreviewOpen(true);
+                hospitalName: caseDetails?.hospitalId?.name || "Fortis Hospital Mohali",
+                hospitalAddress: caseDetails?.hospitalId?.address || "Sector 62, Sahibzada Ajit Singh Nagar, Punjab 160062",
+                hospitalLogo: caseDetails?.hospitalId?.logo ? getImageUrl(caseDetails.hospitalId.logo) : (caseDetails?.hospitalId?.profilePic ? getImageUrl(caseDetails.hospitalId.profilePic) : (caseDetails?.hospitalId?.image ? getImageUrl(caseDetails.hospitalId.image) : null)),
+                mainDoctorName: caseDetails?.doctorId?.name || "Dr. Deepak Joshi",
+                mainDoctorQualification: caseDetails?.doctorId?.qualification || "Professor & Head: Department of Medicine",
+                bedsideCareTeam: caseDetails?.bedsideCareTeam || []
+            };
 
-                setIsPrescriptionOpen(false);
-                setIsDischargeOpen(false);
-            } else {
-                await HospitalDoctorAPI.completeBedsideShift({ appointmentId: selectedCaseId });
-                alert("Specialist bedside shift completed and prescription logged successfully.");
-                
-                setIsPrescriptionOpen(false);
-                setIsDetailsOpen(false);
-            }
+            setPrescriptionPreviewData(previewPayload);
+            setIsPrescriptionPreviewOpen(true);
+
+            setIsPrescriptionOpen(false);
+            setIsDischargeOpen(false);
 
             fetchAdmissionCases();
 
@@ -596,7 +598,7 @@ export default function DoctorAdmissionCasesPage() {
                 <div className="mb-6 flex justify-between items-center">
                     <div>
                         <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Assigned Admission Cases</h1>
-                        <p className="text-slate-500 mt-1 text-sm">Real-time dynamic admitted patient directory and ward huddles</p>
+                        <p className="text-slate-500 mt-1 text-sm">Real-time dynamic admitted patient directory and huddles</p>
                     </div>
                 </div>
 
@@ -695,7 +697,7 @@ export default function DoctorAdmissionCasesPage() {
                                                         <button 
                                                             onClick={() => handleSelfAssign(cs._id)}
                                                             disabled={actionLoading}
-                                                            className="px-3 py-1.5 bg-[#08B36A] hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                                            className="px-3 py-1.5 bg-[#08B36A] hover:bg-[#079d5c] text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
                                                         >
                                                             Self Assign
                                                         </button>
@@ -704,7 +706,7 @@ export default function DoctorAdmissionCasesPage() {
                                                             <button 
                                                                 onClick={() => handleAcceptTransfer(cs._id)}
                                                                 disabled={actionLoading}
-                                                                className="px-3 py-1.5 bg-[#08B36A] hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                                                className="px-3 py-1.5 bg-[#08B36A] hover:bg-[#079d5c] text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
                                                             >
                                                                 Accept
                                                             </button>
@@ -721,7 +723,7 @@ export default function DoctorAdmissionCasesPage() {
                                                             <button 
                                                                 onClick={() => handleRespondBedside(cs._id, 'Accepted')}
                                                                 disabled={actionLoading}
-                                                                className="px-3 py-1.5 bg-[#08B36A] hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                                                className="px-3 py-1.5 bg-[#08B36A] hover:bg-[#079d5c] text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
                                                             >
                                                                 Accept Bedside
                                                             </button>
@@ -765,13 +767,19 @@ export default function DoctorAdmissionCasesPage() {
                     }}
                     onDischargeClick={() => {
                         setDischargeForm({
+                            chiefComplaints: '',
                             diagnosis: '',
-                            investigation: '',
-                            advice: '',
-                            specialInstruction: '',
-                            treatmentResult: ''
+                            advisedInvestigations: '',
+                            adviceGiven: '',
+                            specialInstructions: '',
+                            nextAppointment: '',
+                            clinicalNotes: '',
+                            dateOfSurgery: '',
+                            conditionDuringAdmission: '',
+                            conditionDuringDischarge: ''
                         });
                         setClinicalReports([]); 
+                        setStagedMedicines([]);
                         setPrescriptionSource('discharge');
                         setIsDischargeOpen(true);
                     }}
@@ -782,9 +790,6 @@ export default function DoctorAdmissionCasesPage() {
                     onStartBedsideShift={handleStartBedsideShift}
                     onCompleteBedsideShift={(caseId) => {
                         setPrescriptionSource('bedside'); 
-                        setSelectedMedicine('');
-                        setPrescriptionFrequency({ morning: false, afternoon: false, evening: false });
-                        setPrescriptionDays('3 days');
                         setIsPrescriptionOpen(true);
                     }}
                 />
@@ -820,22 +825,17 @@ export default function DoctorAdmissionCasesPage() {
                     }}
                     dischargeForm={dischargeForm}
                     setDischargeForm={setDischargeForm}
+                    onAddMedicineDetail={() => setIsPrescriptionOpen(true)}
                     clinicalReports={clinicalReports}
                     setClinicalReports={setClinicalReports}
-                    onAddMedicineDetail={() => setIsPrescriptionOpen(true)}
+                    addedMedicinesCount={stagedMedicines.length}
                     onDirectSubmit={handleDischargeSubmitDirect}
                 />
 
                 <PrescriptionModal 
                     isOpen={isPrescriptionOpen}
                     onClose={handleClosePrescription}
-                    selectedMedicine={selectedMedicine}
-                    setSelectedMedicine={setSelectedMedicine}
                     medicinesList={medicinesList}
-                    prescriptionFrequency={prescriptionFrequency}
-                    setPrescriptionFrequency={setPrescriptionFrequency}
-                    prescriptionDays={prescriptionDays}
-                    setPrescriptionDays={setPrescriptionDays}
                     actionLoading={actionLoading}
                     onSubmit={handleProcessPrescriptionSubmit}
                 />
@@ -857,6 +857,9 @@ export default function DoctorAdmissionCasesPage() {
                     onCompleteDischarge={handleFinalizeDischarge}
                     isBedsideFlow={prescriptionSource === 'bedside'}
                     onCompleteBedside={handleFinalizeBedsideShift}
+                    dischargeForm={dischargeForm}
+                    medicines={stagedMedicines}
+                    clinicalReports={clinicalReports}
                 />
 
             </div>

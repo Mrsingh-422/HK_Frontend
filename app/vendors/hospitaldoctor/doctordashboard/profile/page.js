@@ -9,7 +9,7 @@ FaExclamationTriangle, FaRegCalendarAlt, FaStethoscope, FaSignature, FaClock
 
 export default function DoctorProfilePage() {
     const fileInputRef = useRef(null);
-    const signatureInputRef = useRef(null); // Reference for signature file upload
+    const signatureInputRef = useRef(null); 
 
     // Operational Loading States
     const [loading, setLoading] = useState(true);
@@ -48,10 +48,10 @@ export default function DoctorProfilePage() {
     // Image Files and Previews States
     const [avatarPreview, setAvatarPreview] = useState(null);
     const [avatarFile, setAvatarFile] = useState(null);
-    const [signaturePreview, setSignaturePreview] = useState(null); // Signature preview state
-    const [signatureFile, setSignatureFile] = useState(null); // Signature file state
+    const [signaturePreview, setSignaturePreview] = useState(null); 
+    const [signatureFile, setSignatureFile] = useState(null); 
 
-    // Safe URL joining helper to prevent double-slashes or missing slashes
+    // Safe URL joining helper
     const getFormattedImageUrl = (path) => {
         if (!path) return null;
         if (path.startsWith('http://') || path.startsWith('https://')) return path;
@@ -82,7 +82,6 @@ export default function DoctorProfilePage() {
                 if (profileRes.success) {
                     const doc = profileRes.data;
                     
-                    // Parse languages safely
                     let parsedLanguagesStr = '';
                     if (doc.languages) {
                         if (typeof doc.languages === 'string') {
@@ -117,20 +116,17 @@ export default function DoctorProfilePage() {
                         consultationStatus: doc.consultationStatus || { online: false, clinic: false, home: false }
                     });
 
-                    // Parse qualifications list safely
                     const rawQualifications = doc.qualification || doc.qualifcation || '';
                     const parsedQualifications = rawQualifications 
                         ? rawQualifications.split(',').map(q => q.trim()).filter(Boolean) 
                         : [];
                     setSelectedQualifications(parsedQualifications);
 
-                    // Formats avatar preview URL smoothly
                     const imagePath = doc.profileImage || doc.profleImage;
                     if (imagePath) {
                         setAvatarPreview(getFormattedImageUrl(imagePath));
                     }
 
-                    // Formats digital signature preview URL smoothly
                     const signatureImagePath = doc.signatureImage;
                     if (signatureImagePath) {
                         setSignaturePreview(getFormattedImageUrl(signatureImagePath));
@@ -212,7 +208,7 @@ export default function DoctorProfilePage() {
                 formData.append('profileImage', avatarFile); 
             }
             if (signatureFile) {
-                formData.append('signatureImage', signatureFile); // Append digital signature file
+                formData.append('signatureImage', signatureFile); 
             }
             
             formData.append('name', profile.name);
@@ -229,7 +225,6 @@ export default function DoctorProfilePage() {
             formData.append('about', profile.about);
             formData.append('alternatePhone', profile.alternatePhone);
 
-            // Handle languages string formatting to a JSON list
             const languagesArray = profile.languages
                 ? profile.languages.split(',').map(lang => lang.trim()).filter(Boolean)
                 : [];
@@ -242,7 +237,6 @@ export default function DoctorProfilePage() {
             if (response.success) {
                 triggerAlert(response.message || "Your profile changes have been submitted to Admin for review!");
                 setStagedRequest(response.data);
-                // Clear state file variables
                 setAvatarFile(null);
                 setSignatureFile(null);
             }
@@ -322,19 +316,17 @@ export default function DoctorProfilePage() {
                 </div>
             )}
 
-            <form onSubmit={handleSaveSettings} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 
-                {/* LEFT COLUMN: Visual Summary & Signature Card */}
+                {/* LEFT COLUMN: Visual Summary, Signature */}
                 <div className="lg:col-span-4 space-y-6">
                     <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm flex flex-col items-center text-center relative overflow-hidden">
                         
-                        {/* Status Stripe Background decoration */}
                         <div className={`absolute top-0 inset-x-0 h-2.5 ${
                             profile.dutyStatus === 'On Duty' ? 'bg-emerald-500' :
                             profile.dutyStatus === 'Busy' ? 'bg-amber-500' : 'bg-slate-300'
                         }`} />
 
-                        {/* Interactive Avatar Container */}
                         <div 
                             className="relative group cursor-pointer mt-4" 
                             onClick={(e) => {
@@ -362,7 +354,6 @@ export default function DoctorProfilePage() {
                             />
                         </div>
 
-                        {/* Summary Texts */}
                         <h3 className="text-2xl font-black text-slate-800 mt-5 leading-snug">{profile.name || "Dr. Unnamed"}</h3>
                         <p className="text-xs text-slate-400 font-bold tracking-wider uppercase mt-1.5 flex items-center gap-1.5 justify-center">
                             <FaStethoscope className="text-emerald-500 text-sm" />
@@ -374,7 +365,6 @@ export default function DoctorProfilePage() {
                             <span className="px-3.5 py-1 bg-blue-50 border border-blue-100 text-blue-600 rounded-full text-xs font-bold">{profile.experienceYears} Yrs Experience</span>
                         </div>
 
-                        {/* Dynamic Shift Switcher Toggler */}
                         <div className="w-full border-t border-slate-100 mt-6 pt-6 flex flex-col items-stretch text-left">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Shift Status</label>
                             <div className="relative">
@@ -438,7 +428,7 @@ export default function DoctorProfilePage() {
                 </div>
 
                 {/* RIGHT COLUMN: Detailed Settings Form */}
-                <div className="lg:col-span-8 space-y-6">
+                <form onSubmit={handleSaveSettings} className="lg:col-span-8 space-y-6">
                     
                     {/* Block A: Base Details */}
                     <div className="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-sm space-y-6">
@@ -667,9 +657,9 @@ export default function DoctorProfilePage() {
                         </button>
                     </div>
 
-                </div>
+                </form>
 
-            </form>
+            </div>
         </div>
     );
 }

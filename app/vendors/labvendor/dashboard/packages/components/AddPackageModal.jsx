@@ -1,6 +1,6 @@
 'use client'
 import LabVendorAPI from '@/app/services/LabVendorAPI';
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { 
   FaTimes, FaSpinner, FaLayerGroup, FaSearch, FaChevronDown, 
   FaClock, FaToggleOn, FaToggleOff, FaFlask, FaMapMarkerAlt, FaUserFriends, FaUtensils, FaTags, FaPlus, FaTrash, FaQuestionCircle, FaInfoCircle, FaLock
@@ -14,6 +14,15 @@ export default function AddPackageModal({ isOpen, onClose, onSave, initialData =
   
   const [masterPackages, setMasterPackages] = useState([]);
   const [standardTests, setStandardTests] = useState([]);
+
+  // File Upload States
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const fileInputRef = useRef(null);
+
+  // Custom Main Category States
+  const [isCustomMainCategory, setIsCustomMainCategory] = useState(false);
+  const [customMainValue, setCustomMainValue] = useState('');
   
   const [formData, setFormData] = useState({
     packageName: '',
@@ -40,6 +49,37 @@ export default function AddPackageModal({ isOpen, onClose, onSave, initialData =
     faqs: [{ question: '', answer: '' }]
   });
 
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedFile(null);
+    setImagePreview('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleMainCategoryChange = (e) => {
+    const val = e.target.value;
+    if (val === 'Custom') {
+      setIsCustomMainCategory(true);
+      setFormData({ ...formData, mainCategory: customMainValue });
+    } else {
+      setIsCustomMainCategory(false);
+      setFormData({ ...formData, mainCategory: val });
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       const fetchData = async () => {
@@ -64,6 +104,12 @@ export default function AddPackageModal({ isOpen, onClose, onSave, initialData =
   useEffect(() => {
     if (initialData && isOpen) {
       const existingTestIds = (initialData.tests || []).map(t => typeof t === 'object' ? t._id : t);
+      const mainCat = initialData.mainCategory || 'Pathology';
+      const isCustomCat = mainCat !== 'Pathology' && mainCat !== 'Radiology';
+
+      setIsCustomMainCategory(isCustomCat);
+      setCustomMainValue(isCustomCat ? mainCat : '');
+
       setFormData({ 
           ...initialData, 
           tests: existingTestIds,
@@ -77,6 +123,7 @@ export default function AddPackageModal({ isOpen, onClose, onSave, initialData =
           ageGroup: initialData.ageGroup || 'All',
           testType: initialData.testType || 'Both',
           category: initialData.category || '',
+          mainCategory: mainCat,
           isFastingRequired: initialData.isFastingRequired || false,
           fastingDuration: initialData.fastingDuration || '',
           lifestyleTags: Array.isArray(initialData.lifestyleTags) ? initialData.lifestyleTags.join(', ') : '',
@@ -85,6 +132,16 @@ export default function AddPackageModal({ isOpen, onClose, onSave, initialData =
           faqs: initialData.faqs || [{ question: '', answer: '' }],
           isCustom: initialData.isCustom ?? true
       });
+
+      if (initialData.packageImage) {
+        const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+        const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+        const cleanImage = initialData.packageImage.startsWith('/') ? initialData.packageImage.slice(1) : initialData.packageImage;
+        setImagePreview(initialData.packageImage.startsWith('http') ? initialData.packageImage : `${cleanBase}/${cleanImage}`);
+      } else {
+        setImagePreview('');
+      }
+      setSelectedFile(null);
       setActiveTab('combo');
     } else if (isOpen) {
       resetForm();
@@ -101,6 +158,10 @@ export default function AddPackageModal({ isOpen, onClose, onSave, initialData =
       tags: '', detailedDescription: [{ sectionTitle: '', sectionContent: '' }],
       faqs: [{ question: '', answer: '' }]
     });
+    setIsCustomMainCategory(false);
+    setCustomMainValue('');
+    setSelectedFile(null);
+    setImagePreview('');
   };
 
   const calculatedOfferPrice = useMemo(() => {
@@ -111,11 +172,18 @@ export default function AddPackageModal({ isOpen, onClose, onSave, initialData =
 
   const handleMasterSelect = (master) => {
     const masterTestIds = (master.tests || []).map(t => typeof t === 'object' ? t._id : t);
+    const mainCat = master.mainCategory || 'Pathology';
+    const isCustomCat = mainCat !== 'Pathology' && mainCat !== 'Radiology';
+
+    setIsCustomMainCategory(isCustomCat);
+    setCustomMainValue(isCustomCat ? mainCat : '');
+
     setFormData({
       ...formData,
+      masterPackageId: master._id,
       packageName: master.packageName,
       description: master.shortDescription || master.description || '',
-      mainCategory: master.mainCategory || 'Pathology',
+      mainCategory: mainCat,
       category: master.category || '',
       mrp: master.standardMRP || master.mrp || '',
       reportTime: master.reportTime || '',
@@ -132,6 +200,16 @@ export default function AddPackageModal({ isOpen, onClose, onSave, initialData =
       isActive: true,
       isCustom: false // This disables Name and MRP
     });
+
+    if (master.packageImage) {
+      const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+      const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+      const cleanImage = master.packageImage.startsWith('/') ? master.packageImage.slice(1) : master.packageImage;
+      setImagePreview(master.packageImage.startsWith('http') ? master.packageImage : `${cleanBase}/${cleanImage}`);
+    } else {
+      setImagePreview('');
+    }
+    setSelectedFile(null);
     setActiveTab('combo');
   };
 
@@ -191,13 +269,13 @@ export default function AddPackageModal({ isOpen, onClose, onSave, initialData =
         handleSuggestSubmit();
     } else {
         // Convert comma strings back to arrays for saving
-        // FIXED: Added String() wrapper to prevent .split is not a function error
         const finalData = {
           ...formData,
           offerPrice: calculatedOfferPrice,
           sampleTypes: String(formData.sampleType || '').split(',').map(s => s.trim()).filter(s => s !== ''),
           preparations: String(formData.precaution || '').split(',').map(p => p.trim()).filter(p => p !== ''),
           tags: String(formData.tags || '').split(',').map(t => t.trim()).filter(t => t !== ''),
+          photoFile: selectedFile // Pass photo reference down
         };
         onSave(finalData);
     }
@@ -269,10 +347,27 @@ export default function AddPackageModal({ isOpen, onClose, onSave, initialData =
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Main Category</label>
-                <select className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-transparent focus:border-emerald-500 outline-none" value={formData.mainCategory} onChange={e => setFormData({...formData, mainCategory: e.target.value})}>
+                <select 
+                  className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-transparent focus:border-emerald-500 outline-none" 
+                  value={isCustomMainCategory ? 'Custom' : formData.mainCategory} 
+                  onChange={handleMainCategoryChange}
+                >
                     <option value="Pathology">Pathology</option>
                     <option value="Radiology">Radiology</option>
+                    <option value="Custom">Other (Custom)</option>
                 </select>
+                {isCustomMainCategory && (
+                  <input 
+                    required 
+                    className="w-full mt-2 p-4 bg-slate-50 rounded-2xl font-bold border-2 border-transparent focus:border-emerald-500 outline-none transition-all" 
+                    value={customMainValue} 
+                    onChange={e => {
+                      setCustomMainValue(e.target.value);
+                      setFormData({...formData, mainCategory: e.target.value});
+                    }} 
+                    placeholder="Enter Custom Main Category" 
+                  />
+                )}
               </div>
 
               <div className="space-y-1">
@@ -387,6 +482,37 @@ export default function AddPackageModal({ isOpen, onClose, onSave, initialData =
                   value={formData.mrp} 
                   onChange={e => setFormData({...formData, mrp: e.target.value})} 
                 />
+              </div>
+
+              {/* Package Cover Image Section */}
+              <div className="col-span-2 space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Package Cover Image</label>
+                <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
+                {!imagePreview ? (
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-slate-200 hover:border-emerald-500 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer bg-slate-50/50 hover:bg-slate-50/80 transition-all group"
+                  >
+                    <div className="p-3 bg-white border border-slate-100 rounded-xl text-slate-400 group-hover:text-emerald-500 transition-all">
+                      <FaPlus size={16} />
+                    </div>
+                    <span className="text-xs font-bold text-slate-600">Choose cover banner/image</span>
+                  </div>
+                ) : (
+                  <div className="relative border border-slate-200 rounded-2xl p-4 flex items-center justify-between bg-slate-50">
+                    <div className="flex items-center gap-3">
+                      <div className="h-14 w-14 rounded-xl border border-slate-100 overflow-hidden bg-white flex items-center justify-center">
+                        <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-700 max-w-[200px] truncate">{selectedFile ? selectedFile.name : 'Current Image'}</p>
+                      </div>
+                    </div>
+                    <button type="button" onClick={handleRemoveImage} className="p-2.5 text-slate-400 hover:text-rose-500 rounded-xl">
+                      <FaTimes size={12} />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="col-span-2 space-y-1">

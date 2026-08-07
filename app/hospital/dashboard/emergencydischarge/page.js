@@ -27,9 +27,7 @@ export default function EmergencyDischargePage() {
   const fetchDischargeCandidates = async (caseType) => {
     setLoading(true);
     try {
-      // Calls updated API function with id as null and the current active tab type
       const response = await HospitalAPI.getAdmissionDetails(null, caseType);
-
       console.log(`Discharge Patients API Response (${caseType}):`, response);
 
       if (response?.success) {
@@ -82,7 +80,6 @@ export default function EmergencyDischargePage() {
     }
   };
 
-  // We rely directly on the backend's API response filters, applying only the local query search
   const filteredPatients = patients.filter(p => {
     const mainUserName = p.userId?.name || "";
     const secondaryPatientName = p.patients?.[0]?.patientName || "";
@@ -110,7 +107,7 @@ export default function EmergencyDischargePage() {
             </span>
             Discharge Lounge
           </h1>
-          <p className="text-slate-500 font-medium mt-1">Manage finalized cases and patient departures</p>
+          <p className="text-slate-500 font-medium mt-1">Manage pending depart cases, process invoice closing statements and sign-offs.</p>
         </div>
 
         <div className="relative w-full md:w-96">
@@ -135,7 +132,7 @@ export default function EmergencyDischargePage() {
           }`}
         >
           <FaAmbulance size={14} />
-          Emergency Ambulances
+          Emergency Transports
         </button>
         <button
           onClick={() => setActiveTab("admission")}
@@ -157,29 +154,30 @@ export default function EmergencyDischargePage() {
           <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Fetching Pending Discharges...</span>
         </div>
       ) : filteredPatients.length > 0 ? (
-        <div className="max-w-7xl mx-auto bg-white rounded-3xl border border-slate-150 shadow-[0_8px_30px_rgb(0,0,0,0.015)] overflow-hidden">
+        <div className="max-w-7xl mx-auto bg-white rounded-3xl border border-slate-150 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  <th className="p-4 pl-6">Patient Info</th>
-                  <th className="p-4">Clinical Diagnosis</th>
-                  <th className="p-4">Allotment (Location)</th>
-                  <th className="p-4">Attending Doctor</th>
-                  <th className="p-4">Admission Schedule</th>
+                  <th className="p-4 pl-6">Patient Details</th>
+                  <th className="p-4">Clinical Status</th>
+                  <th className="p-4">Placement (Location)</th>
+                  <th className="p-4">Duty Physician</th>
+                  <th className="p-4">Dates & Timeline</th>
                   <th className="p-4">Status</th>
                   <th className="p-4 text-right pr-6">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredPatients.map((item) => {
-                  const patientName = item.patients?.[0]?.patientName || item.userId?.name || "Unknown Patient";
-                  const patientAge = item.patients?.[0]?.patientAge ;
-                  const patientGender = item.patients?.[0]?.gender || item.userId?.gender;
-                  const relation = item.patients?.[0]?.relation;
+                  const mainPatient = item.patients?.[0] || {};
+                  const patientName = mainPatient.patientName || item.userId?.name || "Unknown Patient";
+                  const patientAge = mainPatient.patientAge;
+                  const patientGender = mainPatient.gender || item.userId?.gender;
+                  const relation = mainPatient.relation;
                   const bloodGroup = item.clinicalSummary?.bloodGroup || "N/A";
 
-                  const chiefComplaint = item.clinicalSummary?.chiefComplaint || item.patients?.[0]?.reasonForVisit ;
+                  const chiefComplaint = item.clinicalSummary?.chiefComplaint || mainPatient.reasonForVisit;
                   const diagnosis = item.clinicalSummary?.diagnosis || "Undisclosed Diagnosis";
 
                   const isDoctorObject = typeof item.doctorId === 'object' && item.doctorId !== null;
@@ -189,78 +187,81 @@ export default function EmergencyDischargePage() {
                   const isAmbulanceObj = typeof item.ambulanceId === 'object' && item.ambulanceId !== null;
                   const ambulanceName = isAmbulanceObj ? item.ambulanceId.name : "Emergency Transit Services";
 
+                  const bed = item.bedId || {};
+                  const ward = bed.wardId || {};
+
                   return (
                     <tr key={item._id} className="hover:bg-slate-50/50 transition-colors">
                       
                       {/* Patient Info */}
                       <td className="p-4 pl-6">
                         <div className="flex flex-col">
-                          <span className="text-[10px] font-black text-[#08B36A] uppercase tracking-wider mb-0.5">
+                          <span className="text-[9px] font-black text-[#08B36A] uppercase tracking-wider mb-0.5">
                             {item.bookingId || "CAS-ID"}
                           </span>
                           <span className="text-sm font-extrabold text-slate-900 leading-tight">
                             {patientName}
                           </span>
                           <div className="flex items-center gap-2 mt-1 text-[11px] font-bold text-slate-400">
-                            <span>{patientAge} Yrs &bull; {patientGender} ({relation})</span>
+                            <span>{patientAge ? `${patientAge} Yrs` : 'N/A'} &bull; {patientGender} ({relation || 'Self'})</span>
                             <span>&bull;</span>
-                            <span className="flex items-center gap-1 text-red-500">
-                              <FaTint size={9} /> Blood: {bloodGroup}
+                            <span className="flex items-center gap-1 text-rose-500">
+                              <FaTint size={9} /> {bloodGroup}
                             </span>
                           </div>
                         </div>
                       </td>
 
-                      {/* Clinical Details */}
+                      {/* Clinical Summary */}
                       <td className="p-4 max-w-xs">
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                             <span className="p-1 bg-slate-100 text-slate-500 rounded text-[9px] uppercase tracking-wider font-extrabold">Complaint</span>
-                            <span className="truncate">{chiefComplaint || "N/A"}</span>
+                            <span className="truncate max-w-[150px]">{chiefComplaint || "N/A"}</span>
                           </div>
                           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
                             <span className="p-1 bg-green-50 text-[#08B36A] rounded text-[9px] uppercase tracking-wider font-extrabold">Diagnosis</span>
-                            <span className="truncate">{diagnosis}</span>
+                            <span className="truncate max-w-[150px]">{diagnosis}</span>
                           </div>
                         </div>
                       </td>
 
-                      {/* Location / Allotment */}
+                      {/* Ward & Bed Allocation details */}
                       <td className="p-4">
                         {item.bedId ? (
                           <div className="flex flex-col gap-0.5">
                             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                              <FaNotesMedical className="text-[#08B36A]" size={11} />
+                              <FaProcedures className="text-[#08B36A]" size={11} />
                               <span>
-                                {item.bedId.wardId?.name} ({item.bedId.wardId?.type || "ICU"}) &bull; Bed {item.bedId.bedNumber}
+                                {item.wardName || ward.name || "N/A"} &bull; Bed {item.bedNumber || bed.bedNumber || "N/A"}
                               </span>
                             </div>
                             <span className="text-[10px] text-slate-400 font-bold flex items-center gap-0.5 mt-0.5">
                               <FaDollarSign size={8} className="text-slate-300" /> 
-                              <span>₹{item.bedId.pricePerDay || 0} / Day Rate</span>
+                              <span>₹{bed.pricePerDay || 0}/Day Stay Fee</span>
                             </span>
                           </div>
                         ) : item.ambulanceId ? (
                           <div className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1.5 text-xs font-bold text-[#08B36A]">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-rose-600">
                               <FaAmbulance size={11} />
-                              <span>Emergency Transit</span>
+                              <span>Emergency Drop-off</span>
                             </div>
-                            <span className="text-[10px] text-slate-500 font-bold truncate max-w-[180px]">
+                            <span className="text-[10px] text-slate-400 font-bold truncate max-w-[180px]">
                               {ambulanceName}
                             </span>
                           </div>
                         ) : (
-                          <span className="text-xs font-bold text-slate-400 italic">No Bed Allocated</span>
+                          <span className="text-xs font-bold text-slate-400 italic">No Location Allotted</span>
                         )}
                       </td>
 
-                      {/* Doctor Info */}
+                      {/* Duty physician */}
                       <td className="p-4">
                         <div className="flex flex-col">
                           <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-800">
                             <FaUserMd className="text-slate-400" size={12} />
-                            <span>{docName}</span>
+                            <span>Dr. {docName}</span>
                           </div>
                           <span className="text-[10px] text-slate-400 font-bold mt-0.5 pl-4 uppercase tracking-wider">
                             {docSpec}
@@ -268,15 +269,18 @@ export default function EmergencyDischargePage() {
                         </div>
                       </td>
 
-                      {/* Admission Schedule */}
+                      {/* Stay timeline details */}
                       <td className="p-4">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                          <FaRegCalendarAlt className="text-slate-400" size={11} />
-                          <span>{formatDate(item.startDate)}</span>
+                        <div className="flex flex-col text-[11px] text-slate-600 font-bold">
+                          <div className="flex items-center gap-1">
+                            <FaRegCalendarAlt className="text-slate-400" size={10} />
+                            <span>In: {formatDate(item.startDate)}</span>
+                          </div>
+                          {item.endDate && <span className="text-[10px] text-slate-400 mt-0.5">Out: {formatDate(item.endDate)}</span>}
                         </div>
                       </td>
 
-                      {/* Status */}
+                      {/* Discharge Status label */}
                       <td className="p-4">
                         <span className={`inline-flex px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
                           item.status === 'Discharge-Pending' 
@@ -287,7 +291,7 @@ export default function EmergencyDischargePage() {
                         </span>
                       </td>
 
-                      {/* Actions */}
+                      {/* Grid actions */}
                       <td className="p-4 text-right pr-6">
                         <div className="flex justify-end gap-2">
                           <button
@@ -313,13 +317,13 @@ export default function EmergencyDischargePage() {
           </div>
         </div>
       ) : (
-        /* Empty State */
+        /* Empty layout display */
         <div className="text-center py-20 max-w-7xl mx-auto bg-white rounded-3xl border border-slate-150 shadow-sm">
           <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
             <FaUserCheck size={30} />
           </div>
           <h3 className="text-xl font-bold text-slate-800">No pending discharges found</h3>
-          <p className="text-slate-400 text-sm mt-1">All {activeTab} departures have been cleared.</p>
+          <p className="text-slate-400 text-sm mt-1">All pending {activeTab} case departure checklists are cleared.</p>
         </div>
       )}
 

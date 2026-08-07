@@ -14,21 +14,22 @@ export default function DoctorProfilePage() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [previewImage, setPreviewImage] = useState(null);
-  const [previewSignature, setPreviewSignature] = useState(null); // Digital signature preview
+  const [previewSignature, setPreviewSignature] = useState(null); 
   const [travelCharges, setTravelCharges] = useState(0); 
   const [qualificationsList, setQualificationsList] = useState([]); 
   const [specialitiesList, setSpecialitiesList] = useState([]); 
   const fileInputRef = useRef(null);
-  const signatureInputRef = useRef(null); // Signature input reference
+  const signatureInputRef = useRef(null); 
 
   // Staged request status state
   const [stagedRequest, setStagedRequest] = useState(null);
 
+  // Profile data state
   const [profileData, setProfileData] = useState({
     name: '',
-    email: '',           // Blocked field - Read-Only in UI
-    phone: '',           // Blocked field - Read-Only in UI
-    alternatePhone: '',  // Supported New Field
+    email: '',           
+    phone: '',           
+    alternatePhone: '',  
     about: '',
     experienceYears: '',
     qualification: [],   
@@ -45,13 +46,13 @@ export default function DoctorProfilePage() {
     fees: { online: 0, clinic: 0, home: 0 },
     consultationStatus: { online: false, clinic: false, home: false },
     profileImage: null,
-    signatureImage: null, // Appended Signature Image payload
+    signatureImage: null, 
     profileStatus: '',
     dutyStatus: '',
     competencies: [],
     treatedConditions: [],
     location: { lat: 0, lng: 0 },
-    availability: []     // Supported field
+    availability: []     
   });
 
   const [newLang, setNewLang] = useState('');
@@ -123,7 +124,6 @@ export default function DoctorProfilePage() {
           }
         }
 
-        // Parse availability safely
         let parsedAvailability = [];
         if (d.availability) {
           try {
@@ -178,7 +178,6 @@ export default function DoctorProfilePage() {
 
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 
-        // Set Profile Image Preview
         if (d.profileImage) {
           if (d.profileImage.startsWith('http')) {
             setPreviewImage(d.profileImage);
@@ -195,7 +194,6 @@ export default function DoctorProfilePage() {
           setPreviewImage(null);
         }
 
-        // Set Digital Signature Image Preview
         if (d.signatureImage) {
           if (d.signatureImage.startsWith('http')) {
             setPreviewSignature(d.signatureImage);
@@ -358,7 +356,6 @@ export default function DoctorProfilePage() {
         formData.append('signatureImage', profileData.signatureImage);
       }
       
-      // Allowed fields according to Independent Doctor specifications
       const allowedTextFields = [
         'name', 'country', 'state', 'city', 'address', 
         'speciality', 'about', 'alternatePhone'
@@ -370,16 +367,13 @@ export default function DoctorProfilePage() {
         }
       });
 
-      // Sanitize experienceYears to guarantee an Integer payload (no empty string crashing)
       const experience = parseInt(profileData.experienceYears, 10);
       formData.append('experienceYears', isNaN(experience) ? '0' : String(experience));
 
-      // Format qualification to academic degree as string
       if (Array.isArray(profileData.qualification)) {
         formData.append('qualification', profileData.qualification.join(', '));
       }
 
-      // Format nested configurations strictly to JSON stringified format
       formData.append('fees', JSON.stringify({
         online: Number(profileData.fees.online) || 0,
         clinic: Number(profileData.fees.clinic) || 0,
@@ -392,7 +386,6 @@ export default function DoctorProfilePage() {
         home: !!profileData.consultationStatus.home
       }));
 
-      // Conditionally append availability only when it actually contains slots
       if (Array.isArray(profileData.availability) && profileData.availability.length > 0) {
         formData.append('availability', JSON.stringify(profileData.availability));
       }
@@ -478,7 +471,7 @@ export default function DoctorProfilePage() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Left Column */}
         <div className="lg:col-span-1 space-y-8">
@@ -590,7 +583,7 @@ export default function DoctorProfilePage() {
         </div>
 
         {/* Right Column */}
-        <div className="lg:col-span-2 space-y-8">
+        <form onSubmit={handleSubmit} className="lg:col-span-2 space-y-8">
             {/* Basic Info */}
             <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-gray-100">
                 <div className="flex items-center gap-3 mb-8">
@@ -624,7 +617,6 @@ export default function DoctorProfilePage() {
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                    {/* Dropdown Select Field for Qualification */}
                     <div className="space-y-2">
                         <label className="label-style">Qualification</label>
                         <div className="relative">
@@ -651,7 +643,6 @@ export default function DoctorProfilePage() {
                         </div>
                     </div>
 
-                    {/* Dropdown Select Field for Speciality */}
                     <div className="space-y-2">
                         <label className="label-style">Speciality</label>
                         <div className="relative">
@@ -670,7 +661,6 @@ export default function DoctorProfilePage() {
                         </div>
                     </div>
 
-                    {/* Selected Qualifications Field (Removable Tags Container) */}
                     {Array.isArray(profileData.qualification) && profileData.qualification.length > 0 && (
                         <div className="md:col-span-2 space-y-2">
                             <label className="label-style">Selected Qualifications</label>
@@ -931,8 +921,8 @@ export default function DoctorProfilePage() {
                     {loading ? <FaSyncAlt className="animate-spin" /> : <><FaSave size={20}/> Save All Changes</>}
                 </button>
             </div>
-        </div>
-      </form>
+        </form>
+      </div>
 
       <style jsx>{`
         .label-style { display: block; text-transform: uppercase; letter-spacing: 0.15em; font-weight: 900; font-size: 0.65rem; color: #9ca3af; margin-bottom: 0.5rem; margin-left: 0.5rem; }

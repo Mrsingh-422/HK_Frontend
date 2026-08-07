@@ -22,7 +22,8 @@ import {
     FaClock,
     FaAward,
     FaChevronRight,
-    FaChevronLeft // Added for pagination controls
+    FaChevronLeft,
+    FaUser
 } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import NurseAPI from '@/app/services/NurseAPI';
@@ -37,15 +38,12 @@ const getPrescriptionImageUrl = (imagePath, baseUrl) => {
         return imagePath;
     }
     
-    // Normalize path separators (replaces backslashes with forward slashes)
     let cleanPath = imagePath.replace(/\\/g, '/');
     
-    // Strip leading slash if present
     if (cleanPath.startsWith('/')) {
         cleanPath = cleanPath.substring(1);
     }
     
-    // Ensure base URL configuration is stripped of trailing slash
     let base = baseUrl || '';
     if (base.endsWith('/')) {
         base = base.slice(0, -1);
@@ -56,7 +54,6 @@ const getPrescriptionImageUrl = (imagePath, baseUrl) => {
 
 const handleImageError = (e) => {
     const currentSrc = e.target.src;
-    // Fallback: If image fails to load with "/public/..." prefix, attempt to pull directly from root static path
     if (currentSrc.includes('/public/')) {
         e.target.src = currentSrc.replace('/public/', '/');
     }
@@ -96,16 +93,42 @@ export default function AssignNurseTable() {
     const loadData = async () => {
         setIsLoading(true);
         try {
+            // 1. Fetch Confirmed Bookings
             const confirmedRes = await NurseAPI.getBookings('Confirmed');
             if (confirmedRes?.success) {
                 setConfirmedBookings(confirmedRes.data || []);
             }
 
+            // 2. Fetch Busy Staff & populate their active jobs via /active-job/:staffId
             const busyRes = await NurseAPI.getStaffByStatus('Busy');
             if (busyRes?.success) {
-                setBusyNurses(busyRes.data || []);
+                const rawBusy = busyRes.data || [];
+                
+                // Fetch active job for each busy nurse in parallel
+                const busyWithActiveJobs = await Promise.all(
+                    rawBusy.map(async (nurse) => {
+                        try {
+                            if (NurseAPI.getStaffActiveJob) {
+                                const jobRes = await NurseAPI.getStaffActiveJob(nurse._id);
+                                if (jobRes?.success && jobRes.data) {
+                                    return { 
+                                        ...nurse, 
+                                        activeJob: jobRes.data,
+                                        currentBooking: jobRes.data 
+                                    };
+                                }
+                            }
+                        } catch (e) {
+                            console.error("Active job fetch error for staff:", nurse._id, e);
+                        }
+                        return nurse;
+                    })
+                );
+
+                setBusyNurses(busyWithActiveJobs);
             }
 
+            // 3. Fetch Offline & Available Staff
             const offlineRes = await NurseAPI.getStaffByStatus('Offline');
             if (offlineRes?.success) {
                 setOfflineNurses(offlineRes.data || []);
@@ -131,6 +154,99 @@ export default function AssignNurseTable() {
     useEffect(() => {
         setCurrentPage(1);
     }, [activeTab]);
+
+    // On-demand fetch active job if modal opens for a busy nurse without loaded job
+    useEffect(() => {
+        if (isModalOpen && selectedItem && selectedItem.dataType === 'nurse' && (selectedItem.status === 'Busy' || selectedItem.isBusy) && !selectedItem.activeJob) {
+            if (NurseAPI.getStaffActiveJob) {
+                NurseAPI.getStaffActiveJob(selectedItem._id)
+                    .then(res => {
+                        if (res?.success && res.data) {
+                            setSelectedItem(prev => ({
+                                ...prev,
+                                activeJob: res.data,
+                                currentBooking: res.data
+                            }));
+                        }
+                    })
+                    .catch(err => console.error("Modal active job fetch error:", err));
+            }
+        }
+    }, [isModalOpen, selectedItem]);
+
+    // =========================================================
+    // PARSER ENGINE FOR ASSIGNED NURSE ACTIVE JOBS
+    // =========================================================
+    const getNurseCaseDetails = (nurse) => {
+        if (!nurse) return null;
+
+        const job = nurse.activeJob || 
+                    nurse.currentBooking || 
+                    nurse.activeBooking || 
+                    nurse.assignedBooking || 
+                    nurse.booking || 
+                    nurse.bookingId;
+
+        if (job && typeof job === 'object' && (job._id || job.bookingId || job.serviceDetails || job.address)) {
+            const patientName = job.userId?.name || job.patients?.[0]?.name || job.address?.name || 'Patient Details On File';
+            const patientPhone = job.address?.phone || job.userId?.phone || 'N/A';
+            const bookingId = job.bookingId || (job._id ? job._id.slice(-8).toUpperCase() : 'N/A');
+            const serviceTitle = job.serviceDetails?.title || job.serviceDetails?.type || 'Nursing Care';
+            const totalPrice = job.priceBreakdown?.totalPrice || job.totalPrice || 0;
+            
+            const house = job.address?.houseNo ? `House No. ${job.address.houseNo}` : '';
+            const sector = job.address?.sector ? `Sector ${job.address.sector}` : '';
+            const landmark = job.address?.landmark ? `Landmark: ${job.address.landmark}` : '';
+            const city = job.address?.city || '';
+            const state = job.address?.state || '';
+            const pincode = job.address?.pincode ? `- ${job.address.pincode}` : '';
+
+            const location = city || landmark || 'Service Location On File';
+            const fullAddress = [house, sector, landmark, city, state, pincode].filter(Boolean).join(', ');
+
+            const startDate = job.schedule?.startDate ? new Date(job.schedule.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+            const timeSlot = job.schedule?.startTime ? `${job.schedule.startTime} - ${job.schedule.endTime || ''}` : '';
+
+            return {
+                patientName,
+                patientPhone,
+                bookingId,
+                serviceTitle,
+                location,
+                fullAddress,
+                totalPrice,
+                startDate,
+                timeSlot,
+                patientsList: job.patients || [],
+                userId: job.userId,
+                address: job.address,
+                serviceDetails: job.serviceDetails,
+                priceBreakdown: job.priceBreakdown,
+                status: job.status || 'Assigned',
+                raw: job
+            };
+        }
+
+        // Fallback for busy nurses
+        if (nurse.status === 'Busy' || nurse.isBusy) {
+            return {
+                patientName: nurse.name ? `Active Case (${nurse.name})` : 'Active Assigned Job',
+                patientPhone: nurse.phone || 'N/A',
+                bookingId: nurse._id ? nurse._id.slice(-8).toUpperCase() : 'ACTIVE',
+                serviceTitle: 'Nursing Care Service',
+                location: 'Service Address On File',
+                fullAddress: 'Assigned Service Location',
+                totalPrice: 0,
+                startDate: '',
+                timeSlot: '',
+                patientsList: [],
+                status: 'Assigned',
+                raw: nurse
+            };
+        }
+
+        return null;
+    };
 
     // --- HANDLE ASSIGN ACTION ---
     const handleAssignNurse = async (nurseId) => {
@@ -293,50 +409,84 @@ export default function AssignNurseTable() {
                             </table>
                         )}
 
-                        {/* --- TAB 2: ASSIGNED NURSES --- */}
+                        {/* --- TAB 2: ASSIGNED NURSES (SHOWS FULL ACTIVE CASE DETAILS) --- */}
                         {activeTab === 'Assigned Nurses' && (
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="border-b border-gray-100 bg-gray-50/50">
                                         <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Nurse Profile</th>
+                                        <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Assigned Case Details</th>
                                         <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest text-center">Status</th>
                                         <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest text-right">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {paginatedData.length === 0 ? (
-                                        <tr><td colSpan="3" className="py-32 text-center text-gray-400 italic font-medium">No nurses currently on active duty</td></tr>
+                                        <tr><td colSpan="4" className="py-32 text-center text-gray-400 italic font-medium">No nurses currently on active duty</td></tr>
                                     ) : (
-                                        paginatedData.map((nurse) => (
-                                            <tr key={nurse._id} onClick={() => handleRowClick(nurse, 'nurse')} className="hover:bg-gray-50 transition-all cursor-pointer group">
-                                                <td className="px-8 py-5">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="relative">
-                                                            <div className="w-12 h-12 rounded-2xl bg-gray-100 overflow-hidden border-2 border-white shadow-sm ring-1 ring-gray-100">
-                                                                {nurse.profilePhoto ? (
-                                                                    <img src={`${IMAGE_BASE_URL}/${nurse.profilePhoto}`} className="w-full h-full object-cover" alt="Profile" />
-                                                                ) : (
-                                                                    <FaUserCircle size={48} className="text-gray-200" />
-                                                                )}
+                                        paginatedData.map((nurse) => {
+                                            const caseDetails = getNurseCaseDetails(nurse);
+
+                                            return (
+                                                <tr key={nurse._id} onClick={() => handleRowClick(nurse, 'nurse')} className="hover:bg-gray-50 transition-all cursor-pointer group">
+                                                    <td className="px-8 py-5">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="relative">
+                                                                <div className="w-12 h-12 rounded-2xl bg-gray-100 overflow-hidden border-2 border-white shadow-sm ring-1 ring-gray-100">
+                                                                    {nurse.profilePhoto ? (
+                                                                        <img src={`${IMAGE_BASE_URL}/${nurse.profilePhoto}`} className="w-full h-full object-cover" alt="Profile" />
+                                                                    ) : (
+                                                                        <FaUserCircle size={48} className="text-gray-200" />
+                                                                    )}
+                                                                </div>
+                                                                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-orange-500 border-2 border-white rounded-full"></div>
                                                             </div>
-                                                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-orange-500 border-2 border-white rounded-full"></div>
+                                                            <div>
+                                                                <div className="font-bold text-gray-900 group-hover:text-[#08B36A] transition-colors">{nurse.name}</div>
+                                                                <div className="text-[10px] text-gray-400 font-mono uppercase tracking-tight">ID: {nurse._id?.slice(-8)}</div>
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <div className="font-bold text-gray-900 group-hover:text-[#08B36A] transition-colors">{nurse.name}</div>
-                                                            <div className="text-[10px] text-gray-400 font-mono uppercase tracking-tight">ID: {nurse._id?.slice(-8)}</div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-8 py-5 text-center">
-                                                    <span className="px-4 py-1.5 bg-orange-50 text-orange-600 text-[10px] font-black rounded-lg uppercase border border-orange-100 inline-flex items-center gap-1.5">
-                                                        <span className="w-1.5 h-1.5 bg-orange-600 rounded-full animate-pulse"></span> BUSY
-                                                    </span>
-                                                </td>
-                                                <td className="px-8 py-5 text-right">
-                                                    <button className="bg-white border border-gray-200 text-gray-700 hover:border-gray-900 px-5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all">View Schedule</button>
-                                                </td>
-                                            </tr>
-                                        ))
+                                                    </td>
+
+                                                    {/* CASE DETAILS COLUMN */}
+                                                    <td className="px-8 py-5">
+                                                        {caseDetails ? (
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                                                                    <FaUser className="text-[10px] text-orange-500 shrink-0" />
+                                                                    <span>{caseDetails.patientName}</span>
+                                                                    <span className="text-[10px] font-mono bg-orange-50 text-orange-700 px-2 py-0.5 rounded-md font-bold border border-orange-100">
+                                                                        #{caseDetails.bookingId}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="text-xs text-gray-500 font-medium flex items-center gap-2 flex-wrap">
+                                                                    <span className="text-gray-700 font-bold">{caseDetails.serviceTitle}</span>
+                                                                    <span className="text-gray-300">•</span>
+                                                                    <span className="text-gray-400 flex items-center gap-1 text-[11px]">
+                                                                        <FaMapMarkerAlt size={9} className="text-red-400" /> {caseDetails.location}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-1.5 text-xs text-orange-600 font-bold bg-orange-50 px-3 py-1.5 rounded-xl border border-orange-100 w-fit">
+                                                                <FaInfoCircle size={12} /> Assigned to Active Booking
+                                                            </div>
+                                                        )}
+                                                    </td>
+
+                                                    <td className="px-8 py-5 text-center">
+                                                        <span className="px-4 py-1.5 bg-orange-50 text-orange-600 text-[10px] font-black rounded-lg uppercase border border-orange-100 inline-flex items-center gap-1.5">
+                                                            <span className="w-1.5 h-1.5 bg-orange-600 rounded-full animate-pulse"></span> BUSY
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-8 py-5 text-right">
+                                                        <button className="bg-white border border-gray-200 text-gray-700 hover:border-gray-900 px-5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all inline-flex items-center gap-1.5 ml-auto">
+                                                            <FaEye size={12} /> View Details
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
                                     )}
                                 </tbody>
                             </table>
@@ -566,6 +716,98 @@ export default function AssignNurseTable() {
                                                 <p className="text-sm text-[#08B36A] font-bold leading-relaxed">{selectedItem.experience || 'Expert in general nursing care, postoperative monitoring, and specialized home healthcare services with clinical proficiency.'}</p>
                                             </div>
                                         </div>
+
+                                        {/* ACTIVE ASSIGNED CASE DETAILS CARD IN MODAL */}
+                                        {(() => {
+                                            const activeCase = getNurseCaseDetails(selectedItem);
+                                            
+                                            if (!activeCase) return null;
+
+                                            return (
+                                                <div className="space-y-3 pt-6 border-t border-gray-100 animate-in fade-in duration-300">
+                                                    <div className="flex items-center gap-2 text-gray-900 font-black uppercase text-xs tracking-widest">
+                                                        <FaClipboardList className="text-[#08B36A]" /> ACTIVE ASSIGNED CASE DETAILS
+                                                    </div>
+                                                    
+                                                    <div className="bg-orange-50/80 border-2 border-orange-200 p-6 rounded-[28px] space-y-4 shadow-sm">
+                                                        <div className="flex justify-between items-start">
+                                                            <div>
+                                                                <p className="text-[10px] font-black text-orange-600 uppercase tracking-wider">Patient / Customer</p>
+                                                                <p className="font-black text-gray-900 text-lg mt-0.5">
+                                                                    {activeCase.patientName}
+                                                                </p>
+                                                                {activeCase.userId?.email && (
+                                                                    <p className="text-xs text-gray-500 font-medium mt-0.5">
+                                                                        Account Email: {activeCase.userId.email}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                            <span className="px-3.5 py-1 bg-white text-orange-700 border border-orange-300 rounded-full text-[11px] font-mono font-black shadow-xs">
+                                                                ID: #{activeCase.bookingId}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Patients List (if available) */}
+                                                        {activeCase.patientsList?.length > 0 && (
+                                                            <div className="bg-white/80 p-3.5 rounded-2xl border border-orange-100/80 space-y-1 text-xs">
+                                                                <p className="text-[10px] font-black text-orange-600 uppercase tracking-wider">Patient Specs</p>
+                                                                {activeCase.patientsList.map((p, idx) => (
+                                                                    <div key={idx} className="flex gap-2 items-center text-gray-800 font-bold">
+                                                                        <span>{p.name}</span>
+                                                                        <span className="text-gray-400">({p.gender}, {p.age} yrs - {p.relation})</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+
+                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-3 border-t border-orange-200/60 text-xs">
+                                                            <div>
+                                                                <p className="text-[10px] font-bold text-gray-400 uppercase">Service Title</p>
+                                                                <p className="font-black text-gray-800 mt-0.5">
+                                                                    {activeCase.serviceTitle}
+                                                                </p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[10px] font-bold text-gray-400 uppercase">Recipient Phone</p>
+                                                                <p className="font-black text-gray-800 mt-0.5">
+                                                                    {activeCase.patientPhone}
+                                                                </p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[10px] font-bold text-gray-400 uppercase">Total Fee</p>
+                                                                <p className="font-black text-[#08B36A] mt-0.5 text-sm">
+                                                                    ₹{activeCase.totalPrice}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        {activeCase.startDate && (
+                                                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-orange-200/60 text-xs">
+                                                                <div>
+                                                                    <p className="text-[10px] font-bold text-gray-400 uppercase">Schedule Date</p>
+                                                                    <p className="font-bold text-gray-800 mt-0.5">{activeCase.startDate}</p>
+                                                                </div>
+                                                                {activeCase.timeSlot && (
+                                                                    <div>
+                                                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Time Slot</p>
+                                                                        <p className="font-bold text-gray-800 mt-0.5">{activeCase.timeSlot}</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {activeCase.fullAddress && (
+                                                            <div className="pt-3 border-t border-orange-200/60 text-xs">
+                                                                <p className="text-[10px] font-bold text-gray-400 uppercase">Service Address</p>
+                                                                <p className="font-semibold text-gray-700 mt-0.5 leading-relaxed">
+                                                                    {activeCase.fullAddress}
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             ) : (
