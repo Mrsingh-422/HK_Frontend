@@ -3,7 +3,7 @@ import React, { useState, useRef } from 'react'
 import { FaLock, FaEye, FaEyeSlash, FaSpinner, FaShieldAlt, FaPhone, FaKey, FaCheckCircle, FaChevronLeft, FaUserCheck, FaUsers, FaUserCircle, FaFlask } from 'react-icons/fa'
 import { toast, Toaster } from 'react-hot-toast'
 import { RecaptchaVerifier, signInWithPhoneNumber, signOut } from 'firebase/auth' 
-import { auth } from '@/lib/firebase' 
+import { auth } from '../../../../../lib/firebase' 
 import LabAPI from '@/app/services/LabVendorAPI'
 
 export default function LabChangePasswordPage() {
