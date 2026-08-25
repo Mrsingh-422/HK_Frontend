@@ -47,29 +47,39 @@ const HospitalDoctorAPI = {
         }
     },
  
-    // 3. Assigned Cases Listing supporting multi-specialist collaboration tabs
-    getCases: async (tabOrType = "active", legacyStatus = "") => {
-        try {
-            const params = {};
-            const standardTabs = ['active', 'pending', 'discharge', 'history', 'bedside', 'pending-bedside'];
-            
-            if (standardTabs.includes(tabOrType)) {
-                params.tab = tabOrType;
-            } else {
-                if (legacyStatus === 'Pending Handovers') params.tab = 'pending';
-                else if (legacyStatus === 'In-Progress') params.tab = 'active';
-                else if (legacyStatus === 'Completed') params.tab = 'history';
-                else params.tab = 'active';
-            }
- 
-            const response = await hospitalDoctorApi.get('/hospital-doctor/panel/cases', {
-                params
-            });
-            return response.data;
-        } catch (error) {
-            return Promise.reject(error.response?.data?.message || "Failed to fetch cases");
+ // Updated getCases method inside HospitalDoctorAPI
+getCases: async (tabOrType = "active", legacyStatus = "") => {
+    try {
+        const params = {};
+        // Added 'transferred-out' and 'unassigned' to the allowed standard tabs list
+        const standardTabs = [
+            'active', 
+            'pending', 
+            'discharge', 
+            'history', 
+            'bedside', 
+            'pending-bedside', 
+            'transferred-out', 
+            'unassigned'
+        ];
+        
+        if (standardTabs.includes(tabOrType)) {
+            params.tab = tabOrType;
+        } else {
+            if (legacyStatus === 'Pending Handovers') params.tab = 'pending';
+            else if (legacyStatus === 'In-Progress') params.tab = 'active';
+            else if (legacyStatus === 'Completed') params.tab = 'history';
+            else params.tab = 'active';
         }
-    },
+
+        const response = await hospitalDoctorApi.get('/hospital-doctor/panel/cases', {
+            params
+        });
+        return response.data;
+    } catch (error) {
+        return Promise.reject(error.response?.data?.message || "Failed to fetch cases");
+    }
+},
  
     // 4. Patient Full Details
     getCaseDetails: async (id) => {
@@ -377,31 +387,112 @@ const HospitalDoctorAPI = {
             return Promise.reject(error.response?.data?.message || "Failed to update password");
         }
     },
-    // SUBMIT DISCHARGE SUMMARY & UPLOAD COMPILED PDF
-   // DELETE this whole block (item #10 in your file):
-submitDischargeSummary: async (body) => {
-    try {
-        let data = body;
-        let appointmentId = body?.appointmentId;
-        if (body && !(body instanceof FormData)) {
-            data = new FormData();
-            Object.keys(body).forEach(key => {
-                data.append(key, body[key]);
+ // =========================================================
+    // DISCHARGE SUMMARY & CLINICAL PROGRESS ROUNDS APIs
+    // =========================================================
+
+    /**
+     * Submit Discharge Summary
+     * Safely serializes nested objects (such as vitals) to prevent [object Object] errors in multipart payloads
+     */
+    submitDischargeSummary: async (body) => {
+        try {
+            let data = body;
+            let appointmentId = body?.appointmentId;
+
+            if (body && !(body instanceof FormData)) {
+                data = new FormData();
+                Object.keys(body).forEach(key => {
+                    if (typeof body[key] === 'object' && body[key] !== null) {
+                        data.append(key, JSON.stringify(body[key]));
+                    } else {
+                        data.append(key, body[key]);
+                    }
+                });
+            } else if (body instanceof FormData) {
+                appointmentId = body.get('appointmentId');
+            }
+
+            const url = appointmentId 
+                ? `/hospital-doctor/panel/case/discharge-summary?appointmentId=${encodeURIComponent(appointmentId)}`
+                : '/hospital-doctor/panel/case/discharge-summary';
+
+            const response = await hospitalDoctorApi.post(url, data, { 
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
             });
-        } else if (body instanceof FormData) {
-            appointmentId = body.get('appointmentId');
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error.response?.data?.message || "Failed to submit discharge summary");
         }
-        const url = appointmentId 
-            ? `/hospital-doctor/panel/case/discharge-summary?appointmentId=${encodeURIComponent(appointmentId)}`
-            : '/hospital-doctor/panel/case/discharge-summary';
-        const response = await hospitalDoctorApi.post(url, data, { 
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        return response.data;
-    } catch (error) {
-        return Promise.reject(error.response?.data?.message || "Failed to submit discharge summary");
+    },
+
+    /**
+     * Submit Attending Progress Rounds Log (with Vitals support)
+     * POST /hospital-doctor/panel/case/clinical-log/add
+     */
+    addClinicalLog: async (body) => {
+        try {
+            const response = await hospitalDoctorApi.post('/hospital-doctor/panel/case/clinical-log/add', body);
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error.response?.data?.message || "Failed to record clinical log");
+        }
+    },
+
+    /**
+     * Start/Add Active Stay Medication
+     * POST /hospital-doctor/panel/case/active-medication/add
+     */
+    addActiveMedication: async (body) => {
+        try {
+            const response = await hospitalDoctorApi.post('/hospital-doctor/panel/case/active-medication/add', body);
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error.response?.data?.message || "Failed to add active medication");
+        }
+    },
+
+    /**
+     * Discontinue Active Stay Medication
+     * PATCH /hospital-doctor/panel/case/active-medication/stop
+     */
+    stopActiveMedication: async (body) => {
+        try {
+            const response = await hospitalDoctorApi.patch('/hospital-doctor/panel/case/active-medication/stop', body);
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error.response?.data?.message || "Failed to stop medication");
+        }
+    },
+
+    /**
+     * Submit Specialist Bedside Consultation Feedback (with Vitals support)
+     * POST /hospital-doctor/panel/case/bedside-feedback
+     */
+    submitBedsideFeedback: async (body) => {
+        try {
+            const response = await hospitalDoctorApi.post('/hospital-doctor/panel/case/bedside-feedback', body);
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error.response?.data?.message || "Failed to submit bedside observation feedback");
+        }
+    },
+
+    /**
+     * Fetch Collaborative Medications Pool
+     * GET /hospital-doctor/panel/case/bedside-medications/:appointmentId
+     */
+    getBedsideMedications: async (appointmentId) => {
+        try {
+            const response = await hospitalDoctorApi.get(`/hospital-doctor/panel/case/bedside-medications/${appointmentId}`);
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error.response?.data?.message || "Failed to fetch bedside medications");
+        }
     }
-},
+
 };
  
 export default HospitalDoctorAPI;

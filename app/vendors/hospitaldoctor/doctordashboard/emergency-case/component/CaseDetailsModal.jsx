@@ -4,10 +4,10 @@ import React from 'react';
 import { 
     FaHeartbeat, FaTimes, FaSpinner, FaStethoscope, FaUser, FaBed, FaPhoneAlt, 
     FaHospital, FaUserPlus, FaFileSignature, FaDollarSign, FaCalendarAlt, 
-    FaTags, FaHome, FaInfoCircle, FaClipboardList, FaClock, FaUserMd
+    FaTags, FaHome, FaInfoCircle, FaClipboardList, FaClock, FaUserMd, FaPlus, FaTrash
 } from 'react-icons/fa';
 
-// Helper to decode logged-in doctor ID safely from auth tokens [3]
+// Safe helper to decode token payload metadata
 const getDoctorIdFromToken = () => {
     if (typeof window === 'undefined') return null;
     try {
@@ -39,7 +39,15 @@ export default function CaseDetailsModal({
     activeStatus,
     onFeedbackClick,
     onStartBedsideShift,
-    onCompleteBedsideShift
+    onCompleteBedsideShift,
+    // Attending Doctor Round Controls
+    isMainDoctorRoundActive,
+    onStartMainDoctorRound,
+    // Stay Medications Event Handlers
+    onAddStayMedicationTrigger,
+    onStopActiveMedication,
+    medicationActionLoading,
+    collaborativeMeds = [] // Staged/Logged specialist recommendations
 }) {
     if (!isOpen) return null;
 
@@ -85,25 +93,26 @@ export default function CaseDetailsModal({
     const isCompleted = caseDetails?.status === 'Completed';
     const isPendingHandover = !!caseDetails?.pendingDoctorId;
 
-    // Isolate logged-in specialist status to preserve shift workflow states correctly [2]
     const currentDoctorId = getDoctorIdFromToken();
+    const isMainDoctor = caseDetails?.doctorId?._id === currentDoctorId || caseDetails?.doctorId === currentDoctorId;
+
     const myBedsideRecord = caseDetails?.bedsideCareTeam?.find(team => {
         const docId = typeof team.doctorId === 'object' && team.doctorId !== null ? team.doctorId._id : team.doctorId;
         return docId === currentDoctorId;
     });
 
-    // Derive actual status, fallback to global list matches if local profile is not mapped [2]
     const bedsideStatus = myBedsideRecord?.status || (caseDetails?.bedsideCareTeam?.find(t => t.status === 'In-Progress' || t.status === 'Accepted')?.status);
     const hasAcceptedShift = bedsideStatus === 'Accepted';
     const hasInProgressShift = bedsideStatus === 'In-Progress';
 
-    // Remove all action buttons for completed or discharged contexts [2]
     const isCompletedOrDischarged = 
         activeStatus === 'Completed' || 
         activeStatus === 'Discharged' || 
         caseDetails?.status === 'Completed' || 
         caseDetails?.status === 'Discharged' || 
         caseDetails?.status === 'Discharge-Pending';
+
+    const stayMedications = caseDetails?.activeMedications || caseDetails?.stayMedications || [];
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-md bg-slate-900/40 transition-opacity">
@@ -204,6 +213,104 @@ export default function CaseDetailsModal({
                                 </div>
                             </div>
 
+                            {/* Attending Doctor Round-by-Round Logs rendering */}
+                            {caseDetails.clinicalLogs && caseDetails.clinicalLogs.length > 0 && (
+                                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                                    <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                        <FaClipboardList className="text-[#08B36A]" /> Attending Clinical Rounds Logs ({caseDetails.clinicalLogs.length})
+                                    </h4>
+                                    <div className="grid grid-cols-1 gap-4">
+                                        {caseDetails.clinicalLogs.map((log, idx) => (
+                                            <div key={log._id || idx} className="p-4 bg-emerald-50/10 border border-emerald-100/30 rounded-xl space-y-2 animate-in fade-in duration-200">
+                                                <div className="flex justify-between items-center text-[10px] text-slate-400 font-extrabold uppercase">
+                                                    <span>Attending Round Logs</span>
+                                                    {log.loggedAt && <span>{formatDateTime(log.loggedAt)}</span>}
+                                                </div>
+                                                <p className="text-xs text-slate-800 font-serif italic">"{log.observation}"</p>
+                                                
+                                                {/* Display rounded vitals logs */}
+                                                {log.vitals && (
+                                                    <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-100/50 text-[10px] text-slate-500 font-semibold">
+                                                        <span>BP: {log.vitals.bp || 'N/A'}</span>
+                                                        <span>Pulse: {log.vitals.pulse ? `${log.vitals.pulse} bpm` : 'N/A'}</span>
+                                                        <span>Temp: {log.vitals.temp ? `${log.vitals.temp} °F` : 'N/A'}</span>
+                                                        <span>SpO2: {log.vitals.spo2 ? `${log.vitals.spo2} %` : 'N/A'}</span>
+                                                    </div>
+                                                )}
+
+                                                <div className="flex gap-4 text-[10px] text-slate-500 font-bold border-t border-dashed border-slate-100 pt-2 mt-1">
+                                                    <span>Condition: <strong className="text-slate-600">{log.patientCondition}</strong></span>
+                                                    <span>Priority Rating: <strong className="text-slate-600">{log.priorityRating}</strong></span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Dynamic In-Patient Stay Medications Chart */}
+                            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                        <FaHospital className="text-[#08B36A]" /> In-Patient Stay Medications Chart ({stayMedications.length})
+                                    </h4>
+                                    {isMainDoctor && !isCompletedOrDischarged && (
+                                        <button
+                                            type="button"
+                                            onClick={onAddStayMedicationTrigger}
+                                            className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-black rounded-lg transition-all flex items-center gap-1"
+                                        >
+                                            <FaPlus size={10} /> Add Stay Medication
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Stay Medications List */}
+                                <div className="space-y-3">
+                                    {stayMedications.length === 0 ? (
+                                        <p className="text-xs text-slate-400 italic font-semibold">No active stay medications configured for this admission.</p>
+                                    ) : (
+                                        <div className="divide-y divide-slate-100 bg-slate-50/50 p-4 border border-slate-100 rounded-xl">
+                                            {stayMedications.map((med, index) => {
+                                                const isActive = med.status === 'Active';
+                                                return (
+                                                    <div key={med._id || index} className="py-3 flex justify-between items-center text-xs animate-in fade-in duration-200">
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-extrabold text-slate-800 text-sm">{med.medicineName || med.name}</span>
+                                                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                                                                    isActive 
+                                                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 animate-pulse' 
+                                                                    : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                                                }`}>
+                                                                    {med.status}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-slate-500 mt-1">Dosage: <strong className="text-slate-700">{med.dosage}</strong> • Frequency: <strong className="text-slate-700">{med.frequency}</strong></p>
+                                                            {med.instructions && <p className="text-slate-400 mt-0.5">Instructions: {med.instructions}</p>}
+                                                            <p className="text-[9px] text-slate-400 mt-1">
+                                                                Started: {formatDateTime(med.startDate || med.createdAt)}
+                                                                {med.stoppedDate && ` | Discontinued: ${formatDateTime(med.stoppedDate)}`}
+                                                            </p>
+                                                        </div>
+                                                        {isActive && isMainDoctor && !isCompletedOrDischarged && (
+                                                            <button
+                                                                onClick={() => onStopActiveMedication(caseDetails._id, med._id)}
+                                                                disabled={medicationActionLoading}
+                                                                className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all flex items-center gap-1 text-[10px] font-bold"
+                                                                title="Discontinue Medication"
+                                                            >
+                                                                <FaTrash /> Discontinue
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
                             {/* Bedside Specialist Care Team rendering */}
                             {caseDetails.bedsideCareTeam && caseDetails.bedsideCareTeam.length > 0 && (
                                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
@@ -213,12 +320,20 @@ export default function CaseDetailsModal({
                                     <div className="grid grid-cols-1 gap-4">
                                         {caseDetails.bedsideCareTeam.map((team, idx) => {
                                             const doc = typeof team.doctorId === 'object' && team.doctorId !== null ? team.doctorId : { name: "Specialist ID: " + team.doctorId };
+                                            const docId = typeof team.doctorId === 'object' && team.doctorId !== null ? team.doctorId._id : team.doctorId;
                                             const feedback = team.specialistFeedback;
+
+                                            const matchingPoolDoc = collaborativeMeds?.find(item => {
+                                                const recordDocId = item.doctor?.id || item.doctor?._id;
+                                                return recordDocId === docId;
+                                            });
+                                            const activeStayMedsPool = matchingPoolDoc?.activeStayRecommendations || [];
+
                                             return (
                                                 <div key={idx} className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-3">
                                                     <div className="flex justify-between items-start">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-600 flex items-center justify-center font-bold text-sm">
+                                                            <div className="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-655 flex items-center justify-center font-bold text-sm">
                                                                 {doc.name?.[0]?.toUpperCase() || <FaUserMd />}
                                                             </div>
                                                             <div>
@@ -245,35 +360,84 @@ export default function CaseDetailsModal({
                                                         {team.patientConditionAtRequest && <p><strong>Condition at Request:</strong> {team.patientConditionAtRequest}</p>}
                                                     </div>
 
-                                                    {/* Rendering of specialistFeedback as an array of observations [2] */}
+                                                    {/* Observations rendered from dynamic arrays with logged vitals */}
                                                     {feedback && Array.isArray(feedback) && feedback.length > 0 && (
                                                         <div className="text-xs text-slate-700 border-t border-dashed border-slate-200 pt-3 space-y-3">
                                                             <span className="font-extrabold text-slate-800 block flex items-center gap-1.5">
                                                                 <FaClipboardList className="text-indigo-600" /> Specialist Clinical Logs ({feedback.length} Checkups)
                                                             </span>
                                                             <div className="space-y-2">
-                                                                {feedback.map((item, fIdx) => (
-                                                                    <div key={item._id || fIdx} className="bg-indigo-50/20 p-3 rounded-xl border border-indigo-100/50 space-y-1.5 animate-in fade-in duration-200">
-                                                                        <p className="italic text-slate-800 font-serif">"{item.observation}"</p>
-                                                                        <div className="flex flex-wrap justify-between items-center text-[10px] text-slate-400 border-t border-indigo-50/50 pt-1.5 mt-1">
-                                                                            <span>Condition: <strong className="text-slate-600">{item.patientCondition}</strong></span>
-                                                                            <span>Priority: <strong className="text-slate-600">{item.priorityRating}</strong></span>
-                                                                            {item.submittedAt && (
-                                                                                <span>Checked: <strong className="text-slate-600">{formatDateTime(item.submittedAt)}</strong></span>
+                                                                {feedback.map((item, fIdx) => {
+                                                                    // Extract vitals safely using fallback mapping matching both arrays and parents
+                                                                    const checkupVitals = item.vitals || team.vitals || null;
+                                                                    return (
+                                                                        <div key={item._id || fIdx} className="bg-indigo-50/20 p-3 rounded-xl border border-indigo-100/50 space-y-2 animate-in fade-in duration-200">
+                                                                            <p className="italic text-slate-800 font-serif font-semibold">"{item.observation}"</p>
+                                                                            
+                                                                            {checkupVitals && (
+                                                                                <div className="grid grid-cols-4 gap-2 pt-1 border-t border-indigo-100/30 text-[9px] text-slate-500 font-bold uppercase tracking-wide">
+                                                                                    <span>BP: {checkupVitals.bp || 'N/A'}</span>
+                                                                                    <span>Pulse: {checkupVitals.pulse ? `${checkupVitals.pulse} bpm` : 'N/A'}</span>
+                                                                                    <span>Temp: {checkupVitals.temp ? `${checkupVitals.temp} °F` : 'N/A'}</span>
+                                                                                    <span>SpO2: {checkupVitals.spo2 ? `${checkupVitals.spo2} %` : 'N/A'}</span>
+                                                                                </div>
                                                                             )}
+
+                                                                            <div className="flex flex-wrap justify-between items-center text-[10px] text-slate-400 border-t border-indigo-50/50 pt-1.5 mt-1 font-sans">
+                                                                                <span>Condition: <strong className="text-slate-655">{item.patientCondition}</strong></span>
+                                                                                <span>Priority: <strong className="text-slate-655">{item.priorityRating}</strong></span>
+                                                                                {item.submittedAt && (
+                                                                                    <span>Checked: <strong className="text-slate-655">{formatDateTime(item.submittedAt)}</strong></span>
+                                                                                )}
+                                                                            </div>
                                                                         </div>
-                                                                    </div>
-                                                                ))}
+                                                                    );
+                                                                })}
                                                             </div>
                                                         </div>
                                                     )}
 
-                                                    {/* Legacy fallback support if specialistFeedback is a single object */}
+                                                    {/* Recommended Active Stay medications */}
+                                                    {activeStayMedsPool.length > 0 && (
+                                                        <div className="mt-2 p-2.5 bg-white rounded-xl border border-slate-150 space-y-1">
+                                                            <span className="text-[9px] font-black text-indigo-700 uppercase tracking-wider block">Recommended Stay Medications</span>
+                                                            <div className="divide-y divide-slate-100">
+                                                                {activeStayMedsPool.map((med, mIdx) => {
+                                                                    const dateToFormat = med.addedAt || med.createdAt;
+                                                                    return (
+                                                                        <div key={mIdx} className="py-2 flex justify-between items-center text-[10px] text-slate-700 font-sans">
+                                                                            <div>
+                                                                                <span className="font-extrabold text-slate-850 block">{med.name}</span>
+                                                                                {dateToFormat && (
+                                                                                    <span className="text-[8px] text-slate-400 block font-medium mt-0.5">
+                                                                                        Logged: {formatDateTime(dateToFormat)}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                            <span className="text-slate-500 font-medium whitespace-nowrap ml-2">{med.dosage} • {med.frequency} ({med.duration})</span>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Legacy fallback single object (Vitals support added) */}
                                                     {feedback && !Array.isArray(feedback) && feedback.observation && (
                                                         <div className="text-xs text-slate-700 border-t border-dashed border-slate-200 pt-3 space-y-2">
                                                             <span className="font-extrabold text-slate-850 block">Specialist Clinical Feedback:</span>
-                                                            <p className="italic bg-indigo-50/30 p-3 rounded-lg border border-indigo-100 font-serif">"{feedback.observation}"</p>
-                                                            <div className="flex justify-between text-[10px] text-slate-400">
+                                                            <p className="italic bg-indigo-50/30 p-3 rounded-lg border border-indigo-100 font-serif font-semibold">"{feedback.observation}"</p>
+                                                            
+                                                            {(feedback.vitals || team.vitals) && (
+                                                                <div className="grid grid-cols-4 gap-2 py-1.5 border-t border-b border-indigo-100/30 text-[9px] text-slate-500 font-bold uppercase tracking-wide">
+                                                                    <span>BP: {(feedback.vitals || team.vitals).bp || 'N/A'}</span>
+                                                                    <span>Pulse: {(feedback.vitals || team.vitals).pulse ? `${(feedback.vitals || team.vitals).pulse} bpm` : 'N/A'}</span>
+                                                                    <span>Temp: {(feedback.vitals || team.vitals).temp ? `${(feedback.vitals || team.vitals).temp} °F` : 'N/A'}</span>
+                                                                    <span>SpO2: {(feedback.vitals || team.vitals).spo2 ? `${(feedback.vitals || team.vitals).spo2} %` : 'N/A'}</span>
+                                                                </div>
+                                                            )}
+                                                            
+                                                            <div className="flex justify-between text-[10px] text-slate-400 font-sans">
                                                                 <span>Condition: <strong className="text-slate-600">{feedback.patientCondition}</strong></span>
                                                                 <span>Priority Rating: <strong className="text-slate-600">{feedback.priorityRating}</strong></span>
                                                                 {feedback.submittedAt && (
@@ -289,14 +453,13 @@ export default function CaseDetailsModal({
                                 </div>
                             )}
 
-                            {/* Dynamic Prescribed Medications Ledger - Visible to main doctor [2] */}
+                            {/* Medications Ledger */}
                             {((caseDetails.prescriptions && caseDetails.prescriptions.length > 0) || (caseDetails.prescriptionDetails?.medicines && caseDetails.prescriptionDetails.medicines.length > 0)) && (
                                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                                     <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                                         <FaClipboardList className="text-orange-500" /> Prescribed Medications Ledger
                                     </h4>
                                     <div className="space-y-3">
-                                        {/* Render complete lists of prescriptions logged on this case */}
                                         {caseDetails.prescriptions && caseDetails.prescriptions.map((pres, idx) => (
                                             <div key={idx} className="p-4 bg-orange-50/10 border border-orange-100/50 rounded-2xl space-y-2">
                                                 <div className="flex justify-between text-[10px] text-slate-400 font-extrabold uppercase">
@@ -322,7 +485,6 @@ export default function CaseDetailsModal({
                                             </div>
                                         ))}
 
-                                        {/* Fallback to show single case level flat prescription payload */}
                                         {caseDetails.prescriptionDetails?.medicines && (
                                             <div className="p-4 bg-orange-50/10 border border-orange-100/50 rounded-2xl space-y-2">
                                                 <div className="flex justify-between text-[10px] text-slate-400 font-extrabold uppercase">
@@ -381,7 +543,7 @@ export default function CaseDetailsModal({
                                 </div>
                             </div>
 
-                            {/* Chronological Treatment History Timeline */}
+                            {/* Clinical History Timeline */}
                             {caseDetails.treatmentHistory && caseDetails.treatmentHistory.length > 0 && (
                                 <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
                                     <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -424,104 +586,11 @@ export default function CaseDetailsModal({
                                 </div>
                             )}
 
-                            {/* Allocated Special Services */}
-                            {caseDetails.specialServices && caseDetails.specialServices.length > 0 && (
-                                <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
-                                    <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                        <FaClipboardList className="text-emerald-500" /> Allocated Special Services
-                                    </h4>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {caseDetails.specialServices.map((srv) => (
-                                            <div key={srv._id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex justify-between items-center text-sm">
-                                                <span className="font-bold text-slate-700">{srv.serviceName}</span>
-                                                <span className="font-extrabold text-emerald-600">₹{srv.price}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Pricing & Bill Breakdown Card */}
-                            {caseDetails.pricingBreakdown && (
-                                <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-                                    <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
-                                        <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                            <FaDollarSign className="text-slate-400" /> Account ledger & financial values
-                                        </h4>
-                                        <span className={`px-2.5 py-1 text-xs font-black rounded-full border ${
-                                            caseDetails.paymentStatus === 'Paid' 
-                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                                            : 'bg-amber-50 text-amber-700 border-amber-100'
-                                        }`}>
-                                            Payment: {caseDetails.paymentStatus || "Pending"}
-                                        </span>
-                                    </div>
-                                    <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 border-b border-slate-50">
-                                        <div>
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Base Treatment Fee</span>
-                                            <span className="text-lg font-bold text-slate-800">₹{caseDetails.pricingBreakdown.baseFee}</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Extra Charges</span>
-                                            <span className="text-lg font-bold text-slate-800">₹{caseDetails.pricingBreakdown.extraCharges}</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Subtotal</span>
-                                            <span className="text-lg font-bold text-slate-800">₹{caseDetails.pricingBreakdown.subtotal}</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Amount Paid</span>
-                                            <span className="text-lg font-black text-emerald-600">₹{caseDetails.totalAmount}</span>
-                                        </div>
-                                    </div>
-
-                                    {caseDetails.couponDetails && caseDetails.couponDetails.couponCode && (
-                                        <div className="px-6 py-3 bg-amber-50/40 border-t border-slate-50 flex items-center justify-between text-xs text-amber-800 font-semibold">
-                                            <span className="flex items-center gap-1.5">
-                                                <FaTags className="text-amber-500" /> 
-                                                Code Applied: <strong>{caseDetails.couponDetails.couponCode}</strong>
-                                            </span>
-                                            <span>Discount Claimed: -₹{caseDetails.couponDetails.discountValue}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Contact & Registration Summary Card */}
-                            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-                                <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/50">
-                                    <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                        <FaInfoCircle className="text-slate-400" /> Primary Record Coordinates
-                                    </h4>
-                                </div>
-                                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-sm font-semibold text-slate-600">
-                                    <div className="flex items-center gap-3">
-                                        <FaPhoneAlt className="text-slate-400 text-base" />
-                                        <span>Primary Phone: {caseDetails.userId?.phone || "N/A"}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <FaHospital className="text-slate-400 text-base" />
-                                        <span>Allotted Bed ID: {
-                                            typeof caseDetails.bedId === 'object' && caseDetails.bedId !== null
-                                            ? (caseDetails.bedId._id || "Unassigned")
-                                            : (caseDetails.bedId || "Unassigned")
-                                        }</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <FaHome className="text-slate-400 text-base" />
-                                        <span>Address Registered: {caseDetails.address?.addressType || "Home Address"}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <FaCalendarAlt className="text-slate-400 text-base" />
-                                        <span>Initial Appointment: {formatDate(caseDetails.appointmentDate)} ({caseDetails.appointmentTime})</span>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     )}
                 </div>
 
-                {/* Conditional Modal Action Footer */}
+                {/* Footer Actions Panel */}
                 {!isCompleted && (
                     <div className="p-6 sm:px-8 border-t border-slate-100 bg-white flex flex-col sm:flex-row justify-end gap-3 sticky bottom-0 z-10 font-sans">
                         {isCompletedOrDischarged ? (
@@ -542,7 +611,7 @@ export default function CaseDetailsModal({
                                     }}
                                     className="px-8 py-3.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-2xl transition-colors text-sm flex items-center justify-center gap-2"
                                 >
-                                    Reject
+                                    Reject Handover
                                 </button>
                                 <button 
                                     onClick={() => {
@@ -551,9 +620,44 @@ export default function CaseDetailsModal({
                                     }}
                                     className="px-8 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-md transition-colors text-sm flex items-center justify-center gap-2"
                                 >
-                                    Accept
+                                    Accept Handover
                                 </button>
                             </>
+                        ) : isMainDoctor ? (
+                            /* Primary Attending Attestation Controls */
+                            <div className="flex flex-wrap gap-3 w-full sm:w-auto justify-end">
+                                {!isMainDoctorRoundActive ? (
+                                    <button 
+                                        onClick={() => {
+                                            if (onStartMainDoctorRound) onStartMainDoctorRound(caseDetails._id);
+                                        }}
+                                        className="px-6 py-3.5 bg-[#08B36A] hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-md transition-colors text-sm flex items-center justify-center gap-2"
+                                    >
+                                        <FaClock /> Start Round Shift
+                                    </button>
+                                ) : (
+                                    <button 
+                                        onClick={() => {
+                                            if (onFeedbackClick) onFeedbackClick();
+                                        }}
+                                        className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-md transition-colors text-sm flex items-center justify-center gap-2"
+                                    >
+                                        <FaClipboardList /> Submit Observation
+                                    </button>
+                                )}
+                                <button 
+                                    onClick={onAddDoctorClick} 
+                                    className="px-6 py-3.5 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold rounded-2xl transition-colors text-sm flex items-center justify-center gap-2"
+                                >
+                                    <FaUserPlus /> Initiate Handover
+                                </button>
+                                <button 
+                                    onClick={onDischargeClick}
+                                    className="px-6 py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl shadow-md transition-colors text-sm flex items-center justify-center gap-2"
+                                >
+                                    <FaFileSignature /> Discharge Patient
+                                </button>
+                            </div>
                         ) : activeStatus === 'Pending Bedside' ? (
                             <div className="flex gap-3 w-full sm:w-auto">
                                 <button 
@@ -577,6 +681,7 @@ export default function CaseDetailsModal({
                                 </button>
                             </div>
                         ) : activeStatus === 'Active Bedside' ? (
+                            /* Bedside Specialist Action Footers */
                             <div className="flex gap-3 w-full sm:w-auto">
                                 {hasAcceptedShift ? (
                                     <button 
@@ -593,16 +698,16 @@ export default function CaseDetailsModal({
                                             onClick={() => {
                                                 if (onFeedbackClick) onFeedbackClick();
                                             }}
-                                            className="w-full sm:w-auto px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-md transition-all text-sm flex items-center justify-center gap-2"
+                                            className="w-full sm:w-auto px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm flex items-center justify-center gap-2"
                                         >
-                                            <FaClipboardList />
-                                            Submit Observation
+                                            <FaClipboardList /> Submit Observation
                                         </button>
+                                        {/* Wires 'Complete Shift' to request opening PrescriptionModal to write checkout meds */}
                                         <button 
                                             onClick={() => {
                                                 if (onCompleteBedsideShift) onCompleteBedsideShift(caseDetails._id);
                                             }}
-                                            className="w-full sm:w-auto px-6 py-3.5 bg-slate-900 hover:bg-slate-955 text-white font-bold rounded-2xl shadow-md transition-all text-sm flex items-center justify-center gap-2"
+                                            className="w-full sm:w-auto px-6 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl shadow-md transition-all text-sm flex items-center justify-center gap-2"
                                         >
                                             Complete Shift
                                         </button>
@@ -614,22 +719,12 @@ export default function CaseDetailsModal({
                                 )}
                             </div>
                         ) : (
-                            <>
-                                <button 
-                                    onClick={onAddDoctorClick} 
-                                    className="px-8 py-3.5 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold rounded-2xl transition-colors text-sm flex items-center justify-center gap-2"
-                                >
-                                    <FaUserPlus />
-                                    Initiate Handover
-                                </button>
-                                <button 
-                                    onClick={onDischargeClick}
-                                    className="px-8 py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl shadow-md transition-colors text-sm flex items-center justify-center gap-2"
-                                >
-                                    <FaFileSignature />
-                                    Discharge Patient
-                                </button>
-                            </>
+                            <button 
+                                onClick={onClose}
+                                className="px-8 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition-colors text-sm"
+                            >
+                                Close
+                            </button>
                         )}
                     </div>
                 )}

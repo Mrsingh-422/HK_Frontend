@@ -662,7 +662,244 @@ const HospitalAPI = {
     });
     return response.data;
   },
+// Add this inside your HospitalAPI service definition
+ // REJECT ADMISSION API
+  // ==========================================
+  rejectAdmission: async (appointmentId, reason) => {
+    try {
+      // PATCH /hospital/doctor/appointments/reject/:id
+      const response = await hospitalVendorApi.patch(`/hospital/doctor/appointments/reject/${appointmentId}`, { reason });
+      return response.data;
+    } catch (error) {
+      console.error("Error executing rejectAdmission API:", error);
+      return error.response?.data || { success: false, message: error.message };
+    }
+  },
+   // New API Dispatch Synchronization Route
+  dispatchAmbulance: async (data) => {
+    try {
+      const response = await hospitalVendorApi.post('/hospital/panel/admissions/dispatch-ambulance', data);
+      return response.data;
+    } catch (error) {
+      return { success: false, message: error.response?.data?.message || "Failed to dispatch ambulance" };
+    }
+  },
+// Add this inside your HospitalAPI object in HospitalAPI.js
+transferBed: async (data) => {
+  try {
+    // POST /hospital/panel/admissions/transfer-bed
+    const response = await hospitalVendorApi.post('/hospital/panel/admissions/transfer-bed', data);
+    return response.data;
+  } catch (error) {
+    console.error("Error executing transferBed API:", error);
+    return { success: false, message: error.response?.data?.message || "Failed to complete bed transfer" };
+  }
+},
 
+ /**
+   * Fetch Tracked Cases List
+   * GET /hospital/panel/cases/track-list?page=1
+   */
+  getTrackedCases: async (page = 1) => {
+    try {
+      const response = await hospitalVendorApi.get(`/hospital/panel/cases/track-list?page=${page}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error executing getTrackedCases API:", error);
+      return { success: false, message: error.response?.data?.message || "Failed to fetch tracked cases" };
+    }
+  },
 
-}
+  /**
+   * Fetch Unified "Super Details" Case File
+   * GET /hospital/panel/cases/track-details/:appointmentId
+   */
+  getTrackedCaseDetails: async (appointmentId) => {
+    try {
+      const response = await hospitalVendorApi.get(`/hospital/panel/cases/track-details/${appointmentId}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error executing getTrackedCaseDetails API:", error);
+      return { success: false, message: error.response?.data?.message || "Failed to fetch tracked case details" };
+    }
+  },
+
+  // ==========================================
+  // DISCHARGE AMBULANCE ADD-ON APIs
+  // ==========================================
+
+  /**
+   * Fetch available ambulances for discharge drop-off
+   * GET /hospital/panel/discharge/available-ambulances
+   */
+  getAvailableDischargeAmbulances: async () => {
+    try {
+      const response = await hospitalVendorApi.get('/hospital/panel/discharge/available-ambulances');
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching available discharge ambulances:", error);
+      return { success: false, message: error.response?.data?.message || "Failed to load drop-off ambulances" };
+    }
+  },
+
+  /**
+   * Calculate distance and dynamic surge rates
+   * POST /hospital/panel/discharge/calculate-fare
+   */
+  calculateDischargeFare: async (data) => {
+    try {
+      const response = await hospitalVendorApi.post('/hospital/panel/discharge/calculate-fare', data);
+      return response.data;
+    } catch (error) {
+      console.error("Error calculating discharge transport fare:", error);
+      return { success: false, message: error.response?.data?.message || "Failed to calculate transport fare" };
+    }
+  },
+
+  /**
+   * Confirm and dispatch ambulance drop-off (Bill Merger)
+   * POST /hospital/panel/discharge/dispatch-ambulance
+   */
+  dispatchDischargeAmbulance: async (data) => {
+    try {
+      const response = await hospitalVendorApi.post('/hospital/panel/discharge/dispatch-ambulance', data);
+      return response.data;
+    } catch (error) {
+      console.error("Error dispatching discharge ambulance:", error);
+      return { success: false, message: error.response?.data?.message || "Failed to dispatch discharge transport" };
+    }
+  },
+
+  /**
+   * Cancel discharge ambulance drop-off add-on
+   * POST /hospital/panel/discharge/cancel-ambulance
+   */
+  cancelDischargeAmbulance: async (appointmentId) => {
+    try {
+      const response = await hospitalVendorApi.post('/hospital/panel/discharge/cancel-ambulance', { appointmentId });
+      return response.data;
+    } catch (error) {
+      console.error("Error cancelling discharge ambulance add-on:", error);
+      return { success: false, message: error.response?.data?.message || "Failed to cancel transport add-on" };
+    }
+  },
+
+  // ==========================================
+  // INTER-HOSPITAL REFERRAL APIs
+  // ==========================================
+
+  /**
+   * Fetch destination referral hospitals
+   * GET /hospital/panel/referrals/nearby-hospitals?search=
+   */
+  getNearbyHospitals: async (search = "") => {
+    try {
+      const response = await hospitalVendorApi.get(`/hospital/panel/referrals/nearby-hospitals?search=${search}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching nearby hospitals:", error);
+      return { success: false, message: error.response?.data?.message || "Failed to load nearby facilities" };
+    }
+  },
+
+  /**
+   * Book inter-hospital patient referral shift
+   * POST /hospital/panel/referrals/book-transfer
+   */
+  bookReferralTransfer: async (payload) => {
+    try {
+      const response = await hospitalVendorApi.post('/hospital/panel/referrals/book-transfer', payload);
+      return response.data;
+    } catch (error) {
+      console.error("Error booking referral transfer:", error);
+      return { success: false, message: error.response?.data?.message || "Failed to execute referral booking" };
+    }
+  },
+   /**
+   * Book inter-hospital patient referral shift
+   * POST /hospital/panel/referrals/book-transfer
+   */
+  bookReferralTransfer: async (payload) => {
+    try {
+      const response = await hospitalVendorApi.post('/hospital/panel/referrals/book-transfer', payload);
+      return response.data;
+    } catch (error) {
+      console.error("Error booking referral transfer:", error);
+      return { success: false, message: error.response?.data?.message || "Failed to execute referral booking" };
+    }
+  },
+
+   // ==========================================
+  // HEALTH INSURANCE (TPA DESK) APIs
+  // ==========================================
+
+  /**
+   * 1. Get Patients Insurance Directory (List View)
+   * @param {Object} params - { tab, page, limit, search }
+   */
+  getPatientsDirectory: async (params = {}) => {
+    try {
+      const response = await hospitalVendorApi.get('/hospital/panel/insurance/patients', { params });
+      return response.data;
+    } catch (error) {
+      return { success: false, message: error.response?.data?.message || error.message };
+    }
+  },
+
+  /**
+   * 2. Get Master Dropdowns Data
+   */
+  getMasterDropdownData: async () => {
+    try {
+      const response = await hospitalVendorApi.get('/hospital/panel/insurance/master-data');
+      return response.data;
+    } catch (error) {
+      return { success: false, message: error.response?.data?.message || error.message };
+    }
+  },
+
+  /**
+   * 3. Save / Update Patient Insurance Details (Dual-Side Multipart Upload)
+   * @param {string} patientUserId - Selected patient's profile ID
+   * @param {FormData} formData - Multipart Form-Data object
+   */
+  saveInsuranceDetails: async (patientUserId, formData) => {
+    try {
+      const response = await hospitalVendorApi.put(
+        `/hospital/panel/insurance/save/${patientUserId}`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      return { success: false, message: error.response?.data?.message || error.message };
+    }
+  },
+
+  /**
+   * 4. Upload TPA Approval Letter PDF & Auto-Confirm Admission
+   * @param {string} appointmentId - Active appointment's reference ID
+   * @param {FormData} formData - Multipart Form-Data object containing 'approvalLetterPdf'
+   */
+  uploadApprovalLetter: async (appointmentId, formData) => {
+    try {
+      const response = await hospitalVendorApi.put(
+        `/hospital/panel/insurance/upload-approval-letter/${appointmentId}`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      return { success: false, message: error.response?.data?.message || error.message };
+    }
+  }
+};
 export default HospitalAPI;

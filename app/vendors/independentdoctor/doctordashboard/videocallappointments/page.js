@@ -11,7 +11,9 @@ import {
     FaStethoscope,
     FaWallet,
     FaPaperPlane,
-    FaFileMedical
+    FaFileMedical,
+    FaLock,
+    FaCheck
 } from 'react-icons/fa';
 import { IoCloseOutline } from "react-icons/io5";
 import DoctorAPI from '@/app/services/DoctorAPI';
@@ -54,6 +56,12 @@ function Page() {
     const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
     const [isPreviewTemplateOpen, setIsPreviewTemplateOpen] = useState(false);
     const [completedPrescriptionData, setCompletedPrescriptionData] = useState(null);
+
+    // Call End Verification Handshake States
+    const [isCallEndOtpModalOpen, setIsCallEndOtpModalOpen] = useState(false);
+    const [callEndOtpCode, setCallEndOtpCode] = useState('');
+    const [callEndOtpLoading, setCallEndOtpLoading] = useState(false);
+    const [callEndDevOtp, setCallEndDevOtp] = useState('');
 
     const chatEndRef = useRef(null);
     const socketRef = useRef(null);
@@ -142,7 +150,7 @@ function Page() {
     };
 
     const handleStartCall = async (e, appointment, type) => {
-        e.stopPropagation();
+        if (e) e.stopPropagation();
         try {
             setSubmitting(true);
             setCallType(type);
@@ -169,6 +177,89 @@ function Page() {
         } finally {
             setSubmitting(false);
         }
+    };
+
+    // 1. Instantly Open Handshake Modal & Trigger OTP Dispatch in Background
+    const handleInitiateCallEndHandshake = () => {
+        if (!selectedAppointment) return;
+        setIsCallEndOtpModalOpen(true);
+        setCallEndOtpLoading(true);
+        sendOtpForCallEnd();
+    };
+
+    const sendOtpForCallEnd = async () => {
+        try {
+            const apptId = selectedAppointment._id || selectedAppointment.appointmentId;
+            console.log("Requesting termination OTP for Booking ID:", selectedAppointment.bookingId);
+            
+            const res = await DoctorAPI.sendCompletionOtp(apptId);
+            if (res && res.success) {
+                toast.success(res.message || "Termination OTP successfully sent to patient.");
+                if (res.dev_otp) {
+                    setCallEndDevOtp(res.dev_otp);
+                }
+            } else {
+                toast.error(res?.message || "Could not request completion token.");
+            }
+        } catch (err) {
+            console.error("End call handshake trigger error:", err);
+            toast.error("Error initiating dynamic termination handshake.");
+        } finally {
+            setCallEndOtpLoading(false);
+        }
+    };
+
+    // 2. Verify Handshake OTP to Complete Handoff & End Active Call
+    const handleVerifyCallEndOtp = async () => {
+        if (!callEndOtpCode.trim()) return toast.error("Please enter dynamic 4-digit OTP code");
+        try {
+            setCallEndOtpLoading(true);
+            const apptId = selectedAppointment?._id || selectedAppointment?.appointmentId;
+            console.log(`Verifying Call End OTP [${callEndOtpCode.trim()}] for Appointment ID:`, apptId);
+            
+            const res = await DoctorAPI.verifyCompletionOtp(apptId, callEndOtpCode.trim());
+            if (res && res.success) {
+                toast.success("Verification successful. Hanging up...");
+                setIsVideoModalOpen(false);
+                setActiveCallId(null);
+                setIsCallEndOtpModalOpen(false);
+                setCallEndOtpCode('');
+                setCallEndDevOtp('');
+
+                // Append handshake verification flags to active appointment state
+                setSelectedAppointment(prev => ({
+                    ...prev,
+                    isOtpVerified: true,
+                    otpVerified: true
+                }));
+
+                // Update matching item in master appointments state list to unlock table row button
+                setAppointments(prevAppts => 
+                    prevAppts.map(appt => 
+                        appt.appointmentId === apptId
+                            ? { ...appt, isOtpVerified: true, otpVerified: true }
+                            : appt
+                    )
+                );
+
+                // Auto-launch Prescription Form Modal immediately
+                setIsPrescriptionModalOpen(true);
+            } else {
+                toast.error(res?.message || "Invalid call-end handshake OTP.");
+            }
+        } catch (err) {
+            console.error("End call OTP verification error:", err);
+            toast.error("Failed to verify call termination token.");
+        } finally {
+            setCallEndOtpLoading(false);
+        }
+    };
+
+    const handleCancelCallEnd = () => {
+        setIsCallEndOtpModalOpen(false);
+        setCallEndOtpCode('');
+        setCallEndDevOtp('');
+        toast.error("Handshake cancelled. Call session resumed.");
     };
 
     const handleOpenChat = async (e, appointment) => {
@@ -204,8 +295,17 @@ function Page() {
     const handlePrescriptionSuccess = (stagedPayload) => {
         setIsPrescriptionModalOpen(false);
 
+        const resolvedUserId = 
+            stagedPayload.userId || 
+            stagedPayload.patientId || 
+            selectedAppointment?.patientId || 
+            selectedAppointment?.userAccount?._id || 
+            "";
+
         const formattedPreviewPayload = {
             appointmentId: selectedAppointment?.appointmentId,
+            patientId: resolvedUserId,
+            userId: resolvedUserId,
             patientInfo: {
                 name: selectedAppointment?.patientName || "N/A",
                 age: selectedAppointment?.patientAge || "N/A",
@@ -234,7 +334,18 @@ function Page() {
             advisedInvestigations: stagedPayload.advisedInvestigations || "",
             adviceGiven: stagedPayload.adviceGiven || "",
             specialInstructions: stagedPayload.specialInstructions || "",
-            nextAppointment: stagedPayload.nextAppointment || ""
+            nextAppointment: stagedPayload.nextAppointment || "",
+            // Preserve Vitals in the preview state payload
+            vitals: {
+                bp: stagedPayload.bp || "",
+                pulse: stagedPayload.pulse || "",
+                temp: stagedPayload.temp || "",
+                spo2: stagedPayload.spo2 || ""
+            },
+            bp: stagedPayload.bp || "",
+            pulse: stagedPayload.pulse || "",
+            temp: stagedPayload.temp || "",
+            spo2: stagedPayload.spo2 || ""
         };
 
         setCompletedPrescriptionData(formattedPreviewPayload);
@@ -365,7 +476,9 @@ function Page() {
                                                             <button disabled={submitting} onClick={(e) => handleOpenChat(e, appt)} className="p-3.5 rounded-2xl text-purple-600 bg-purple-50 hover:bg-purple-100 transition-all active:scale-90 hover:scale-105">
                                                                 <FaComment size={15} />
                                                             </button>
-                                                            {appt.status === "In-Progress" && (
+                                                            
+                                                            {/* Prescription Button: Strictly visible only if call-completion OTP has been successfully verified */}
+                                                            {appt.status === "In-Progress" && (appt.isOtpVerified || appt.otpVerified) && (
                                                                 <button
                                                                     disabled={submitting}
                                                                     onClick={() => {
@@ -393,6 +506,7 @@ function Page() {
                 )}
             </div>
 
+            {/* CHAT MODAL WINDOW */}
             {isChatModalOpen && selectedAppointment && (
                 <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-[120] p-0 md:p-4 backdrop-blur-sm animate-fade-in">
                     <div className="bg-white w-full h-full md:h-[650px] md:max-h-[85vh] md:max-w-xl flex flex-col overflow-hidden relative md:rounded-[2.5rem] shadow-2xl">
@@ -409,9 +523,22 @@ function Page() {
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Booking ID: {selectedAppointment.bookingId}</p>
                                 </div>
                             </div>
-                            <button onClick={() => setIsChatModalOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm border border-gray-50 text-slate-400 hover:text-red-500 transition-colors">
-                                <IoCloseOutline size={24} />
-                            </button>
+                            
+                            <div className="flex items-center gap-2">
+                                {/* End Chat Button triggering the call end OTP Handshake */}
+                                <button 
+                                    onClick={() => {
+                                        setIsChatModalOpen(false);
+                                        handleInitiateCallEndHandshake();
+                                    }}
+                                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-sm shrink-0"
+                                >
+                                    End Chat
+                                </button>
+                                <button onClick={() => setIsChatModalOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm border border-gray-50 text-slate-400 hover:text-red-500 transition-colors">
+                                    <IoCloseOutline size={24} />
+                                </button>
+                            </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#f8fafc]">
@@ -474,17 +601,99 @@ function Page() {
                 onCompleteCase={handleCompleteCase}
             />
 
+            {/* INTERACTIVE CALL CLOSURE OTP HANDSHAKE OVERLAY DIALOG */}
+            {isCallEndOtpModalOpen && selectedAppointment && (
+                <div className="fixed inset-0 bg-slate-955/60 backdrop-blur-sm flex items-center justify-center z-[260] p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl border border-slate-100 space-y-6">
+                        <div className="text-center space-y-2">
+                            <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 mx-auto">
+                                <FaLock size={20} />
+                            </div>
+                            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Handshake Authentication</h3>
+                            <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+                                Enter the dynamic 4-digit code shared by the patient to authorize call termination and complete the consultation.
+                            </p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <input
+                                type="text"
+                                maxLength={4}
+                                placeholder="Enter 4-Digit OTP"
+                                value={callEndOtpCode}
+                                onChange={(e) => setCallEndOtpCode(e.target.value)}
+                                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-lg text-slate-800 tracking-widest text-center outline-none focus:bg-white focus:border-amber-500 focus:ring-4 focus:ring-amber-50 transition-all"
+                            />
+                            {callEndDevOtp && (
+                                <p className="text-center text-[10px] text-slate-400 font-extrabold uppercase">
+                                    Sandbox Bypass Code: <span className="text-[#08B36A] tracking-widest">{callEndDevOtp}</span>
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={handleCancelCallEnd}
+                                className="flex-1 py-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 text-xs font-black uppercase tracking-wider rounded-xl transition-all"
+                            >
+                                Resume Call
+                            </button>
+                            <button
+                                type="button"
+                                disabled={callEndOtpLoading}
+                                onClick={handleVerifyCallEndOtp}
+                                className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-200 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-100 flex items-center justify-center gap-2"
+                            >
+                                {callEndOtpLoading ? <FaSpinner className="animate-spin" size={12} /> : <FaCheck />}
+                                Verify & End
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* VIDEO CALL MODAL WITH OVERLAY ACTION CONTROLLERS */}
             {isVideoModalOpen && (
-                <VideoCallModal
-                    callId={activeCallId}
-                    callerName="Doctor"
-                    role="caller"
-                    callType={callType}
-                    onClose={() => {
-                        setIsVideoModalOpen(false);
-                        setActiveCallId(null);
-                    }}
-                />
+                <div className="fixed inset-0 z-[200]">
+                    <VideoCallModal
+                        callId={activeCallId}
+                        callerName="Doctor"
+                        role="caller"
+                        callType={callType}
+                        onClose={handleInitiateCallEndHandshake}
+                    />
+                    
+                    {/* Floating Controls Overlay over the Call Interface */}
+                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[210] flex gap-4 bg-slate-900/90 px-6 py-3.5 rounded-full shadow-2xl border border-slate-700/50 backdrop-blur-md">
+                        {/* Open Live Chat Button */}
+                        <button 
+                            onClick={(e) => handleOpenChat(e, selectedAppointment)}
+                            className="flex items-center justify-center w-12 h-12 bg-purple-600 hover:bg-purple-700 text-white rounded-full transition-all active:scale-90 hover:scale-105 shadow-lg"
+                            title="Open Chat Session"
+                        >
+                            <FaComment size={18} />
+                        </button>
+                        
+                        {/* Switch Call Type / Redial Button */}
+                        <button 
+                            onClick={(e) => handleStartCall(e, selectedAppointment, callType === 'video' ? 'audio' : 'video')}
+                            className="flex items-center justify-center w-12 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-all active:scale-90 hover:scale-105 shadow-lg"
+                            title={`Switch to ${callType === 'video' ? 'Audio Call' : 'Video Call'}`}
+                        >
+                            {callType === 'video' ? <FaPhoneAlt size={16} /> : <FaVideo size={16} />}
+                        </button>
+
+                        {/* End Call Button Overlaid */}
+                        <button 
+                            onClick={handleInitiateCallEndHandshake}
+                            className="flex items-center justify-center w-12 h-12 bg-red-600 hover:bg-red-700 text-white rounded-full transition-all active:scale-90 hover:scale-105 shadow-lg"
+                            title="End Call & Verify OTP"
+                        >
+                            <FaPhoneAlt size={16} className="rotate-[135deg]" />
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
     );

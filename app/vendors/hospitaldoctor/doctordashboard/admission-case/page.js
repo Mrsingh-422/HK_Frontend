@@ -2,7 +2,7 @@
 import HospitalDoctorAPI from '@/app/services/HospitalDoctorAPI';
 import React, { useState, useEffect } from 'react';
 import { 
-    FaUser, FaHeartbeat, FaSpinner, FaExclamationTriangle
+    FaUser, FaHeartbeat, FaSpinner, FaExclamationTriangle, FaHospital, FaUserMd
 } from 'react-icons/fa';
 
 import CaseDetailsModal from '../emergency-case/component/CaseDetailsModal';
@@ -17,9 +17,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://192.168.1.7:
 const getDoctorIdFromToken = () => {
     if (typeof window === 'undefined') return null;
     try {
-        const token = localStorage.getItem('hospitalDoctorToken') ||
-                      localStorage.getItem('doctorToken') ||
-                      localStorage.getItem('token');
+        const token = localStorage.getItem('hospitalDoctorToken');
         if (!token) return null;
         const base64Url = token.split('.')[1];
         if (!base64Url) return null;
@@ -41,11 +39,21 @@ export default function DoctorAdmissionCasesPage() {
     const [error, setError] = useState(null);
     const [associationError, setAssociationError] = useState(null); 
 
-    const [activeStatus, setActiveStatus] = useState('Pending Handovers'); 
+    const [mainTab, setMainTab] = useState('admissions'); 
+    const [activeStatus, setActiveStatus] = useState('In-Progress'); 
 
     const [selectedCaseId, setSelectedCaseId] = useState(null);
     const [caseDetails, setCaseDetails] = useState(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+    // Collaborative/Specialist Medications Pool
+    const [collaborativeMeds, setCollaborativeMeds] = useState([]);
+
+    // Attending Doctor Round-State Handlers
+    const [activeMainRoundCaseId, setActiveMainRoundCaseId] = useState(null);
+
+    // Stay Medications Action Loading State
+    const [medicationActionLoading, setMedicationActionLoading] = useState(false);
 
     const [isAssignDoctorOpen, setIsAssignDoctorOpen] = useState(false);
     const [assignStep, setAssignStep] = useState(1); 
@@ -82,13 +90,13 @@ export default function DoctorAdmissionCasesPage() {
     const [feedbackForm, setFeedbackForm] = useState({
         observation: '',
         patientCondition: 'Recovering',
-        priorityRating: 'Routine'
+        priorityRating: 'Routine',
+        recommendedMedicines: [] // Pre-initialized state array
     });
 
     const [isPrescriptionPreviewOpen, setIsPrescriptionPreviewOpen] = useState(false);
     const [prescriptionPreviewData, setPrescriptionPreviewData] = useState(null);
 
-    // Helper to format image and logo URLs
     const getImageUrl = (path) => {
         if (!path) return null;
         if (path.startsWith('http://') || path.startsWith('https://')) return path;
@@ -125,6 +133,8 @@ export default function DoctorAdmissionCasesPage() {
                 tabParam = 'bedside';
             } else if (activeStatus === 'Unassigned') {
                 tabParam = 'unassigned';
+            } else if (activeStatus === 'Transferred Out') {
+                tabParam = 'transferred-out';
             }
             
             const response = await HospitalDoctorAPI.getCases(tabParam);
@@ -179,6 +189,7 @@ export default function DoctorAdmissionCasesPage() {
         setIsDetailsOpen(false);
         setSelectedCaseId(null);
         setCaseDetails(null);
+        setCollaborativeMeds([]);
         setClinicalReports([]); 
         setPrescriptionSource('discharge'); 
     };
@@ -192,10 +203,25 @@ export default function DoctorAdmissionCasesPage() {
         try {
             setSelectedCaseId(caseId);
             setCaseDetails(null);
+            setCollaborativeMeds([]); 
             setIsDetailsOpen(true);
             const response = await HospitalDoctorAPI.getCaseDetails(caseId);
             if (response.success) {
                 setCaseDetails(response.data);
+            }
+
+            // Fetch specialist collaborative medications pool if attending doctor is logged in
+            const currentDoctorId = getDoctorIdFromToken();
+            const isMainDoctor = response.data?.doctorId?._id === currentDoctorId || response.data?.doctorId === currentDoctorId;
+            if (isMainDoctor) {
+                try {
+                    const poolRes = await HospitalDoctorAPI.getBedsideMedications(caseId);
+                    if (poolRes.success) {
+                        setCollaborativeMeds(poolRes.data || []);
+                    }
+                } catch (err) {
+                    console.warn("Collaborative medications fetch failed:", err);
+                }
             }
         } catch (err) {
             alert(getErrorMessage(err));
@@ -209,6 +235,7 @@ export default function DoctorAdmissionCasesPage() {
             if (response.success) {
                 alert(response.message || "You have successfully self-assigned this case.");
                 setIsDetailsOpen(false);
+                setMainTab('admissions');
                 setActiveStatus('In-Progress');
                 fetchAdmissionCases();
             }
@@ -292,6 +319,48 @@ export default function DoctorAdmissionCasesPage() {
         }
     };
 
+    // Attending Main Doctor Ward Rounds tracking
+    const handleStartMainDoctorRound = (caseId) => {
+        setActiveMainRoundCaseId(caseId);
+        alert("Attending physician ward round started. You can now log observations.");
+    };
+
+    // Trigger Medication Selector modal for active stay medications
+    const handleAddStayMedicationTrigger = () => {
+        setPrescriptionSource('stay');
+        setIsPrescriptionOpen(true);
+    };
+
+    // Stop/Discontinue In-Patient Active Medication
+    const handleStopActiveMedication = async (appointmentId, medicationRecordId) => {
+        try {
+            setMedicationActionLoading(true);
+            const payload = {
+                appointmentId,
+                medicationRecordId
+            };
+            const response = await HospitalDoctorAPI.stopActiveMedication(payload);
+            if (response.success) {
+                alert(response.message || "In-patient medication discontinued successfully.");
+                // Refresh case details to render updated stay medications chart
+                if (appointmentId === selectedCaseId) {
+                    const detailRes = await HospitalDoctorAPI.getCaseDetails(appointmentId);
+                    if (detailRes.success) {
+                        setCaseDetails(detailRes.data);
+                    }
+                }
+                fetchAdmissionCases();
+                return true;
+            }
+            return false;
+        } catch (err) {
+            alert(getErrorMessage(err));
+            return false;
+        } finally {
+            setMedicationActionLoading(false);
+        }
+    };
+
     const handleContinueAssignment = () => {
         setAssignStep(2);
     };
@@ -363,23 +432,66 @@ export default function DoctorAdmissionCasesPage() {
         }
         try {
             setActionLoading(true);
-            const body = {
-                appointmentId: selectedCaseId,
-                observation: feedbackForm.observation,
-                patientCondition: feedbackForm.patientCondition,
-                priorityRating: feedbackForm.priorityRating
-            };
-            const response = await HospitalDoctorAPI.submitBedsideFeedback(body);
-            if (response.success) {
-                alert("Clinical observation feedback submitted successfully!");
-                setIsFeedbackOpen(false);
-                if (selectedCaseId) {
-                    const detailRes = await HospitalDoctorAPI.getCaseDetails(selectedCaseId);
-                    if (detailRes.success) {
-                        setCaseDetails(detailRes.data);
-                    }
+            const currentDoctorId = getDoctorIdFromToken();
+            const isMainDoctor = caseDetails?.doctorId?._id === currentDoctorId || caseDetails?.doctorId === currentDoctorId;
+
+            if (isMainDoctor) {
+                // Ensure priority rating maps perfectly to specification enums
+                let priorityEnum = feedbackForm.priorityRating;
+                if (priorityEnum === 'Most Urgent' || priorityEnum === 'Emergency') {
+                    priorityEnum = 'Critical';
                 }
-                fetchAdmissionCases();
+
+                const body = {
+                    appointmentId: selectedCaseId,
+                    observation: feedbackForm.observation,
+                    patientCondition: feedbackForm.patientCondition,
+                    priorityRating: priorityEnum
+                };
+
+                const response = await HospitalDoctorAPI.addClinicalLog(body);
+                if (response.success) {
+                    alert(response.message || "Clinical observation log recorded successfully.");
+                    
+                    // Sync logged feedback to current active notes preview layout as well
+                    setDischargeForm(prev => ({
+                        ...prev,
+                        clinicalNotes: prev.clinicalNotes 
+                            ? `${prev.clinicalNotes}\n[Round Update - ${feedbackForm.patientCondition}]: ${feedbackForm.observation}`
+                            : `[Round Update - ${feedbackForm.patientCondition}]: ${feedbackForm.observation}`
+                    }));
+
+                    setIsFeedbackOpen(false);
+                    
+                    if (selectedCaseId) {
+                        const detailRes = await HospitalDoctorAPI.getCaseDetails(selectedCaseId);
+                        if (detailRes.success) {
+                            setCaseDetails(detailRes.data);
+                        }
+                    }
+                    fetchAdmissionCases();
+                }
+            } else {
+                // Standard Bedside feedback array insertion
+                const body = {
+                    appointmentId: selectedCaseId,
+                    observation: feedbackForm.observation,
+                    patientCondition: feedbackForm.patientCondition,
+                    priorityRating: feedbackForm.priorityRating,
+                    recommendedMedicines: feedbackForm.recommendedMedicines || [] // Binds medications array
+                };
+                const response = await HospitalDoctorAPI.submitBedsideFeedback(body);
+                if (response.success) {
+                    alert("Consultation observation and recommended medicines submitted successfully!");
+                    setIsFeedbackOpen(false);
+                    if (selectedCaseId) {
+                        const detailRes = await HospitalDoctorAPI.getCaseDetails(selectedCaseId);
+                        if (detailRes.success) {
+                            setCaseDetails(detailRes.data);
+                        }
+                    }
+                    fetchAdmissionCases();
+                }
             }
         } catch (err) {
             alert(getErrorMessage(err));
@@ -410,6 +522,7 @@ export default function DoctorAdmissionCasesPage() {
                 setIsDetailsOpen(false);
                 setClinicalReports([]);
                 setStagedMedicines([]);
+                setMainTab('admissions');
                 setActiveStatus('Discharged');
                 fetchAdmissionCases();
             }
@@ -426,6 +539,7 @@ export default function DoctorAdmissionCasesPage() {
             setIsPrescriptionPreviewOpen(false);
             setIsDischargeOpen(false);
             setIsDetailsOpen(false);
+            setMainTab('admissions');
             setActiveStatus('Discharged');
             setClinicalReports([]);
             setStagedMedicines([]);
@@ -437,13 +551,12 @@ export default function DoctorAdmissionCasesPage() {
         }
     };
 
-    const handleFinalizeBedsideShift = async () => {
+    const handleFinalizeBedsideShift = async (caseId) => {
         try {
             setActionLoading(true);
-            const response = await HospitalDoctorAPI.completeBedsideShift({ appointmentId: selectedCaseId });
+            const response = await HospitalDoctorAPI.completeBedsideShift({ appointmentId: caseId });
             if (response.success) {
                 alert("Specialist bedside shift completed successfully.");
-                setIsPrescriptionPreviewOpen(false);
                 setIsDetailsOpen(false);
                 fetchAdmissionCases();
             }
@@ -457,9 +570,86 @@ export default function DoctorAdmissionCasesPage() {
     const handleProcessPrescriptionSubmit = async (finalMedicines, dietPlanFile) => {
         try {
             setActionLoading(true);
+
+            // 1. Dynamic Flow: Stay Medications processing
+            if (prescriptionSource === 'stay') {
+                for (const med of finalMedicines) {
+                    await HospitalDoctorAPI.addActiveMedication({
+                        appointmentId: selectedCaseId,
+                        medicineName: med.name,
+                        dosage: med.dosage || "1-0-0",
+                        frequency: med.frequency || "Once Daily",
+                        instructions: med.instructions || "Standard ward round drip"
+                    });
+                }
+                alert("Active stay medications added to the patient chart.");
+                
+                if (selectedCaseId) {
+                    const detailRes = await HospitalDoctorAPI.getCaseDetails(selectedCaseId);
+                    if (detailRes.success) {
+                        setCaseDetails(detailRes.data);
+                    }
+                }
+                fetchAdmissionCases();
+                setIsPrescriptionOpen(false);
+                return;
+            }
+
+            // 2. Dynamic Flow: Staging medicines into Specialist Bedside Feedback
+            if (prescriptionSource === 'bedside-feedback') {
+                setFeedbackForm(prev => ({
+                    ...prev,
+                    recommendedMedicines: [
+                        ...(prev.recommendedMedicines || []),
+                        ...finalMedicines.map(m => ({
+                            name: m.name,
+                            dosage: m.dosage || "1 tablet",
+                            frequency: m.frequency || "Once daily",
+                            duration: m.duration || "10 days",
+                            instructions: m.instructions || "As directed",
+                            type: "Active-Stay" // Automatically classify as Active-Stay in consultation notes
+                        }))
+                    ]
+                }));
+                setIsPrescriptionOpen(false);
+                return;
+            }
+
+            // 3. Dynamic Flow: Bedside Shift final checkout prescription
+            if (prescriptionSource === 'bedside') {
+                const body = {
+                    appointmentId: selectedCaseId,
+                    observation: feedbackForm.observation || "Final shift checkout medications recommended.",
+                    patientCondition: feedbackForm.patientCondition || "Recovering",
+                    priorityRating: feedbackForm.priorityRating || "Routine",
+                    recommendedMedicines: finalMedicines.map(m => ({
+                        name: m.name,
+                        dosage: m.dosage || "1 tablet",
+                        frequency: m.frequency || "Once daily",
+                        duration: m.duration || "10 days",
+                        instructions: m.instructions || "As directed",
+                        type: "Discharge-Home" // Automatically registers on dischargeHomeRecommendations pool
+                    }))
+                };
+
+                // POSTs recommendations to register them under specialist recommendations array
+                await HospitalDoctorAPI.submitBedsideFeedback(body);
+
+                // Completes the bedside shift session
+                const completeRes = await HospitalDoctorAPI.completeBedsideShift({ appointmentId: selectedCaseId });
+                if (completeRes.success) {
+                    alert("Checkout medications registered and bedside specialist shift completed successfully!");
+                    setIsPrescriptionOpen(false);
+                    setIsDetailsOpen(false);
+                    fetchAdmissionCases();
+                }
+                return;
+            }
+
+            // 4. Dynamic Flow: Discharge prescription submission
             setStagedMedicines(finalMedicines);
 
-            const diagnosisText = dischargeForm.diagnosis || (prescriptionSource === 'bedside' ? "Specialist Bedside Treatment" : "");
+            const diagnosisText = dischargeForm.diagnosis || "";
             const diagnosisArray = [diagnosisText];
 
             const formData = new FormData();
@@ -482,8 +672,8 @@ export default function DoctorAdmissionCasesPage() {
             const previewPayload = {
                 _id: selectedCaseId || caseDetails?._id, 
                 appointmentId: caseDetails?.bookingId || "N/A",
-                date: new Date().toLocaleDateString('en-GB'),
-                time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                date: caseDetails?.createdAt ? new Date(caseDetails.createdAt).toLocaleDateString('en-GB') : "XX/XX/XXXX",
+                time: caseDetails?.createdAt ? new Date(caseDetails.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : "XX:XX",
                 patientName: activePatientObj.patientName || caseDetails?.userId?.name || "N/A",
                 gender: activePatientObj.gender || caseDetails?.userId?.gender || "N/A",
                 age: activePatientObj.patientAge || caseDetails?.userId?.age || "N/A",
@@ -511,12 +701,21 @@ export default function DoctorAdmissionCasesPage() {
                 conditionDuringAdmission: dischargeForm.conditionDuringAdmission || "",
                 conditionDuringDischarge: dischargeForm.conditionDuringDischarge || "",
 
-                hospitalName: caseDetails?.hospitalId?.name || "Fortis Hospital Mohali",
-                hospitalAddress: caseDetails?.hospitalId?.address || "Sector 62, Sahibzada Ajit Singh Nagar, Punjab 160062",
-                hospitalLogo: caseDetails?.hospitalId?.logo ? getImageUrl(caseDetails.hospitalId.logo) : (caseDetails?.hospitalId?.profilePic ? getImageUrl(caseDetails.hospitalId.profilePic) : (caseDetails?.hospitalId?.image ? getImageUrl(caseDetails.hospitalId.image) : null)),
+                hospitalName: caseDetails?.hospitalId?.name || caseDetails?.hospitalName || (typeof caseDetails?.hospitalId === 'object' ? caseDetails.hospitalId?.name : null) || "Fortis Hospital Mohali",
+                hospitalAddress: caseDetails?.hospitalId?.address || caseDetails?.hospitalAddress || (typeof caseDetails?.hospitalId === 'object' ? caseDetails.hospitalId?.address : null) || "Sector 62, Sahibzada Ajit Nagar, Punjab 160062",
+                hospitalLogo: caseDetails?.hospitalId?.logo 
+                    ? getImageUrl(caseDetails.hospitalId.logo) 
+                    : (caseDetails?.hospitalId?.image 
+                        ? getImageUrl(caseDetails.hospitalId.image) 
+                        : (caseDetails?.hospitalId?.profilePic 
+                            ? getImageUrl(caseDetails.hospitalId.profilePic) 
+                            : (caseDetails?.hospitalLogo 
+                                ? getImageUrl(caseDetails.hospitalLogo) 
+                                : null))),
                 mainDoctorName: caseDetails?.doctorId?.name || "Dr. Deepak Joshi",
                 mainDoctorQualification: caseDetails?.doctorId?.qualification || "Professor & Head: Department of Medicine",
-                bedsideCareTeam: caseDetails?.bedsideCareTeam || []
+                bedsideCareTeam: caseDetails?.bedsideCareTeam || [],
+                clinicalLogs: caseDetails?.clinicalLogs || []
             };
 
             setPrescriptionPreviewData(previewPayload);
@@ -542,11 +741,7 @@ export default function DoctorAdmissionCasesPage() {
         setAssignPriority('Routine');
     };
 
-    const onDutyColleagues = colleagues.filter(doc => doc.dutyStatus === 'On Duty');
-    const offDutyColleagues = colleagues.filter(doc => doc.dutyStatus !== 'On Duty');
-
     const filteredCases = cases.filter(cs => {
-        // Strict Rule: if ambulanceId is not null, exclude it from Admissions list
         if (cs.ambulanceId !== null && cs.ambulanceId !== undefined && cs.ambulanceId !== '') {
             return false;
         }
@@ -588,8 +783,18 @@ export default function DoctorAdmissionCasesPage() {
             return cs.status === 'Completed' || myBedsideRecord?.status === 'Completed' || cs.bedsideCareTeam?.some(t => t.status === 'Completed');
         }
 
+        if (activeStatus === 'Transferred Out') {
+            return true; // Transferred-out records are pre-filtered at the API level
+        }
+
         return true;
     });
+
+    const onDutyColleagues = colleagues.filter(doc => doc.dutyStatus === 'On Duty');
+    const offDutyColleagues = colleagues.filter(doc => doc.dutyStatus !== 'On Duty');
+
+    const currentDoctorId = getDoctorIdFromToken();
+    const isMainDoctor = caseDetails?.doctorId?._id === currentDoctorId || caseDetails?.doctorId === currentDoctorId;
 
     return (
         <div className="min-h-screen bg-slate-50/50 p-4 md:p-8">
@@ -597,8 +802,8 @@ export default function DoctorAdmissionCasesPage() {
                 
                 <div className="mb-6 flex justify-between items-center">
                     <div>
-                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Assigned Admission Cases</h1>
-                        <p className="text-slate-500 mt-1 text-sm">Real-time dynamic admitted patient directory and huddles</p>
+                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Clinical Operations Portal</h1>
+                        <p className="text-slate-500 mt-1 text-sm">Review assigned ward admissions and bedside specialist handovers</p>
                     </div>
                 </div>
 
@@ -614,20 +819,83 @@ export default function DoctorAdmissionCasesPage() {
                     </div>
                 )}
 
+                {/* Primary Module Navigation */}
+                <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6 max-w-md border border-slate-200">
+                    <button
+                        onClick={() => {
+                            setMainTab('admissions');
+                            setActiveStatus('In-Progress');
+                        }}
+                        className={`flex-1 py-3 px-4 font-extrabold text-xs sm:text-sm tracking-wide rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${
+                            mainTab === 'admissions'
+                            ? 'bg-white text-slate-900 shadow-md border-b-0'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <FaHospital size={14} className={mainTab === 'admissions' ? 'text-emerald-500' : ''} />
+                        Admissions Desk
+                    </button>
+                    <button
+                        onClick={() => {
+                            setMainTab('bedside');
+                            setActiveStatus('Active Bedside');
+                        }}
+                        className={`flex-1 py-3 px-4 font-extrabold text-xs sm:text-sm tracking-wide rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${
+                            mainTab === 'bedside'
+                            ? 'bg-white text-slate-900 shadow-md border-b-0'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <FaUserMd size={14} className={mainTab === 'bedside' ? 'text-indigo-500' : ''} />
+                        Bedside Consults
+                    </button>
+                </div>
+
+                {/* Sub-tabs corresponding to current Primary Module */}
                 <div className="mb-6 flex flex-wrap gap-2 border-b border-slate-200 pb-px">
-                    {['Unassigned', 'Pending Handovers', 'In-Progress', 'Discharged', 'Pending Bedside', 'Active Bedside', 'Completed'].map((status) => (
-                        <button
-                            key={status}
-                            onClick={() => setActiveStatus(status)}
-                            className={`px-5 py-3 font-bold text-xs sm:text-sm tracking-wide transition-all border-b-2 -mb-px ${
-                                activeStatus === status 
-                                ? 'border-emerald-500 text-emerald-600 bg-emerald-50/10' 
-                                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-                            }`}
-                        >
-                            {status}
-                        </button>
-                    ))}
+                    {mainTab === 'admissions' ? (
+                        <>
+                            {[
+                                { status: 'Unassigned', label: 'Unassigned Admissions' },
+                                { status: 'Pending Handovers', label: 'Incoming Handovers' },
+                                { status: 'In-Progress', label: 'Active Admitted' },
+                                { status: 'Transferred Out', label: 'Transferred Out' },
+                                { status: 'Discharged', label: 'Discharged / Archived' }
+                            ].map((sub) => (
+                                <button
+                                    key={sub.status}
+                                    onClick={() => setActiveStatus(sub.status)}
+                                    className={`px-5 py-3 font-bold text-xs sm:text-sm tracking-wide transition-all border-b-2 -mb-px ${
+                                        activeStatus === sub.status 
+                                        ? 'border-emerald-500 text-emerald-600 bg-emerald-50/10' 
+                                        : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                                    }`}
+                                >
+                                    {sub.label}
+                                </button>
+                            ))}
+                        </>
+                    ) : (
+                        <>
+                            {[
+                                { status: 'Pending Bedside', label: 'Pending Consult Requests' },
+                                { status: 'Active Bedside', label: 'Active Consultations' },
+                                { status: 'Completed', label: 'Completed Consults' }
+                            ].map((sub) => (
+                                <button
+                                    key={sub.status}
+                                    onClick={() => setActiveStatus(sub.status)}
+                                    className={`px-5 py-3 font-bold text-xs sm:text-sm tracking-wide transition-all border-b-2 -mb-px ${
+                                        activeStatus === sub.status 
+                                        ? 'border-indigo-500 text-indigo-600 bg-indigo-50/10' 
+                                        : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                                    }`}
+                                >
+                                    {sub.label}
+                                </button>
+                            ))}
+                        </>
+                    )}
                 </div>
 
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -645,7 +913,7 @@ export default function DoctorAdmissionCasesPage() {
                     ) : filteredCases.length === 0 ? (
                         <div className="text-center py-16 px-4 animate-in fade-in duration-350">
                             <FaHeartbeat className="mx-auto text-slate-300 text-5xl mb-3" />
-                            <h3 className="text-base font-bold text-slate-700">No {activeStatus} Admission Cases Found</h3>
+                            <h3 className="text-base font-bold text-slate-700">No {activeStatus} Cases Found</h3>
                             <p className="text-slate-400 text-xs mt-1">Try clicking other status tabs above to browse your database records.</p>
                         </div>
                     ) : (
@@ -711,23 +979,6 @@ export default function DoctorAdmissionCasesPage() {
                                                                 Accept
                                                             </button>
                                                              <button 
-                                                                onClick={() => handleRejectTransfer(cs._id)}
-                                                                disabled={actionLoading}
-                                                                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
-                                                            >
-                                                                Reject
-                                                            </button> 
-                                                        </div>
-                                                    ) : activeStatus === 'Pending Bedside' ? (
-                                                        <div className="flex items-center justify-center gap-2">
-                                                            <button 
-                                                                onClick={() => handleRespondBedside(cs._id, 'Accepted')}
-                                                                disabled={actionLoading}
-                                                                className="px-3 py-1.5 bg-[#08B36A] hover:bg-[#079d5c] text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
-                                                            >
-                                                                Accept Bedside
-                                                            </button>
-                                                             <button 
                                                                 onClick={() => {
                                                                     const reason = prompt("Enter Decline Reason:") || "Engaged in another clinical schedule.";
                                                                     handleRespondBedside(cs._id, 'Rejected', reason);
@@ -786,12 +1037,29 @@ export default function DoctorAdmissionCasesPage() {
                     onAcceptTransfer={activeStatus === 'Pending Bedside' ? (caseId) => handleRespondBedside(caseId, 'Accepted') : handleAcceptTransfer}
                     onRejectTransfer={activeStatus === 'Pending Bedside' ? (caseId, reason) => handleRespondBedside(caseId, 'Rejected', reason) : handleRejectTransfer}
                     activeStatus={activeStatus}
-                    onFeedbackClick={() => setIsFeedbackOpen(true)}
+                    onFeedbackClick={() => {
+                        // Resets feedback state structure on opening
+                        setFeedbackForm({
+                            observation: '',
+                            patientCondition: 'Recovering',
+                            priorityRating: 'Routine',
+                            recommendedMedicines: []
+                        });
+                        setIsFeedbackOpen(true);
+                    }}
                     onStartBedsideShift={handleStartBedsideShift}
                     onCompleteBedsideShift={(caseId) => {
-                        setPrescriptionSource('bedside'); 
+                        setPrescriptionSource('bedside'); // Opens the standard Checkout prescription
                         setIsPrescriptionOpen(true);
                     }}
+                    // Ward round interactions for Primary Attending Doctor
+                    isMainDoctorRoundActive={activeMainRoundCaseId === caseDetails?._id}
+                    onStartMainDoctorRound={handleStartMainDoctorRound}
+                    // Stay Medications handlers mapped to open medication modal selector
+                    onAddStayMedicationTrigger={handleAddStayMedicationTrigger}
+                    onStopActiveMedication={handleStopActiveMedication}
+                    medicationActionLoading={medicationActionLoading}
+                    collaborativeMeds={collaborativeMeds} // Binds specialist recommendations list inside CaseDetailsModal
                 />
 
                 <AssignDoctorModal 
@@ -838,6 +1106,8 @@ export default function DoctorAdmissionCasesPage() {
                     medicinesList={medicinesList}
                     actionLoading={actionLoading}
                     onSubmit={handleProcessPrescriptionSubmit}
+                    collaborativeMeds={collaborativeMeds} // Binds specialist recommendations list
+                    prescriptionSource={prescriptionSource} // Dynamically filters stay vs home pool
                 />
 
                 <BedsideFeedbackModal 
@@ -847,6 +1117,11 @@ export default function DoctorAdmissionCasesPage() {
                     setFeedbackForm={setFeedbackForm}
                     actionLoading={actionLoading}
                     onSubmit={handleFeedbackSubmit}
+                    onAddMedicineTrigger={() => {
+                        setPrescriptionSource('bedside-feedback');
+                        setIsPrescriptionOpen(true);
+                    }}
+                    isMainDoctor={isMainDoctor}
                 />
 
                 <DigitalPrescriptionTemplate 
@@ -865,4 +1140,59 @@ export default function DoctorAdmissionCasesPage() {
             </div>
         </div>
     );
+
+    // Helper to format payload data for preview
+    function previewPayloadDataForTemplate() {
+        const activePatientObj = caseDetails?.patients?.[0] || {};
+        return {
+            _id: selectedCaseId || caseDetails?._id, 
+            appointmentId: caseDetails?.bookingId || "N/A",
+            date: caseDetails?.createdAt ? new Date(caseDetails.createdAt).toLocaleDateString('en-GB') : "XX/XX/XXXX",
+            time: caseDetails?.createdAt ? new Date(caseDetails.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : "XX:XX",
+            patientName: activePatientObj.patientName || caseDetails?.userId?.name || "N/A",
+            gender: activePatientObj.gender || caseDetails?.userId?.gender || "N/A",
+            age: activePatientObj.patientAge || caseDetails?.userId?.age || "N/A",
+            address: caseDetails?.address?.addressType || "N/A",
+            chiefComplaints: dischargeForm.chiefComplaints || caseDetails?.chiefComplaints || "N/A",
+            diagnosis: dischargeForm.diagnosis || "",
+            medicines: stagedMedicines.map(m => ({
+                name: m.name,
+                dose: m.dosage,
+                time: m.frequency,
+                duration: m.duration
+            })),
+            investigations: dischargeForm.advisedInvestigations || "",
+            advice: dischargeForm.adviceGiven || "",
+            specialInstructions: dischargeForm.specialInstructions || "",
+            nextAppointment: dischargeForm.nextAppointment || "",
+            
+            dateOfAdmission: caseDetails?.startDate ? new Date(caseDetails.startDate).toLocaleDateString('en-GB') : "N/A",
+            department: caseDetails?.doctorId?.speciality || "Department of Medicine, Unit - 1",
+            dateOfDischarge: new Date().toLocaleDateString('en-GB'),
+            dateOfSurgery: dischargeForm.dateOfSurgery || "",
+            insuranceStatus: caseDetails?.hasInsurance ? "Verified (Cashless)" : "N/A",
+            paymentStatus: caseDetails?.paymentStatus || "Paid",
+            paymentType: caseDetails?.paymentMethod || "UPI",
+            conditionDuringAdmission: dischargeForm.conditionDuringAdmission || "",
+            conditionDuringDischarge: dischargeForm.conditionDuringDischarge || "",
+
+            // Dynamic properties enhanced with comprehensive fallbacks aligning with image
+            hospitalName: caseDetails?.hospitalId?.name || caseDetails?.hospitalName || (typeof caseDetails?.hospitalId === 'object' ? caseDetails.hospitalId?.name : null) || "omninos hospital",
+            hospitalAddress: caseDetails?.hospitalId?.address || caseDetails?.hospitalAddress || (typeof caseDetails?.hospitalId === 'object' ? caseDetails.hospitalId?.address : null) || "Tdi City Mohali Punjab",
+            hospitalLogo: caseDetails?.hospitalId?.logo 
+                ? getImageUrl(caseDetails.hospitalId.logo) 
+                : (caseDetails?.hospitalId?.image 
+                    ? getImageUrl(caseDetails.hospitalId.image) 
+                    : (caseDetails?.hospitalId?.profilePic 
+                        ? getImageUrl(caseDetails.hospitalId.profilePic) 
+                        : (caseDetails?.hospitalLogo 
+                            ? getImageUrl(caseDetails.hospitalLogo) 
+                            : null))),
+            mainDoctorName: caseDetails?.doctorId?.name || "Lakshay Ravat",
+            mainDoctorQualification: caseDetails?.doctorId?.qualification || "MBBS, MD",
+            mainDoctorTitle: caseDetails?.doctorId?.title || "Professor & Head: Department of Cardiologist",
+            bedsideCareTeam: caseDetails?.bedsideCareTeam || [],
+            clinicalLogs: caseDetails?.clinicalLogs || []
+        };
+    }
 }

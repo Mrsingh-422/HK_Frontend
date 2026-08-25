@@ -1,11 +1,11 @@
 'use client'
+
 import React, { useState, useEffect, useMemo } from 'react'
 import { FaPlus, FaCapsules, FaSearch, FaSpinner, FaCheckCircle, FaTimesCircle, FaTrash, FaEdit, FaEye } from 'react-icons/fa'
 import PharmacyVendorAPI from '@/app/services/PharmacyVendorAPI';
 import AddInventoryModal from './components/AddInventoryModal';
 import MedicineViewModal from './components/MedicineViewModal';
 
-// Safe Image component with automatic broken link fallback
 function MedicineImage({ src }) {
   const [error, setError] = useState(false);
   if (error || !src) {
@@ -47,8 +47,9 @@ export default function InventoryPage() {
         PharmacyVendorAPI.getMyInventory(),
         PharmacyVendorAPI.searchMasterMedicines('') 
       ]);
-      setInventory(invRes.data || []);
-      setMasterList(masterRes.data || []);
+      setInventory(invRes?.data || []);
+      const masterData = masterRes?.data?.docs || masterRes?.data?.medicines || masterRes?.data || [];
+      setMasterList(Array.isArray(masterData) ? masterData : []);
     } catch (err) {
       console.error("Fetch Error:", err);
     } finally {
@@ -57,10 +58,12 @@ export default function InventoryPage() {
   };
 
   const filteredInventory = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return inventory;
     return inventory.filter(item => 
-      item.medicineId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.medicineId?.manufacturers?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.batch_number?.toLowerCase().includes(searchTerm.toLowerCase())
+      item.medicineId?.name?.toLowerCase().includes(q) ||
+      item.medicineId?.manufacturers?.toLowerCase().includes(q) ||
+      item.batch_number?.toLowerCase().includes(q)
     );
   }, [inventory, searchTerm]);
 
@@ -69,7 +72,6 @@ export default function InventoryPage() {
     try {
       let res;
       if (selectedItem?._id) {
-          // Endpoint 6: Fully edit/update any custom batch attributes dynamically
           const updatePayload = {
             batch_number: payload.batch_number.trim(),
             mrp: Number(payload.mrp),
@@ -81,15 +83,14 @@ export default function InventoryPage() {
           };
           res = await PharmacyVendorAPI.updateInventory(selectedItem._id, updatePayload);
       } else {
-          // Endpoint 3: Complete batch payload details
           res = await PharmacyVendorAPI.addToInventory(payload);
       }
 
-      if (res.success || res) {
+      if (res?.success || res) {
         setIsModalOpen(false);
         setSelectedItem(null);
         fetchInitialData(); 
-        alert(res.message || "Inventory details updated successfully.");
+        alert(res?.message || "Inventory details updated successfully.");
       }
     } catch (err) {
       alert(err.response?.data?.message || "Action failed");
@@ -106,7 +107,7 @@ export default function InventoryPage() {
 
       try {
           const res = await PharmacyVendorAPI.deleteInventory(inventoryId);
-          if (res.success || res) {
+          if (res?.success || res) {
               setInventory(prev => prev.filter(item => item._id !== inventoryId));
               alert("Item batch successfully removed from your store.");
           }
@@ -206,13 +207,15 @@ export default function InventoryPage() {
                          </div>
                       </td>
 
-                      {/* BATCH NO & EXPIRY COLUMN */}
                       <td className="px-8 py-6">
-                        <div className="flex flex-col gap-1">
-                            <span className="px-2.5 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-black rounded-lg uppercase tracking-wider w-fit border border-slate-200">
+                        <div className="flex flex-col gap-1 text-[10px]">
+                            <span className="px-2.5 py-0.5 bg-slate-100 text-slate-700 font-black rounded-lg uppercase tracking-wider w-fit border border-slate-200">
                                 {item.batch_number || 'GENERIC'}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-bold">
+                            <span className="text-slate-500 font-bold block">
+                                HSN: <span className="font-mono text-slate-600 font-extrabold">{item.hsn_number || '—'}</span>
+                            </span>
+                            <span className="text-slate-400 font-bold block">
                                 Exp: {item.expiry_date ? new Date(item.expiry_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
                             </span>
                         </div>

@@ -10,6 +10,8 @@ import DoctorAPI from '@/app/services/DoctorAPI';
 // Import template relative link
 import DigitalPrescriptionTemplate from '../videocallappointments/components/DigitalPrescriptionTemplate';
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+
 export default function PrescriptionPage() {
   // List View States
   const [activeTab, setActiveTab] = useState('All');
@@ -132,6 +134,15 @@ export default function PrescriptionPage() {
     }
   };
 
+  // Safe Backend File Access URL resolver
+  const getFullPdfUrl = (path) => {
+    if (!path) return "#";
+    if (path.startsWith("http://") || path.startsWith("https://")) return path;
+    const cleanBaseUrl = BACKEND_URL.endsWith('/') ? BACKEND_URL.slice(0, -1) : BACKEND_URL;
+    const cleanPath = path.startsWith('/') ? path : `/${cleanPath}`;
+    return `${cleanBaseUrl}${cleanPath}`;
+  };
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans text-slate-900">
       
@@ -177,49 +188,94 @@ export default function PrescriptionPage() {
                     <tr className="border-b border-gray-100">
                         <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Patient</th>
                         <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Clinical Summary</th>
+                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Patient Vitals</th>
                         <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Date & Time</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Action</th>
+                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Prescription PDF</th>
+                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Status</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                    {prescriptions.map((item) => (
-                        <tr key={item.id} className="hover:bg-green-50/40 transition-colors group">
-                            <td className="px-8 py-6">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 group-hover:bg-[#5BB584] group-hover:text-white transition-colors">
-                                        <FaUser size={14}/>
+                    {prescriptions.map((item) => {
+                        const hasVitals = item.vitals && (item.vitals.bp || item.vitals.pulse || item.vitals.temp || item.vitals.spo2);
+                        return (
+                            <tr 
+                                key={item.id} 
+                                onClick={() => {
+                                    if (item.pdfUrl) {
+                                        window.open(getFullPdfUrl(item.pdfUrl), '_blank');
+                                    } else {
+                                        handleViewDetails(item.id);
+                                    }
+                                }}
+                                className="hover:bg-green-50/40 transition-colors group cursor-pointer"
+                            >
+                                {/* Column 1: Patient */}
+                                <td className="px-8 py-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 group-hover:bg-[#5BB584] group-hover:text-white transition-colors shrink-0">
+                                            <FaUser size={14}/>
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-sm">{item.patientName}</p>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase">{item.phone}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="font-bold text-sm">{item.patientName}</p>
-                                        <p className="text-[10px] text-gray-400 font-bold uppercase">{item.phone}</p>
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-8 py-6">
-                                <p className="text-sm font-bold text-gray-600 truncate max-w-[200px]">{item.symptoms || "General Care"}</p>
-                            </td>
-                            <td className="px-8 py-6">
-                                <span className="text-xs font-bold text-gray-500">{item.date}</span>
-                            </td>
-                            <td className="px-8 py-6">
-                                <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase ${
-                                    item.status === 'Sent' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
-                                }`}>
-                                    {item.status} <FaCheckCircle size={8}/>
-                                </span>
-                            </td>
-                            <td className="px-8 py-6 text-right">
-                                <button 
-                                    onClick={() => handleViewDetails(item.id)}
-                                    className="p-2.5 bg-gray-50 rounded-lg text-gray-400 hover:text-[#5BB584] hover:bg-green-50 transition-all"
-                                    title="View Medical Summary Sheet"
-                                >
-                                    <FaRegEye size={18}/>
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
+                                </td>
+
+                                {/* Column 2: Clinical Summary */}
+                                <td className="px-8 py-6">
+                                    <p className="text-sm font-bold text-gray-600 truncate max-w-[200px]">{item.symptoms || "—"}</p>
+                                </td>
+
+                                {/* Column 3: Patient Vitals */}
+                                <td className="px-8 py-6">
+                                    {hasVitals ? (
+                                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-slate-500 font-bold leading-normal">
+                                            {item.vitals.bp && <span>BP: <span className="text-slate-800 font-black">{item.vitals.bp}</span></span>}
+                                            {item.vitals.pulse && <span>Pulse: <span className="text-slate-800 font-black">{item.vitals.pulse} bpm</span></span>}
+                                            {item.vitals.temp && <span>Temp: <span className="text-slate-800 font-black">{item.vitals.temp} °F</span></span>}
+                                            {item.vitals.spo2 && <span>SpO2: <span className="text-slate-800 font-black">{item.vitals.spo2}%</span></span>}
+                                        </div>
+                                    ) : (
+                                        <span className="text-xs text-slate-400 italic font-medium">No Vitals</span>
+                                    )}
+                                </td>
+
+                                {/* Column 4: Date & Time */}
+                                <td className="px-8 py-6">
+                                    <span className="text-xs font-bold text-gray-500">{item.date}</span>
+                                </td>
+
+                                {/* Column 5: Prescription PDF view link */}
+                                <td className="px-8 py-6">
+                                    {item.pdfUrl ? (
+                                        <a 
+                                            href={getFullPdfUrl(item.pdfUrl)}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()} // Prevents launching details modal on file click
+                                            className="inline-flex items-center px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                                        >
+                                            View PDF
+                                        </a>
+                                    ) : (
+                                        <span className="text-[10px] bg-slate-50 text-slate-400 px-3 py-1.5 rounded-xl font-bold uppercase border border-slate-100">
+                                            No File
+                                        </span>
+                                    )}
+                                </td>
+
+                                {/* Column 6: Status (Aligned Right) */}
+                                <td className="px-8 py-6 text-right">
+                                    <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase ${
+                                        item.status === 'Sent' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
+                                    }`}>
+                                        {item.status} <FaCheckCircle size={8}/>
+                                    </span>
+                                </td>
+                            </tr>
+                        );
+                    })}
                 </tbody>
             </table>
             {prescriptions.length === 0 && (

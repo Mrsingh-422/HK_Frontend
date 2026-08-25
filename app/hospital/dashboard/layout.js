@@ -60,6 +60,7 @@ export default function HospitalLayout({ children }) {
                 { name: 'Manage Wards', href: '/hospital/dashboard/manage-wards' },
                 { name: 'Terms & Conditions', href: '/hospital/dashboard/terms-and-conditions' },
                 { name: 'Change Password ', href: '/hospital/dashboard/change-password' },
+                { name: 'Manage Insureance ', href: '/hospital/dashboard/manage-insurance' },
             ]
         },
     ];

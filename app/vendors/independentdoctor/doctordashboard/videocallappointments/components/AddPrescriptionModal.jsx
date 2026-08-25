@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { IoCloseOutline } from 'react-icons/io5';
-import { FaPlus, FaTrash, FaSpinner, FaCloudUploadAlt, FaFileMedical, FaArrowLeft, FaRegClipboard } from 'react-icons/fa';
+import { FaPlus, FaTrash, FaSpinner, FaCloudUploadAlt, FaFileMedical, FaArrowLeft, FaRegClipboard, FaHeartbeat, FaLock } from 'react-icons/fa';
 import DoctorAPI from '@/app/services/DoctorAPI';
 import { toast } from 'react-hot-toast';
 
@@ -33,6 +33,24 @@ export default function AddPrescriptionModal({ isOpen, onClose, appointment, onS
     const [duration, setDuration] = useState('3 days');
     const [instructions, setInstructions] = useState('As directed by physician');
 
+    // Vitals State Parameters
+    const [vitals, setVitals] = useState({
+        bp: '',
+        pulse: '',
+        temp: '',
+        spo2: ''
+    });
+
+    // OTP Handshake States (Strict Security Rule for Video Consult)
+    const [isOtpSent, setIsOtpSent] = useState(false);
+    const [otpCode, setOtpCode] = useState('');
+    const [isOtpVerified, setIsOtpVerified] = useState(false);
+    const [otpLoading, setOtpLoading] = useState(false);
+    const [devOtp, setDevOtp] = useState('');
+
+    const isOnline = appointment?.consultationType?.toLowerCase().includes('online') || 
+                     appointment?.consultationType?.toLowerCase().includes('video');
+
     useEffect(() => {
         if (medicineSearch.trim().length < 2) {
             setSearchResults([]);
@@ -55,17 +73,87 @@ export default function AddPrescriptionModal({ isOpen, onClose, appointment, onS
         return () => clearTimeout(delayDebounce);
     }, [medicineSearch]);
 
+    // Reset states on modal open
+    useEffect(() => {
+        if (isOpen) {
+            console.log("AddPrescriptionModal opened for Booking ID:", appointment?.bookingId);
+            setDiagnosisInput('');
+            setDiagnosis([]);
+            setChiefComplaints('');
+            setAdvisedInvestigations('');
+            setAdviceGiven('');
+            setSpecialInstructions('');
+            setNextAppointment('');
+            setStagedMedicines([]);
+            setVitals({ bp: '', pulse: '', temp: '', spo2: '' });
+            setIsOtpSent(false);
+            setOtpCode('');
+            setIsOtpVerified(false);
+            setDevOtp('');
+        }
+    }, [isOpen, appointment]);
+
     if (!isOpen) return null;
+
+    const handleSendCompletionOtp = async () => {
+        try {
+            setOtpLoading(true);
+            const apptId = appointment._id || appointment.appointmentId;
+            console.log("Triggering call completion OTP for Appointment ID:", apptId);
+            
+            const res = await DoctorAPI.sendCompletionOtp(apptId);
+            if (res && res.success) {
+                toast.success(res.message || "Verification OTP successfully sent to user.");
+                setIsOtpSent(true);
+                if (res.dev_otp) {
+                    console.log("Sandbox OTP detected (dev_otp):", res.dev_otp);
+                    setDevOtp(res.dev_otp);
+                }
+            } else {
+                toast.error(res?.message || "Failed to send completion OTP");
+            }
+        } catch (err) {
+            console.error("Error inside handleSendCompletionOtp:", err);
+            toast.error(err?.message || err || "Error sending completion OTP");
+        } finally {
+            setOtpLoading(false);
+        }
+    };
+
+    const handleVerifyCompletionOtp = async () => {
+        if (!otpCode.trim()) return toast.error("Please enter dynamic 4-digit OTP code");
+        try {
+            setOtpLoading(true);
+            const apptId = appointment._id || appointment.appointmentId;
+            console.log(`Verifying Handshake OTP [${otpCode.trim()}] for Appointment ID:`, apptId);
+            
+            const res = await DoctorAPI.verifyCompletionOtp(apptId, otpCode.trim());
+            if (res && res.success) {
+                toast.success(res.message || "OTP successfully verified!");
+                setIsOtpVerified(true);
+                console.log("Handshake OTP successfully verified. Complete Case flow unlocked.");
+            } else {
+                toast.error(res?.message || "Failed to verify completion OTP");
+            }
+        } catch (err) {
+            console.error("Error inside handleVerifyCompletionOtp:", err);
+            toast.error(err?.message || err || "OTP Verification failed");
+        } finally {
+            setOtpLoading(false);
+        }
+    };
 
     const handleAddDiagnosis = () => {
         const tag = diagnosisInput.trim();
         if (tag && !diagnosis.includes(tag)) {
             setDiagnosis(prev => [...prev, tag]);
             setDiagnosisInput('');
+            console.log("Added diagnosis tag:", tag);
         }
     };
 
     const handleRemoveDiagnosis = (indexToRemove) => {
+        console.log("Removed diagnosis tag at index:", indexToRemove, "-", diagnosis[indexToRemove]);
         setDiagnosis(prev => prev.filter((_, idx) => idx !== indexToRemove));
     };
 
@@ -109,8 +197,10 @@ export default function AddPrescriptionModal({ isOpen, onClose, appointment, onS
             instructions: instructions
         };
 
+        console.log("Staging new medicine formulation into queue:", newStagedItem);
         setStagedMedicines(prev => [...prev, newStagedItem]);
 
+        // Reset medicine inputs
         setMedicineSearch('');
         setSelectedMedicineName('');
         setSelectedMedicineSalt('');
@@ -121,10 +211,15 @@ export default function AddPrescriptionModal({ isOpen, onClose, appointment, onS
     };
 
     const handleRemoveStagedItem = (idxToRemove) => {
+        console.log("Removed staged medicine at index:", idxToRemove, "-", stagedMedicines[idxToRemove]);
         setStagedMedicines(prev => prev.filter((_, idx) => idx !== idxToRemove));
     };
 
     const handleProcessPrescription = () => {
+        if (isOnline && !isOtpVerified) {
+            toast.error("OTP verification is required for Video Consultations before submitting prescription.");
+            return;
+        }
         if (diagnosis.length === 0) {
             toast.error("Please add at least one clinical diagnosis.");
             return;
@@ -149,7 +244,17 @@ export default function AddPrescriptionModal({ isOpen, onClose, appointment, onS
             }
         }
 
+        // Resolving the Patient ID directly within the local component scope
+        const resolvedUserId = 
+            appointment?.userId?._id || 
+            appointment?.userId || 
+            appointment?.patientId || 
+            appointment?.userAccount?._id || 
+            "";
+
         const payload = {
+            userId: resolvedUserId,
+            patientId: resolvedUserId,
             diagnosis: diagnosis,
             medicines: stagedMedicines,
             chiefComplaints: chiefComplaints,
@@ -157,8 +262,29 @@ export default function AddPrescriptionModal({ isOpen, onClose, appointment, onS
             adviceGiven: adviceGiven,
             specialInstructions: specialInstructions,
             nextAppointment: formattedDate, 
-            additionalNotes: "" 
+            additionalNotes: "",
+            // Vitals inclusion
+            bp: vitals.bp,
+            pulse: vitals.pulse,
+            temp: vitals.temp,
+            spo2: vitals.spo2
         };
+
+        // Complete payload tracing log
+        console.log("==================================================");
+        console.log("📝 STAGING PRESCRIPTION PAYLOAD TO PARENT PAGE");
+        console.log("==================================================");
+        console.log("Resolved Patient ID:", resolvedUserId);
+        console.log("Diagnosis Tags   :", diagnosis);
+        console.log("Staged Medicines :", stagedMedicines);
+        console.log("Vitals Captured  :", vitals);
+        console.log("Complaints       :", chiefComplaints);
+        console.log("Investigations   :", advisedInvestigations);
+        console.log("Advice           :", adviceGiven);
+        console.log("Special Inst.    :", specialInstructions);
+        console.log("Follow-Up Date   :", formattedDate);
+        console.log("Is Online Consult:", isOnline, "| OTP Handshake:", isOtpVerified ? "Verified" : "N/A");
+        console.log("==================================================");
 
         onSuccess(payload);
     };
@@ -182,6 +308,7 @@ export default function AddPrescriptionModal({ isOpen, onClose, appointment, onS
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     
+                    {/* CONSULTATION SUMMARY CARD */}
                     <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
                         <div className="flex justify-between items-center flex-wrap gap-2">
                             <div>
@@ -193,6 +320,63 @@ export default function AddPrescriptionModal({ isOpen, onClose, appointment, onS
                                 OTP Verified & In-Progress
                             </span>
                         </div>
+
+                        {/* Video Consult OTP Security Gate */}
+                        {isOnline && (
+                            <div className="mt-4 p-5 bg-amber-50/50 border border-amber-200/50 rounded-2xl space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-xs font-black text-amber-700 uppercase tracking-wider flex items-center gap-2">
+                                        <FaLock size={12} className="text-amber-600" /> Dynamic Call Completion Handshake
+                                    </h4>
+                                    {isOtpVerified && (
+                                        <span className="text-[8px] font-black tracking-widest uppercase bg-green-100 text-[#08B36A] px-2.5 py-1 rounded">
+                                            Handshake Verified
+                                        </span>
+                                    )}
+                                </div>
+
+                                {!isOtpVerified ? (
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                        {!isOtpSent ? (
+                                            <button
+                                                type="button"
+                                                onClick={handleSendCompletionOtp}
+                                                disabled={otpLoading}
+                                                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-2"
+                                            >
+                                                {otpLoading ? <FaSpinner className="animate-spin" size={10} /> : "Request Completion OTP"}
+                                            </button>
+                                        ) : (
+                                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                                <input
+                                                    type="text"
+                                                    maxLength={4}
+                                                    placeholder="Enter 4-Digit OTP"
+                                                    value={otpCode}
+                                                    onChange={(e) => setOtpCode(e.target.value)}
+                                                    className="w-36 px-4 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-xs text-slate-700 text-center outline-none focus:border-amber-500"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={handleVerifyCompletionOtp}
+                                                    disabled={otpLoading}
+                                                    className="px-5 py-2.5 bg-[#08B36A] hover:bg-green-600 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all"
+                                                >
+                                                    {otpLoading ? <FaSpinner className="animate-spin" size={10} /> : "Verify Handshake Code"}
+                                                </button>
+                                                {devOtp && (
+                                                    <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-3 py-2 rounded-xl">Bypass OTP: {devOtp}</span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs font-semibold text-[#08B36A] italic">
+                                        ✔ Handshake authorization token successfully logged. You are now authorized to submit the prescription.
+                                    </p>
+                                )}
+                            </div>
+                        )}
 
                         <div className="space-y-2 pt-2 border-t border-slate-50">
                             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Clinical Diagnosis Tags</label>
@@ -230,10 +414,59 @@ export default function AddPrescriptionModal({ isOpen, onClose, appointment, onS
                         </div>
                     </div>
 
+                    {/* DYNAMIC PATIENT VITALS SECTION */}
+                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+                        <h3 className="text-xs font-black text-[#08B36A] uppercase tracking-widest flex items-center gap-2 border-b border-slate-50 pb-2">
+                            <FaHeartbeat className="text-[#08B36A]" /> Patient Vitals Parameters
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="block text-[9px] font-black uppercase tracking-wider text-slate-400">BP (Blood Pressure)</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. 120/80"
+                                    value={vitals.bp}
+                                    onChange={(e) => setVitals({ ...vitals, bp: e.target.value })}
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-slate-700 outline-none focus:bg-white"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="block text-[9px] font-black uppercase tracking-wider text-slate-400">Pulse Rate</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. 72 bpm"
+                                    value={vitals.pulse}
+                                    onChange={(e) => setVitals({ ...vitals, pulse: e.target.value })}
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-slate-700 outline-none focus:bg-white"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="block text-[9px] font-black uppercase tracking-wider text-slate-400">Temperature</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. 98.6 °F"
+                                    value={vitals.temp}
+                                    onChange={(e) => setVitals({ ...vitals, temp: e.target.value })}
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-slate-700 outline-none focus:bg-white"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="block text-[9px] font-black uppercase tracking-wider text-slate-400">SpO2 (Oxygen Sat.)</label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. 99%"
+                                    value={vitals.spo2}
+                                    onChange={(e) => setVitals({ ...vitals, spo2: e.target.value })}
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs text-slate-700 outline-none focus:bg-white"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                         
                         <div className="lg:col-span-7 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-5">
-                            <div className="flex justify-between items-center">
+                            <div className="flex justify-between items-center flex-wrap gap-2">
                                 <h3 className="text-xs font-black text-amber-600 uppercase tracking-widest flex items-center gap-2">
                                     💊 Medication Formulations
                                 </h3>
@@ -512,9 +745,14 @@ export default function AddPrescriptionModal({ isOpen, onClose, appointment, onS
                     <button
                         type="button"
                         onClick={handleProcessPrescription}
-                        className="w-full py-4 bg-orange-500 hover:bg-orange-600 disabled:bg-slate-200 text-white font-black text-sm uppercase tracking-widest rounded-2xl transition-all flex items-center justify-center gap-2 active:scale-98 shadow-lg shadow-orange-100"
+                        disabled={isOnline && !isOtpVerified}
+                        className={`w-full py-4 text-white font-black text-sm uppercase tracking-widest rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg ${
+                            isOnline && !isOtpVerified 
+                                ? 'bg-slate-300 cursor-not-allowed shadow-none' 
+                                : 'bg-orange-500 hover:bg-orange-600 shadow-orange-100'
+                        }`}
                     >
-                        Process Prescription
+                        {isOnline && !isOtpVerified ? "Handshake Verification Required" : "Process Prescription"}
                     </button>
                 </div>
 

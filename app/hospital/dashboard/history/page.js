@@ -7,7 +7,8 @@ import {
   FaNotesMedical, FaDollarSign, FaProcedures, FaPrint, FaTint, FaHistory,
   FaAmbulance, FaUser, FaChevronLeft, FaChevronRight, FaFilePdf,
   FaShieldAlt, FaStethoscope, FaBed, FaDownload, FaCheckCircle,
-  FaClock, FaPhone, FaEnvelope, FaFileInvoiceDollar, FaSyringe, FaExternalLinkAlt
+  FaClock, FaPhone, FaEnvelope, FaFileInvoiceDollar, FaSyringe, FaExternalLinkAlt,
+  FaTimesCircle
 } from 'react-icons/fa';
 
 // Fallback set directly to your active IP backend
@@ -35,6 +36,19 @@ export default function HospitalHistory() {
     if (!path) return null;
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
     return `${API_BASE_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
+  };
+
+  // Helper to dynamically calculate stay duration from dates
+  const calculateStayDays = (startDate, endDate) => {
+    if (!startDate) return 0;
+    const start = new Date(startDate);
+    const end = endDate ? new Date(endDate) : new Date();
+    
+    // Difference in milliseconds
+    const diffTime = Math.abs(end - start);
+    // Convert to days and round up to count partial days as 1 full day
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays || 1; // Return at least 1 day for any registered admission
   };
 
   // Fetch History List
@@ -134,6 +148,8 @@ export default function HospitalHistory() {
     const dietPlanPdfUrl = clinicalFiles.dietPlanPdf;
     const dischargeCardUrl = clinicalFiles.dischargeCardUrl;
     const reportsList = clinicalFiles.clinicalReports || clinical.uploadedReports || [];
+
+    const calculatedStay = calculateStayDays(record.startDate || record.appointmentDate, record.endDate);
 
     const specialServicesHtml = record.specialServices && record.specialServices.length > 0 
       ? record.specialServices.map(s => `
@@ -240,7 +256,7 @@ export default function HospitalHistory() {
               <td><strong>${record.wardName || record.bedId?.wardId?.name || 'N/A'}</strong></td>
               <td>Bed ${record.bedNumber || record.bedId?.bedNumber || 'N/A'} (${record.bedBookingType || 'Standard'}) @ ₹${record.bedId?.pricePerDay || 0}/day</td>
               <td>${formatDate(record.startDate || record.appointmentDate)} to ${formatDate(record.endDate)}</td>
-              <td><strong>${record.stayDuration || 0} Days</strong></td>
+              <td><strong>${calculatedStay} Days</strong></td>
             </tr>
           </tbody>
         </table>
@@ -258,7 +274,7 @@ export default function HospitalHistory() {
             <h3 class="card-title">Patient Condition & Notes</h3>
             <div style="font-size: 12px; margin-bottom: 8px;"><strong>Condition at Admission:</strong> ${clinical.conditionDuringAdmission || 'N/A'}</div>
             <div style="font-size: 12px; margin-bottom: 8px;"><strong>Condition at Discharge:</strong> ${clinical.conditionDuringDischarge || 'N/A'}</div>
-            <div style="font-size: 12px; margin-bottom: 8px;"><strong>Treatment Result:</strong> ${clinical.treatmentResult || 'N/A'}</div>
+            <div style="font-size: 12px; margin-bottom: 8px;"><strong>Treatment Outcome:</strong> ${clinical.treatmentResult || 'N/A'}</div>
             <div style="font-size: 12px; margin-bottom: 8px;"><strong>Discharge Date/Time:</strong> ${formatDateTime(clinical.dischargedAt || record.endDate)}</div>
           </div>
         </div>
@@ -375,7 +391,7 @@ export default function HospitalHistory() {
               : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          🚑 Emergency Cases
+          {"\uD83D\uDE91"} Emergency Cases
         </button>
         <button
           onClick={() => handleTabChange('admission')}
@@ -434,6 +450,7 @@ export default function HospitalHistory() {
                   const bedNumber = item.bedNumber || bed?.bedNumber || 'N/A';
                   const isAmbulanceDropOff = !!item.ambulanceId;
                   const docImage = doctor?.profileImage ? getImageUrl(doctor.profileImage) : null;
+                  const computedStayDays = calculateStayDays(item.startDate || item.appointmentDate, item.endDate);
 
                   return (
                     <tr key={item._id} className="hover:bg-slate-50/80 transition-colors duration-150">
@@ -508,7 +525,7 @@ export default function HospitalHistory() {
                         </div>
                       </td>
 
-                      {/* Timeline */}
+                      {/* Timeline & Stay Duration */}
                       <td className="p-4">
                         <p className="text-[11px] text-slate-600 font-medium">
                           <span className="text-slate-400 text-[9px] font-bold uppercase">In:</span> {formatDate(item.startDate || item.appointmentDate)}
@@ -517,7 +534,7 @@ export default function HospitalHistory() {
                           <span className="text-slate-400 text-[9px] font-bold uppercase">Out:</span> {formatDate(item.endDate)}
                         </p>
                         <span className="inline-block mt-1 text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                          Stay: {item.stayDuration || 0} Days
+                          Stay: {computedStayDays} Days
                         </span>
                       </td>
 
@@ -599,11 +616,13 @@ export default function HospitalHistory() {
         const dietPlanPdfUrl = clinicalFiles.dietPlanPdf;
         const dischargeCardUrl = clinicalFiles.dischargeCardUrl;
 
+        const computedModalStay = calculateStayDays(selectedRecord.startDate || selectedRecord.appointmentDate, selectedRecord.endDate);
+
         return (
-          <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 md:p-6 overflow-y-auto">
+          <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 md:p-6 overflow-y-auto">
             <div className="bg-white rounded-[2rem] max-w-5xl w-full shadow-2xl overflow-hidden border border-slate-200 flex flex-col my-auto max-h-[92vh] animate-in zoom-in-95 duration-200">
               
-              {/* Modal Top Header - Redesigned with Brand Green Palette (#08B36A) */}
+              {/* Modal Top Header */}
               <div className="p-5 md:p-6 border-b border-slate-150 flex justify-between items-center bg-white sticky top-0 z-20">
                 <div className="flex items-center gap-3">
                   <div className="p-3 bg-[#08B36A]/10 rounded-2xl text-[#08B36A] flex items-center justify-center">
@@ -639,11 +658,11 @@ export default function HospitalHistory() {
                 </div>
               </div>
 
-              {/* Modal Navigation Tabs - Redesigned Tab Highlight Colors */}
-              <div className="flex border-b border-slate-150 bg-slate-50/50 px-6 pt-3 gap-2 overflow-x-auto">
+              {/* Modal Navigation Tabs */}
+              <div className="flex border-b border-slate-150 bg-slate-50/50 px-6 pt-3 gap-2 overflow-x-auto shrink-0">
                 <button
                   onClick={() => setModalTab('clinical')}
-                  className={`pb-3 px-4 font-black text-xs tracking-wider uppercase border-b-2 transition flex items-center gap-2 ${
+                  className={`pb-3 px-4 font-black text-xs tracking-wider uppercase border-b-2 transition flex items-center gap-2 shrink-0 ${
                     modalTab === 'clinical'
                       ? 'border-[#08B36A] text-[#08B36A] font-black'
                       : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -653,7 +672,7 @@ export default function HospitalHistory() {
                 </button>
                 <button
                   onClick={() => setModalTab('team')}
-                  className={`pb-3 px-4 font-black text-xs tracking-wider uppercase border-b-2 transition flex items-center gap-2 ${
+                  className={`pb-3 px-4 font-black text-xs tracking-wider uppercase border-b-2 transition flex items-center gap-2 shrink-0 ${
                     modalTab === 'team'
                       ? 'border-[#08B36A] text-[#08B36A] font-black'
                       : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -663,7 +682,7 @@ export default function HospitalHistory() {
                 </button>
                 <button
                   onClick={() => setModalTab('billing')}
-                  className={`pb-3 px-4 font-black text-xs tracking-wider uppercase border-b-2 transition flex items-center gap-2 ${
+                  className={`pb-3 px-4 font-black text-xs tracking-wider uppercase border-b-2 transition flex items-center gap-2 shrink-0 ${
                     modalTab === 'billing'
                       ? 'border-[#08B36A] text-[#08B36A] font-black'
                       : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -673,7 +692,7 @@ export default function HospitalHistory() {
                 </button>
                 <button
                   onClick={() => setModalTab('patient')}
-                  className={`pb-3 px-4 font-black text-xs tracking-wider uppercase border-b-2 transition flex items-center gap-2 ${
+                  className={`pb-3 px-4 font-black text-xs tracking-wider uppercase border-b-2 transition flex items-center gap-2 shrink-0 ${
                     modalTab === 'patient'
                       ? 'border-[#08B36A] text-[#08B36A] font-black'
                       : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -710,7 +729,7 @@ export default function HospitalHistory() {
                   <div>
                     <span className="text-[10px] font-black uppercase text-slate-400 block">Stay Duration</span>
                     <strong className="text-slate-900 font-black text-sm block mt-0.5">
-                      {selectedRecord.stayDuration || 0} Days
+                      {computedModalStay} Days
                     </strong>
                     {selectedRecord.bedId?.pricePerDay && (
                       <span className="text-[10px] text-slate-500 font-medium">₹{selectedRecord.bedId.pricePerDay}/day</span>
@@ -1004,14 +1023,14 @@ export default function HospitalHistory() {
                       </div>
 
                       {/* Payment Status & Details */}
-                      <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 text-xs">
+                      <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 text-xs font-medium">
                         <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2">
                           Transaction & Payment Metadata
                         </h4>
                         <div className="flex justify-between text-slate-600">
                           <span className="font-medium">Payment Status:</span>
                           <span className={`font-black px-2 py-0.5 rounded text-[10px] uppercase ${
-                            selectedRecord.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                            selectedRecord.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-700'
                           }`}>
                             {selectedRecord.paymentStatus || 'Pending'}
                           </span>

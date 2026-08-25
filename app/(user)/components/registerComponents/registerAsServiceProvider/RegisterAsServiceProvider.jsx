@@ -1,24 +1,43 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useAuth } from "@/app/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import { useUserContext } from "@/app/context/UserContext";
+import { getCountries, getCountryCallingCode, parsePhoneNumberFromString } from "libphonenumber-js";
+
+// Firebase imports
+import { auth } from "@/lib/firebase";
+import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 
 function RegisterAsServiceProvider() {
-  const { registerAsServiceProvider, loading } = useAuth();
+  const { checkProviderExists, registerAsServiceProvider, loading } = useAuth();
   const { closeModal, openModal } = useGlobalContext();
   const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
   const router = useRouter();
+
+  const recaptchaVerifierRef = useRef(null);
+
+  // Country Dialing Codes
+  const countryCallingCodes = useMemo(() => {
+    return getCountries()
+      .map((country) => ({
+        country,
+        callingCode: `+${getCountryCallingCode(country)}`,
+      }))
+      .sort((a, b) => a.callingCode.localeCompare(b.callingCode, undefined, { numeric: true }));
+  }, []);
 
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
 
+  // Form State
   const [formData, setFormData] = useState({
-    category: "",
+    category: "", // "Nurse" | "Pharmacy" | "Lab"
     name: "",
     email: "",
+    countryDialCode: "+91",
     phone: "",
     country: "",
     state: "",
@@ -28,29 +47,37 @@ function RegisterAsServiceProvider() {
     termsAccepted: false,
   });
 
+  // OTP States
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [firebaseIdToken, setFirebaseIdToken] = useState("");
+  const [confirmationResult, setConfirmationResult] = useState(null);
+
+  const [otpLoading, setOtpLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // ================= FETCH LOGIC =================
+  // ================= 1. FETCH LOCATION DATA =================
   useEffect(() => {
     const fetchCountries = async () => {
       try {
         const data = await getAllCountries();
         setCountries(data || []);
-      } catch {
-        console.error("Failed to load countries");
+      } catch (err) {
+        console.error("Failed to load countries", err);
       }
     };
     fetchCountries();
-  }, []);
+  }, [getAllCountries]);
 
   const fetchStates = async (countryId) => {
     try {
       const data = await getStatesByCountry(countryId);
       setStates(data || []);
       setCities([]);
-    } catch {
-      console.error("Failed to load states");
+    } catch (err) {
+      console.error("Failed to load states", err);
     }
   };
 
@@ -58,12 +85,112 @@ function RegisterAsServiceProvider() {
     try {
       const data = await getCitiesByState(stateId);
       setCities(data || []);
-    } catch {
-      console.error("Failed to load cities");
+    } catch (err) {
+      console.error("Failed to load cities", err);
     }
   };
 
-  // ================= HANDLERS =================
+  // ================= 2. FIREBASE RECAPTCHA =================
+  const getOrCreateRecaptcha = () => {
+    if (typeof window === "undefined") return null;
+
+    if (!recaptchaVerifierRef.current) {
+      recaptchaVerifierRef.current = new RecaptchaVerifier(auth, "provider-recaptcha-container", {
+        size: "invisible",
+        callback: () => {},
+        "expired-callback": () => {
+          setError("reCAPTCHA expired. Please try clicking Send OTP again.");
+        },
+      });
+    }
+    return recaptchaVerifierRef.current;
+  };
+
+  // ================= 3. PRE-CHECK & SEND OTP =================
+  const handleSendOtp = async () => {
+    setError("");
+    setSuccess("");
+
+    if (!formData.category) {
+      setError("Please select a Category (Nurse, Pharmacy, or Lab) first.");
+      return;
+    }
+
+    if (!formData.phone || formData.phone.trim().length === 0) {
+      setError("Please enter your 10-digit mobile number.");
+      return;
+    }
+
+    const cleanPhone = formData.phone.replace(/\s+/g, "");
+    const fullNumber = `${formData.countryDialCode}${cleanPhone}`;
+    const parsed = parsePhoneNumberFromString(fullNumber);
+
+    if (!parsed || !parsed.isValid()) {
+      setError("Please enter a valid mobile number for the selected country.");
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      // Step 1: Pre-check category-scoped availability
+      const checkRes = await checkProviderExists({
+        category: formData.category,
+        phone: cleanPhone,
+        email: formData.email || undefined,
+      });
+
+      if (checkRes?.exists) {
+        setError(checkRes.message || `Already registered as ${formData.category}. Please login instead.`);
+        setOtpLoading(false);
+        return;
+      }
+
+      // Step 2: Send Firebase SMS OTP
+      const appVerifier = getOrCreateRecaptcha();
+      const confirmation = await signInWithPhoneNumber(auth, fullNumber, appVerifier);
+      setConfirmationResult(confirmation);
+      setOtpSent(true);
+      setSuccess(`6-digit OTP sent to ${fullNumber}`);
+    } catch (err) {
+      console.error("Firebase Provider OTP Error:", err);
+      if (recaptchaVerifierRef.current) {
+        try { recaptchaVerifierRef.current.clear(); } catch (e) {}
+        recaptchaVerifierRef.current = null;
+      }
+      setError(typeof err === "string" ? err : err?.message || "Failed to send SMS OTP. Check phone number.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // ================= 4. VERIFY OTP =================
+  const handleVerifyOtp = async () => {
+    setError("");
+    setSuccess("");
+
+    if (!otpCode || otpCode.trim().length < 6) {
+      setError("Please enter the complete 6-digit OTP received via SMS.");
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      const userCredential = await confirmationResult.confirm(otpCode.trim());
+      const idToken = await userCredential.user.getIdToken();
+
+      setFirebaseIdToken(idToken);
+      setIsPhoneVerified(true);
+      setOtpSent(false);
+      setSuccess("Phone number verified successfully!");
+    } catch (err) {
+      console.error("Provider OTP Verification Error:", err);
+      setError("Invalid or expired OTP. Please enter the correct code.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // ================= 5. FORM FIELD HANDLERS =================
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -71,23 +198,28 @@ function RegisterAsServiceProvider() {
       [name]: type === "checkbox" ? checked : value,
     }));
 
-    if (name === "country") {
-      fetchStates(value);
-      setFormData((prev) => ({ ...prev, state: "", city: "" }));
-    }
-    if (name === "state") {
-      fetchCities(value);
-      setFormData((prev) => ({ ...prev, city: "" }));
+    if (name === "country") fetchStates(value);
+    if (name === "state") fetchCities(value);
+
+    // Reset phone verification if phone or category changes
+    if (name === "phone" || name === "countryDialCode" || name === "category") {
+      setIsPhoneVerified(false);
+      setFirebaseIdToken("");
+      setOtpSent(false);
     }
   };
 
   const validateForm = () => {
-    if (!formData.category || !formData.name || !formData.email || !formData.phone || !formData.country || !formData.password || !formData.confirmPassword) {
+    const { category, name, email, phone, country, state, city, password, confirmPassword, termsAccepted } = formData;
+    if (!category || !name || !email || !phone || !country || !state || !city || !password || !confirmPassword) {
       return "All fields are required.";
     }
-    if (formData.password.length < 6) return "Password must be at least 6 characters.";
-    if (formData.password !== formData.confirmPassword) return "Passwords do not match.";
-    if (!formData.termsAccepted) return "You must accept terms & conditions.";
+    if (!isPhoneVerified || !firebaseIdToken) {
+      return "Please verify your mobile number with SMS OTP before submitting.";
+    }
+    if (password.length < 6) return "Password must be at least 6 characters.";
+    if (password !== confirmPassword) return "Passwords do not match.";
+    if (!termsAccepted) return "You must accept the Terms & Conditions.";
     return null;
   };
 
@@ -107,59 +239,77 @@ function RegisterAsServiceProvider() {
       const selectedState = states.find((s) => s.id == formData.state);
       const selectedCity = cities.find((c) => c.id == formData.city);
 
-      const finalData = {
-        ...formData,
+      const payload = {
+        category: formData.category,
+        name: formData.name,
+        email: formData.email,
+        countryCode: formData.countryDialCode,
+        phone: formData.phone.replace(/\s+/g, ""),
+        password: formData.password,
         country: selectedCountry?.name || "",
         state: selectedState?.name || "",
         city: selectedCity?.name || "",
+        idToken: firebaseIdToken,
       };
 
-      delete finalData.confirmPassword;
-      await registerAsServiceProvider(finalData);
-
-      setSuccess("Registration successful! Redirecting...");
+      await registerAsServiceProvider(payload);
+      setSuccess("Provider registered successfully! Redirecting to KYC upload...");
 
       setTimeout(() => {
         closeModal();
-        const path = formData.category.toLowerCase();
-        if (path === "lab") router.push("/vendors/labvendor/documents");
-        else if (path === "pharmacy") router.push("/vendors/pharmacy/documents");
-        else if (path === "nurse") router.push("/vendors/nursevendor/documents");
+        const role = formData.category.toLowerCase();
+        if (role === "lab") router.push("/vendors/labvendor/documents");
+        else if (role === "pharmacy") router.push("/vendors/pharmacy/documents");
+        else if (role === "nurse") router.push("/vendors/nursevendor/documents");
         else router.push("/");
       }, 1500);
     } catch (err) {
-      setError(err?.message || "Registration failed.");
+      setError(typeof err === "string" ? err : err?.message || "Registration failed.");
     }
   };
 
   return (
     <div className="w-full bg-white">
-      <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
+      {/* Invisible Recaptcha Element */}
+      <div id="provider-recaptcha-container"></div>
 
-        {/* LEFT IMAGE */}
-        <div className="hidden md:block flex-shrink-0">
+      <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-6 rounded-lg w-full max-w-[1100px] mx-auto">
+        {/* LEFT IMAGE / ILLUSTRATION */}
+        <div className="hidden md:flex flex-col items-center justify-center flex-shrink-0 p-4">
           <img
-            src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602393service.png"
+            src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=600&auto=format&fit=crop&q=80"
             alt="Service Provider"
-            className="w-[280px] lg:w-[350px] max-w-full rounded-xl"
+            className="w-[280px] lg:w-[360px] h-[360px] object-cover rounded-2xl shadow-md border border-gray-100"
           />
         </div>
 
         {/* RIGHT FORM */}
-        <div className="flex-1 w-full md:ml-8 lg:ml-15 text-center md:text-left">
-          <h2 className="text-xl sm:text-2xl md:text-[32px] font-bold mb-5 leading-tight">Get Started</h2>
+        <div className="flex-1 w-full md:ml-8 lg:ml-10 text-center md:text-left">
+          <h2 className="text-xl sm:text-2xl md:text-[30px] font-bold mb-4 leading-tight text-gray-900">
+            Get Started
+          </h2>
 
-          {success && <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-4 text-sm font-medium">{success}</div>}
-          {error && <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-4 text-sm font-medium">{error}</div>}
+          {success && (
+            <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-3 text-sm font-medium animate-in fade-in duration-300">
+              {success}
+            </div>
+          )}
+          {error && (
+            <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-3 text-sm font-medium animate-in fade-in duration-300">
+              {error}
+            </div>
+          )}
 
-          <form onSubmit={handleSubmit} className="w-full">
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {/* Category Selection */}
             <select
               name="category"
               value={formData.category}
               onChange={handleChange}
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] bg-white"
+              disabled={isPhoneVerified}
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883] bg-white disabled:bg-gray-100 cursor-pointer"
             >
-              <option value="">Register As</option>
+              <option value="">Register As (Select Category)</option>
               <option value="Nurse">Nursing</option>
               <option value="Pharmacy">Pharmacy</option>
               <option value="Lab">Lab / Phlebotomist</option>
@@ -168,41 +318,104 @@ function RegisterAsServiceProvider() {
             <input
               type="text"
               name="name"
-              placeholder="Full Name"
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3"
+              placeholder={formData.category === "Nurse" ? "Full Name" : "Business / Store Name"}
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
               value={formData.name}
               onChange={handleChange}
+              autoComplete="name"
             />
 
             <input
               type="email"
               name="email"
               placeholder="Email Address"
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
               value={formData.email}
               onChange={handleChange}
+              autoComplete="email"
             />
 
-            <input
-              type="text"
-              name="phone"
-              placeholder="Phone Number"
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1"
-              value={formData.phone}
-              onChange={handleChange}
-            />
-            <p className="text-[12px] text-gray-500 mb-3 text-left">We'll never share your phone with others.</p>
+            {/* PHONE ROW WITH OTP VERIFICATION */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <select
+                  name="countryDialCode"
+                  value={formData.countryDialCode}
+                  onChange={handleChange}
+                  disabled={isPhoneVerified}
+                  className="w-[115px] p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883] bg-white cursor-pointer disabled:bg-gray-100"
+                >
+                  {countryCallingCodes.map((item, index) => (
+                    <option key={`${item.country}-${index}`} value={item.callingCode}>
+                      {item.country} ({item.callingCode})
+                    </option>
+                  ))}
+                </select>
 
-            {/* LOCATION ROW - Country, State, City in one line */}
-            <div className="flex flex-col md:flex-row gap-3 mb-3">
+                <input
+                  type="tel"
+                  name="phone"
+                  placeholder="Mobile Number"
+                  className="flex-1 p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883] disabled:bg-gray-100"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  disabled={isPhoneVerified}
+                  autoComplete="tel-national"
+                />
+
+                {isPhoneVerified ? (
+                  <span className="flex items-center justify-center gap-1 bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] px-4 py-2 rounded text-xs font-bold whitespace-nowrap">
+                    ✓ Verified
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={otpLoading}
+                    className="bg-[#2f8f5b] hover:bg-[#256f47] text-white px-4 py-2 rounded text-xs font-semibold transition-colors whitespace-nowrap disabled:bg-gray-400 cursor-pointer"
+                  >
+                    {otpLoading ? "Sending..." : "Send OTP"}
+                  </button>
+                )}
+              </div>
+
+              {/* INLINE OTP CONFIRMATION BOX */}
+              {otpSent && !isPhoneVerified && (
+                <div className="flex gap-2 p-2.5 bg-gray-50 border border-dashed border-[#42b883] rounded-md animate-in fade-in">
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="Enter 6-digit OTP"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value)}
+                    className="flex-1 p-2 border border-gray-300 rounded outline-none text-center tracking-widest text-sm bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleVerifyOtp}
+                    disabled={otpLoading || otpCode.length < 6}
+                    className="bg-[#08b36a] text-white px-4 py-2 rounded text-xs font-medium hover:bg-[#068f54] disabled:bg-gray-300 cursor-pointer"
+                  >
+                    {otpLoading ? "Verifying..." : "Confirm OTP"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* LOCATION ROW */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <select
                 name="country"
                 value={formData.country}
                 onChange={handleChange}
-                className="flex-1 p-3 border border-[#42b883] rounded outline-none text-sm bg-white"
+                className="w-full p-3 border border-[#42b883] rounded outline-none text-sm bg-white cursor-pointer"
               >
                 <option value="">Country</option>
-                {countries.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {countries.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
               </select>
 
               <select
@@ -210,10 +423,14 @@ function RegisterAsServiceProvider() {
                 value={formData.state}
                 onChange={handleChange}
                 disabled={!formData.country}
-                className="flex-1 p-3 border border-[#42b883] rounded outline-none text-sm bg-white disabled:bg-gray-50"
+                className="w-full p-3 border border-[#42b883] rounded outline-none text-sm bg-white disabled:bg-gray-100 cursor-pointer"
               >
                 <option value="">State</option>
-                {states.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {states.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
               </select>
 
               <select
@@ -221,60 +438,71 @@ function RegisterAsServiceProvider() {
                 value={formData.city}
                 onChange={handleChange}
                 disabled={!formData.state}
-                className="flex-1 p-3 border border-[#42b883] rounded outline-none text-sm bg-white disabled:bg-gray-50"
+                className="w-full p-3 border border-[#42b883] rounded outline-none text-sm bg-white disabled:bg-gray-100 cursor-pointer"
               >
                 <option value="">City</option>
-                {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {cities.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
               </select>
             </div>
 
             <input
               type="password"
               name="password"
-              placeholder="Password"
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3"
+              placeholder="Password (min. 6 characters)"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
               value={formData.password}
               onChange={handleChange}
+              autoComplete="new-password"
             />
 
             <input
               type="password"
               name="confirmPassword"
               placeholder="Confirm Password"
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
               value={formData.confirmPassword}
               onChange={handleChange}
+              autoComplete="new-password"
             />
 
-            <div className="flex items-center gap-1.5 mt-2 text-sm">
+            <div className="flex items-center gap-2 mt-2">
               <input
                 type="checkbox"
                 name="termsAccepted"
+                id="sp-terms"
                 className="w-4 h-4 accent-[#2f8f5b] cursor-pointer"
                 checked={formData.termsAccepted}
                 onChange={handleChange}
               />
-              <label className="text-gray-600 cursor-pointer">Allow All Terms & Conditions</label>
+              <label htmlFor="sp-terms" className="text-sm text-gray-700 cursor-pointer">
+                Allow All Terms & Conditions
+              </label>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full md:w-auto mt-5 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-10 rounded text-base transition-colors"
+              className="w-full md:w-auto mt-4 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-10 rounded text-base transition-colors disabled:bg-gray-300 cursor-pointer font-medium"
             >
               {loading ? "Registering..." : "Register →"}
             </button>
           </form>
-        </div>
-      </div>
 
-      <div className="max-w-[1100px] mx-auto mt-10 px-4 md:px-0 pb-10">
-        <h3 className="text-lg md:text-[28px] font-bold mb-5">Service Provider</h3>
-        <div className="flex gap-3 text-sm md:text-base leading-relaxed text-[#333]">
-          <span className="text-[#2f8f5b] font-bold mt-1">✔</span>
-          <p>
-            Join our network of healthcare professionals. Whether you are a Nurse, a Pharmacist, or a Lab Expert,
-            our platform helps you reach patients in need and manage your services digitally.
+          <p className="mt-5 text-[15px] text-gray-700">
+            Already have an account?{" "}
+            <span
+              onClick={() => {
+                closeModal();
+                openModal("login");
+              }}
+              className="font-bold cursor-pointer hover:underline text-[#2f8f5b]"
+            >
+              Login
+            </span>
           </p>
         </div>
       </div>

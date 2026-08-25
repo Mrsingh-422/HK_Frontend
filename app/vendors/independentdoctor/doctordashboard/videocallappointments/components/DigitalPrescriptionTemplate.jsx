@@ -139,6 +139,14 @@ export default function DigitalPrescriptionTemplate({ isOpen, onClose, data, onE
     const specialInstructions = activePayload.specialInstructions || "";
     const nextAppointment = activePayload.nextAppointment || "";
 
+    // Bulletproof fallback parser for Patient Vitals
+    const vitals = {
+        bp: activePayload.vitals?.bp || activePayload.bp || data?.vitals?.bp || data?.bp || "",
+        pulse: activePayload.vitals?.pulse || activePayload.pulse || data?.vitals?.pulse || data?.pulse || "",
+        temp: activePayload.vitals?.temp || activePayload.temp || data?.vitals?.temp || data?.temp || "",
+        spo2: activePayload.vitals?.spo2 || activePayload.spo2 || data?.spo2 || data?.spo2 || ""
+    };
+
     const docInfo = activePayload.doctorInfo || {};
     const doctorName = doctorProfile?.name || docInfo.name || activePayload.doctorName || activePayload.mainDoctorName || activePayload.doctor?.name || activePayload.name || "Doctor";
     const qualification = doctorProfile?.qualification || docInfo.qualification || activePayload.doctorQualification || activePayload.mainDoctorQualification || activePayload.doctor?.qualification || activePayload.qualification || "";
@@ -306,7 +314,23 @@ Verified via Health Kangaroo`;
             const pdfBlob = pdf.output('blob');
 
             const formData = new FormData();
-            const resolvedUserId = activePayload?.patientId || activePayload?.userId || activePayload?.user?._id || activePayload?.patientDetails?.patientId || data?.patientId || "";
+
+            // Broad-spectrum fallback resolver for Patient/User ID
+            // "Bypass with "null" string if not available, backend will auto-resolve it from appointmentId"
+            const resolvedUserId = 
+                activePayload?.patientId || 
+                activePayload?.userId?._id || 
+                activePayload?.userId || 
+                activePayload?.user?._id || 
+                activePayload?.user?.id || 
+                activePayload?.userAccount?._id || 
+                activePayload?.userAccount?.id || 
+                activePayload?.patientDetails?.patientId || 
+                data?.patientId || 
+                data?.userId || 
+                data?.userAccount?._id ||
+                "null"; // 🚀 Auto-bypass fallback as specified in API specifications.
+
             formData.append('userId', resolvedUserId);
 
             const resolvedAppointmentId = appointmentId === "N/A" || !appointmentId ? "null" : appointmentId;
@@ -321,12 +345,16 @@ Verified via Health Kangaroo`;
                 : (diagnosisText !== "N/A" ? diagnosisText.split(',').map(d => d.trim()).filter(Boolean) : []);
             formData.append('diagnosis', JSON.stringify(diagnosisArray));
 
+            // Structured dynamic medicine array
             const serializedMedicines = medicines.map(med => ({
                 name: med.name || med.medicineName || "",
                 dose: med.dosage || med.dose || "",
+                dosage: med.dosage || med.dose || "",
                 time: med.frequency || med.time || "",
+                frequency: med.frequency || med.time || "",
                 duration: med.duration || "",
-                instructions: med.instructions || ""
+                instruction: med.instructions || med.instruction || "",
+                instructions: med.instructions || med.instruction || ""
             }));
             formData.append('medicines', JSON.stringify(serializedMedicines));
 
@@ -346,7 +374,42 @@ Verified via Health Kangaroo`;
                 formData.append('additionalNotes', symptomsAdvice);
             }
 
+            // Sync dynamic vitals inside the form data payload (Both Option A & Option C Supported)
+            // Option A: Direct Flat Keys
+            if (vitals.bp) formData.append('bp', vitals.bp);
+            if (vitals.pulse) formData.append('pulse', vitals.pulse);
+            if (vitals.temp) formData.append('temp', vitals.temp);
+            if (vitals.spo2) formData.append('spo2', vitals.spo2);
+
+            // Option C: Stringified JSON Object key
+            const vitalsObj = {
+                bp: vitals.bp || "",
+                pulse: vitals.pulse || "",
+                temp: vitals.temp || "",
+                spo2: vitals.spo2 || ""
+            };
+            formData.append('vitals', JSON.stringify(vitalsObj));
+
+            // Sync dynamic PDF binary files strictly under the required primary key
             formData.append('prescriptionPdf', pdfBlob, `prescription-${appointmentId}.pdf`);
+
+            // Detailed Payload Logger for PDF submission tracing
+            console.log("==================================================");
+            console.log("📡 SUBMITTING PRESCRIPTION FORM DATA & VITALS LOGS");
+            console.log("==================================================");
+            console.log("Patient User ID   :", resolvedUserId);
+            console.log("Appointment ID    :", resolvedAppointmentId);
+            console.log("Chief Complaints  :", chiefComplaints);
+            console.log("Diagnosis Codes   :", diagnosisArray);
+            console.log("Prescribed Meds   :", serializedMedicines);
+            console.log("Advised Invest.   :", advisedInvestigations);
+            console.log("Advice Given      :", adviceGiven);
+            console.log("Special Instruct. :", specialInstructions);
+            console.log("Next Appointment  :", nextAppointment);
+            console.log("Additional Notes  :", symptomsAdvice);
+            console.log("Captured Vitals   :", vitalsObj);
+            console.log("Prescription PDF  : Blob Size =", pdfBlob.size, "bytes | Type =", pdfBlob.type);
+            console.log("==================================================");
 
             const response = await DoctorAPI.createPrescription(formData);
             if (response && response.success) {
@@ -411,13 +474,15 @@ Verified via Health Kangaroo`;
                             Print Summary
                         </button>
 
-                        <button
-                            onClick={handleFinalize}
-                            disabled={submitting}
-                            className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:bg-slate-100 text-white rounded-xl text-xs font-black shadow-md transition-colors flex items-center gap-1.5"
-                        >
-                            {submitting ? <FaSpinner className="animate-spin" size={10} /> : "Complete Case"}
-                        </button>
+                        {onCompleteCase && (
+                            <button
+                                onClick={handleFinalize}
+                                disabled={submitting}
+                                className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:bg-slate-100 text-white rounded-xl text-xs font-black shadow-md transition-colors flex items-center gap-1.5"
+                            >
+                                {submitting ? <FaSpinner className="animate-spin" size={10} /> : "Complete Case"}
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -529,6 +594,41 @@ Verified via Health Kangaroo`;
                                         <span className="font-extrabold text-slate-900">Diagnosis :</span>{' '}
                                         <span className="text-slate-700 font-medium">{diagnosisText}</span>
                                     </div>
+
+                                    {/* Patient Vitals Parameters Panel - High-compatibility inline style fallback */}
+                                    {vitals && (vitals.bp || vitals.pulse || vitals.temp || vitals.spo2) && (
+                                        <div className="col-span-12 border-t border-slate-200/50 pt-3 mt-2" style={{ display: 'block', width: '100%' }}>
+                                            <span className="font-extrabold text-slate-900 uppercase text-[9px] tracking-wider block mb-2 text-[#08B36A]">
+                                                Captured Vitals Metrics:
+                                            </span>
+                                            <div className="flex flex-row justify-between items-center bg-white border border-slate-100 p-3 rounded-xl shadow-xs" style={{ display: 'flex', width: '100%', gap: '10px' }}>
+                                                {vitals.bp && (
+                                                    <div className="flex-1 text-center" style={{ flex: '1', minWidth: '0' }}>
+                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block" style={{ fontSize: '8px', color: '#94a3b8' }}>Blood Pressure</span>
+                                                        <span className="text-xs font-black text-slate-800" style={{ fontSize: '12px', fontWeight: 'bold' }}>{vitals.bp}</span>
+                                                    </div>
+                                                )}
+                                                {vitals.pulse && (
+                                                    <div className="flex-1 text-center" style={{ flex: '1', minWidth: '0', borderLeft: '1px solid #f1f5f9' }}>
+                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block" style={{ fontSize: '8px', color: '#94a3b8' }}>Pulse Rate</span>
+                                                        <span className="text-xs font-black text-slate-800" style={{ fontSize: '12px', fontWeight: 'bold' }}>{vitals.pulse}</span>
+                                                    </div>
+                                                )}
+                                                {vitals.temp && (
+                                                    <div className="flex-1 text-center" style={{ flex: '1', minWidth: '0', borderLeft: '1px solid #f1f5f9' }}>
+                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block" style={{ fontSize: '8px', color: '#94a3b8' }}>Temperature</span>
+                                                        <span className="text-xs font-black text-slate-800" style={{ fontSize: '12px', fontWeight: 'bold' }}>{vitals.temp}</span>
+                                                    </div>
+                                                )}
+                                                {vitals.spo2 && (
+                                                    <div className="flex-1 text-center" style={{ flex: '1', minWidth: '0', borderLeft: '1px solid #f1f5f9' }}>
+                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block" style={{ fontSize: '8px', color: '#94a3b8' }}>Oxygen Saturation</span>
+                                                        <span className="text-xs font-black text-slate-800" style={{ fontSize: '12px', fontWeight: 'bold' }}>{vitals.spo2}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

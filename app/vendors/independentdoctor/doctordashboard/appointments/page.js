@@ -1,19 +1,23 @@
 'use client'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
     FaCalendarAlt, FaHome, FaClock,
     FaVideo, FaHospital, FaCheck, FaTimes, FaUndo, FaSpinner, FaInfoCircle, FaUser,
     FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaWallet, FaStethoscope, FaExclamationTriangle,
-    FaExchangeAlt, FaMoneyBillWave
+    FaExchangeAlt, FaMoneyBillWave, FaComment, FaPaperPlane
 } from 'react-icons/fa'
 import { IoCloseOutline } from "react-icons/io5";
 import DoctorAPI from '@/app/services/DoctorAPI';
 import { toast, Toaster } from 'react-hot-toast';
+import { io } from 'socket.io-client';
 import VideoCallModal from '../../../../(user)/components/videoCall/VideoCallModal';
 
 // Interactive E-Prescription Components
 import AddPrescriptionModal from '../videocallappointments/components/AddPrescriptionModal';
 import DigitalPrescriptionTemplate from '../videocallappointments/components/DigitalPrescriptionTemplate';
+
+const SOCKET_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239ca3af'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
 
 export default function AppointmentsPage() {
     const [appointments, setAppointments] = useState([]);
@@ -39,12 +43,48 @@ export default function AppointmentsPage() {
     const [submitting, setSubmitting] = useState(false);
 
     const [activeCallId, setActiveCallId] = useState(null);
+    const [activeCallType, setActiveCallType] = useState('video');
     const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+
+    // Chat Integration States
+    const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+    const [chatMessages, setChatMessages] = useState([]);
+    const [chatLoading, setChatLoading] = useState(false);
+    const [newMessageText, setNewMessageText] = useState('');
 
     // Prescription & Live Preview States
     const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
     const [isPreviewTemplateOpen, setIsPreviewTemplateOpen] = useState(false);
     const [completedPrescriptionData, setCompletedPrescriptionData] = useState(null);
+
+    const socketRef = useRef(null);
+    const chatEndRef = useRef(null);
+    const selectedAppointmentRef = useRef(null);
+
+    useEffect(() => {
+        selectedAppointmentRef.current = selectedAppointment;
+    }, [selectedAppointment]);
+
+    // Socket Connection Setup
+    useEffect(() => {
+        socketRef.current = io(SOCKET_URL, { transports: ["polling", "websocket"] });
+        socketRef.current.on('receive_message', (incomingMsg) => {
+            const currentApptId = selectedAppointmentRef.current?._id || selectedAppointmentRef.current?.appointmentId;
+            if (currentApptId === incomingMsg.appointmentId) {
+                setChatMessages((prev) => {
+                    if (prev.some(msg => (msg._id || msg.id) === (incomingMsg._id || incomingMsg.id))) return prev;
+                    return [...prev, incomingMsg];
+                });
+            }
+        });
+        return () => socketRef.current && socketRef.current.disconnect();
+    }, []);
+
+    useEffect(() => {
+        const currentApptId = selectedAppointment?._id || selectedAppointment?.appointmentId;
+        if (!socketRef.current || !currentApptId || !isChatModalOpen) return;
+        socketRef.current.emit('join_room', { appointmentId: currentApptId });
+    }, [isChatModalOpen, selectedAppointment]);
 
     useEffect(() => {
         fetchData();
@@ -182,20 +222,22 @@ export default function AppointmentsPage() {
         }
     };
 
-    const handleStartCall = async (appointment) => {
+    const handleStartCall = async (appointment, type = 'video') => {
         try {
             setSubmitting(true);
+            setActiveCallType(type);
 
             const payload = {
                 appointmentId: appointment._id,
                 callId: appointment._id, 
-                callerName: "Dr. " + (appointment.doctorId?.name || "Doctor"),
+                callType: type,
+                callerName: "Dr. " + (doctorProfile?.name || appointment.doctorId?.name || "Doctor"),
                 receiverId: appointment.userId?._id || appointment.userId, 
-            }
+            };
             const res = await DoctorAPI.initiateVideoCall(payload);
 
             if (res.success) {
-                toast.success("Calling patient...");
+                toast.success(`Calling patient via ${type}...`);
                 setSelectedAppointment(appointment);
                 setActiveCallId(payload.callId); 
                 setIsVideoModalOpen(true); 
@@ -205,6 +247,67 @@ export default function AppointmentsPage() {
         } catch (error) {
             console.error(error);
             toast.error("Could not initiate call session");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleOpenChat = async (e, appointment) => {
+        if (e) e.stopPropagation();
+        setSelectedAppointment(appointment);
+        setIsChatModalOpen(true);
+        setChatLoading(true);
+        setChatMessages([]);
+        try {
+            const apptId = appointment._id || appointment.appointmentId;
+            const res = await DoctorAPI.getDoctorChatHistory(apptId);
+            if (res && res.success) setChatMessages(res.data || []);
+        } catch (error) {
+            toast.error("Failed to load conversation history.");
+        } finally {
+            setChatLoading(false);
+        }
+    };
+
+    const handleSendMessage = (e) => {
+        e.preventDefault();
+        if (!newMessageText.trim() || !selectedAppointment || !socketRef.current) return;
+        const verifiedDoctorId = doctorProfile?._id || doctorProfile?.id || selectedAppointment.doctorId;
+        const apptId = selectedAppointment._id || selectedAppointment.appointmentId;
+        const payload = {
+            appointmentId: apptId,
+            senderId: verifiedDoctorId,
+            senderType: "Doctor",
+            text: newMessageText.trim()
+        };
+        socketRef.current.emit('send_message', payload);
+        setNewMessageText('');
+    };
+
+    const handleNoShow = async (e, id) => {
+        if (e) e.stopPropagation();
+        
+        // Interactive native comment input request
+        const reason = window.prompt("Please enter comment details for marking this Consultation as No-Show:");
+        if (reason === null) return; // Action aborted
+        if (!reason.trim()) {
+            toast.error("Comments are required to log No-Show.");
+            return;
+        }
+
+        try {
+            setSubmitting(true);
+            const res = await DoctorAPI.noShowAppointment(id, reason.trim());
+            if (res && res.success) {
+                toast.success(res.message || "Consultation No-Show logged successfully.");
+                setIsViewModalOpen(false);
+                fetchData();
+            } else {
+                toast.error(res?.message || "Failed to log No-Show.");
+            }
+        } catch (error) {
+            console.error("No Show Submit Error:", error);
+            toast.error("Error setting appointment status to No-Show");
         } finally {
             setSubmitting(false);
         }
@@ -231,9 +334,19 @@ export default function AppointmentsPage() {
             ? `${selectedAppointment.address.houseNo || ''}, ${selectedAppointment.address.sector || ''}, ${selectedAppointment.address.city || ''}, ${selectedAppointment.address.state || ''}`
             : "Clinic Visit";
 
+        // Broad-spectrum fallback resolver for Patient/User ID mapping
+        const resolvedUserId = 
+            stagedPayload.patientId || 
+            stagedPayload.userId || 
+            selectedAppointment?.userId?._id || 
+            selectedAppointment?.userId || 
+            selectedAppointment?.patientId || 
+            "";
+
         const formattedPreviewPayload = {
             appointmentId: selectedAppointment?._id || selectedAppointment?.appointmentId,
-            patientId: selectedAppointment?.userId?._id || selectedAppointment?.userId || "",
+            patientId: resolvedUserId,
+            userId: resolvedUserId,
             patientInfo: {
                 name: selectedAppointment?.patientName || "N/A",
                 age: selectedAppointment?.patientAge || "N/A",
@@ -261,7 +374,18 @@ export default function AppointmentsPage() {
             advisedInvestigations: stagedPayload.advisedInvestigations || "",
             adviceGiven: stagedPayload.adviceGiven || "",
             specialInstructions: stagedPayload.specialInstructions || "",
-            nextAppointment: stagedPayload.nextAppointment || ""
+            nextAppointment: stagedPayload.nextAppointment || "",
+            // Dynamic Vitals payload mapping (Option A & C support)
+            vitals: {
+                bp: stagedPayload.bp || "",
+                pulse: stagedPayload.pulse || "",
+                temp: stagedPayload.temp || "",
+                spo2: stagedPayload.spo2 || ""
+            },
+            bp: stagedPayload.bp || "",
+            pulse: stagedPayload.pulse || "",
+            temp: stagedPayload.temp || "",
+            spo2: stagedPayload.spo2 || ""
         };
 
         setCompletedPrescriptionData(formattedPreviewPayload);
@@ -386,13 +510,29 @@ export default function AppointmentsPage() {
 
     const isTerminalStatus =
         selectedAppointment?.status === 'Completed' ||
+        selectedAppointment?.status === 'No Show' ||
+        selectedAppointment?.status === 'No-Show' ||
         (isCancelledStatus(selectedAppointment?.status) && !isCancelledByUserStatus(selectedAppointment?.status));
+
+    // Determine if cancellation details exist
+    const hasCancellationInfo = selectedAppointment && (
+        selectedAppointment.cancellationDetails?.reason ||
+        selectedAppointment.cancelReason ||
+        selectedAppointment.cancellationDetails?.cancelledAt ||
+        selectedAppointment.cancellationDetails?.refundAmountCalculated
+    );
 
     return (
         <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans">
             <Toaster position="top-right" />
 
             <div className="max-w-7xl mx-auto space-y-8">
+
+                {/* PAGE HEADER */}
+                <div>
+                    <h1 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Patient Bookings</h1>
+                    <p className="text-sm text-gray-500 font-medium">Manage your schedule and consultations</p>
+                </div>
 
                 {/* STATS CARDS */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -410,12 +550,8 @@ export default function AppointmentsPage() {
                     ))}
                 </div>
 
-                <div className="flex flex-col xl:flex-row justify-between items-end xl:items-center gap-4">
-                    <div>
-                        <h1 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Patient Bookings</h1>
-                        <p className="text-sm text-gray-500 font-medium">Manage your schedule and consultations</p>
-                    </div>
-
+                {/* TABS & SEARCH CONTROLS ROW (Aligned to Left) */}
+                <div className="flex flex-col xl:flex-row justify-start items-start xl:items-center gap-4">
                     <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto items-stretch sm:items-center">
                         
                         <div className="relative flex-grow sm:flex-grow-0">
@@ -433,15 +569,16 @@ export default function AppointmentsPage() {
                             </div>
                         </div>
 
+                        {/* Restricted Filter Tabs (Section 3 & Custom Requirement) */}
                         <div className="bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100 flex gap-1 overflow-x-auto">
-                            {['', 'Pending', 'Confirmed', 'Completed', 'Cancelled'].map((status) => (
+                            {['', 'Pending', 'Confirmed', 'Completed', 'Cancelled', 'No-Show'].map((status) => (
                                 <button
                                     key={status}
                                     onClick={() => { setFilterStatus(status); setCurrentPage(1); }}
                                     className={`px-5 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${filterStatus === status ? 'bg-[#08B36A] text-white' : 'text-gray-400 hover:bg-gray-50'
                                         }`}
                                 >
-                                    {status || 'All'}
+                                    {status === 'No-Show' ? 'No Show' : (status || 'All')}
                                 </button>
                             ))}
                         </div>
@@ -490,115 +627,169 @@ export default function AppointmentsPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
-                                    {currentAppointments.map((appt) => (
-                                        <tr
-                                            key={appt._id}
-                                            onClick={() => openViewModal(appt)}
-                                            className="hover:bg-gray-50/50 transition-colors cursor-pointer group"
-                                        >
-                                            <td className="px-8 py-6">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 font-black text-lg uppercase group-hover:bg-green-50 group-hover:text-[#08B36A] transition-all">
-                                                        {appt.patients[0]?.patientName?.charAt(0) || appt.userId?.name?.charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-black text-gray-900 text-sm uppercase tracking-tight">
-                                                            {appt.patients[0]?.patientName || appt.userId?.name}
-                                                        </p>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-black uppercase">{appt.patients[0]?.gender}</span>
-                                                            <span className="text-[10px] text-gray-400 font-bold">Age: {appt.patients[0]?.patientAge}</span>
+                                    {currentAppointments.map((appt) => {
+                                        const isOnline = appt.consultationType?.toLowerCase().includes('online') || appt.consultationType?.toLowerCase().includes('video');
+                                        return (
+                                            <tr
+                                                key={appt._id}
+                                                onClick={() => openViewModal(appt)}
+                                                className="hover:bg-gray-50/50 transition-colors cursor-pointer group"
+                                            >
+                                                <td className="px-8 py-6">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 font-black text-lg uppercase group-hover:bg-green-50 group-hover:text-[#08B36A] transition-all">
+                                                            {appt.patients[0]?.patientName?.charAt(0) || appt.userId?.name?.charAt(0)}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-black text-gray-900 text-sm uppercase tracking-tight">
+                                                                {appt.patients[0]?.patientName || appt.userId?.name}
+                                                            </p>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-black uppercase">{appt.patients[0]?.gender}</span>
+                                                                <span className="text-[10px] text-gray-400 font-bold">Age: {appt.patients[0]?.patientAge}</span>
+                                                            </div>
+                                                            {/* Dynamic Reschedules and Cancellations limits display on card */}
+                                                            <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                                                <span className="text-[9px] bg-amber-50 text-amber-700 px-2.5 py-1 rounded-md font-bold uppercase tracking-wider">
+                                                                    Reschedules Left: {appt.remainingReschedules ?? "N/A"}
+                                                                </span>
+                                                                <span className="text-[9px] bg-red-50 text-red-700 px-2.5 py-1 rounded-md font-bold uppercase tracking-wider">
+                                                                    Cancels Left: {appt.remainingCancellations ?? "N/A"}
+                                                                </span>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-6">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    {getConsultationIcon(appt.consultationType)}
-                                                    <p className="text-sm font-black text-gray-700">{appt.consultationType}</p>
-                                                </div>
-                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">ID: {appt.bookingId}</p>
-                                            </td>
-                                            <td className="px-8 py-6">
-                                                <div className="flex items-center gap-2 text-gray-800 font-black text-sm">
-                                                    <FaCalendarAlt className="text-gray-300" size={14} />
-                                                    {formatDate(appt.appointmentDate)}
-                                                </div>
-                                                <div className="flex items-center gap-2 mt-1 text-gray-400 font-bold text-xs">
-                                                    <FaClock size={12} /> {appt.appointmentTime}
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-6">
-                                                <div className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest mb-1 ${isCancelledStatus(appt.status) ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-400'}`}>
-                                                    {appt.status}
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <p className="text-sm font-black text-[#08B36A]">₹{appt.totalAmount}</p>
-                                                    <span className="text-[10px] text-gray-400 font-bold uppercase">({appt.paymentStatus})</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-6">
-                                                <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                                                    {appt.status === 'Pending' ? (
-                                                        <>
-                                                            <button
-                                                                disabled={submitting}
-                                                                onClick={(e) => openCancelModal(e, appt)}
-                                                                className="p-3 rounded-2xl text-red-500 bg-red-50 hover:bg-red-100 transition-all active:scale-90"
-                                                                title="Cancel Appointment"
-                                                            >
-                                                                <FaTimes />
-                                                            </button>
-                                                            <button
-                                                                disabled={submitting}
-                                                                onClick={(e) => handleAction(e, appt._id, 'confirm')}
-                                                                className="p-3 rounded-2xl text-white bg-[#08B36A] hover:bg-green-600 shadow-lg shadow-green-100 transition-all active:scale-90"
-                                                                title="Confirm Appointment"
-                                                            >
-                                                                <FaCheck />
-                                                            </button>
-                                                        </>
-                                                    ) : isCancelledByUserStatus(appt.status) ? (
-                                                        <button
-                                                            onClick={(e) => openRescheduleModal(e, appt)}
-                                                            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-orange-200 text-orange-600 hover:bg-orange-50 transition-all"
-                                                        >
-                                                            <FaUndo /> Reschedule
-                                                        </button>
-                                                    ) : (isCancelledStatus(appt.status) || appt.status === 'Completed') ? (
-                                                        <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest px-4 py-2 bg-gray-50 rounded-xl">View Only</span>
-                                                    ) : (
-                                                        <div className="flex gap-2">
-                                                            {appt.status === 'Confirmed' && (appt.consultationType === 'Home Visit' || appt.consultationType === 'Clinic Visit') && (
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        {getConsultationIcon(appt.consultationType)}
+                                                        <p className="text-sm font-black text-gray-700">{appt.consultationType}</p>
+                                                    </div>
+                                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">ID: {appt.bookingId}</p>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <div className="flex items-center gap-2 text-gray-800 font-black text-sm">
+                                                        <FaCalendarAlt className="text-gray-300" size={14} />
+                                                        {formatDate(appt.appointmentDate)}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-1 text-gray-400 font-bold text-xs">
+                                                        <FaClock size={12} /> {appt.appointmentTime}
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <div className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest mb-1 ${isCancelledStatus(appt.status) ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-400'}`}>
+                                                        {appt.status}
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-sm font-black text-[#08B36A]">₹{appt.totalAmount}</p>
+                                                        <span className="text-[10px] text-gray-400 font-bold uppercase">({appt.paymentStatus})</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <div className="flex justify-end items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                                        {appt.status === 'Pending' ? (
+                                                            <>
                                                                 <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleStartCase(appt);
-                                                                    }}
-                                                                    className="flex items-center gap-1.5 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-orange-500 hover:bg-orange-600 text-white shadow-md shadow-orange-100 transition-all"
+                                                                    disabled={submitting}
+                                                                    onClick={(e) => openCancelModal(e, appt)}
+                                                                    className="p-3 rounded-2xl text-red-500 bg-red-50 hover:bg-red-100 transition-all active:scale-90"
+                                                                    title="Cancel Appointment"
                                                                 >
-                                                                    Start Case
+                                                                    <FaTimes />
                                                                 </button>
-                                                            )}
-                                                            <button
-                                                                onClick={(e) => openCancelModal(e, appt)}
-                                                                className="p-3 rounded-2xl text-red-500 bg-red-50 hover:bg-red-100 transition-all active:scale-90"
-                                                                title="Cancel Appointment"
-                                                            >
-                                                                <FaTimes />
-                                                            </button>
+                                                                <button
+                                                                    disabled={submitting}
+                                                                    onClick={(e) => handleAction(e, appt._id, 'confirm')}
+                                                                    className="p-3 rounded-2xl text-white bg-[#08B36A] hover:bg-green-600 shadow-lg shadow-green-100 transition-all active:scale-90"
+                                                                    title="Confirm Appointment"
+                                                                >
+                                                                    <FaCheck />
+                                                                </button>
+                                                            </>
+                                                        ) : isCancelledByUserStatus(appt.status) ? (
                                                             <button
                                                                 onClick={(e) => openRescheduleModal(e, appt)}
-                                                                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-gray-100 text-gray-500 hover:bg-gray-50 transition-all"
+                                                                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-orange-200 text-orange-600 hover:bg-orange-50 transition-all"
                                                             >
                                                                 <FaUndo /> Reschedule
                                                             </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                        ) : (isCancelledStatus(appt.status) || appt.status === 'Completed' || appt.status === 'No Show' || appt.status === 'No-Show') ? (
+                                                            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest px-4 py-2 bg-gray-50 rounded-xl">View Only</span>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2">
+                                                                {appt.status === 'Confirmed' && (appt.consultationType === 'Home Visit' || appt.consultationType === 'Clinic Visit') && (
+                                                                    <>
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleStartCase(appt);
+                                                                            }}
+                                                                            className="flex items-center gap-1.5 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-orange-500 hover:bg-orange-600 text-white shadow-md shadow-orange-100 transition-all"
+                                                                        >
+                                                                            Start Case
+                                                                        </button>
+                                                                        {/* Dynamic "No Show" action button displayed inside Start Case flow */}
+                                                                        <button
+                                                                            disabled={submitting}
+                                                                            onClick={(e) => handleNoShow(e, appt._id)}
+                                                                            className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-red-600 shadow-md transition-all active:scale-95"
+                                                                            title="Mark Patient as No Show"
+                                                                        >
+                                                                            No Show
+                                                                        </button>
+                                                                    </>
+                                                                )}
+
+                                                                {/* Interactive Communications Toolbar (Voice, Video & Chat) */}
+                                                                {isOnline && (
+                                                                    <>
+                                                                        <button
+                                                                            disabled={submitting}
+                                                                            onClick={(e) => { e.stopPropagation(); handleStartCall(appt, 'video'); }}
+                                                                            className="p-3 rounded-2xl text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all active:scale-90"
+                                                                            title="Video Consultation"
+                                                                        >
+                                                                            <FaVideo size={13} />
+                                                                        </button>
+                                                                        <button
+                                                                            disabled={submitting}
+                                                                            onClick={(e) => { e.stopPropagation(); handleStartCall(appt, 'audio'); }}
+                                                                            className="p-3 rounded-2xl text-green-600 bg-green-50 hover:bg-green-100 transition-all active:scale-90"
+                                                                            title="Voice Consultation"
+                                                                        >
+                                                                            <FaPhoneAlt size={13} />
+                                                                        </button>
+                                                                        <button
+                                                                            disabled={submitting}
+                                                                            onClick={(e) => handleOpenChat(e, appt)}
+                                                                            className="p-3 rounded-2xl text-purple-600 bg-purple-50 hover:bg-purple-100 transition-all active:scale-90"
+                                                                            title="Chat coordination"
+                                                                        >
+                                                                            <FaComment size={13} />
+                                                                        </button>
+                                                                    </>
+                                                                )}
+
+                                                                <button
+                                                                    onClick={(e) => openCancelModal(e, appt)}
+                                                                    className="p-3 rounded-2xl text-red-500 bg-red-50 hover:bg-red-100 transition-all active:scale-90"
+                                                                    title="Cancel Appointment"
+                                                                >
+                                                                    <FaTimes />
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => openRescheduleModal(e, appt)}
+                                                                    className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-gray-100 text-gray-500 hover:bg-gray-50 transition-all"
+                                                                >
+                                                                    <FaUndo /> Reschedule
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -673,22 +864,25 @@ export default function AppointmentsPage() {
                             </div>
 
                             {/* CANCELLATION DETAILS SECTION */}
-                            {(isCancelledStatus(selectedAppointment.status) || selectedAppointment.cancellationDetails) && (
+                            {hasCancellationInfo && (
                                 <div className="space-y-3">
                                     <h4 className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
                                         <FaExclamationTriangle size={10} className="text-red-500" /> Cancellation Details
                                     </h4>
                                     <div className="p-5 bg-red-50/70 border border-red-100 rounded-[2rem] space-y-3 text-xs">
-                                        <div className="flex justify-between border-b border-red-100 pb-2">
-                                            <span className="font-bold text-gray-500">Reason</span>
-                                            <span className="font-black text-red-700 italic">
-                                                "{selectedAppointment.cancellationDetails?.reason || selectedAppointment.cancelReason || 'Doctor unavailable'}"
-                                            </span>
-                                        </div>
+                                        {/* Conditionally render cancellation reason if provided */}
+                                        {(selectedAppointment.cancellationDetails?.reason || selectedAppointment.cancelReason) && (
+                                            <div className="flex justify-between border-b border-red-100 pb-2">
+                                                <span className="font-bold text-gray-500">Reason</span>
+                                                <span className="font-black text-red-700 italic">
+                                                    "{selectedAppointment.cancellationDetails?.reason || selectedAppointment.cancelReason}"
+                                                </span>
+                                            </div>
+                                        )}
                                         <div className="flex justify-between border-b border-red-100 pb-2">
                                             <span className="font-bold text-gray-500">Cancellation Mode</span>
                                             <span className={`font-black uppercase ${selectedAppointment.cancellationDetails?.isPermanent ? 'text-red-600' : 'text-blue-600'}`}>
-                                                {selectedAppointment.cancellationDetails?.isPermanent ? 'Permanent Refund Initiated' : 'Reschedule-Ready (Free)'}
+                                                {selectedAppointment.cancellationDetails?.isPermanent }
                                             </span>
                                         </div>
                                         {selectedAppointment.cancellationDetails?.refundAmountCalculated > 0 && (
@@ -813,26 +1007,58 @@ export default function AppointmentsPage() {
                             </button>
                             {!isTerminalStatus && (
                                 isOnlineConsultation ? (
-                                    <button
-                                        disabled={submitting}
-                                        onClick={() => handleStartCall(selectedAppointment)}
-                                        className="flex-1 py-4 rounded-2xl bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        {submitting ? <FaSpinner className="animate-spin" /> : <FaVideo />}
-                                        Start Call
-                                    </button>
+                                    <div className="flex-1 flex gap-2">
+                                        <button
+                                            disabled={submitting}
+                                            onClick={() => handleStartCall(selectedAppointment, 'video')}
+                                            className="flex-1 py-4 rounded-2xl bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            {submitting && activeCallType === 'video' ? <FaSpinner className="animate-spin" /> : <FaVideo />}
+                                            Video Call
+                                        </button>
+                                        <button
+                                            disabled={submitting}
+                                            onClick={() => handleStartCall(selectedAppointment, 'audio')}
+                                            className="flex-1 py-4 rounded-2xl bg-green-600 text-white font-black text-[10px] uppercase tracking-widest hover:bg-green-700 shadow-xl shadow-green-100 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            {submitting && activeCallType === 'audio' ? <FaSpinner className="animate-spin" /> : <FaPhoneAlt />}
+                                            Voice Call
+                                        </button>
+                                        <button
+                                            disabled={submitting}
+                                            onClick={(e) => {
+                                                setIsViewModalOpen(false);
+                                                handleOpenChat(e, selectedAppointment);
+                                            }}
+                                            className="flex-1 py-4 rounded-2xl bg-purple-600 text-white font-black text-[10px] uppercase tracking-widest hover:bg-purple-700 shadow-xl shadow-purple-100 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <FaComment />
+                                            Chat
+                                        </button>
+                                    </div>
                                 ) : (
                                     <div className="flex-1 flex gap-2">
                                         {selectedAppointment.status === 'Confirmed' && (selectedAppointment.consultationType === 'Home Visit' || selectedAppointment.consultationType === 'Clinic Visit') && (
-                                            <button
-                                                onClick={() => {
-                                                    setIsViewModalOpen(false);
-                                                    handleStartCase(selectedAppointment);
-                                                }}
-                                                className="flex-1 py-4 rounded-2xl bg-orange-500 text-white font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 shadow-xl shadow-orange-100 transition-all"
-                                            >
-                                                Start Case
-                                            </button>
+                                            <>
+                                                <button
+                                                    onClick={() => {
+                                                        setIsViewModalOpen(false);
+                                                        handleStartCase(selectedAppointment);
+                                                    }}
+                                                    className="flex-1 py-4 rounded-2xl bg-orange-500 text-white font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 shadow-xl shadow-orange-100 transition-all"
+                                                >
+                                                    Start Case
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        setIsViewModalOpen(false);
+                                                        handleNoShow(e, selectedAppointment._id);
+                                                    }}
+                                                    className="flex-1 py-4 rounded-2xl bg-red-500 text-white font-black text-[10px] uppercase tracking-widest hover:bg-red-600 shadow-xl transition-all"
+                                                >
+                                                    No Show
+                                                </button>
+                                            </>
                                         )}
                                         <button
                                             onClick={(e) => openCancelModal(e, selectedAppointment)}
@@ -1032,6 +1258,9 @@ export default function AppointmentsPage() {
                         </div>
 
                         <div className="p-8 pt-0 flex flex-col gap-3">
+                            <p className="text-xs text-center text-red-500 font-bold uppercase">
+                                Action consumes rescheduling limits if confirmed.
+                            </p>
                             <button
                                 disabled={submitting}
                                 onClick={handleRescheduleSubmit}
@@ -1040,6 +1269,70 @@ export default function AppointmentsPage() {
                                 {submitting ? <FaSpinner className="animate-spin" /> : <FaCheck />}
                                 {submitting ? 'Updating...' : 'Confirm Reschedule'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* CHAT MODAL WINDOW */}
+            {isChatModalOpen && selectedAppointment && (
+                <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-[250] p-0 md:p-4 backdrop-blur-sm animate-fade-in animate-in fade-in duration-200">
+                    <div className="bg-white w-full h-full md:h-[650px] md:max-h-[85vh] md:max-w-xl flex flex-col overflow-hidden relative md:rounded-[2.5rem] shadow-2xl">
+                        <div className="p-5 border-b border-gray-100 bg-gray-50/70 flex justify-between items-center shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-11 h-11 rounded-2xl bg-[#08B36A] flex items-center justify-center text-white text-md font-black uppercase">
+                                    {selectedAppointment.patients?.[0]?.patientName?.charAt(0) || selectedAppointment.userId?.name?.charAt(0)}
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-black text-gray-900 tracking-tight uppercase">
+                                        {selectedAppointment.patients?.[0]?.patientName || selectedAppointment.userId?.name}
+                                    </h2>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Booking ID: {selectedAppointment.bookingId}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsChatModalOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm border border-gray-50 text-slate-400 hover:text-red-500 transition-colors">
+                                <IoCloseOutline size={24} />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#f8fafc]">
+                            {chatLoading ? (
+                                <div className="flex flex-col items-center justify-center h-full gap-2">
+                                    <FaSpinner className="animate-spin text-[#08B36A]" size={26} />
+                                    <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Loading history...</p>
+                                </div>
+                            ) : chatMessages.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-full text-center">
+                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No previous messages.</p>
+                                </div>
+                            ) : (
+                                chatMessages.map((msg, index) => {
+                                    const isDoctor = msg.senderType === 'Doctor';
+                                    return (
+                                        <div key={msg._id || msg.id || `msg-${index}`} className={`flex ${isDoctor ? 'justify-end' : 'justify-start'}`}>
+                                            <div className={`max-w-[80%] rounded-[1.5rem] px-4 py-3 shadow-sm ${isDoctor ? 'bg-[#08B36A] text-white rounded-tr-none' : 'bg-white text-gray-800 rounded-bl-none border border-gray-100'}`}>
+                                                <p className="text-sm font-medium leading-relaxed break-words">{msg.text}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                            <div ref={chatEndRef} />
+                        </div>
+
+                        <div className="p-4 bg-white border-t border-gray-100 shrink-0">
+                            <form onSubmit={handleSendMessage} className="flex gap-3 items-center">
+                                <input
+                                    type="text"
+                                    placeholder="Type your coordination message..."
+                                    value={newMessageText}
+                                    onChange={(e) => setNewMessageText(e.target.value)}
+                                    className="flex-1 px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm text-gray-700 outline-none focus:bg-white"
+                                />
+                                <button type="submit" disabled={!newMessageText.trim()} className="w-12 h-12 bg-[#08B36A] text-white rounded-2xl flex items-center justify-center hover:bg-green-600 transition-colors">
+                                    <FaPaperPlane size={14} />
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -1064,13 +1357,41 @@ export default function AppointmentsPage() {
                 onCompleteCase={handleCompleteCase}
             />
 
-            {/* Video Call Session Modal Portal */}
+            {/* VIDEO CALL MODAL WITH OVERLAY ACTION CONTROLLERS */}
             {isVideoModalOpen && (
-                <VideoCallModal
-                    callId={activeCallId}
-                    callerName="Doctor"
-                    onClose={() => setIsVideoModalOpen(false)}
-                />
+                <div className="fixed inset-0 z-[200]">
+                    <VideoCallModal
+                        callId={activeCallId}
+                        callerName="Doctor"
+                        role="caller"
+                        callType={activeCallType}
+                        onClose={() => {
+                            setIsVideoModalOpen(false);
+                            setActiveCallId(null);
+                        }}
+                    />
+                    
+                    {/* Floating Controls Overlay over the Call Interface */}
+                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[210] flex gap-4 bg-slate-900/90 px-6 py-3.5 rounded-full shadow-2xl border border-slate-700/50 backdrop-blur-md">
+                        {/* Open Live Chat Button */}
+                        <button 
+                            onClick={(e) => handleOpenChat(e, selectedAppointment)}
+                            className="flex items-center justify-center w-12 h-12 bg-purple-600 hover:bg-purple-700 text-white rounded-full transition-all active:scale-90 hover:scale-105 shadow-lg"
+                            title="Open Chat Session"
+                        >
+                            <FaComment size={18} />
+                        </button>
+                        
+                        {/* Switch Call Type / Redial Button */}
+                        <button 
+                            onClick={(e) => handleStartCall(selectedAppointment, activeCallType === 'video' ? 'audio' : 'video')}
+                            className="flex items-center justify-center w-12 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-all active:scale-90 hover:scale-105 shadow-lg"
+                            title={`Switch to ${activeCallType === 'video' ? 'Audio Call' : 'Video Call'}`}
+                        >
+                            {activeCallType === 'video' ? <FaPhoneAlt size={16} /> : <FaVideo size={16} />}
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
     )

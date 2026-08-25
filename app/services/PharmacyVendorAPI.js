@@ -24,9 +24,8 @@ pharmacyVendorApi.interceptors.response.use(
         if (error.response && error.response.status === 401) {
             localStorage.removeItem('pharmacyToken');
             localStorage.removeItem('pharmacyProvider');
-            if (typeof window !== 'undefined') {
-                window.location.href = '/auth/login';
-            }
+            
+            
         }
         return Promise.reject(error);
     }
@@ -67,6 +66,57 @@ const PharmacyVendorAPI = {
         const response = await pharmacyVendorApi.post('/provider/pharmacy/inventory/add', data);
         return response.data;
     },
+  
+
+    
+    // =========================================================================
+    // --- TAX / HSN CONFIGURATION (PUBLIC / NO TOKEN REQUIRED) ---
+    // =========================================================================
+    listHsnCodes: async () => {
+        const cleanBase = (BASE_URL || '').replace(/\/+$/, '');
+
+        // Guard: if the env var isn't loaded, the request silently becomes a
+        // RELATIVE path (e.g. "/admin/pharmacy/tax-config/hsn/list"), which hits
+        // YOUR Next.js app instead of the pharmacy backend. That's the #1 cause
+        // of a 401 here when Postman confirms the real backend returns 200.
+        if (!cleanBase) {
+            console.error(
+                '[listHsnCodes] NEXT_PUBLIC_BACKEND_URL is empty/undefined. ' +
+                'The request would go to a relative path on THIS app (possibly ' +
+                'hitting a Next.js middleware guarding /admin/*) instead of the ' +
+                'pharmacy backend. Check your .env / .env.local and restart the dev server.'
+            );
+            throw new Error('Backend URL is not configured (NEXT_PUBLIC_BACKEND_URL is empty).');
+        }
+
+        const fullUrl = `${cleanBase}/admin/pharmacy/tax-config/hsn/list`;
+
+        // Fresh, isolated axios instance — deliberately NOT the shared `axios`
+        // import and NOT `pharmacyVendorApi`. This avoids inheriting any
+        // axios.defaults.headers.common['Authorization'] set elsewhere in the
+        // app, and avoids the pharmacyVendorApi 401 interceptor entirely.
+        const publicApi = axios.create();
+        delete publicApi.defaults.headers.common['Authorization'];
+
+        try {
+            const response = await publicApi.get(fullUrl, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: undefined, // explicit belt-and-braces override
+                },
+                // Never let the browser attach cookies/credentials to this public call
+                withCredentials: false,
+            });
+            return response.data;
+        } catch (error) {
+            console.error(
+                '[listHsnCodes] Request failed. URL called:', fullUrl,
+                '| Status:', error?.response?.status,
+                '| Response body:', error?.response?.data
+            );
+            throw error;
+        }
+    },
 
     updateInventory: async (id, data) => {
         const response = await pharmacyVendorApi.put(`/provider/pharmacy/inventory/update/${id}`, data);
@@ -75,6 +125,33 @@ const PharmacyVendorAPI = {
 
     deleteInventory: async (id) => {
         const response = await pharmacyVendorApi.delete(`/provider/pharmacy/inventory/delete/${id}`);
+        return response.data;
+    },
+
+    // =========================================================================
+    // --- CUSTOM HSN REQUEST & APPROVAL WORKFLOW (VENDOR SIDE) ---
+    // =========================================================================
+    /**
+     * Submit a request for a new HSN code not yet in the master list.
+     * POST /provider/pharmacy/hsn-request/create
+     * Requires vendor auth token (handled automatically by the interceptor).
+     */
+    submitHsnRequest: async ({ hsnCode, description, suggestedTaxPercent, reason }) => {
+        const response = await pharmacyVendorApi.post('/provider/pharmacy/inventory/hsn-request/create', {
+            hsnCode,
+            description,
+            suggestedTaxPercent,
+            reason,
+        });
+        return response.data;
+    },
+
+    /**
+     * Fetch the vendor's own submitted HSN requests with live status.
+     * GET /provider/pharmacy/hsn-request/my-requests
+     */
+    getMyHsnRequests: async () => {
+        const response = await pharmacyVendorApi.get('/provider/pharmacy/inventory/hsn-request/my-requests');
         return response.data;
     },
 
@@ -100,6 +177,19 @@ requestMrpIncrease: async (payload) => {
     updatePharmacyOrderStatus: async (orderId, status) => {
         console.log(`Updating order ${orderId} to status: ${status}`);
         const response = await pharmacyVendorApi.patch(`/provider/pharmacy/orders/status/${orderId}`, { status });
+        return response.data;
+    },
+    // 1. Fetch GST Invoice Details for Instant Physical / Thermal Printing
+    getOrderInvoice: async (orderId) => {
+        const response = await pharmacyVendorApi.get(`/provider/pharmacy/orders/invoice/${orderId}`);
+        return response.data;
+    },
+
+       // 1. Upload Invoice / Physical Bill Document (Images / PDF)
+    uploadOrderBill: async (orderId, formData) => {
+        const response = await pharmacyVendorApi.post(`/provider/pharmacy/orders/upload-bill/${orderId}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
         return response.data;
     },
 
@@ -387,4 +477,3 @@ requestMrpIncrease: async (payload) => {
 };
 
 export default PharmacyVendorAPI;
-

@@ -1,47 +1,70 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useAuth } from "@/app/context/AuthContext";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import { useUserContext } from "@/app/context/UserContext";
 import { useRouter } from "next/navigation";
-import DoctorAPI from "@/app/services/DoctorAPI";
+import { getCountries, getCountryCallingCode, parsePhoneNumberFromString } from "libphonenumber-js";
+
+// Firebase imports
+import { auth } from "@/lib/firebase";
+import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 
 function RegisterAsDoctorAppointment() {
+  const { checkDoctorExists, registerAsDoctor, loading } = useAuth();
   const { closeModal, openModal } = useGlobalContext();
-  const { setUser } = useAuth();
   const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
   const router = useRouter();
 
-  const [step, setStep] = useState(1); // 1: Register, 2: OTP
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const recaptchaVerifierRef = useRef(null);
 
-  // Location Data States
+  // Country Dialing Codes
+  const countryCallingCodes = useMemo(() => {
+    return getCountries()
+      .map((country) => ({
+        country,
+        callingCode: `+${getCountryCallingCode(country)}`,
+      }))
+      .sort((a, b) => a.callingCode.localeCompare(b.callingCode, undefined, { numeric: true }));
+  }, []);
+
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
 
+  // Form State
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    countryDialCode: "+91",
     phone: "",
     country: "",
     state: "",
     city: "",
     password: "",
     confirmPassword: "",
-    otp: "",
+    termsAccepted: false,
   });
 
-  // ================= FETCH LOCATION LOGIC =================
+  // OTP States
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [firebaseIdToken, setFirebaseIdToken] = useState("");
+  const [confirmationResult, setConfirmationResult] = useState(null);
+
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  // ================= 1. FETCH LOCATION DATA =================
   useEffect(() => {
     const fetchCountries = async () => {
       try {
         const data = await getAllCountries();
         setCountries(data || []);
-      } catch {
-        console.error("Failed to load countries");
+      } catch (err) {
+        console.error("Failed to load countries", err);
       }
     };
     fetchCountries();
@@ -52,8 +75,8 @@ function RegisterAsDoctorAppointment() {
       const data = await getStatesByCountry(countryId);
       setStates(data || []);
       setCities([]);
-    } catch {
-      console.error("Failed to load states");
+    } catch (err) {
+      console.error("Failed to load states", err);
     }
   };
 
@@ -61,228 +84,386 @@ function RegisterAsDoctorAppointment() {
     try {
       const data = await getCitiesByState(stateId);
       setCities(data || []);
-    } catch {
-      console.error("Failed to load cities");
+    } catch (err) {
+      console.error("Failed to load cities", err);
     }
   };
 
-  // ================= HANDLERS =================
+  // ================= 2. FIREBASE RECAPTCHA =================
+  const getOrCreateRecaptcha = () => {
+    if (typeof window === "undefined") return null;
+    if (!recaptchaVerifierRef.current) {
+      recaptchaVerifierRef.current = new RecaptchaVerifier(auth, "doctor-recaptcha-container", {
+        size: "invisible",
+        callback: () => {},
+        "expired-callback": () => setError("reCAPTCHA expired. Please try again."),
+      });
+    }
+    return recaptchaVerifierRef.current;
+  };
+
+  // ================= 3. DOCTOR PRE-CHECK & SEND OTP =================
+  const handleSendOtp = async () => {
+    setError("");
+    setSuccess("");
+
+    if (!formData.phone || formData.phone.trim().length === 0) {
+      setError("Please enter your 10-digit mobile number.");
+      return;
+    }
+
+    const cleanPhone = formData.phone.replace(/\s+/g, "");
+    const fullNumber = `${formData.countryDialCode}${cleanPhone}`;
+    const parsed = parsePhoneNumberFromString(fullNumber);
+
+    if (!parsed || !parsed.isValid()) {
+      setError("Please enter a valid mobile number for the selected country.");
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      // Step 1: Doctor Pre-check API
+      if (checkDoctorExists) {
+        const checkRes = await checkDoctorExists({
+          phone: cleanPhone,
+          email: formData.email || undefined,
+        });
+
+        if (checkRes?.exists) {
+          setError(checkRes.message || "This mobile number is already registered as a Doctor. Please Login.");
+          setOtpLoading(false);
+          return;
+        }
+      }
+
+      // Step 2: Send Firebase SMS OTP
+      const appVerifier = getOrCreateRecaptcha();
+      const confirmation = await signInWithPhoneNumber(auth, fullNumber, appVerifier);
+      setConfirmationResult(confirmation);
+      setOtpSent(true);
+      setSuccess(`6-digit OTP sent to ${fullNumber}`);
+    } catch (err) {
+      console.error("Firebase Doctor OTP Error:", err);
+      if (recaptchaVerifierRef.current) {
+        try { recaptchaVerifierRef.current.clear(); } catch (e) {}
+        recaptchaVerifierRef.current = null;
+      }
+      setError(typeof err === "string" ? err : err?.message || "Failed to send SMS OTP. Check phone number.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // ================= 4. VERIFY OTP =================
+  const handleVerifyOtp = async () => {
+    setError("");
+    setSuccess("");
+
+    if (!otpCode || otpCode.trim().length < 6) {
+      setError("Please enter the 6-digit OTP received on SMS.");
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      const userCredential = await confirmationResult.confirm(otpCode.trim());
+      const idToken = await userCredential.user.getIdToken();
+
+      setFirebaseIdToken(idToken);
+      setIsPhoneVerified(true);
+      setOtpSent(false);
+      setSuccess("Phone number verified successfully!");
+    } catch (err) {
+      console.error("Doctor OTP Verification Error:", err);
+      setError("Invalid or expired OTP. Please enter the correct code.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // ================= 5. FORM FIELD HANDLERS =================
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
 
-    if (name === "country") {
-      fetchStates(value);
-      setFormData((prev) => ({ ...prev, state: "", city: "" }));
-    }
-    if (name === "state") {
-      fetchCities(value);
-      setFormData((prev) => ({ ...prev, city: "" }));
+    if (name === "country") fetchStates(value);
+    if (name === "state") fetchCities(value);
+
+    if (name === "phone" || name === "countryDialCode") {
+      setIsPhoneVerified(false);
+      setFirebaseIdToken("");
+      setOtpSent(false);
     }
   };
 
-  const handleRegister = async (e) => {
+  const validateForm = () => {
+    const { name, phone, country, state, city, password, confirmPassword, termsAccepted } = formData;
+    if (!name || !phone || !country || !state || !city || !password || !confirmPassword) {
+      return "All fields are required.";
+    }
+    if (!isPhoneVerified || !firebaseIdToken) {
+      return "Please verify your mobile number with SMS OTP before registering.";
+    }
+    if (password.length < 6) return "Password must be at least 6 characters.";
+    if (password !== confirmPassword) return "Passwords do not match.";
+    if (!termsAccepted) return "You must accept the Terms & Conditions.";
+    return null;
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
 
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match.");
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
-    setLoading(true);
     try {
-      // Find the names from IDs to send to API
       const selectedCountry = countries.find((c) => c.id == formData.country);
       const selectedState = states.find((s) => s.id == formData.state);
       const selectedCity = cities.find((c) => c.id == formData.city);
 
       const payload = {
         name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        password: formData.password,
+        email: formData.email || undefined,
+        phone: formData.phone.replace(/\s+/g, ""),
+        countryCode: formData.countryDialCode,
         country: selectedCountry?.name || "",
         state: selectedState?.name || "",
         city: selectedCity?.name || "",
+        password: formData.password,
+        idToken: firebaseIdToken, // Firebase Real SMS Verified ID Token
       };
 
-      await DoctorAPI.register(payload);
-      setSuccess("OTP sent successfully to your phone!");
-      setStep(2);
-    } catch (err) {
-      setError(err.response?.data?.message || "Registration failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      const res = await DoctorAPI.verifyOtp(formData.phone, formData.otp);
-
-      localStorage.setItem("doctorToken", res.token);
-      if (setUser) setUser(res.user);
-
-      setSuccess("Phone verified! Redirecting...");
+      await registerAsDoctor(payload);
+      setSuccess("Doctor registered & phone verified! Redirecting to credentials upload...");
 
       setTimeout(() => {
-        router.push("/vendors/independentdoctor/documents");
         closeModal();
+        router.push("/vendors/independentdoctor/documents");
       }, 1500);
     } catch (err) {
-      setError(err.response?.data?.message || "Invalid OTP.");
-    } finally {
-      setLoading(false);
+      setError(typeof err === "string" ? err : err?.message || "Registration failed.");
     }
   };
 
   return (
     <div className="w-full bg-white">
-      {/* TOP REGISTER BOX */}
-      <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
+      <div id="doctor-recaptcha-container"></div>
 
-        {/* LEFT IMAGE */}
-        <div className="hidden md:block flex-shrink-0">
+      <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-6 rounded-lg w-full max-w-[1100px] mx-auto">
+        {/* LEFT IMAGE / ILLUSTRATION */}
+        <div className="hidden md:flex flex-col items-center justify-center flex-shrink-0 p-4">
           <img
-            src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602351user-login.png"
-            alt="Doctor Register"
-            className="w-[280px] lg:w-[350px] max-w-full rounded-lg"
+            src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=600&auto=format&fit=crop&q=80"
+            alt="Doctor Onboarding"
+            className="w-[280px] lg:w-[360px] h-[360px] object-cover rounded-2xl shadow-md border border-gray-100"
           />
         </div>
 
         {/* RIGHT FORM */}
-        <div className="flex-1 w-full md:ml-8 lg:ml-15 text-center md:text-left">
-          <h2 className="text-xl sm:text-2xl md:text-[32px] font-bold mb-5 leading-tight">
-            {step === 1 ? "Get Started" : "Verify OTP"}
+        <div className="flex-1 w-full md:ml-8 lg:ml-10 text-center md:text-left">
+          <h2 className="text-xl sm:text-2xl md:text-[30px] font-bold mb-4 leading-tight text-gray-900">
+            Get Started
           </h2>
 
-          {success && <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-4 text-sm font-medium">{success}</div>}
-          {error && <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-4 text-sm font-medium">{error}</div>}
-
-          {step === 1 ? (
-            <form onSubmit={handleRegister} className="w-full">
-              <input
-                type="text"
-                name="name"
-                placeholder="Full Name"
-                className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
-                onChange={handleChange}
-                value={formData.name}
-                required
-              />
-              <input
-                type="email"
-                name="email"
-                placeholder="Email Address"
-                className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
-                onChange={handleChange}
-                value={formData.email}
-                required
-              />
-              <input
-                type="text"
-                name="phone"
-                placeholder="Phone Number"
-                className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
-                onChange={handleChange}
-                value={formData.phone}
-                required
-              />
-              <p className="text-[12px] text-gray-500 mb-3 text-left">We'll never share your phone with others.</p>
-
-              {/* LOCATION ROW */}
-              <div className="flex flex-col md:flex-row gap-3 mb-3">
-                <select
-                  name="country"
-                  value={formData.country}
-                  onChange={handleChange}
-                  className="flex-1 p-3 border border-[#42b883] rounded outline-none text-sm bg-white"
-                  required
-                >
-                  <option value="">Country</option>
-                  {countries.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-
-                <select
-                  name="state"
-                  value={formData.state}
-                  onChange={handleChange}
-                  disabled={!formData.country}
-                  className="flex-1 p-3 border border-[#42b883] rounded outline-none text-sm bg-white disabled:bg-gray-50"
-                  required
-                >
-                  <option value="">State</option>
-                  {states.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-
-                <select
-                  name="city"
-                  value={formData.city}
-                  onChange={handleChange}
-                  disabled={!formData.state}
-                  className="flex-1 p-3 border border-[#42b883] rounded outline-none text-sm bg-white disabled:bg-gray-50"
-                  required
-                >
-                  <option value="">City</option>
-                  {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-
-              <input
-                type="password"
-                name="password"
-                placeholder="Password"
-                className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
-                onChange={handleChange}
-                value={formData.password}
-                required
-              />
-              <input
-                type="password"
-                name="confirmPassword"
-                placeholder="Confirm Password"
-                className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
-                onChange={handleChange}
-                value={formData.confirmPassword}
-                required
-              />
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full md:w-auto mt-5 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-10 rounded text-base transition-colors"
-              >
-                {loading ? "Processing..." : "Register →"}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOtp} className="w-full">
-              <p className="text-gray-600 text-sm mb-4 text-left">Please enter the 4-digit OTP sent to {formData.phone}</p>
-              <input
-                type="text"
-                name="otp"
-                placeholder="0000"
-                maxLength={4}
-                className="w-full p-3 border border-[#42b883] rounded outline-none text-center text-xl tracking-widest mb-4 focus:ring-1 focus:ring-[#42b883]"
-                onChange={handleChange}
-                required
-              />
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full md:w-auto bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-10 rounded text-base transition-colors"
-              >
-                {loading ? "Verifying..." : "Verify OTP →"}
-              </button>
-            </form>
+          {success && (
+            <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-3 text-sm font-medium animate-in fade-in duration-300">
+              {success}
+            </div>
+          )}
+          {error && (
+            <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-3 text-sm font-medium animate-in fade-in duration-300">
+              {error}
+            </div>
           )}
 
-          <p className="mt-4 text-[15px] text-gray-700">
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <input
+              type="text"
+              name="name"
+              placeholder="Doctor Full Name (e.g. Dr. Rohit Verma)"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
+              onChange={handleChange}
+              value={formData.name}
+              autoComplete="name"
+            />
+
+            <input
+              type="email"
+              name="email"
+              placeholder="Doctor Email Address"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
+              onChange={handleChange}
+              value={formData.email}
+              autoComplete="email"
+            />
+
+            {/* PHONE ROW */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <select
+                  name="countryDialCode"
+                  value={formData.countryDialCode}
+                  onChange={handleChange}
+                  disabled={isPhoneVerified}
+                  className="w-[115px] p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883] bg-white cursor-pointer disabled:bg-gray-100"
+                >
+                  {countryCallingCodes.map((item, index) => (
+                    <option key={`${item.country}-${index}`} value={item.callingCode}>
+                      {item.country} ({item.callingCode})
+                    </option>
+                  ))}
+                </select>
+
+                <input
+                  type="tel"
+                  name="phone"
+                  placeholder="Mobile Number"
+                  className="flex-1 p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883] disabled:bg-gray-100"
+                  onChange={handleChange}
+                  value={formData.phone}
+                  disabled={isPhoneVerified}
+                  autoComplete="tel-national"
+                />
+
+                {isPhoneVerified ? (
+                  <span className="flex items-center justify-center gap-1 bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] px-4 py-2 rounded text-xs font-bold whitespace-nowrap">
+                    ✓ Verified
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={otpLoading}
+                    className="bg-[#2f8f5b] hover:bg-[#256f47] text-white px-4 py-2 rounded text-xs font-semibold transition-colors whitespace-nowrap disabled:bg-gray-400 cursor-pointer"
+                  >
+                    {otpLoading ? "Sending..." : "Send OTP"}
+                  </button>
+                )}
+              </div>
+
+              {/* INLINE OTP INPUT */}
+              {otpSent && !isPhoneVerified && (
+                <div className="flex gap-2 p-2.5 bg-gray-50 border border-dashed border-[#42b883] rounded-md animate-in fade-in">
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="Enter 6-digit OTP"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value)}
+                    className="flex-1 p-2 border border-gray-300 rounded outline-none text-center tracking-widest text-sm bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleVerifyOtp}
+                    disabled={otpLoading || otpCode.length < 6}
+                    className="bg-[#08b36a] text-white px-4 py-2 rounded text-xs font-medium hover:bg-[#068f54] disabled:bg-gray-300 cursor-pointer"
+                  >
+                    {otpLoading ? "Verifying..." : "Confirm OTP"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* LOCATION ROW */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <select
+                name="country"
+                value={formData.country}
+                onChange={handleChange}
+                className="w-full p-3 border border-[#42b883] rounded outline-none text-sm bg-white cursor-pointer"
+              >
+                <option value="">Country</option>
+                {countries.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                name="state"
+                value={formData.state}
+                onChange={handleChange}
+                disabled={!formData.country}
+                className="w-full p-3 border border-[#42b883] rounded outline-none text-sm bg-white disabled:bg-gray-100 cursor-pointer"
+              >
+                <option value="">State</option>
+                {states.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                name="city"
+                value={formData.city}
+                onChange={handleChange}
+                disabled={!formData.state}
+                className="w-full p-3 border border-[#42b883] rounded outline-none text-sm bg-white disabled:bg-gray-100 cursor-pointer"
+              >
+                <option value="">City</option>
+                {cities.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <input
+              type="password"
+              name="password"
+              placeholder="Password (min. 6 characters)"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
+              onChange={handleChange}
+              value={formData.password}
+              autoComplete="new-password"
+            />
+
+            <input
+              type="password"
+              name="confirmPassword"
+              placeholder="Confirm Password"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
+              onChange={handleChange}
+              value={formData.confirmPassword}
+              autoComplete="new-password"
+            />
+
+            <div className="flex items-center gap-2 mt-2">
+              <input
+                type="checkbox"
+                name="termsAccepted"
+                id="doc-terms"
+                className="w-4 h-4 accent-[#2f8f5b] cursor-pointer"
+                checked={formData.termsAccepted}
+                onChange={handleChange}
+              />
+              <label htmlFor="doc-terms" className="text-sm text-gray-700 cursor-pointer">
+                Allow All Terms & Conditions
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full md:w-auto mt-4 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-10 rounded text-base transition-colors disabled:bg-gray-300 cursor-pointer font-medium"
+            >
+              {loading ? "Registering..." : "Register →"}
+            </button>
+          </form>
+
+          <p className="mt-5 text-[15px] text-gray-700">
             Already have an account?{" "}
             <span
               onClick={() => {
@@ -293,21 +474,6 @@ function RegisterAsDoctorAppointment() {
             >
               Login
             </span>
-          </p>
-        </div>
-      </div>
-
-      {/* FOOTER SECTION */}
-      <div className="max-w-[1100px] mx-auto mt-10 px-4 md:px-0 pb-10">
-        <h3 className="text-lg sm:text-xl md:text-[28px] font-bold mb-5">
-          Vendor Doctor
-        </h3>
-        <div className="flex gap-3 text-sm md:text-base leading-relaxed text-[#333]">
-          <span className="text-[#2f8f5b] font-bold text-lg leading-none mt-1">✔</span>
-          <p>
-            Join our platform as a certified medical professional and start managing
-            your appointments, patients and availability easily. Registration requires
-            basic details followed by phone verification and document verification for approval.
           </p>
         </div>
       </div>

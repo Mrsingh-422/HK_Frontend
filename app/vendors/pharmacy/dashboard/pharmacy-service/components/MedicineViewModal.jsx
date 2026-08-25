@@ -1,8 +1,8 @@
 'use client'
-import React, { useState } from 'react'
-import { FaTimes, FaCapsules, FaIndustry, FaFlask, FaRupeeSign, FaBox, FaCalendarCheck, FaBarcode } from 'react-icons/fa'
 
-// Safe Image component with automatic broken link fallback
+import React, { useState, useMemo } from 'react'
+import { FaTimes, FaCapsules, FaIndustry, FaFlask, FaRupeeSign, FaBox, FaCalendarCheck, FaBarcode, FaCalculator } from 'react-icons/fa'
+
 function MedicineImage({ src }) {
   const [error, setError] = useState(false);
   if (error || !src) {
@@ -22,7 +22,58 @@ function MedicineImage({ src }) {
   );
 }
 
+const HSN_TAX_MAP = {
+  "30049011": 12, 
+  "21069099": 18, 
+  "0000": 0,       
+  "": 0            
+};
+
 export default function MedicineViewModal({ isOpen, onClose, data }) {
+  const [invoiceQty, setInvoiceQty] = useState(10);
+  const deliveryCharge = 40; 
+
+  const billSummary = useMemo(() => {
+    if (!data) {
+      return {
+        itemTotal: 0,
+        gstRate: 0,
+        cgstPercent: 0,
+        sgstPercent: 0,
+        taxableTotal: '0.00',
+        cgstTotal: '0.00',
+        sgstTotal: '0.00',
+        totalAmount: 0
+      };
+    }
+
+    const qty = Math.max(1, Number(invoiceQty) || 1);
+    const hsn = data.hsn_number || '';
+    const gstRate = hsn === "" ? 0 : (HSN_TAX_MAP[hsn] !== undefined ? HSN_TAX_MAP[hsn] : 12);
+    
+    const cgstPercent = gstRate / 2;
+    const sgstPercent = gstRate / 2;
+
+    const unitPrice = data.vendor_price || 0;
+    const itemTotal = unitPrice * qty;
+    
+    const taxableTotal = gstRate > 0 ? (itemTotal / (1 + (gstRate / 100))) : itemTotal;
+    const cgstTotal = gstRate > 0 ? (taxableTotal * (cgstPercent / 100)) : 0;
+    const sgstTotal = gstRate > 0 ? (taxableTotal * (sgstPercent / 100)) : 0;
+    const totalAmount = itemTotal + deliveryCharge;
+
+    return {
+      itemTotal,
+      gstRate,
+      cgstPercent,
+      sgstPercent,
+      taxableTotal: taxableTotal.toFixed(2),
+      cgstTotal: cgstTotal.toFixed(2),
+      sgstTotal: sgstTotal.toFixed(2),
+      totalAmount
+    };
+  }, [data, invoiceQty]);
+
   if (!isOpen || !data) return null;
 
   const resolveImageUrl = (imageUrlArray) => {
@@ -38,6 +89,7 @@ export default function MedicineViewModal({ isOpen, onClose, data }) {
   };
 
   const medicineImage = resolveImageUrl(data.medicineId?.image_url);
+  const isCodAvailable = data.isCodAvailable !== false && data.medicineId?.isCodAvailable !== false;
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md">
@@ -54,6 +106,9 @@ export default function MedicineViewModal({ isOpen, onClose, data }) {
                         <span className="px-3 py-1 bg-white/20 text-white text-[10px] font-black uppercase rounded-lg tracking-widest">Medicine Details</span>
                         <span className={`px-3 py-1 ${data.is_available ? 'bg-white text-emerald-600' : 'bg-rose-500 text-white'} text-[10px] font-black uppercase rounded-lg tracking-widest`}>
                             {data.is_available ? 'Active' : 'Hidden'}
+                        </span>
+                        <span className={`px-3 py-1 ${isCodAvailable ? 'bg-white text-emerald-600' : 'bg-rose-500 text-white'} text-[10px] font-black uppercase rounded-lg tracking-widest`}>
+                            COD: {isCodAvailable ? 'Available' : 'Unavailable'}
                         </span>
                     </div>
                     <h2 className="text-3xl font-black tracking-tight uppercase leading-none">{data.medicineId?.name}</h2>
@@ -90,6 +145,87 @@ export default function MedicineViewModal({ isOpen, onClose, data }) {
                 </div>
             </div>
 
+            {/* Dynamic GST Billing Simulator */}
+            <div className="p-6 bg-slate-50 border border-slate-200/60 rounded-3xl space-y-4 shadow-inner">
+                <div className="flex justify-between items-center">
+                    <h3 className="flex items-center gap-2 text-xs font-black uppercase text-slate-800 tracking-wider">
+                        <FaCalculator className="text-emerald-500" /> GST Invoice & Billing Simulator
+                    </h3>
+                    <div className="flex items-center gap-2">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase">Test Quantity:</label>
+                        <input 
+                          type="number" 
+                          min="1"
+                          className="w-16 p-1 bg-white border border-slate-200 rounded text-center text-xs font-extrabold text-slate-700 outline-none"
+                          value={invoiceQty}
+                          onChange={(e) => setInvoiceQty(e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value, 10)))}
+                        />
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto border border-slate-100 rounded-xl bg-white">
+                    <table className="w-full text-left border-collapse text-[10px]">
+                        <thead>
+                            <tr className="bg-slate-100/50 text-[9px] font-black text-slate-500 uppercase border-b border-slate-200/50">
+                                <th className="px-3 py-2">Item Name</th>
+                                <th className="px-3 py-2 text-center">Qty</th>
+                                <th className="px-3 py-2 text-right">MRP</th>
+                                <th className="px-3 py-2 text-right">Rate</th>
+                                <th className="px-3 py-2 text-center">HSN</th>
+                                <th className="px-3 py-2 text-center">CGST %</th>
+                                <th className="px-3 py-2 text-center">SGST %</th>
+                                <th className="px-3 py-2 text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
+                            <tr>
+                                <td className="px-3 py-2.5 font-bold text-slate-800">{data.medicineId?.name}</td>
+                                <td className="px-3 py-2.5 text-center font-black">{Number(invoiceQty) || 1}</td>
+                                <td className="px-3 py-2.5 text-right">₹{data.mrp ?? data.medicineId?.mrp}</td>
+                                <td className="px-3 py-2.5 text-right">₹{data.vendor_price}</td>
+                                <td className="px-3 py-2.5 text-center text-[9px] font-mono">{data.hsn_number || '—'}</td>
+                                <td className="px-3 py-2.5 text-center text-emerald-600 font-bold">
+                                  {billSummary.cgstPercent > 0 ? `${billSummary.cgstPercent}%` : '0.00%'}
+                                </td>
+                                <td className="px-3 py-2.5 text-center text-emerald-600 font-bold">
+                                  {billSummary.sgstPercent > 0 ? `${billSummary.sgstPercent}%` : '0.00%'}
+                                </td>
+                                <td className="px-3 py-2.5 text-right font-bold text-slate-800">₹{billSummary.itemTotal}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="bg-white border border-slate-100 p-4 rounded-xl flex flex-col gap-2 shadow-sm text-xs">
+                    <div className="flex justify-between items-center text-slate-500 font-bold">
+                        <span>Taxable Amount (Base Price):</span>
+                        <span className="font-extrabold text-slate-800">₹{billSummary.taxableTotal}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-500 font-bold">
+                        <span>Add CGST:</span>
+                        <span className="font-extrabold text-slate-800">₹{billSummary.cgstTotal}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-500 font-bold">
+                        <span>Add SGST:</span>
+                        <span className="font-extrabold text-slate-800">₹{billSummary.sgstTotal}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-500 font-bold">
+                        <span>Delivery Charge:</span>
+                        <span className="font-extrabold text-slate-800">₹{deliveryCharge}</span>
+                    </div>
+                    <div className="border-t border-slate-100 pt-2 flex justify-between items-center text-emerald-700 font-black text-sm">
+                        <span>Grand Total (Total Amount):</span>
+                        <span>₹{billSummary.totalAmount}</span>
+                    </div>
+                </div>
+
+                {!isCodAvailable && (
+                  <div className="p-3 bg-rose-50 border border-rose-100 text-rose-700 rounded-xl text-[10px] font-bold animate-pulse">
+                     ⚠️ COD (Cash on Delivery) is currently unavailable for this store.
+                  </div>
+                )}
+            </div>
+
             {/* Salt Composition */}
             <section className="bg-blue-50 p-6 rounded-3xl border border-blue-100">
                 <h3 className="flex items-center gap-3 text-[10px] font-black uppercase text-blue-700 mb-3 tracking-widest">
@@ -99,18 +235,6 @@ export default function MedicineViewModal({ isOpen, onClose, data }) {
                     {data.medicineId?.salt_composition || 'Not Specified'}
                 </p>
             </section>
-
-            {/* Description & Safety Advise */}
-            {data.medicineId?.description && (
-              <section className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-2">
-                  <h3 className="flex items-center gap-3 text-[10px] font-black uppercase text-slate-500 tracking-widest">
-                      Description
-                  </h3>
-                  <p className="text-xs text-slate-600 font-semibold leading-relaxed italic">
-                      "{data.medicineId.description}"
-                  </p>
-              </section>
-            )}
 
             {/* Inventory Details Grid */}
             <div className="grid grid-cols-3 gap-4">
@@ -131,7 +255,7 @@ export default function MedicineViewModal({ isOpen, onClose, data }) {
                 <div className="space-y-1">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">HSN Number</p>
                     <div className="flex items-center gap-2 p-4 bg-slate-50 rounded-2xl border">
-                        <span className="font-black text-slate-700">{data.hsn_number || 'N/A'}</span>
+                        <span className="font-black text-slate-700">{data.hsn_number || '—'}</span>
                     </div>
                 </div>
                 <div className="space-y-1">

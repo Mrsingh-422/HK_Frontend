@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import HospitalDoctorAPI from '@/app/services/HospitalDoctorAPI';
-import { FaSpinner, FaPrint, FaFilePdf } from 'react-icons/fa';
+import { FaSpinner, FaPrint, FaFilePdf, FaHeartbeat } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5002";
@@ -47,7 +47,6 @@ const formatDisplayDate = (dateStr) => {
     }
 };
 
-// --- Replace loadHtml2Pdf with this ---
 const loadScriptOnce = (id, src) => {
     return new Promise((resolve, reject) => {
         if (typeof window === 'undefined') return reject(new Error('No window'));
@@ -68,8 +67,6 @@ const loadScriptOnce = (id, src) => {
 };
 
 const loadPdfEngines = async () => {
-    // html2canvas-pro attaches itself to window.html2canvas — it's a compatible
-    // drop-in replacement that additionally supports lab()/oklch()/color().
     await loadScriptOnce(
         'html2canvas-pro-script',
         'https://cdn.jsdelivr.net/npm/html2canvas-pro@1.5.8/dist/html2canvas-pro.min.js'
@@ -84,7 +81,6 @@ const loadPdfEngines = async () => {
     };
 };
 
-// --- Replace generateDischargePdfFile with this shared function ---
 const generatePdfFromElement = async (targetElement, filenamePrefix) => {
     const { html2canvas, jsPDF } = await loadPdfEngines();
 
@@ -305,6 +301,7 @@ export default function DigitalPrescriptionTemplate({
 
     const signatureUrl = getFormattedLogoUrl(mainDoctorSignature);
     const collaborativeDoctors = header?.collaborativeDoctors || activePayload?.bedsideCareTeam || [];
+    const attendingClinicalLogs = activePayload?.clinicalLogs || [];
 
     const rawAppointmentId = patientDetails?.appointmentId || activePayload?.appointmentId || activePayload?._id || (typeof data === 'string' ? data : data?._id);
     const appointmentId = rawAppointmentId || "N/A";
@@ -337,15 +334,48 @@ export default function DigitalPrescriptionTemplate({
     const nextAppointment = dischargeForm?.nextAppointment || followUp?.nextAppointment || activePayload?.nextAppointment || "";
     const clinicalNotes = dischargeForm?.clinicalNotes || clinicalSummary?.treatmentResult || savedClinicalNotes || "";
 
-    const rawMedicines =
-        (stagedMedicines && stagedMedicines.length > 0)
-            ? stagedMedicines
-            : (medications.length > 0 ? medications : (activePayload?.medicines || []));
+    // Vitals resolution (Checks dischargeForm first, then activePayload fallback codes)
+    const bp = dischargeForm?.bp || activePayload?.vitals?.bp || clinicalSummary?.vitals?.bp || "";
+    const pulse = dischargeForm?.pulse || activePayload?.vitals?.pulse || clinicalSummary?.vitals?.pulse || "";
+    const temp = dischargeForm?.temp || activePayload?.vitals?.temp || clinicalSummary?.vitals?.temp || "";
+    const spo2 = dischargeForm?.spo2 || activePayload?.vitals?.spo2 || clinicalSummary?.vitals?.spo2 || "";
 
-   // Replace displayCount + paddedMedicines with this:
-const paddedMedicines = rawMedicines
-    .map(normalizeMedicine)
-    .filter((med) => med && med.name && med.name.trim() !== "");
+    // Aggregates staged medications and clinical team prescriptions (both round and bedside updates)
+    const aggregateMedicines = () => {
+        const list = [];
+        const seen = new Set();
+        
+        const addToAccumulator = (med) => {
+            const normalized = normalizeMedicine(med);
+            if (normalized && normalized.name && normalized.name.trim() !== "") {
+                const lower = normalized.name.toLowerCase().trim();
+                if (!seen.has(lower)) {
+                    seen.add(lower);
+                    list.push(normalized);
+                }
+            }
+        };
+
+        if (stagedMedicines && stagedMedicines.length > 0) {
+            stagedMedicines.forEach(addToAccumulator);
+        }
+        if (medications && medications.length > 0) {
+            medications.forEach(addToAccumulator);
+        }
+        if (activePayload?.medicines && activePayload.medicines.length > 0) {
+            activePayload.medicines.forEach(addToAccumulator);
+        }
+        if (activePayload?.prescriptions && activePayload.prescriptions.length > 0) {
+            activePayload.prescriptions.forEach(pres => {
+                if (pres.medicines && pres.medicines.length > 0) {
+                    pres.medicines.forEach(addToAccumulator);
+                }
+            });
+        }
+        return list;
+    };
+
+    const paddedMedicines = aggregateMedicines();
 
     const qrDataText = `Health Kangaroo Smart Discharge Summary
 =======================================
@@ -368,100 +398,6 @@ Verified       : Authentic Document`;
         if (patientDetails && isValidObjectId(patientDetails.appointmentId)) return patientDetails.appointmentId;
         
         return activePayload?._id || data?._id || rawAppointmentId;
-    };
-
-    const generateDischargePdfFile = async (targetElement, idStr) => {
-        const iframe = document.createElement("iframe");
-
-        iframe.style.position = "fixed";
-        iframe.style.left = "-99999px";
-        iframe.style.top = "0";
-        iframe.style.width = "210mm";
-        iframe.style.height = "297mm";
-        iframe.style.border = "0";
-
-        document.body.appendChild(iframe);
-
-        try {
-            const doc = iframe.contentWindow.document;
-            const existingStyles = getPageStylesHTML();
-
-            doc.open();
-            doc.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="utf-8" />
-                    <title>Discharge Summary</title>
-                    ${existingStyles}
-                    <script src="https://cdn.tailwindcss.com"><\/script>
-                    <style>
-                        @page { size: A4 portrait; margin: 15mm; }
-                        html, body {
-                            margin: 0;
-                            padding: 0;
-                            background: #fff;
-                            -webkit-print-color-adjust: exact;
-                            print-color-adjust: exact;
-                        }
-                        tr { page-break-inside: avoid; }
-                        .print-target {
-                            box-shadow: none !important;
-                            border: none !important;
-                            border-radius: 0 !important;
-                        }
-                    </style>
-                </head>
-                <body>
-                    ${targetElement.outerHTML}
-                </body>
-                </html>
-            `);
-
-            doc.close();
-
-            await new Promise(resolve => setTimeout(resolve, 800));
-
-            const iframeTarget = doc.querySelector(".print-target");
-            if (iframeTarget) {
-                await inlineImagesForPdf(iframeTarget);
-            }
-
-            const html2pdf = await loadHtml2Pdf();
-
-            const worker = html2pdf().set({
-                margin: 15,
-                filename: `discharge-${idStr}.pdf`,
-                image: { type: "jpeg", quality: 1 },
-                html2canvas: {
-                    scale: 3,
-                    useCORS: true,
-                    allowTaint: true,
-                    backgroundColor: "#ffffff",
-                    logging: false,
-                    scrollX: 0,
-                    scrollY: 0
-                },
-                jsPDF: {
-                    unit: "mm",
-                    format: "a4",
-                    orientation: "portrait"
-                }
-            }).from(iframeTarget || targetElement);
-
-            const pdfBlob = await worker.outputPdf("blob");
-
-            return new File(
-                [pdfBlob],
-                `discharge-${idStr}.pdf`,
-                { type: "application/pdf" }
-            );
-
-        } finally {
-            if (document.body.contains(iframe)) {
-                document.body.removeChild(iframe);
-            }
-        }
     };
 
     const handleCompileAndSubmitDischarge = async () => {
@@ -491,18 +427,21 @@ Verified       : Authentic Document`;
             targetElement.style.border = "none";
             targetElement.style.boxShadow = "none";
 
-           // --- handleCompileAndSubmitDischarge: swap the call ---
-const compiledPdfFile = await generatePdfFromElement(targetElement, `discharge-${targetId}`);
-// (everything else in this function stays the same)
+            const compiledPdfFile = await generatePdfFromElement(targetElement, `discharge-${targetId}`);
 
             const submitData = new FormData();
-            
             submitData.append('appointmentId', String(targetId));
             submitData.append('diagnosis', (diagnosis && diagnosis !== 'N/A') ? String(diagnosis) : '');
             submitData.append('investigation', (advisedInvestigations && advisedInvestigations !== 'N/A') ? String(advisedInvestigations) : '');
             submitData.append('treatmentResult', String(clinicalNotes || conditionDuringDischarge || "Stable"));
             submitData.append('dischargeNote', String(specialInstructions || adviceGiven || "Follow up as advised."));
             
+            // Add Vitals data structure to Form Submission payload
+            if (bp) submitData.append('bp', String(bp));
+            if (pulse) submitData.append('pulse', String(pulse));
+            if (temp) submitData.append('temp', String(temp));
+            if (spo2) submitData.append('spo2', String(spo2));
+
             if (dateOfSurgery && dateOfSurgery !== 'N/A') {
                 submitData.append('dateOfSurgery', String(dateOfSurgery));
             }
@@ -548,44 +487,44 @@ const compiledPdfFile = await generatePdfFromElement(targetElement, `discharge-$
         }
     };
 
-   // --- Replace handlePrint with this ---
-const handlePrint = async () => {
-    const printContent = document.querySelector('.print-target');
-    if (!printContent) return;
+    const handlePrint = async () => {
+        const printContent = document.querySelector('.print-target');
+        if (!printContent) return;
 
-    try {
-        toast.loading("Preparing PDF...", { id: "print-pdf" });
+        try {
+            toast.loading("Preparing PDF...", { id: "print-pdf" });
 
-        const clone = printContent.cloneNode(true);
-        clone.style.width = "210mm";
-        clone.style.maxWidth = "210mm";
-        clone.style.background = "#fff";
-        clone.style.padding = "15mm";
-        clone.style.boxSizing = "border-box";
-        clone.style.border = "none";
-        clone.style.boxShadow = "none";
+            const clone = printContent.cloneNode(true);
+            clone.style.width = "210mm";
+            clone.style.maxWidth = "210mm";
+            clone.style.background = "#fff";
+            clone.style.padding = "15mm";
+            clone.style.boxSizing = "border-box";
+            clone.style.border = "none";
+            clone.style.boxShadow = "none";
 
-        const idForFilename = getTargetAppointmentId() || 'summary';
-        const pdfFile = await generatePdfFromElement(clone, `discharge-${idForFilename}`);
-        const url = URL.createObjectURL(pdfFile);
+            const idForFilename = getTargetAppointmentId() || 'summary';
+            const pdfFile = await generatePdfFromElement(clone, `discharge-${idForFilename}`);
+            const url = URL.createObjectURL(pdfFile);
 
-        toast.dismiss("print-pdf");
+            toast.dismiss("print-pdf");
 
-        const printWindow = window.open(url, '_blank');
-        if (!printWindow) {
-            toast.error("Popup blocked — please allow popups to print/download.");
-            return;
+            const printWindow = window.open(url, '_blank');
+            if (!printWindow) {
+                toast.error("Popup blocked — please allow popups to print/download.");
+                return;
+            }
+            printWindow.addEventListener('load', () => {
+                printWindow.focus();
+                printWindow.print();
+            });
+        } catch (err) {
+            console.error("Print Error:", err);
+            toast.dismiss("print-pdf");
+            toast.error("Failed to generate PDF.");
         }
-        printWindow.addEventListener('load', () => {
-            printWindow.focus();
-            printWindow.print();
-        });
-    } catch (err) {
-        console.error("Print Error:", err);
-        toast.dismiss("print-pdf");
-        toast.error("Failed to generate PDF.");
-    }
-};
+    };
+
     const isMale = gender?.toLowerCase() === 'male' || gender?.toLowerCase() === 'm';
     const isFemale = gender?.toLowerCase() === 'female' || gender?.toLowerCase() === 'f';
     const isOtherGender = Boolean(gender) && !isMale && !isFemale;
@@ -629,7 +568,7 @@ const handlePrint = async () => {
                             <button
                                 onClick={onCompleteBedside}
                                 disabled={loading || submittingDischarge}
-                                className="px-5 py-2.5 bg-[#08B36A] hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition-all disabled:opacity-50 cursor-pointer"
+                                className="px-5 py-2.5 bg-[#08B36A] hover:bg-[#079d5c] text-white rounded-xl text-xs font-black shadow-md transition-all disabled:opacity-50 cursor-pointer"
                             >
                                 Complete Bedside Shift
                             </button>
@@ -797,6 +736,12 @@ const handlePrint = async () => {
                                                 <span className="mr-1.5 font-bold">:</span>
                                                 <span className="flex-1 font-semibold text-slate-800 truncate border-b border-dashed border-slate-200">{diagnosis}</span>
                                             </div>
+                                            {/* Attending Primary Doctor Name */}
+                                            <div className="flex items-end">
+                                                <span className="w-24 font-bold flex-shrink-0 text-slate-800">Attending Doctor</span>
+                                                <span className="mr-1.5 font-bold">:</span>
+                                                <span className="flex-1 font-semibold text-[#08B36A] truncate border-b border-dashed border-slate-200">{mainDoctorName || "N/A"}</span>
+                                            </div>
                                         </div>
 
                                         <div className="col-span-6 space-y-2">
@@ -847,21 +792,114 @@ const handlePrint = async () => {
                                                 <span className="mr-1.5 font-bold">:</span>
                                                 <span className="flex-1 font-medium text-slate-600 truncate border-b border-dashed border-slate-200">{conditionDuringDischarge}</span>
                                             </div>
+                                            {/* Medical Hospital Center Name */}
+                                            <div className="flex items-end">
+                                                <span className="w-36 font-bold flex-shrink-0 text-slate-800">Hospital Facility</span>
+                                                <span className="mr-1.5 font-bold">:</span>
+                                                <span className="flex-1 font-extrabold text-[#08B36A] truncate border-b border-dashed border-slate-200">{hospitalName || "N/A"}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="border border-slate-200 rounded-2xl p-4 bg-white mb-6">
-                                    <h3 className="text-xs font-bold text-[#08B36A] mb-1 font-sans">Clinical Notes</h3>
-                                    <p className="text-[9px] text-slate-400 mb-3 font-sans">(Please find clinical notes below)</p>
+                                {/* Dynamic Recorded Vitals Clinical Display */}
+                                {(bp || pulse || temp || spo2) && (
+                                    <div className="mb-6 font-sans">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <span className="text-xs font-black text-[#08B36A] tracking-wider uppercase whitespace-nowrap">DISCHARGE VITALS PROFILE</span>
+                                            <div className="h-[1px] bg-slate-200 w-full"></div>
+                                        </div>
+                                        <div className="grid grid-cols-4 gap-4 p-4 bg-rose-50/20 border border-rose-100 rounded-2xl text-center">
+                                            <div>
+                                                <span className="block text-[8px] font-black text-rose-500 uppercase tracking-wide">Blood Pressure</span>
+                                                <span className="text-xs font-black text-slate-800">{bp || "N/A"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="block text-[8px] font-black text-rose-500 uppercase tracking-wide">Pulse Rate</span>
+                                                <span className="text-xs font-black text-slate-800">{pulse ? `${pulse} bpm` : "N/A"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="block text-[8px] font-black text-rose-500 uppercase tracking-wide">Temperature</span>
+                                                <span className="text-xs font-black text-slate-800">{temp ? `${temp} °F` : "N/A"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="block text-[8px] font-black text-rose-500 uppercase tracking-wide">Oxygen (SpO2)</span>
+                                                <span className="text-xs font-black text-slate-800">{spo2 ? `${spo2} %` : "N/A"}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
-                                    <div className="space-y-3 font-sans text-[10px] text-slate-700 leading-normal min-h-[120px] px-1">
+                                {/* Attending Clinical Logs Feed (Rounds logs) */}
+                                {attendingClinicalLogs && attendingClinicalLogs.length > 0 && (
+                                    <div className="border border-emerald-100 rounded-2xl p-4 bg-emerald-50/10 mb-6 font-sans">
+                                        <h3 className="text-xs font-black text-[#08B36A] mb-2 flex items-center gap-1.5">
+                                            Primary Attending Ward Rounds Logs
+                                        </h3>
+                                        <div className="space-y-3 text-[10px] text-slate-700 leading-normal">
+                                            {attendingClinicalLogs.map((log, idx) => (
+                                                <div key={idx} className="border-b border-slate-100 pb-2 last:border-b-0">
+                                                    <div className="flex justify-between text-[8px] text-slate-400 font-semibold mb-1 uppercase">
+                                                        <span>Entry #{String(idx + 1).padStart(2, '0')}</span>
+                                                        {log.loggedAt && <span>{formatDisplayDate(log.loggedAt)}</span>}
+                                                    </div>
+                                                    <p className="italic text-slate-800 font-medium">"{log.observation}"</p>
+                                                    <div className="flex gap-4 text-[8px] text-slate-400 mt-1 font-semibold uppercase">
+                                                        <span>Condition: {log.patientCondition}</span>
+                                                        <span>Priority: {log.priorityRating}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Integrated Bedside & Rounds Summary Panel */}
+                                {collaborativeDoctors && collaborativeDoctors.length > 0 && (
+                                    <div className="border border-indigo-100 rounded-2xl p-4 bg-indigo-50/10 mb-6 font-sans">
+                                        <h3 className="text-xs font-black text-indigo-700 mb-2 flex items-center gap-1.5">
+                                            Collaborative Case Observations & Specialist Rounds
+                                        </h3>
+                                        <div className="space-y-3 text-[10px] text-slate-700 leading-normal">
+                                            {collaborativeDoctors.map((team, idx) => {
+                                                const docName = team?.doctorId?.name || team?.name || "Attending Specialist";
+                                                const specDept = team?.doctorId?.speciality || team?.department || "Department Clinical Rounds";
+                                                const feedback = team?.specialistFeedback;
+                                                const observationsList = Array.isArray(feedback) ? feedback : (feedback?.observation ? [feedback] : []);
+
+                                                if (observationsList.length === 0) return null;
+
+                                                return (
+                                                    <div key={idx} className="border-b border-slate-100 pb-2 last:border-b-0">
+                                                        <p className="font-extrabold text-slate-900 text-xs">
+                                                            {docName.toLowerCase().startsWith('dr') ? docName : `Dr. ${docName}`} — <span className="text-indigo-600 font-bold">{specDept}</span>
+                                                        </p>
+                                                        <div className="pl-3.5 mt-1 border-l border-indigo-200 space-y-1.5">
+                                                            {observationsList.map((obs, fIdx) => (
+                                                                <div key={fIdx} className="bg-slate-50 p-2 rounded-lg">
+                                                                    <p className="italic text-slate-800">"{obs.observation}"</p>
+                                                                    <div className="flex gap-4 text-[8px] text-slate-400 mt-1 font-semibold uppercase">
+                                                                        <span>Condition: {obs.patientCondition}</span>
+                                                                        <span>Priority: {obs.priorityRating}</span>
+                                                                        {obs.submittedAt && <span>Checked: {formatDisplayDate(obs.submittedAt)}</span>}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="border border-slate-200 rounded-2xl p-4 bg-white mb-6">
+                                    <h3 className="text-xs font-bold text-[#08B36A] mb-1 font-sans">Attending Discharge Clinical Notes</h3>
+                                    <div className="space-y-3 font-sans text-[10px] text-slate-700 leading-normal min-h-[100px] px-1">
                                         {clinicalNotes ? (
                                             <p className="border-b border-slate-100 pb-1 font-medium">{clinicalNotes}</p>
                                         ) : (
                                             <div className="space-y-4">
-                                                <div className="border-b border-slate-100 h-4"></div>
-                                                <div className="border-b border-slate-100 h-4"></div>
                                                 <div className="border-b border-slate-100 h-4"></div>
                                                 <div className="border-b border-slate-100 h-4"></div>
                                                 <div className="border-b border-slate-100 h-4"></div>
@@ -890,20 +928,20 @@ const handlePrint = async () => {
                                                 <th className="py-2.5 px-3 w-24 text-center">Duration</th>
                                             </tr>
                                         </thead>
-                                       <tbody>
-    {paddedMedicines.map((med, index) => {
-        const serialNo = String(index + 1).padStart(2, '0') + '.';
-        return (
-            <tr key={index} className="border-b border-slate-100 h-8 font-sans">
-                <td className="text-center font-bold text-[#08B36A] border-r border-slate-100">{serialNo}</td>
-                <td className="font-extrabold text-slate-800 px-3 border-r border-slate-100">{med.name}</td>
-                <td className="text-center font-semibold text-slate-700 border-r border-slate-100">{med.dose}</td>
-                <td className="text-center font-medium text-slate-600 border-r border-slate-100">{med.time}</td>
-                <td className="text-center font-semibold text-slate-700">{med.duration}</td>
-            </tr>
-        );
-    })}
-</tbody>
+                                        <tbody>
+                                            {paddedMedicines.map((med, index) => {
+                                                const serialNo = String(index + 1).padStart(2, '0') + '.';
+                                                return (
+                                                    <tr key={index} className="border-b border-slate-100 h-8 font-sans">
+                                                        <td className="text-center font-bold text-[#08B36A] border-r border-slate-100">{serialNo}</td>
+                                                        <td className="font-extrabold text-slate-800 px-3 border-r border-slate-100">{med.name}</td>
+                                                        <td className="text-center font-semibold text-slate-700 border-r border-slate-100">{med.dose}</td>
+                                                        <td className="text-center font-medium text-slate-600 border-r border-slate-100">{med.time}</td>
+                                                        <td className="text-center font-semibold text-slate-700">{med.duration}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
                                     </table>
                                 </div>
 

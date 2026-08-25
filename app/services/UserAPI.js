@@ -1199,10 +1199,7 @@ const UserAPI = {
         return response.data;
     },
 
-
-
-
-
+  
 
 };
 

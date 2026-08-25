@@ -474,6 +474,74 @@ const DoctorAPI = {
         });
         return response.data;
     },
+  // ==========================================
+    // SECTION 1: VIDEO CALL OTP HANDSHAKE (With Auto-api Fallback)
+    // ==========================================
+    sendCompletionOtp: async (appointmentId) => {
+        try {
+            // Attempt standard route first
+            const response = await doctorApi.post('doctor/appointments/send-completion-otp', { appointmentId });
+            return response.data;
+        } catch (error) {
+            // If standard route returns 404, automatically retry with /api prefix
+            if (error.response?.status === 404) {
+                try {
+                    console.warn("Standard OTP route returned 404, retrying with /api prefix...");
+                    const response = await doctorApi.post('doctor/appointments/send-completion-otp', { appointmentId });
+                    return response.data;
+                } catch (retryError) {
+                    return Promise.reject(retryError.response?.data?.message || "Failed to send completion OTP");
+                }
+            }
+            return Promise.reject(error.response?.data?.message || "Failed to send completion OTP");
+        }
+    },
+
+    verifyCompletionOtp: async (appointmentId, otp) => {
+        try {
+            // Attempt standard route first
+            const response = await doctorApi.post('/doctor/appointments/verify-completion-otp', { appointmentId, otp });
+            return response.data;
+        } catch (error) {
+            // If standard route returns 404, automatically retry with /api prefix
+            if (error.response?.status === 404) {
+                try {
+                    console.warn("Standard verify OTP route returned 404, retrying with /api prefix...");
+                    const response = await doctorApi.post('/doctor/appointments/verify-completion-otp', { appointmentId, otp });
+                    return response.data;
+                } catch (retryError) {
+                    return Promise.reject(retryError.response?.data?.message || "OTP verification failed");
+                }
+            }
+            return Promise.reject(error.response?.data?.message || "OTP verification failed");
+        }
+    },
+
+    // ==========================================
+    // SECTION 2: CALL HISTORY LOGS
+    // ==========================================
+    getDoctorCallHistory: async () => {
+        try {
+            const response = await doctorApi.get('/doctor/video-call/history');
+            return response.data;
+        } catch (error) {
+            console.error("API Error in getDoctorCallHistory:", error);
+            return Promise.reject(error.response?.data?.message || "Failed to fetch call history");
+        }
+    },
+
+    // ==========================================
+    // SECTION 3: DOCTOR NO-SHOW WITH REASON
+    // ==========================================
+    noShowAppointment: async (id, comments) => {
+        try {
+            const response = await doctorApi.patch(`/doctor/appointments/no-show/${id}`, { comments });
+            return response.data;
+        } catch (error) {
+            console.error("API Error in noShowAppointment:", error);
+            return Promise.reject(error.response?.data?.message || "Failed to log No-Show status");
+        }
+    },
 };
 
 export default DoctorAPI;

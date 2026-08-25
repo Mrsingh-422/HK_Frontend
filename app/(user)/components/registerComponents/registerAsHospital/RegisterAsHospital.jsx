@@ -1,25 +1,37 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/app/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import { useUserContext } from "@/app/context/UserContext";
-import HospitalAPI from "@/app/services/HospitalAPI";
+import { getCountries, getCountryCallingCode, parsePhoneNumberFromString } from "libphonenumber-js";
 
 function RegisterAsHospital() {
-  const { loading } = useAuth();
+  const { registerAsHospital, loading } = useAuth();
   const { closeModal, openModal } = useGlobalContext();
   const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
   const router = useRouter();
+
+  // Country Dialing Codes
+  const countryCallingCodes = useMemo(() => {
+    return getCountries()
+      .map((country) => ({
+        country,
+        callingCode: `+${getCountryCallingCode(country)}`,
+      }))
+      .sort((a, b) => a.callingCode.localeCompare(b.callingCode, undefined, { numeric: true }));
+  }, []);
 
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
 
+  // Form State
   const [formData, setFormData] = useState({
-    type: "",
+    type: "", // "Govt" | "Private" | "Charity"
     name: "",
     email: "",
+    countryDialCode: "+91",
     phone: "",
     country: "",
     state: "",
@@ -32,26 +44,26 @@ function RegisterAsHospital() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // ================= FETCH LOGIC =================
+  // ================= 1. FETCH LOCATION DATA =================
   useEffect(() => {
     const fetchCountries = async () => {
       try {
         const data = await getAllCountries();
         setCountries(data || []);
-      } catch {
-        console.error("Failed to load countries");
+      } catch (err) {
+        console.error("Failed to load countries", err);
       }
     };
     fetchCountries();
-  }, []);
+  }, [getAllCountries]);
 
   const fetchStates = async (countryId) => {
     try {
       const data = await getStatesByCountry(countryId);
       setStates(data || []);
       setCities([]);
-    } catch {
-      console.error("Failed to load states");
+    } catch (err) {
+      console.error("Failed to load states", err);
     }
   };
 
@@ -59,12 +71,12 @@ function RegisterAsHospital() {
     try {
       const data = await getCitiesByState(stateId);
       setCities(data || []);
-    } catch {
-      console.error("Failed to load cities");
+    } catch (err) {
+      console.error("Failed to load cities", err);
     }
   };
 
-  // ================= HANDLERS =================
+  // ================= 2. FORM FIELD HANDLERS =================
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -72,23 +84,26 @@ function RegisterAsHospital() {
       [name]: type === "checkbox" ? checked : value,
     }));
 
-    if (name === "country") {
-      fetchStates(value);
-      setFormData((prev) => ({ ...prev, state: "", city: "" }));
-    }
-    if (name === "state") {
-      fetchCities(value);
-      setFormData((prev) => ({ ...prev, city: "" }));
-    }
+    if (name === "country") fetchStates(value);
+    if (name === "state") fetchCities(value);
   };
 
   const validateForm = () => {
-    if (!formData.type || !formData.name || !formData.email || !formData.phone || !formData.country || !formData.password || !formData.confirmPassword) {
+    const { type, name, email, phone, countryDialCode, country, state, city, password, confirmPassword, termsAccepted } = formData;
+    if (!type || !name || !email || !phone || !country || !state || !city || !password || !confirmPassword) {
       return "All fields are required.";
     }
-    if (formData.password.length < 6) return "Password must be at least 6 characters.";
-    if (formData.password !== formData.confirmPassword) return "Passwords do not match.";
-    if (!formData.termsAccepted) return "You must accept terms & conditions.";
+
+    const cleanPhone = phone.replace(/\s+/g, "");
+    const fullNumber = `${countryDialCode}${cleanPhone}`;
+    const parsed = parsePhoneNumberFromString(fullNumber);
+    if (!parsed || !parsed.isValid()) {
+      return "Please enter a valid hospital phone number (digits only).";
+    }
+
+    if (password.length < 6) return "Password must be at least 6 characters.";
+    if (password !== confirmPassword) return "Passwords do not match.";
+    if (!termsAccepted) return "You must accept terms & conditions.";
     return null;
   };
 
@@ -109,180 +124,209 @@ function RegisterAsHospital() {
       const selectedCity = cities.find((c) => c.id == formData.city);
 
       const finalData = {
-        ...formData,
+        type: formData.type,
+        name: formData.name,
+        email: formData.email,
+        countryCode: formData.countryDialCode,
+        phone: formData.phone.replace(/\s+/g, ""),
+        password: formData.password,
         country: selectedCountry?.name || "",
         state: selectedState?.name || "",
         city: selectedCity?.name || "",
       };
-      console.log(finalData);
 
-      delete finalData.confirmPassword;
-      const res = await HospitalAPI.regester(finalData);
-      localStorage.setItem("hospitalToken", res.token);
-      localStorage.setItem("hospital", res.profileStatus);
+      await registerAsHospital(finalData);
       setSuccess("Hospital Registered Successfully! Redirecting...");
+
       setTimeout(() => {
         closeModal();
         router.push("/hospital/documents");
       }, 1500);
     } catch (err) {
-      setError(err?.message || "Registration failed.");
+      setError(typeof err === "string" ? err : err?.message || "Hospital registration failed.");
     }
   };
 
   return (
     <div className="w-full bg-white">
-      {/* TOP REGISTER BOX */}
-      <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
-
-        {/* LEFT IMAGE - Hidden on mobile, visible from md up */}
-        <div className="hidden md:block flex-shrink-0">
+      <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-6 rounded-lg w-full max-w-[1100px] mx-auto">
+        {/* LEFT IMAGE / ILLUSTRATION */}
+        <div className="hidden md:flex flex-col items-center justify-center flex-shrink-0 p-4">
           <img
-            src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692602393service.png"
-            alt="Hospital Register"
-            className="w-[280px] lg:w-[350px] max-w-full rounded-xl"
+            src="https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600&auto=format&fit=crop&q=80"
+            alt="Hospital Facility"
+            className="w-[280px] lg:w-[360px] h-[360px] object-cover rounded-2xl shadow-md border border-gray-100"
           />
         </div>
 
         {/* RIGHT FORM */}
-        <div className="flex-1 w-full md:ml-8 lg:ml-15 text-center md:text-left">
-          <h2 className="text-xl sm:text-2xl md:text-[32px] font-bold mb-5 leading-tight">
+        <div className="flex-1 w-full md:ml-8 lg:ml-10 text-center md:text-left">
+          <h2 className="text-xl sm:text-2xl md:text-[30px] font-bold mb-4 leading-tight text-gray-900">
             Get Started
           </h2>
 
-          {/* Success Message */}
           {success && (
-            <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-4 text-sm font-medium animate-in fade-in duration-300">
+            <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-3 text-sm font-medium animate-in fade-in duration-300">
               {success}
             </div>
           )}
 
-          {/* Error Message */}
           {error && (
-            <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-4 text-sm font-medium animate-in fade-in duration-300">
+            <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-3 text-sm font-medium animate-in fade-in duration-300">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="w-full">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <select
               name="type"
               value={formData.type}
               onChange={handleChange}
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] bg-white"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883] bg-white cursor-pointer"
             >
-              <option value="">Register As</option>
+              <option value="">Register As (Hospital Type)</option>
               <option value="Govt">Government Hospital</option>
               <option value="Private">Private Hospital</option>
-              <option value="Charity">Charity Hospital</option>
+              <option value="Charity">Charity / Trust Hospital</option>
             </select>
 
             <input
               type="text"
               name="name"
               placeholder="Hospital Name"
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
               value={formData.name}
               onChange={handleChange}
+              autoComplete="organization"
             />
 
             <input
               type="email"
               name="email"
-              placeholder="Hospital Email"
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
+              placeholder="Hospital Official Email"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
               value={formData.email}
               onChange={handleChange}
+              autoComplete="email"
             />
 
-            <input
-              type="text"
-              name="phone"
-              placeholder="Hospital Phone Number"
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
-              value={formData.phone}
-              onChange={handleChange}
-            />
-            <p className="text-[13px] text-gray-500 mb-3 text-left">
-              We'll never share your phone with anyone else.
-            </p>
+            {/* PHONE ROW */}
+            <div className="flex gap-2">
+              <select
+                name="countryDialCode"
+                value={formData.countryDialCode}
+                onChange={handleChange}
+                className="w-[115px] p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883] bg-white cursor-pointer"
+              >
+                {countryCallingCodes.map((item, index) => (
+                  <option key={`${item.country}-${index}`} value={item.callingCode}>
+                    {item.country} ({item.callingCode})
+                  </option>
+                ))}
+              </select>
 
-            {/* LOCATION FIELDS - One per line as requested */}
-            <select
-              name="country"
-              value={formData.country}
-              onChange={handleChange}
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] bg-white"
-            >
-              <option value="">Country</option>
-              {countries.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+              <input
+                type="tel"
+                name="phone"
+                placeholder="Hospital Phone Number"
+                className="flex-1 p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
+                value={formData.phone}
+                onChange={handleChange}
+                autoComplete="tel-national"
+              />
+            </div>
 
-            <select
-              name="state"
-              value={formData.state}
-              onChange={handleChange}
-              disabled={!formData.country}
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] disabled:bg-gray-100 bg-white"
-            >
-              <option value="">State</option>
-              {states.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            {/* LOCATION ROW */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <select
+                name="country"
+                value={formData.country}
+                onChange={handleChange}
+                className="w-full p-3 border border-[#42b883] rounded outline-none text-sm bg-white cursor-pointer"
+              >
+                <option value="">Country</option>
+                {countries.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
 
-            <select
-              name="city"
-              value={formData.city}
-              onChange={handleChange}
-              disabled={!formData.state}
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883] disabled:bg-gray-100 bg-white"
-            >
-              <option value="">City</option>
-              {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+              <select
+                name="state"
+                value={formData.state}
+                onChange={handleChange}
+                disabled={!formData.country}
+                className="w-full p-3 border border-[#42b883] rounded outline-none text-sm bg-white disabled:bg-gray-100 cursor-pointer"
+              >
+                <option value="">State</option>
+                {states.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                name="city"
+                value={formData.city}
+                onChange={handleChange}
+                disabled={!formData.state}
+                className="w-full p-3 border border-[#42b883] rounded outline-none text-sm bg-white disabled:bg-gray-100 cursor-pointer"
+              >
+                <option value="">City</option>
+                {cities.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <input
               type="password"
               name="password"
-              placeholder="Enter your password"
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
+              placeholder="Create Password"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
               value={formData.password}
               onChange={handleChange}
+              autoComplete="new-password"
             />
 
             <input
               type="password"
               name="confirmPassword"
-              placeholder="Confirm your password"
-              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
+              placeholder="Confirm Password"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
               value={formData.confirmPassword}
               onChange={handleChange}
+              autoComplete="new-password"
             />
 
-            {/* TERMS */}
-            <div className="flex items-center gap-1.5 mt-4 text-sm">
+            <div className="flex items-center gap-1.5 mt-2">
               <input
                 type="checkbox"
                 name="termsAccepted"
+                id="hosp-terms"
                 className="w-4 h-4 accent-[#2f8f5b] cursor-pointer"
                 checked={formData.termsAccepted}
                 onChange={handleChange}
               />
-              <label className="text-gray-600 cursor-pointer">
+              <label htmlFor="hosp-terms" className="text-sm text-gray-700 cursor-pointer">
                 Allow All Terms & Conditions on this site
               </label>
             </div>
 
-            {/* BUTTON */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full md:w-auto mt-5 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-8 rounded text-base transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className="w-full md:w-auto mt-4 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-10 rounded text-base transition-colors disabled:bg-gray-300 cursor-pointer font-medium"
             >
               {loading ? "Registering..." : "Register →"}
             </button>
           </form>
 
-          <p className="mt-4 text-[15px] text-gray-700">
+          <p className="mt-5 text-[15px] text-gray-700">
             Already have an account?{" "}
             <span
               onClick={() => {
@@ -293,20 +337,6 @@ function RegisterAsHospital() {
             >
               Login
             </span>
-          </p>
-        </div>
-      </div>
-
-      {/* FOOTER DESCRIPTION SECTION */}
-      <div className="max-w-[1100px] mx-auto mt-10 px-4 md:px-0 pb-10">
-        <h3 className="text-lg sm:text-xl md:text-[28px] font-bold mb-5">
-          Hospital
-        </h3>
-        <div className="flex gap-3 text-sm md:text-base leading-relaxed text-[#333]">
-          <span className="text-[#2f8f5b] font-bold mt-1">✔</span>
-          <p>
-            Join our platform and manage appointments, doctors, and patients efficiently.
-            Registration is the first step towards digitalizing your healthcare facility.
           </p>
         </div>
       </div>

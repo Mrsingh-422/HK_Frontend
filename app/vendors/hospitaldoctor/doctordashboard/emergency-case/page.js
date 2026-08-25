@@ -72,7 +72,11 @@ export default function DoctorEmergencyCasesPage() {
         clinicalNotes: '',
         dateOfSurgery: '',
         conditionDuringAdmission: '',
-        conditionDuringDischarge: ''
+        conditionDuringDischarge: '',
+        bp: '',
+        pulse: '',
+        temp: '',
+        spo2: ''
     });
 
     const [isPrescriptionOpen, setIsPrescriptionOpen] = useState(false);
@@ -82,7 +86,12 @@ export default function DoctorEmergencyCasesPage() {
     const [feedbackForm, setFeedbackForm] = useState({
         observation: '',
         patientCondition: 'Recovering',
-        priorityRating: 'Routine'
+        priorityRating: 'Routine',
+        bp: '',
+        pulse: '',
+        temp: '',
+        spo2: '',
+        recommendedMedicines: []
     });
 
     const [isPrescriptionPreviewOpen, setIsPrescriptionPreviewOpen] = useState(false);
@@ -336,20 +345,50 @@ export default function DoctorEmergencyCasesPage() {
         }
     };
 
-    const handleFeedbackSubmit = async () => {
-        if (!feedbackForm.observation) {
+    // Vitals-enabled dynamic submission handler (Argument-injected to bypass state closure lag)
+    const handleFeedbackSubmit = async (formData) => {
+        const activeForm = formData || feedbackForm;
+
+        if (!activeForm.observation) {
             alert("Observation is required.");
             return;
         }
         try {
             setActionLoading(true);
-            const body = {
-                appointmentId: selectedCaseId,
-                observation: feedbackForm.observation,
-                patientCondition: feedbackForm.patientCondition,
-                priorityRating: feedbackForm.priorityRating
+            
+            // Explicitly map coordinates to guarantee payload values are serialized
+            const vitalsPayload = {
+                bp: String(activeForm.bp || "").trim(),
+                pulse: String(activeForm.pulse || "").trim(),
+                temp: String(activeForm.temp || "").trim(),
+                spo2: String(activeForm.spo2 || "").trim()
             };
-            const response = await HospitalDoctorAPI.submitBedsideFeedback(body);
+
+            const myDoctorId = getDoctorIdFromToken();
+            const isMainDoctor = caseDetails?.doctorId?._id === myDoctorId || caseDetails?.doctorId === myDoctorId;
+
+            let response;
+            if (isMainDoctor) {
+                // Attending Progress Round Submission
+                response = await HospitalDoctorAPI.addClinicalLog({
+                    appointmentId: selectedCaseId,
+                    observation: activeForm.observation,
+                    patientCondition: activeForm.patientCondition,
+                    priorityRating: activeForm.priorityRating,
+                    vitals: vitalsPayload
+                });
+            } else {
+                // Specialist Bedside Feedback Submission
+                response = await HospitalDoctorAPI.submitBedsideFeedback({
+                    appointmentId: selectedCaseId,
+                    observation: activeForm.observation,
+                    patientCondition: activeForm.patientCondition,
+                    priorityRating: activeForm.priorityRating,
+                    vitals: vitalsPayload,
+                    recommendedMedicines: activeForm.recommendedMedicines || []
+                });
+            }
+
             if (response.success) {
                 alert("Clinical observation feedback submitted successfully!");
                 setIsFeedbackOpen(false);
@@ -403,6 +442,16 @@ export default function DoctorEmergencyCasesPage() {
     };
 
     const handleProcessPrescriptionSubmit = async (finalMedicines, dietPlanFile) => {
+        // Intercept medication configuration if triggered from Bedside Specialist Feedback path
+        if (prescriptionSource === 'bedside-feedback') {
+            setFeedbackForm(prev => ({
+                ...prev,
+                recommendedMedicines: finalMedicines
+            }));
+            setIsPrescriptionOpen(false);
+            return;
+        }
+
         try {
             setActionLoading(true);
             setStagedMedicines(finalMedicines);
@@ -459,8 +508,15 @@ export default function DoctorEmergencyCasesPage() {
                 conditionDuringAdmission: dischargeForm.conditionDuringAdmission || "",
                 conditionDuringDischarge: dischargeForm.conditionDuringDischarge || "",
 
+                vitals: {
+                    bp: dischargeForm.bp || "",
+                    pulse: dischargeForm.pulse || "",
+                    temp: dischargeForm.temp || "",
+                    spo2: dischargeForm.spo2 || ""
+                },
+
                 hospitalName: caseDetails?.hospitalId?.name || "Fortis Hospital Mohali",
-                hospitalAddress: caseDetails?.hospitalId?.address || "Sector 62, Sahibzada Ajit Singh Nagar, Punjab 160062",
+                hospitalAddress: caseDetails?.hospitalId?.address || "Sector 62, Sahibzada Ajit Nagar, Punjab 160062",
                 hospitalLogo: caseDetails?.hospitalId?.logo ? getImageUrl(caseDetails.hospitalId.logo) : (caseDetails?.hospitalId?.profilePic ? getImageUrl(caseDetails.hospitalId.profilePic) : (caseDetails?.hospitalId?.image ? getImageUrl(caseDetails.hospitalId.image) : null)),
                 mainDoctorName: caseDetails?.doctorId?.name || "Dr. Deepak Joshi",
                 mainDoctorQualification: caseDetails?.doctorId?.qualification || "Professor & Head: Department of Medicine",
@@ -533,6 +589,10 @@ export default function DoctorEmergencyCasesPage() {
 
         return true;
     });
+
+    const currentLoggedInDoctorId = getDoctorIdFromToken();
+    const activeCaseMainDoctorId = caseDetails?.doctorId?._id || caseDetails?.doctorId;
+    const isCurrentUserMainDoctor = currentLoggedInDoctorId === activeCaseMainDoctorId;
 
     return (
         <div className="min-h-screen bg-slate-50/50 p-4 md:p-8">
@@ -710,7 +770,11 @@ export default function DoctorEmergencyCasesPage() {
                             clinicalNotes: '',
                             dateOfSurgery: '',
                             conditionDuringAdmission: '',
-                            conditionDuringDischarge: ''
+                            conditionDuringDischarge: '',
+                            bp: '',
+                            pulse: '',
+                            temp: '',
+                            spo2: ''
                         });
                         setClinicalReports([]);
                         setStagedMedicines([]);
@@ -720,7 +784,19 @@ export default function DoctorEmergencyCasesPage() {
                     onAcceptTransfer={activeStatus === 'Pending Bedside' ? (caseId) => handleRespondBedside(caseId, 'Accepted') : handleAcceptTransfer}
                     onRejectTransfer={activeStatus === 'Pending Bedside' ? (caseId, reason) => handleRespondBedside(caseId, 'Rejected', reason) : handleRejectTransfer}
                     activeStatus={activeStatus}
-                    onFeedbackClick={() => setIsFeedbackOpen(true)}
+                    onFeedbackClick={() => {
+                        setFeedbackForm({
+                            observation: '',
+                            patientCondition: 'Recovering',
+                            priorityRating: 'Routine',
+                            bp: '',
+                            pulse: '',
+                            temp: '',
+                            spo2: '',
+                            recommendedMedicines: []
+                        });
+                        setIsFeedbackOpen(true);
+                    }}
                     onStartBedsideShift={handleStartBedsideShift}
                     onCompleteBedsideShift={(caseId) => {
                         setPrescriptionSource('bedside'); 
@@ -756,7 +832,10 @@ export default function DoctorEmergencyCasesPage() {
                     onClose={() => setIsDischargeOpen(false)}
                     dischargeForm={dischargeForm}
                     setDischargeForm={setDischargeForm}
-                    onAddMedicineDetail={() => setIsPrescriptionOpen(true)}
+                    onAddMedicineDetail={() => {
+                        setIsDischargeOpen(false); 
+                        setIsPrescriptionOpen(true); 
+                    }}
                     clinicalReports={clinicalReports}
                     setClinicalReports={setClinicalReports}
                     addedMedicinesCount={stagedMedicines.length}
@@ -768,6 +847,8 @@ export default function DoctorEmergencyCasesPage() {
                     medicinesList={medicinesList}
                     actionLoading={actionLoading}
                     onSubmit={handleProcessPrescriptionSubmit}
+                    prescriptionSource={prescriptionSource}
+                    collaborativeMeds={caseDetails?.collaborativeMeds || []}
                 />
 
                 <BedsideFeedbackModal 
@@ -777,6 +858,11 @@ export default function DoctorEmergencyCasesPage() {
                     setFeedbackForm={setFeedbackForm}
                     actionLoading={actionLoading}
                     onSubmit={handleFeedbackSubmit}
+                    isMainDoctor={isCurrentUserMainDoctor}
+                    onAddMedicineTrigger={() => {
+                        setPrescriptionSource('bedside-feedback');
+                        setIsPrescriptionOpen(true);
+                    }}
                 />
 
                 <DigitalPrescriptionTemplate 

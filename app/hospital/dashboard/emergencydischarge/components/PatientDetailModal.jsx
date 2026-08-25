@@ -5,12 +5,12 @@ import {
   FaTimes, FaUserMd, FaProcedures, FaClock, FaHeartbeat, 
   FaFilePrescription, FaPrint, FaTint, FaRegCalendarAlt, 
   FaCreditCard, FaShieldAlt, FaDownload, FaFilePdf, FaAmbulance, 
-  FaUser, FaFileAlt, FaPhone, FaEnvelope, FaDollarSign, FaHistory, FaMapMarkerAlt
+  FaUser, FaFileAlt, FaPhone, FaEnvelope, FaDollarSign, FaHistory, FaMapMarkerAlt,
+  FaExchangeAlt, FaHospital, FaNotesMedical, FaCoins
 } from 'react-icons/fa'
 import HospitalAPI from '@/app/services/HospitalAPI';
 
-// Configured to point directly to your active IP backend with env fallback
-const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ;
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
   const [data, setData] = useState(patientData || null);
@@ -40,7 +40,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
   const getFullUrl = (path) => {
     if (!path) return '#';
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    const base = API_BASE_URL.replace(/\/$/, '');
+    const base = API_BASE_URL ? API_BASE_URL.replace(/\/$/, '') : '';
     const cleanPath = path.replace(/^\//, '').replace(/^public\//, '');
     return base ? `${base}/${cleanPath}` : `/${cleanPath}`;
   };
@@ -63,8 +63,8 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
 
   if (!appointmentId) return null;
 
-  // Resolve API wrapping: Sometimes API returns { patient, prescription }
-  const rawPatient = data?.patient ? data.patient : (data?.patients ? data : {});
+  // Resolve API wrapping
+  const rawPatient = data?.patient ? data.patient : (data?.patients ? data : (data || {}));
   const prescription = data?.prescription || null;
 
   // Primary Patient attributes
@@ -86,8 +86,9 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
   const insurance = rawPatient.insuranceDetails || {};
   const cancellation = rawPatient.cancellationDetails || {};
   const clinicalFiles = rawPatient.clinicalFiles || {};
+  const billingBreakdown = rawPatient.billingBreakdown || {};
+  const treatmentTeamTimeline = rawPatient.treatmentTeamTimeline || [];
 
-  // Explicitly declare bloodGroup in the top scope of rendering
   const bloodGroup = clinical.bloodGroup || "N/A";
 
   // File downloads
@@ -246,7 +247,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 md:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-3 md:p-4 overflow-y-auto">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={onClose}></div>
       
       <div className="relative bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
@@ -283,10 +284,10 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
         </div>
 
         {/* Modal Secondary Navigation Tab Bar */}
-        <div className="flex bg-slate-50 border-b border-slate-100 px-6 pt-3 gap-2 overflow-x-auto">
+        <div className="flex bg-slate-50 border-b border-slate-100 px-6 pt-3 gap-2 overflow-x-auto shrink-0">
           <button
             onClick={() => setActiveTab('clinical')}
-            className={`pb-3 px-3 text-xs font-black uppercase tracking-wider border-b-2 transition flex items-center gap-1.5 ${
+            className={`pb-3 px-3 text-xs font-black uppercase tracking-wider border-b-2 transition flex items-center gap-1.5 shrink-0 ${
               activeTab === 'clinical' ? 'border-[#08B36A] text-[#08B36A]' : 'border-transparent text-slate-400 hover:text-slate-700'
             }`}
           >
@@ -294,7 +295,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
           </button>
           <button
             onClick={() => setActiveTab('billing')}
-            className={`pb-3 px-3 text-xs font-black uppercase tracking-wider border-b-2 transition flex items-center gap-1.5 ${
+            className={`pb-3 px-3 text-xs font-black uppercase tracking-wider border-b-2 transition flex items-center gap-1.5 shrink-0 ${
               activeTab === 'billing' ? 'border-[#08B36A] text-[#08B36A]' : 'border-transparent text-slate-400 hover:text-slate-700'
             }`}
           >
@@ -302,7 +303,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
           </button>
           <button
             onClick={() => setActiveTab('careteam')}
-            className={`pb-3 px-3 text-xs font-black uppercase tracking-wider border-b-2 transition flex items-center gap-1.5 ${
+            className={`pb-3 px-3 text-xs font-black uppercase tracking-wider border-b-2 transition flex items-center gap-1.5 shrink-0 ${
               activeTab === 'careteam' ? 'border-[#08B36A] text-[#08B36A]' : 'border-transparent text-slate-400 hover:text-slate-700'
             }`}
           >
@@ -310,7 +311,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
           </button>
           <button
             onClick={() => setActiveTab('account')}
-            className={`pb-3 px-3 text-xs font-black uppercase tracking-wider border-b-2 transition flex items-center gap-1.5 ${
+            className={`pb-3 px-3 text-xs font-black uppercase tracking-wider border-b-2 transition flex items-center gap-1.5 shrink-0 ${
               activeTab === 'account' ? 'border-[#08B36A] text-[#08B36A]' : 'border-transparent text-slate-400 hover:text-slate-700'
             }`}
           >
@@ -361,7 +362,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">Chief complaint indicators</h4>
                       <div>
                         <p className="font-bold text-slate-400 uppercase text-[9px]">Chief Complaint:</p>
-                        <p className="font-semibold text-slate-700 mt-0.5">{clinical.chiefComplaint || reasonForVisit}</p>
+                        <p className="font-semibold text-slate-700 mt-0.5">{clinical.chiefComplaint || reasonForVisit || "N/A"}</p>
                       </div>
                       <div>
                         <p className="font-bold text-slate-400 uppercase text-[9px]">Admission Details / Note:</p>
@@ -412,8 +413,8 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                       <span className="text-[9px] font-black text-emerald-800 uppercase tracking-widest block mb-1">State at Discharge</span>
                       <p className="font-bold text-slate-700">{clinical.conditionDuringDischarge || "N/A"}</p>
                       {clinical.dischargeNote && (
-                        <p className="mt-2 text-[11px] text-slate-500 border-t border-emerald-100 pt-1">
-                          <strong>Note:</strong> {clinical.dischargeNote}
+                        <p className="mt-2 text-[11px] text-slate-600 border-t border-emerald-100 pt-1 leading-relaxed">
+                          <strong>Discharge Note:</strong> {clinical.dischargeNote}
                         </p>
                       )}
                     </div>
@@ -484,7 +485,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                         })}
                       </div>
                     ) : (
-                      <p className="text-[11px] text-slate-400 italic pl-1">No lab reports attached.</p>
+                      <p className="text-[11px] text-slate-400 italic pl-1">No lab reports attached to this case dossier.</p>
                     )}
                   </div>
 
@@ -495,6 +496,35 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
               {activeTab === 'billing' && (
                 <div className="space-y-6 animate-in fade-in duration-150">
                   
+                  {/* Unified Stay Breakdown Card */}
+                  {billingBreakdown && Object.keys(billingBreakdown).length > 0 && (
+                    <div className="p-5 bg-emerald-50/40 border border-emerald-100 rounded-2xl text-xs space-y-3">
+                      <h4 className="text-xs font-black text-[#08B36A] uppercase tracking-wider border-b border-emerald-200 pb-2 flex items-center gap-1.5">
+                        <FaHospital /> Active Bed Stay Summary
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <span className="text-slate-400 font-bold block uppercase text-[9px]">Stay Unit Charge:</span>
+                          <strong className="text-slate-800 text-sm font-black">₹{billingBreakdown.bedPricePerDay || bed.pricePerDay || 0} / Day</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-bold block uppercase text-[9px]">Base Stay Duration:</span>
+                          <strong className="text-slate-800 text-sm font-black">{billingBreakdown.baseStayDays || 0} Days</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-bold block uppercase text-[9px]">Accumulated Base Fee:</span>
+                          <strong className="text-slate-800 text-sm font-black">₹{billingBreakdown.baseStayCharge || 0}</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-bold block uppercase text-[9px]">Overstay Allocation:</span>
+                          <strong className="text-rose-600 text-sm font-black">
+                            {billingBreakdown.overstayDays || 0} Days (₹{billingBreakdown.overstayCharge || 0})
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Itemized pricing breakdown */}
                     <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 text-xs">
@@ -521,6 +551,12 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                           <span className="font-bold text-slate-800">₹{pricing.cancellationFeeApplied}</span>
                         </div>
                       )}
+                      {pricing.noShowFeeApplied > 0 && (
+                        <div className="flex justify-between text-slate-500">
+                          <span>No Show Penalty:</span>
+                          <span className="font-bold text-slate-800">₹{pricing.noShowFeeApplied}</span>
+                        </div>
+                      )}
                       <div className="border-t border-slate-200 pt-3 flex justify-between font-black text-slate-900 text-sm">
                         <span>Total Invoice Value:</span>
                         <span className="text-[#08B36A] text-base">₹{rawPatient.totalAmount || 0}</span>
@@ -528,7 +564,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                     </div>
 
                     {/* Payment Transactions & Gateways */}
-                    <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 text-xs">
+                    <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 text-xs font-medium">
                       <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2">Gateway Transactions</h4>
                       <div className="flex justify-between">
                         <span className="text-slate-500 font-semibold">Payment Status:</span>
@@ -537,13 +573,35 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                         </span>
                       </div>
                       <div className="flex justify-between">
+                        <span className="text-slate-500 font-semibold">Transaction ID:</span>
+                        <span className="font-bold text-slate-800 font-mono">{rawPatient.transactionId || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between">
                         <span className="text-slate-500 font-semibold">Payment Method:</span>
                         <span className="font-bold text-slate-800">{payment.method || 'Online'}</span>
                       </div>
-                      {payment.currency && (
+                      {payment.bank && (
                         <div className="flex justify-between">
-                          <span className="text-slate-500 font-semibold">Currency Standard:</span>
-                          <span className="font-bold text-slate-800">{payment.currency}</span>
+                          <span className="text-slate-500 font-semibold">Bank Partner:</span>
+                          <span className="font-bold text-slate-800 uppercase">{payment.bank}</span>
+                        </div>
+                      )}
+                      {payment.wallet && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-semibold">Paid via Wallet:</span>
+                          <span className="font-bold text-slate-800 uppercase">{payment.wallet}</span>
+                        </div>
+                      )}
+                      {payment.vpa && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-semibold">UPI VPA Address:</span>
+                          <span className="font-bold text-slate-800 font-mono">{payment.vpa}</span>
+                        </div>
+                      )}
+                      {payment.paidAt && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-500 font-semibold">Paid Timestamp:</span>
+                          <span className="font-bold text-slate-800">{formatDateTime(payment.paidAt)}</span>
                         </div>
                       )}
                       {payment.razorpayOrderId && (
@@ -599,7 +657,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                   
                   {/* Doctor Profile */}
                   <div className="flex items-center gap-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-                    <div className="w-14 h-14 rounded-xl bg-slate-900 text-white flex items-center justify-center text-xl">
+                    <div className="w-14 h-14 rounded-xl bg-slate-900 text-white flex items-center justify-center text-xl shrink-0">
                       <FaUserMd />
                     </div>
                     <div className="text-xs">
@@ -609,6 +667,32 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                       <p className="text-slate-400 mt-0.5">Qualifications: {doctor.qualification || 'N/A'}</p>
                     </div>
                   </div>
+
+                  {/* Treatment Team Timeline */}
+                  {treatmentTeamTimeline && treatmentTeamTimeline.length > 0 && (
+                    <div>
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2.5 ml-1">Treatment Team Timeline</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        {treatmentTeamTimeline.map((team, index) => (
+                          <div key={index} className="flex gap-3 p-3.5 border border-slate-150 rounded-2xl text-xs bg-slate-50/55">
+                            {team.profileImage ? (
+                              <img src={getFullUrl(team.profileImage)} alt={team.name} className="w-11 h-11 rounded-xl object-cover border shrink-0" />
+                            ) : (
+                              <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 shrink-0"><FaUserMd /></div>
+                            )}
+                            <div>
+                              <p className="font-extrabold text-slate-800">Dr. {team.name}</p>
+                              <p className="text-[10px] text-[#08B36A] font-black uppercase tracking-wide">{team.role || 'Physician'}</p>
+                              <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{team.speciality} &bull; {team.qualification}</p>
+                              <p className="text-[9px] text-slate-400 mt-1.5 font-bold">
+                                Stay: {formatDate(team.joinedAt)} &rarr; {formatDate(team.dischargedAt)}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Bedside Care team status */}
                   <div>
@@ -644,17 +728,20 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                       <FaHistory className="text-[#08B36A]" /> Comprehensive Treatment Log History ({rawPatient.treatmentHistory?.length || 0})
                     </h4>
                     {rawPatient.treatmentHistory && rawPatient.treatmentHistory.length > 0 ? (
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         {rawPatient.treatmentHistory.map((log) => (
                           <div key={log._id} className="relative pl-6 border-l-2 border-[#08B36A]/40 text-xs">
-                            <div className="absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full bg-[#08B36A]"></div>
+                            <div className="absolute -left-[5.5px] top-1 w-2.5 h-2.5 rounded-full bg-[#08B36A]"></div>
                             <div className="flex justify-between font-bold text-slate-900 mb-0.5">
                               <span>{log.action}</span>
                               <span className="text-[10px] text-slate-400 font-medium">{formatDateTime(log.timestamp)}</span>
                             </div>
-                            <p className="text-slate-600 font-medium">{log.notes || 'No description notes.'}</p>
+                            <p className="text-slate-600 font-medium leading-relaxed">{log.notes || 'No description notes.'}</p>
                             {log.fromDoctorId && typeof log.fromDoctorId === 'object' && (
-                              <p className="text-[10px] text-slate-400 mt-1 font-bold">Logged by: Dr. {log.fromDoctorId.name}</p>
+                              <div className="flex items-center gap-2 mt-2 bg-slate-50 p-2 rounded-lg border border-slate-100 w-fit">
+                                <FaUserMd className="text-[#08B36A]" size={11} />
+                                <span className="text-[10px] text-slate-500 font-bold">Logged by: Dr. {log.fromDoctorId.name} ({log.fromDoctorId.speciality})</span>
+                              </div>
                             )}
                           </div>
                         ))}
@@ -674,9 +761,9 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                   {/* Account profile */}
                   <div className="p-5 border border-slate-200 rounded-2xl flex items-center gap-4 text-xs">
                     {userId.profilePic ? (
-                      <img src={getFullUrl(userId.profilePic)} alt="profile" className="w-14 h-14 rounded-full object-cover border" />
+                      <img src={getFullUrl(userId.profilePic)} alt="profile" className="w-14 h-14 rounded-full object-cover border shrink-0" />
                     ) : (
-                      <div className="w-14 h-14 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-xl">
+                      <div className="w-14 h-14 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-xl shrink-0">
                         <FaUser />
                       </div>
                     )}
@@ -707,6 +794,44 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                     )}
                   </div>
 
+                  {/* Booking Metadata Metrics */}
+                  <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-medium">
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[9px]">Booking Type</span>
+                      <strong className="text-slate-800 text-xs block mt-0.5">{rawPatient.bookingType || "Admission"}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[9px]">Booking Category</span>
+                      <strong className="text-[#08B36A] text-xs block mt-0.5 uppercase tracking-wide">{rawPatient.bedBookingType || "N/A"}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[9px]">Reschedules</span>
+                      <strong className="text-slate-800 text-xs block mt-0.5">{rawPatient.rescheduleCount || 0} Times</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[9px]">Cancellations</span>
+                      <strong className="text-slate-800 text-xs block mt-0.5">{rawPatient.cancellationCount || 0} Times</strong>
+                    </div>
+                  </div>
+
+                  {/* Reschedule / Reason text */}
+                  {(rawPatient.bookingReason || rawPatient.rescheduleReason) && (
+                    <div className="p-4 bg-amber-50/50 border border-amber-200/60 rounded-xl text-xs space-y-2">
+                      {rawPatient.bookingReason && (
+                        <div>
+                          <span className="text-[9px] text-amber-800 font-black uppercase">Admission Booking Goal:</span>
+                          <p className="font-semibold text-slate-700">{rawPatient.bookingReason}</p>
+                        </div>
+                      )}
+                      {rawPatient.rescheduleReason && (
+                        <div>
+                          <span className="text-[9px] text-amber-800 font-black uppercase">Reschedule Context:</span>
+                          <p className="font-semibold text-slate-700">{rawPatient.rescheduleReason}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Ambulance Transport Details */}
                   {rawPatient.ambulanceId && (
                     <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-3 text-xs">
@@ -715,7 +840,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                       </div>
                       <div>
                         <strong className="text-rose-900 block font-black">Emergency Ambulance Transit Logged</strong>
-                        <p className="text-rose-700 mt-0.5">ID: {rawPatient.ambulanceId}</p>
+                        <p className="text-rose-700 mt-0.5">Asset Registration ID: <span className="font-mono font-bold text-slate-900">{rawPatient.ambulanceId}</span></p>
                       </div>
                     </div>
                   )}
@@ -723,11 +848,24 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                   {/* Address Details */}
                   {rawPatient.address && (
                     <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl flex items-center gap-3 text-xs">
-                      <FaMapMarkerAlt className="text-slate-400" size={16} />
+                      <FaMapMarkerAlt className="text-slate-400 animate-pulse" size={16} />
                       <div>
                         <span className="text-[10px] uppercase font-bold text-slate-400">Address Category</span>
                         <p className="font-extrabold text-slate-800">{rawPatient.address.addressType || 'Home Address'}</p>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Cancellation Audit Logs */}
+                  {cancellation && cancellation.cancelledAt && (
+                    <div className="p-4 bg-rose-50/50 border border-rose-200/60 rounded-2xl text-xs space-y-1.5">
+                      <h4 className="font-black text-rose-900 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                        <FaTimesCircle className="text-rose-500" /> Cancelled Case Settlement details
+                      </h4>
+                      <p className="text-slate-700 font-semibold">Cancelled Date: {formatDateTime(cancellation.cancelledAt)}</p>
+                      <p className="text-slate-700 font-semibold">Penalty Incurred: <span className="text-rose-600 font-black">₹{cancellation.penaltyApplied}</span></p>
+                      <p className="text-slate-700 font-semibold">Calculated Refund: <span className="text-[#08B36A] font-black">₹{cancellation.refundAmountCalculated}</span></p>
+                      <p className="text-slate-600 italic">"Reason: {cancellation.reason || 'No cancellation explanation supplied.'}"</p>
                     </div>
                   )}
 
@@ -741,13 +879,13 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
         </div>
 
         {/* Footer Actions */}
-        <div className="p-6 bg-slate-50 border-t border-slate-200 flex gap-3">
+        <div className="p-6 bg-slate-50 border-t border-slate-200 flex gap-3 shrink-0">
           <button onClick={handlePrint} className="flex-1 bg-slate-900 text-white py-3.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-black transition-all">
             <FaPrint /> PRINT OFFICIAL DISCHARGE FORM
           </button>
           <button 
             onClick={onClose}
-            className="flex-1 bg-white border border-slate-200 text-slate-500 py-3 rounded-xl font-bold text-xs hover:border-slate-450 hover:text-slate-850 transition-all"
+            className="flex-1 bg-white border border-slate-200 text-slate-500 py-3 rounded-xl font-bold text-xs hover:border-slate-350 hover:text-slate-850 transition-all"
           >
             CLOSE DOSSIER
           </button>

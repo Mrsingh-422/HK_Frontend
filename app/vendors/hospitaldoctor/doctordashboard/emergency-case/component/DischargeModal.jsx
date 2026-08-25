@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef } from 'react';
-import { FaArrowLeft, FaFilePdf, FaPlus, FaCheckCircle, FaCalendarAlt, FaTimes } from 'react-icons/fa';
+import { FaArrowLeft, FaFilePdf, FaPlus, FaCheckCircle, FaCalendarAlt, FaTimes, FaHeartbeat } from 'react-icons/fa';
 
 export default function DischargeModal({
     isOpen,
@@ -167,29 +167,56 @@ export default function DischargeModal({
                         </div>
                     </div>
 
-                    {/* Right Column: Dates & Discharge Status Conditions */}
+                    {/* Right Column: Vitals, Dates, and State Conditions */}
                     <div className="space-y-4">
                         <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">Clinical Parameters & Timeline</h4>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Date of Admission (Optional)</label>
-                                <input
-                                    type="date"
-                                    value={dischargeForm.dateOfAdmission || ''}
-                                    onChange={(e) => handleFormUpdate('dateOfAdmission', e.target.value)}
-                                    className="w-full px-4 py-3 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Date of Discharge (Optional)</label>
-                                <input
-                                    type="date"
-                                    value={dischargeForm.dateOfDischarge || ''}
-                                    onChange={(e) => handleFormUpdate('dateOfDischarge', e.target.value)}
-                                    className="w-full px-4 py-3 bg-white border border-slate-250 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold text-slate-700"
-                                />
+                        {/* Vitals Recording Sub-panel */}
+                        <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/50 space-y-3">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block flex items-center gap-1.5">
+                                <FaHeartbeat className="text-rose-500" /> Discharge Vitals Summary
+                            </span>
+                            <div className="grid grid-cols-2 gap-2.5">
+                                <div>
+                                    <span className="text-[9px] text-slate-400 font-extrabold uppercase ml-1">BP (mmHg)</span>
+                                    <input
+                                        type="text"
+                                        placeholder="120/80"
+                                        value={dischargeForm.bp || ''}
+                                        onChange={(e) => handleFormUpdate('bp', e.target.value)}
+                                        className="w-full border border-slate-200 p-2.5 text-xs font-semibold rounded-xl focus:outline-none bg-white text-slate-800 focus:border-emerald-500"
+                                    />
+                                </div>
+                                <div>
+                                    <span className="text-[9px] text-slate-400 font-extrabold uppercase ml-1">Pulse (bpm)</span>
+                                    <input
+                                        type="text"
+                                        placeholder="72"
+                                        value={dischargeForm.pulse || ''}
+                                        onChange={(e) => handleFormUpdate('pulse', e.target.value)}
+                                        className="w-full border border-slate-200 p-2.5 text-xs font-semibold rounded-xl focus:outline-none bg-white text-slate-800 focus:border-emerald-500"
+                                    />
+                                </div>
+                                <div>
+                                    <span className="text-[9px] text-slate-400 font-extrabold uppercase ml-1">Temp (°F)</span>
+                                    <input
+                                        type="text"
+                                        placeholder="98.6"
+                                        value={dischargeForm.temp || ''}
+                                        onChange={(e) => handleFormUpdate('temp', e.target.value)}
+                                        className="w-full border border-slate-200 p-2.5 text-xs font-semibold rounded-xl focus:outline-none bg-white text-slate-800 focus:border-emerald-500"
+                                    />
+                                </div>
+                                <div>
+                                    <span className="text-[9px] text-slate-400 font-extrabold uppercase ml-1">SpO2 (%)</span>
+                                    <input
+                                        type="text"
+                                        placeholder="98"
+                                        value={dischargeForm.spo2 || ''}
+                                        onChange={(e) => handleFormUpdate('spo2', e.target.value)}
+                                        className="w-full border border-slate-200 p-2.5 text-xs font-semibold rounded-xl focus:outline-none bg-white text-slate-800 focus:border-emerald-500"
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -267,26 +294,20 @@ export default function DischargeModal({
                             <span>Reports ({clinicalReports.length})</span>
                         </button>
 
-                        <button
-                            type="button"
-                            onClick={onAddMedicineDetail}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                                addedMedicinesCount > 0
-                                ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                            }`}
-                        >
-                            {addedMedicinesCount > 0 ? <FaCheckCircle size={14} className="text-emerald-600" /> : <FaPlus size={14} />}
-                            <span>{addedMedicinesCount > 0 ? `${addedMedicinesCount} Meds Staged` : 'Add Medicines'}</span>
-                        </button>
+                        <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                            addedMedicinesCount > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-150 text-slate-500'
+                        }`}>
+                            {addedMedicinesCount > 0 ? <FaCheckCircle size={14} /> : <FaPlus size={14} />}
+                            <span>{addedMedicinesCount > 0 ? `${addedMedicinesCount} Meds Staged` : 'No Meds Staged'}</span>
+                        </div>
                     </div>
 
                     <button
                         type="button"
-                        onClick={onClose}
-                        className="w-full sm:w-auto px-8 py-3 bg-[#08B36A] hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-100 transition-all active:scale-95"
+                        onClick={onAddMedicineDetail}
+                        className="w-full sm:w-auto px-8 py-3 bg-[#08B36A] hover:bg-[#079d5c] text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-100 transition-all active:scale-95"
                     >
-                        Save & Preview Summary
+                        Next: Select Medications &rarr;
                     </button>
                 </div>
             </div>

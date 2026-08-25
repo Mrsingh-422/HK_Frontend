@@ -36,29 +36,26 @@ export default function PharmacyOrdersPage() {
     };
 
     // ==========================================
-    // PARENT-LEVEL ORDER FILTERS (Pre-filtered subsets)
+    // PARENT-LEVEL ORDER FILTERS
     // ==========================================
     
-    // 1. General: New orders waiting to be Accepted
+    // 1. General: New orders waiting to be Accepted / Packed
     const generalOrders = orders.filter(o => ['Placed', 'Under Review'].includes(o.status));
 
-    // 2. Placed: Accepted orders waiting for driver assignment (Both General & Prescription)
+    // 2. Placed / Dispatch Queue: Orders waiting for driver assignment
     const placedOrders = orders.filter(o => {
         const hasNoDriver = !o.driverId || o.driverId === "" || (typeof o.driverId === 'object' && !o.driverId._id);
         if (!hasNoDriver) return false;
 
-        // Condition 1: Explicitly status 'Accepted'
-        if (o.status === 'Accepted') return true;
-
-        // Condition 2: Prescription orders where the accepted status is 'Placed'
-        if (o.orderType === 'Prescription' && o.status === 'Placed') return true;
+        if (['Placed', 'Packed', 'Accepted'].includes(o.status)) return true;
+        if (o.orderType === 'Prescription' && ['Placed', 'Packed'].includes(o.status)) return true;
 
         return false;
     });
 
-    // 3. Approved: Accepted orders with drivers, or in route / completed
+    // 3. Approved / Dispatched: Orders with drivers assigned or in transit
     const approvedOrders = orders.filter(o => 
-        (o.status === 'Accepted' && o.driverId && o.driverId._id) || ['Shipped', 'Delivered', 'Completed'].includes(o.status)
+        (o.driverId && o.driverId._id) || ['Shipped', 'Delivered', 'Completed'].includes(o.status)
     );
 
     // 4. Rejected: Denied orders
@@ -67,7 +64,6 @@ export default function PharmacyOrdersPage() {
     // 5. Prescription: Orders containing custom prescription attachments
     const prescriptionOrders = orders.filter(o => o.prescriptionImages?.length > 0);
 
-    // Safe, null-resistant search filter to prevent rendering crashes
     const getFilteredPlacedOrders = () => {
         return placedOrders.filter(o => {
             const id = o.orderId ? String(o.orderId).toLowerCase() : '';
@@ -77,7 +73,6 @@ export default function PharmacyOrdersPage() {
         });
     };
 
-    // Helper to calculate combo counts dynamically per tab
     const getComboCountForTab = (tabId) => {
         let subset = [];
         if (tabId === 'General') subset = generalOrders;
@@ -113,8 +108,8 @@ export default function PharmacyOrdersPage() {
                 {[
                     { id: 'General', icon: <FaBoxOpen />, label: 'General' },
                     { id: 'Prescription', icon: <FaFilePrescription />, label: 'Prescription' },
-                    { id: 'Placed', icon: <FaTruck />, label: 'Placed' }, 
-                    { id: 'Approved', icon: <FaCheckCircle />, label: 'Approved' },
+                    { id: 'Placed', icon: <FaTruck />, label: 'Ready For Dispatch' }, 
+                    { id: 'Approved', icon: <FaCheckCircle />, label: 'Shipped / Completed' },
                     { id: 'Rejected', icon: <FaTimesCircle />, label: 'Rejected' }
                 ].map(tab => {
                     const comboCount = getComboCountForTab(tab.id);
@@ -123,7 +118,7 @@ export default function PharmacyOrdersPage() {
                             key={tab.id} onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center gap-2 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all relative ${
                                 activeTab === tab.id 
-                                    ? 'bg-emerald-600 text-white' 
+                                    ? 'bg-emerald-600 text-white shadow-md' 
                                     : 'text-slate-400 hover:bg-slate-50'
                             }`}
                         >
@@ -147,11 +142,8 @@ export default function PharmacyOrdersPage() {
                     </div>
                 ) : (
                     <>
-                        {/* Render respective tab using filtered datasets */}
                         {activeTab === 'General' && <General orders={generalOrders} searchTerm={searchTerm} refresh={fetchOrders} />}
                         {activeTab === 'Prescription' && <Prescription orders={prescriptionOrders} searchTerm={searchTerm} refresh={fetchOrders} />}
-                        
-                        {/* Render the Placed orders dynamically, displaying both General & Prescription accepted orders */}
                         {activeTab === 'Placed' && (
                             <OrderTable 
                                 orders={getFilteredPlacedOrders()} 
@@ -159,7 +151,6 @@ export default function PharmacyOrdersPage() {
                                 isPrescription={true} 
                             />
                         )}
-                        
                         {activeTab === 'Approved' && <Approved orders={approvedOrders} searchTerm={searchTerm} refresh={fetchOrders} />}
                         {activeTab === 'Rejected' && <Rejected orders={rejectedOrders} searchTerm={searchTerm} refresh={fetchOrders} />}
                     </>
