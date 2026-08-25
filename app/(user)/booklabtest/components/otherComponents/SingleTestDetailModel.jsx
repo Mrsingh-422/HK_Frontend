@@ -6,7 +6,7 @@ import {
     FaCheckCircle,
     FaVial,
     FaShoppingCart,
-    FaClock,
+    FaClock, 
     FaInfoCircle,
     FaExclamationCircle,
     FaStethoscope,
