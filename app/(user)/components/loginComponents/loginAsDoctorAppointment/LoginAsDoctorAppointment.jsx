@@ -157,7 +157,7 @@ function LoginAsDoctorAppointment() {
         </div>
       </div>
     </div>
-  );
+  ); 
 }
 
 export default LoginAsDoctorAppointment;

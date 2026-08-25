@@ -155,7 +155,7 @@ function LoginAsDoctor() {
           </p>
         </div>
       </div>
-
+ 
       {/* DESCRIPTION SECTION */}
       <div className="max-w-[1100px] mx-auto mt-10 px-4 md:px-0 pb-10">
         <h3 className="text-lg sm:text-xl md:text-[28px] font-bold mb-5">
