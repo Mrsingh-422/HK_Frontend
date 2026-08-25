@@ -149,7 +149,7 @@ function LoginAsDoctor() {
                 closeModal();
                 openModal("register");
               }}
-            >
+            > 
               Register?
             </span>
           </p>
