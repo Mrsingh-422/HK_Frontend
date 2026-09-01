@@ -9,7 +9,7 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
     if (typeof window !== 'undefined') {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('adminToken');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
@@ -40,6 +40,25 @@ const AdminAPI2 = {
     }),
 
     toggleFireHQStatus: (id) => api.delete(`/api/admin/fire/status-firehq/${id}`),
+    
+    // --- ADMIN RETURN POLICY & UNIFIED REFUND QUEUE (PART 4) ---
+
+// 1. Fetch Return Policy Settings (GET /admin/pharmacy/return-policy)
+getPharmacyReturnPolicy: () => 
+    api.get('/admin/pharmacy/return-policy'),
+
+// 2. Update Return Policy Settings (PUT /admin/pharmacy/return-policy/update)
+updatePharmacyReturnPolicy: (data) => 
+    api.put('/admin/pharmacy/return-policy/update', data),
+
+// 3. View Unified Refund Queue (GET /api/admin/refunds)
+getUnifiedRefundQueue: () => 
+    api.get('/api/admin/refunds'),
+
+// 4. Execute Razorpay Payout (POST /api/admin/refunds/process)
+processRefundPayout: (bookingId, vendorModel = 'Pharmacy') => 
+    api.post('/api/admin/refunds/process', { bookingId, vendorModel }),
+
 };
 
 export default AdminAPI2;

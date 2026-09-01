@@ -24,6 +24,7 @@ export const AuthProvider = ({ children }) => {
     const [providerCategory, setProviderCategory] = useState(null);
     const [labToken, setLabToken] = useState(null);
     const [nurseToken, setNurseToken] = useState(null);
+    const [nursingToken, setNursingToken] = useState(null);
     const [pharmacyToken, setPharmacyToken] = useState(null);
 
     // 4. Hospital & Admin
@@ -39,46 +40,54 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const hydrateAuth = () => {
             try {
-                // User
+                // User & Admin
                 const storedUToken = localStorage.getItem("userToken");
                 const storedUser = localStorage.getItem("user");
+                const storedAdmin = localStorage.getItem("admin");
+                const storedAToken = localStorage.getItem("adminToken") || localStorage.getItem("token");
+
                 if (storedUToken) setUserToken(storedUToken);
                 if (storedUser) setUser(JSON.parse(storedUser));
+                if (storedAdmin) setAdmin(JSON.parse(storedAdmin));
+                if (storedAToken) setAdminToken(storedAToken);
 
                 // Doctor
-                const storedDToken = localStorage.getItem("doctorToken");
-                const storedDoctor = localStorage.getItem("doctorUser");
+                const storedDToken = localStorage.getItem("doctorToken") || localStorage.getItem("independentDoctorToken") || localStorage.getItem("hospitalDoctorToken");
+                const storedDoctor = localStorage.getItem("doctorUser") || localStorage.getItem("doctor");
                 if (storedDToken) setDoctorToken(storedDToken);
                 if (storedDoctor) setDoctor(JSON.parse(storedDoctor));
 
-                // Providers
-                const storedPToken = localStorage.getItem("providerToken");
-                const storedProvider = localStorage.getItem("providerUser");
-                const storedCategory = localStorage.getItem("providerCategory");
-                if (storedPToken) setProviderToken(storedPToken);
-                if (storedProvider) setProvider(JSON.parse(storedProvider));
-                if (storedCategory) setProviderCategory(storedCategory);
-
+                // Providers (Lab, Nurse, Pharmacy)
                 const storedLToken = localStorage.getItem("labToken");
+                const storedLProvider = localStorage.getItem("labProvider") || localStorage.getItem("labUser");
                 if (storedLToken) setLabToken(storedLToken);
 
                 const storedNToken = localStorage.getItem("nurseToken") || localStorage.getItem("nursingToken");
-                if (storedNToken) setNurseToken(storedNToken);
+                const storedNProvider = localStorage.getItem("nursingProvider") || localStorage.getItem("nurseUser");
+                if (storedNToken) {
+                    setNurseToken(storedNToken);
+                    setNursingToken(storedNToken);
+                }
 
                 const storedPhToken = localStorage.getItem("pharmacyToken");
+                const storedPProvider = localStorage.getItem("pharmacyProvider") || localStorage.getItem("pharmacyUser");
                 if (storedPhToken) setPharmacyToken(storedPhToken);
+
+                // Generic Provider Object
+                const storedProvider = storedLProvider || storedNProvider || storedPProvider || localStorage.getItem("providerUser");
+                if (storedProvider) setProvider(JSON.parse(storedProvider));
+
+                const storedCategory = localStorage.getItem("providerCategory");
+                if (storedCategory) setProviderCategory(storedCategory);
+
+                const storedPToken = localStorage.getItem("providerToken") || storedLToken || storedNToken || storedPhToken;
+                if (storedPToken) setProviderToken(storedPToken);
 
                 // Hospital
                 const storedHToken = localStorage.getItem("hospitalToken");
-                const storedHospital = localStorage.getItem("hospitalUser");
+                const storedHospital = localStorage.getItem("hospitalUser") || localStorage.getItem("hospital");
                 if (storedHToken) setHospitalToken(storedHToken);
                 if (storedHospital) setHospital(JSON.parse(storedHospital));
-
-                // Admin
-                const storedAToken = localStorage.getItem("adminToken") || localStorage.getItem("token");
-                const storedAdmin = localStorage.getItem("admin");
-                if (storedAToken) setAdminToken(storedAToken);
-                if (storedAdmin) setAdmin(JSON.parse(storedAdmin));
 
             } catch (error) {
                 console.error("Failed to hydrate auth state:", error);
@@ -244,7 +253,7 @@ export const AuthProvider = ({ children }) => {
         try {
             setLoading(true);
             const baseUrl = getBaseUrl();
-            const token = localStorage.getItem("doctorToken");
+            const token = localStorage.getItem("doctorToken") || localStorage.getItem("token");
             const response = await axios.put(`${baseUrl}/api/auth/doctor/upload-docs`, formData, {
                 headers: {
                     "Content-Type": "multipart/form-data",
@@ -286,25 +295,36 @@ export const AuthProvider = ({ children }) => {
             const response = await axios.post(`${baseUrl}/api/auth/provider/register`, userData);
             const { token, providerId, category, profileStatus, data } = response.data;
 
-            const key = getProviderKey(category || userData.category);
-            const providerData = data || { _id: providerId, category: category || userData.category, profileStatus };
+            const currentCategory = category || userData.category;
+            const key = getProviderKey(currentCategory); // 'lab' | 'pharmacy' | 'nurse'
+            const providerData = data || { _id: providerId, category: currentCategory, profileStatus };
 
             if (token) {
-                localStorage.setItem("providerToken", token);
-                localStorage.setItem(`${key}Token`, token);
-                setProviderToken(token);
-                if (key === "lab") setLabToken(token);
-                if (key === "nurse") setNurseToken(token);
-                if (key === "pharmacy") setPharmacyToken(token);
+                if (key === "lab") {
+                    localStorage.setItem("labToken", token);
+                    localStorage.setItem("labProvider", JSON.stringify(providerData));
+                    localStorage.setItem("labUser", JSON.stringify(providerData));
+                    setLabToken(token);
+                } else if (key === "pharmacy") {
+                    localStorage.setItem("pharmacyToken", token);
+                    localStorage.setItem("pharmacyProvider", JSON.stringify(providerData));
+                    localStorage.setItem("pharmacyUser", JSON.stringify(providerData));
+                    setPharmacyToken(token);
+                } else if (key === "nurse") {
+                    localStorage.setItem("nurseToken", token);
+                    localStorage.setItem("nursingToken", token);
+                    localStorage.setItem("nursingProvider", JSON.stringify(providerData));
+                    localStorage.setItem("nurseUser", JSON.stringify(providerData));
+                    setNurseToken(token);
+                    setNursingToken(token);
+                }
             }
 
-            localStorage.setItem("providerUser", JSON.stringify(providerData));
-            localStorage.setItem(`${key}User`, JSON.stringify(providerData));
-            localStorage.setItem("providerCategory", category || userData.category);
+            localStorage.setItem("providerCategory", currentCategory);
             localStorage.setItem("providerStatus", profileStatus || "Incomplete");
 
             setProvider(providerData);
-            setProviderCategory(category || userData.category);
+            setProviderCategory(currentCategory);
 
             return response.data;
         } catch (error) {
@@ -322,28 +342,43 @@ export const AuthProvider = ({ children }) => {
             const response = await axios.post(`${baseUrl}/api/auth/provider/login`, userData);
             const { token, data, category, profileStatus } = response.data;
 
-            const key = getProviderKey(category || data?.category);
+            const currentCategory = category || userData.category || data?.category;
+            const key = getProviderKey(currentCategory);
 
             if (token) {
-                localStorage.setItem("providerToken", token);
-                localStorage.setItem(`${key}Token`, token);
-                setProviderToken(token);
-                if (key === "lab") setLabToken(token);
-                if (key === "nurse") setNurseToken(token);
-                if (key === "pharmacy") setPharmacyToken(token);
+                if (key === "lab") {
+                    localStorage.setItem("labToken", token);
+                    if (data) {
+                        localStorage.setItem("labProvider", JSON.stringify(data));
+                        localStorage.setItem("labUser", JSON.stringify(data));
+                    }
+                    setLabToken(token);
+                } else if (key === "pharmacy") {
+                    localStorage.setItem("pharmacyToken", token);
+                    if (data) {
+                        localStorage.setItem("pharmacyProvider", JSON.stringify(data));
+                        localStorage.setItem("pharmacyUser", JSON.stringify(data));
+                    }
+                    setPharmacyToken(token);
+                } else if (key === "nurse") {
+                    localStorage.setItem("nurseToken", token);
+                    localStorage.setItem("nursingToken", token);
+                    if (data) {
+                        localStorage.setItem("nursingProvider", JSON.stringify(data));
+                        localStorage.setItem("nurseUser", JSON.stringify(data));
+                    }
+                    setNurseToken(token);
+                    setNursingToken(token);
+                }
             }
 
             if (data) {
-                localStorage.setItem("providerUser", JSON.stringify(data));
-                localStorage.setItem(`${key}User`, JSON.stringify(data));
                 setProvider(data);
             }
-
-            if (category || data?.category) {
-                localStorage.setItem("providerCategory", category || data?.category);
-                setProviderCategory(category || data?.category);
+            if (currentCategory) {
+                setProviderCategory(currentCategory);
+                localStorage.setItem("providerCategory", currentCategory);
             }
-
             if (profileStatus) {
                 localStorage.setItem("providerStatus", profileStatus);
             }
@@ -403,7 +438,7 @@ export const AuthProvider = ({ children }) => {
         try {
             setLoading(true);
             const baseUrl = getBaseUrl();
-            const token = localStorage.getItem("nurseToken") || localStorage.getItem("providerToken");
+            const token = localStorage.getItem("nurseToken") || localStorage.getItem("nursingToken") || localStorage.getItem("providerToken");
 
             const response = await axios.put(`${baseUrl}/api/auth/provider/upload-docs/nurse`, formData, {
                 headers: {
@@ -480,6 +515,7 @@ export const AuthProvider = ({ children }) => {
             setAdmin(loggedAdmin);
             setAdminToken(token);
             localStorage.setItem("adminToken", token);
+            localStorage.setItem("token", token);
             localStorage.setItem("admin", JSON.stringify(loggedAdmin));
 
             return response.data;
@@ -519,7 +555,9 @@ export const AuthProvider = ({ children }) => {
         try {
             setLoading(true);
             const baseUrl = getBaseUrl();
-            const response = await axios.post(`${baseUrl}/api/password/forgot-password-phone`, { phone });
+            const response = await axios.post(`${baseUrl}/api/password/forgot-password-phone`, {
+                phone: phone.replace(/\s+/g, ""),
+            });
             return response.data;
         } catch (error) {
             const message = error.response?.data?.message || error.message || "Failed to find accounts for this number.";
@@ -539,7 +577,11 @@ export const AuthProvider = ({ children }) => {
         try {
             setLoading(true);
             const baseUrl = getBaseUrl();
-            const response = await axios.post(`${baseUrl}/api/password/verify-firebase-otp`, payload);
+            const response = await axios.post(`${baseUrl}/api/password/verify-firebase-otp`, {
+                phone: payload.phone.replace(/\s+/g, ""),
+                idToken: payload.idToken,
+                selectedRole: payload.selectedRole,
+            });
             return response.data;
         } catch (error) {
             const message = error.response?.data?.message || error.message || "OTP verification failed.";
@@ -559,7 +601,13 @@ export const AuthProvider = ({ children }) => {
         try {
             setLoading(true);
             const baseUrl = getBaseUrl();
-            const response = await axios.post(`${baseUrl}/api/password/reset-password-phone`, payload);
+            const response = await axios.post(`${baseUrl}/api/password/reset-password-phone`, {
+                phone: payload.phone.replace(/\s+/g, ""),
+                resetToken: payload.resetToken,
+                selectedRole: payload.selectedRole,
+                newPassword: payload.newPassword,
+                confirmPassword: payload.confirmPassword,
+            });
             return response.data;
         } catch (error) {
             const message = error.response?.data?.message || error.message || "Password reset failed.";
@@ -571,13 +619,16 @@ export const AuthProvider = ({ children }) => {
 
     /**
      * SECONDARY EMAIL FLOW:
-     * Step 1: Send Email OTP (Brevo)
+     * Step 1: Send 6-Digit OTP to Email (Universal across all 13 models)
+     * Payload: { email: "user@example.com" }
      */
     const forgotPassword = async (email) => {
         try {
             setLoading(true);
             const baseUrl = getBaseUrl();
-            const res = await axios.post(`${baseUrl}/api/password/forgot-password`, { email });
+            const res = await axios.post(`${baseUrl}/api/password/forgot-password`, {
+                email: email.trim().toLowerCase(),
+            });
             return res.data;
         } catch (error) {
             const message = error.response?.data?.message || error.message || "Failed to send email OTP.";
@@ -589,13 +640,17 @@ export const AuthProvider = ({ children }) => {
 
     /**
      * SECONDARY EMAIL FLOW:
-     * Step 2: Verify Email OTP
+     * Step 2: Verify 6-Digit Email OTP
+     * Payload: { email, otp }
      */
     const verifyOtp = async (email, otp) => {
         try {
             setLoading(true);
             const baseUrl = getBaseUrl();
-            const res = await axios.post(`${baseUrl}/api/password/verify-otp`, { email, otp });
+            const res = await axios.post(`${baseUrl}/api/password/verify-otp`, {
+                email: email.trim().toLowerCase(),
+                otp: otp.trim(),
+            });
             return res.data;
         } catch (error) {
             const message = error.response?.data?.message || error.message || "Invalid or expired OTP.";
@@ -608,13 +663,24 @@ export const AuthProvider = ({ children }) => {
     /**
      * SECONDARY EMAIL FLOW:
      * Step 3: Reset Password via Email
+     * Payload: { email, newPassword, confirmPassword }
      */
     const resetPassword = async (payload) => {
         try {
             setLoading(true);
             const baseUrl = getBaseUrl();
-            // Supports both (email, newPassword, confirmPassword) or ({ email, newPassword, confirmPassword })
-            const body = typeof payload === "object" ? payload : { email: arguments[0], newPassword: arguments[1], confirmPassword: arguments[2] };
+            const body = typeof payload === "object" 
+                ? {
+                    email: payload.email?.trim().toLowerCase(),
+                    newPassword: payload.newPassword,
+                    confirmPassword: payload.confirmPassword,
+                }
+                : {
+                    email: arguments[0]?.trim().toLowerCase(),
+                    newPassword: arguments[1],
+                    confirmPassword: arguments[2],
+                };
+
             const res = await axios.post(`${baseUrl}/api/password/reset-password`, body);
             return res.data;
         } catch (error) {
@@ -649,13 +715,18 @@ export const AuthProvider = ({ children }) => {
             localStorage.removeItem("providerCategory");
             localStorage.removeItem("providerStatus");
             localStorage.removeItem("labToken");
+            localStorage.removeItem("labProvider");
             localStorage.removeItem("nurseToken");
+            localStorage.removeItem("nursingToken");
+            localStorage.removeItem("nursingProvider");
             localStorage.removeItem("pharmacyToken");
+            localStorage.removeItem("pharmacyProvider");
             setProvider(null);
             setProviderToken(null);
             setProviderCategory(null);
             setLabToken(null);
             setNurseToken(null);
+            setNursingToken(null);
             setPharmacyToken(null);
         }
         if (role === "hospital" || role === "all") {
@@ -678,7 +749,7 @@ export const AuthProvider = ({ children }) => {
         <AuthContext.Provider
             value={{
                 loading,
-                // User
+                // User & Patient
                 user,
                 userToken,
                 setUser,
@@ -693,12 +764,13 @@ export const AuthProvider = ({ children }) => {
                 registerAsDoctor,
                 loginAsDoctor,
                 uploadDoctorDocuments,
-                // Providers (Lab, Nurse, Pharmacy)
+                // Service Providers (Lab, Nurse, Pharmacy)
                 provider,
                 providerToken,
                 providerCategory,
                 labToken,
                 nurseToken,
+                nursingToken,
                 pharmacyToken,
                 setProvider,
                 checkProviderExists,
@@ -724,6 +796,10 @@ export const AuthProvider = ({ children }) => {
                 forgotPassword,
                 verifyOtp,
                 resetPassword,
+                // Aliases for Email flow
+                forgotPasswordEmail: forgotPassword,
+                verifyEmailOtp: verifyOtp,
+                resetPasswordEmail: resetPassword,
                 // Logout
                 logout,
             }}

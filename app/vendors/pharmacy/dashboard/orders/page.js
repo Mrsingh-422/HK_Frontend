@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   FaSearch, FaBoxOpen, FaFilePrescription, FaCheckCircle, 
-  FaTimesCircle, FaSpinner, FaTruck, FaTag 
+  FaTimesCircle, FaSpinner, FaTruck, FaTag, FaUndoAlt 
 } from 'react-icons/fa';
 import PharmacyVendorAPI from '@/app/services/PharmacyVendorAPI';
 
@@ -12,6 +12,7 @@ import Prescription from './components/Prescription';
 import Approved from './components/Approved';
 import Rejected from './components/Rejected';
 import OrderTable from './components/OrderTable';
+import Returns from './components/Returns'; // 👈 NEW: Returns Component
 
 export default function PharmacyOrdersPage() {
     const [orders, setOrders] = useState([]);
@@ -64,6 +65,14 @@ export default function PharmacyOrdersPage() {
     // 5. Prescription: Orders containing custom prescription attachments
     const prescriptionOrders = orders.filter(o => o.prescriptionImages?.length > 0);
 
+    // 6. Returns & Replacements: Orders with return claims (👈 NEW)
+    const returnOrders = orders.filter(o => 
+        o.isReturnRequested === true || (o.returnDetails && o.returnDetails.status && o.returnDetails.status !== 'None')
+    );
+
+    // Pending returns count for red badge
+    const pendingReturnsCount = returnOrders.filter(o => o.returnDetails?.status === 'Requested' || o.isReturnRequested).length;
+
     const getFilteredPlacedOrders = () => {
         return placedOrders.filter(o => {
             const id = o.orderId ? String(o.orderId).toLowerCase() : '';
@@ -80,6 +89,7 @@ export default function PharmacyOrdersPage() {
         else if (tabId === 'Placed') subset = placedOrders;
         else if (tabId === 'Approved') subset = approvedOrders;
         else if (tabId === 'Rejected') subset = rejectedOrders;
+        else if (tabId === 'Returns') subset = returnOrders;
         
         return subset.filter(o => o.hasComboApplied).length;
     };
@@ -110,7 +120,8 @@ export default function PharmacyOrdersPage() {
                     { id: 'Prescription', icon: <FaFilePrescription />, label: 'Prescription' },
                     { id: 'Placed', icon: <FaTruck />, label: 'Ready For Dispatch' }, 
                     { id: 'Approved', icon: <FaCheckCircle />, label: 'Shipped / Completed' },
-                    { id: 'Rejected', icon: <FaTimesCircle />, label: 'Rejected' }
+                    { id: 'Rejected', icon: <FaTimesCircle />, label: 'Rejected' },
+                    { id: 'Returns', icon: <FaUndoAlt />, label: 'Returns & Replacements', badge: pendingReturnsCount } // 👈 NEW TAB
                 ].map(tab => {
                     const comboCount = getComboCountForTab(tab.id);
                     return (
@@ -124,6 +135,15 @@ export default function PharmacyOrdersPage() {
                         >
                             {tab.icon} 
                             <span>{tab.label}</span>
+                            
+                            {/* Pending Returns Red Alert Badge */}
+                            {tab.id === 'Returns' && tab.badge > 0 && (
+                                <span className="ml-1 bg-rose-500 text-white text-[9px] px-2 py-0.5 rounded-full font-black animate-pulse shadow-sm shadow-rose-200">
+                                    {tab.badge}
+                                </span>
+                            )}
+
+                            {/* Combo Badge */}
                             {comboCount > 0 && (
                                 <span className="flex items-center gap-0.5 ml-1 bg-rose-500 text-white text-[8px] px-1.5 py-0.5 rounded-full font-extrabold uppercase animate-pulse">
                                     <FaTag size={6} /> {comboCount}
@@ -153,6 +173,7 @@ export default function PharmacyOrdersPage() {
                         )}
                         {activeTab === 'Approved' && <Approved orders={approvedOrders} searchTerm={searchTerm} refresh={fetchOrders} />}
                         {activeTab === 'Rejected' && <Rejected orders={rejectedOrders} searchTerm={searchTerm} refresh={fetchOrders} />}
+                        {activeTab === 'Returns' && <Returns orders={returnOrders} searchTerm={searchTerm} refresh={fetchOrders} />} {/* 👈 NEW VIEW */}
                     </>
                 )}
             </div>

@@ -299,6 +299,9 @@ function ProductDetailPage() {
 
     const alternateBrandsList = parseAlternateBrands(product.alternate_brand);
 
+    // 🟢 Return & Replacement Indicators
+    const hasReturnOrReplace = product.isReturnAllowed || product.isReplacementAllowed || product.returnPolicyText;
+
     return (
         <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 selection:bg-emerald-100">
             {/* Conflict Modal */}
@@ -360,6 +363,14 @@ function ProductDetailPage() {
                                             <ShieldAlert size={12} /> Rx Required
                                         </span>
                                     )}
+
+                                    {/* 🟢 Return / Replacement Badge Tag on Image (Section 3.1) */}
+                                    {hasReturnOrReplace && (
+                                        <span className="bg-emerald-50/95 backdrop-blur-sm text-emerald-700 text-[9px] md:text-[10px] font-extrabold tracking-wider uppercase px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1 shadow-sm">
+                                            <RotateCcw size={11} className="text-emerald-600" />
+                                            {product.returnPolicyText || (product.isReturnAllowed && product.isReplacementAllowed ? "Return & Replace" : product.isReturnAllowed ? "Returnable" : "Replaceable")}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -388,6 +399,14 @@ function ProductDetailPage() {
                                     <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100/50 text-[11px] font-medium text-slate-600">
                                         <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
                                         <span>{product.primary_use}</span>
+                                    </div>
+                                )}
+
+                                {/* 🟢 Return Policy Tag in Metadata Row */}
+                                {hasReturnOrReplace && (
+                                    <div className="flex items-center gap-2 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200/70 text-[11px] font-bold text-emerald-800">
+                                        <RotateCcw size={13} className="text-emerald-600 shrink-0" />
+                                        <span>{product.returnPolicyText || (product.isReturnAllowed && product.isReplacementAllowed ? "Return & Replacement Available" : product.isReturnAllowed ? "Return Available" : "Replacement Available")}</span>
                                     </div>
                                 )}
                             </div>
@@ -453,7 +472,7 @@ function ProductDetailPage() {
                             </div>
                         </div>
 
-                        {/* Sellers Section */}
+                        {/* Sellers Section (With Store-Level Return Badges) */}
                         <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_4px_30px_rgba(0,0,0,0.015)] p-6">
                             <div className="flex items-center justify-between mb-5">
                                 <h3 className="text-xs md:text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -465,6 +484,9 @@ function ProductDetailPage() {
                             <div className="space-y-3">
                                 {vendors.map((vendor, index) => {
                                     const isSelected = selectedVendorIndex === index;
+                                    const vendorCanReturn = vendor.isReturnAllowed ?? product.isReturnAllowed;
+                                    const vendorCanReplace = vendor.isReplacementAllowed ?? product.isReplacementAllowed;
+
                                     return (
                                         <div
                                             key={index}
@@ -488,6 +510,15 @@ function ProductDetailPage() {
                                                             <MapPin size={10} className="text-emerald-500 shrink-0" />
                                                             {vendor.distance} km • {vendor.address}
                                                         </p>
+
+                                                        {/* 🟢 Pharmacy Store Level Return Flags (Section 2 & 3.1) */}
+                                                        {(vendorCanReturn || vendorCanReplace) && (
+                                                            <div className="flex items-center gap-1 mt-1">
+                                                                <span className="text-[8.5px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                                    <RotateCcw size={8} /> {vendorCanReturn && vendorCanReplace ? "Return / Replace" : vendorCanReturn ? "Returnable" : "Replaceable"}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
@@ -609,7 +640,7 @@ function ProductDetailPage() {
                     </div>
                 </div>
 
-{/* Same Composition Substitutes Section */}
+                {/* Same Composition Substitutes Section */}
                 {substitutes.length > 0 && (
                     <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_4px_30px_rgba(0,0,0,0.015)] p-6 md:p-8">
                         <div className="border-b border-slate-100 pb-4 mb-6">

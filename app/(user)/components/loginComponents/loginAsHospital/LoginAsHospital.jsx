@@ -2,10 +2,10 @@
 import React, { useState } from "react";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import { useRouter } from "next/navigation";
-import HospitalAPI from "@/app/services/HospitalAPI";
+import axios from "axios";
 
 function LoginAsHospital() {
-  const [identifier, setIdentifier] = useState(""); // phone OR email
+  const [identifier, setIdentifier] = useState(""); // Phone OR Email
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
 
@@ -14,7 +14,6 @@ function LoginAsHospital() {
   const [success, setSuccess] = useState("");
 
   const { openModal, closeModal } = useGlobalContext();
-
   const router = useRouter();
 
   const handleSubmit = async (e) => {
@@ -23,48 +22,49 @@ function LoginAsHospital() {
     setSuccess("");
 
     if (!identifier || !password) {
-      setError("Please enter phone/email and password.");
+      setError("Please enter your phone number or email and password.");
       return;
     }
 
     try {
       setLoading(true);
 
-      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier.trim());
+      const cleanPhone = identifier.replace(/\s+/g, "");
 
       const userLoginData = {
         password,
         remember,
-        ...(isEmail ? { email: identifier } : { phone: identifier }),
+        ...(isEmail ? { email: identifier.trim() } : { phone: cleanPhone, mobile: cleanPhone }),
       };
 
-      // 1. Capture the response from the login function
-      const res = await HospitalAPI.login(userLoginData);
+      const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/+$/, "") || "";
+      const response = await axios.post(`${baseUrl}/api/auth/hospital/login`, userLoginData);
+      const res = response.data;
 
-      // 1.1. If login fails, throw an error message
-      if (res.error) throw res.error;
+      // Extract and save tokens
+      const token = res?.token || res?.data?.token;
+      const profileStatus = res?.profileStatus || res?.data?.profileStatus || "Incomplete";
 
-      // 1.2. If login is successful, store the token and profileStatus in localStorage
-      localStorage.setItem("hospitalToken", res.token);
-      localStorage.setItem("hospital", JSON.stringify(res.data));
-      localStorage.setItem("profileStatus", res.profileStatus);
+      if (token) {
+        localStorage.setItem("hospitalToken", token);
+        localStorage.setItem("hospitalStatus", profileStatus);
+        localStorage.setItem("hospitalUser", JSON.stringify(res?.data || res?.hospital || res));
+      }
 
       setSuccess("Login successful! Redirecting...");
 
-      // 2. Logic-based redirection
       setTimeout(() => {
-        if (res.profileStatus === "Approved") {
-          // If already approved, go to dashboard
+        closeModal();
+        if (profileStatus === "Approved") {
           router.push("/hospital/dashboard");
         } else {
-          // If Pending, Rejected, or Incomplete, go to documents page
           router.push("/hospital/documents");
         }
-      }, 1500);
+      }, 1200);
 
     } catch (err) {
-      // Since your Context returns Promise.reject(message), 'err' is the message string
-      setError(err || "Invalid phone/email or password.");
+      setError(err?.response?.data?.message || err?.message || "Invalid phone/email or password.");
     } finally {
       setLoading(false);
     }
@@ -72,112 +72,111 @@ function LoginAsHospital() {
 
   return (
     <div className="w-full bg-white">
-      {/* Messages */}
-      <div className="max-w-[1100px] mx-auto px-4">
-        {success && (
-          <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-2 text-sm font-medium text-center animate-in fade-in duration-300">
-            {success}
-          </div>
-        )}
-
-        {error && (
-          <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-2 text-sm font-medium text-center animate-in fade-in duration-300">
-            {error}
-          </div>
-        )}
-      </div>
-
       {/* TOP LOGIN BOX */}
-      <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-10 rounded-lg w-full max-w-[1100px] mx-auto">
+      <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-6 rounded-lg w-full max-w-[1100px] mx-auto">
 
-        {/* LEFT IMAGE - Hidden on mobile, visible from md up */}
-        <div className="hidden md:block flex-shrink-0">
+        {/* LEFT IMAGE */}
+        <div className="hidden md:flex flex-col items-center justify-center flex-shrink-0 p-4">
           <img
-            src="https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1692600659SMS-Hospital.jpeg"
-            alt="Login Illustration"
-            className="w-[280px] lg:w-[350px] max-w-full rounded-lg"
+            src="https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600&auto=format&fit=crop&q=80"
+            alt="Hospital Login"
+            className="w-[280px] lg:w-[360px] h-[360px] object-cover rounded-2xl shadow-md border border-gray-100"
           />
         </div>
 
         {/* RIGHT FORM */}
-        <div className="flex-1 w-full md:ml-8 lg:ml-15 text-center md:text-left">
-          <h2 className="text-xl sm:text-2xl md:text-[32px] font-bold mb-5 leading-tight">
-            Get Started
+        <div className="flex-1 w-full md:ml-8 lg:ml-10 text-center md:text-left">
+          <h2 className="text-xl sm:text-2xl md:text-[30px] font-bold mb-4 leading-tight text-gray-900">
+            Hospital Login
           </h2>
 
-          <input
-            type="text"
-            placeholder="Enter your mobile number"
-            className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-1 focus:ring-1 focus:ring-[#42b883]"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-          />
-          <p className="text-[13px] text-gray-500 mb-3 text-left">
-            We'll never share your mobile number or email with anyone else.
-          </p>
+          {/* Alert Messages */}
+          {success && (
+            <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-3 text-sm font-medium animate-in fade-in duration-300 text-left">
+              {success}
+            </div>
+          )}
 
-          <input
-            type="password"
-            placeholder="Password"
-            className="w-full p-3 border border-[#42b883] rounded outline-none text-sm mb-3 focus:ring-1 focus:ring-[#42b883]"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          {error && (
+            <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-3 text-sm font-medium animate-in fade-in duration-300 text-left">
+              {error}
+            </div>
+          )}
 
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-4 text-sm gap-2">
-            <label className="inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
-              <input
-                type="checkbox"
-                className="w-4 h-4 accent-[#2f8f5b]"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-              />
-              Remember Password
-            </label>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <input
+              type="text"
+              placeholder="Enter hospital email or phone number"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              autoComplete="username"
+            />
+            <p className="text-[12px] text-gray-500 text-left">
+              We'll never share your login credentials with anyone else.
+            </p>
 
-            <span
-              className="cursor-pointer hover:underline text-[#333]"
-              onClick={() => openModal("forgotPassword")}
+            <input
+              type="password"
+              placeholder="Password"
+              className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-2 text-sm gap-2">
+              <label className="inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 accent-[#2f8f5b] cursor-pointer"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                />
+                Remember Password
+              </label>
+
+              <span
+                className="cursor-pointer hover:underline text-[#2f8f5b] font-semibold text-sm"
+                onClick={() => openModal("forgotPassword")}
+              >
+                Forget Password?
+              </span>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full md:w-auto mt-4 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-8 rounded text-base font-medium transition-colors disabled:bg-gray-400 cursor-pointer"
             >
-              Forget Password?
-            </span>
-          </div>
+              {loading ? "Logging in..." : "Login →"}
+            </button>
+          </form>
 
-          <button
-            className="w-full md:w-auto mt-5 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-7 rounded text-base transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-            onClick={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? "Logging in..." : "Login →"}
-          </button>
-
-          <p className="mt-4 text-[15px] text-gray-700">
-            Don't have an account{" "}
+          <p className="mt-5 text-[15px] text-gray-700">
+            Don't have an account?{" "}
             <span
-              className="font-bold cursor-pointer hover:underline"
+              className="font-bold cursor-pointer hover:underline text-[#2f8f5b]"
               onClick={() => {
                 closeModal();
                 openModal("register");
               }}
             >
-              Register?
+              Register
             </span>
           </p>
         </div>
       </div>
 
       {/* DESCRIPTION SECTION */}
-      <div className="max-w-[1100px] mx-auto mt-10 px-4 md:px-0 pb-10">
-        <h3 className="text-lg sm:text-xl md:text-[28px] font-bold mb-5">
-          Hospital
+      <div className="max-w-[1100px] mx-auto mt-8 px-4 md:px-0 pb-6 border-t border-gray-100 pt-6">
+        <h3 className="text-lg sm:text-xl font-bold mb-3 text-gray-800">
+          Hospital Administration Portal
         </h3>
-
-        <div className="flex gap-3 text-sm md:text-base leading-relaxed text-[#333]">
-          <span className="text-[#2f8f5b] font-bold text-lg leading-none mt-1">✔</span>
+        <div className="flex gap-3 text-sm md:text-base leading-relaxed text-[#555]">
+          <span className="text-[#2f8f5b] font-bold text-lg leading-none mt-0.5">✔</span>
           <p>
-            Lorem ipsum dolor sit amet consectetur adipisicing elit. Molestias
-            eius, quas ipsa quam maiores nobis eveniet quasi repellat aliquid
-            dolorem omnis nostrum quia hic facere nam ab quo consequatur quisquam!
+            Manage hospital departments, doctor rosters, ICU and general bed reservations, patient admissions, and emergency services.
           </p>
         </div>
       </div>

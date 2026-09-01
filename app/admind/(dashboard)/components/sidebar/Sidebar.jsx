@@ -455,6 +455,7 @@ export default function Sidebar() {
                                 <Link href="/admind/settings/maintenancemode" className={`submenu-link ${isActive("/admind/settings/maintenancemode") ? "sub-active" : ""}`}>Maintenance Mode</Link>
                                 <Link href="/admind/settings/projectdetails" className={`submenu-link ${isActive("/admind/settings/projectdetails") ? "sub-active" : ""}`}>Manage Project Details</Link>
                                 <Link href="/admind/settings/paymentmethod" className={`submenu-link ${isActive("/admind/settings/paymentmethod") ? "sub-active" : ""}`}>Manage Payment Method</Link>
+                                 <Link href="/admind/settings/returnreplacement" className={`submenu-link ${isActive("/admind/settings/returnreplacement") ? "sub-active" : ""}`}>Manage Return & Replacement</Link>
                             </div>
                         )}
                     </>

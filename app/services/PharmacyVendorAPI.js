@@ -474,6 +474,27 @@ requestMrpIncrease: async (payload) => {
             return Promise.reject(error);
         }
     },
+    // --- PHARMACY RETURN REVERSE LOGISTICS (PART 2) ---
+
+// 1. Get Filtered Return Orders (GET /provider/pharmacy/orders/list?returnStatus=Requested)
+getReturnOrdersList: (returnStatus = 'Requested') => 
+    pharmacyVendorApi.get('/provider/pharmacy/orders/list', { params: { returnStatus } }),
+
+// 2. Fetch Available Store Drivers for Reverse Pickup (GET /provider/pharmacy/drivers/available)
+getAvailableDrivers: () => 
+    pharmacyVendorApi.get('/provider/pharmacy/drivers/available'),
+
+// 3. Approve Return & Assign Driver -> Generates 4-digit OTP (POST /provider/pharmacy/orders/return/assign-driver)
+assignReturnDriver: (orderId, driverId) => 
+    pharmacyVendorApi.post('/provider/pharmacy/orders/return/assign-driver', { orderId, driverId }),
+
+// 4. Final Store Counter Inspection Decision (POST /provider/pharmacy/orders/return/confirm-store-receipt)
+confirmStoreReceipt: (orderId, decision, remarks = '') => 
+    pharmacyVendorApi.post('/provider/pharmacy/orders/return/confirm-store-receipt', { orderId, decision, remarks }),
+
+// 5. Direct Reject Action (PUT /provider/pharmacy/orders/return-action/:orderId)
+reviewReturnAction: (orderId, payload) => 
+    pharmacyVendorApi.put(`/provider/pharmacy/orders/return-action/${orderId}`, payload),
 };
 
 export default PharmacyVendorAPI;

@@ -10,38 +10,44 @@ import LoginAsDoctorAppointment from "./loginAsDoctorAppointment/LoginAsDoctorAp
 
 function MainLogin() {
   const [activeTab, setActiveTab] = useState("user");
-
   const { closeModal } = useGlobalContext();
 
   const renderContent = () => {
     switch (activeTab) {
-      case "user": return <LoginAsUser />;
-      case "hospital": return <LoginAsHospital />;
-      case "doctor": return <LoginAsDoctor />;
-      case "provider": return <LoginAsServiceProvider />;
-      case "appointment": return <LoginAsDoctorAppointment />;
-      default: return null;
+      case "user":
+        return <LoginAsUser />;
+      case "provider":
+        return <LoginAsServiceProvider />;
+      case "hospital":
+        return <LoginAsHospital />;
+      case "doctor":
+        return <LoginAsDoctor />;
+      case "appointment":
+        return <LoginAsDoctorAppointment />;
+      default:
+        return <LoginAsUser />;
     }
   };
 
-  // Helper for dynamic classes
+  // Dynamic Tailwind helper for responsive tab states
   const getTabClass = (tabName) => {
-    const baseClasses = "transition-all duration-300 cursor-pointer text-center text-[13px] md:text-sm px-2 py-2.5 rounded-md leading-tight h-full flex items-center justify-center";
-    const activeClasses = "bg-white text-black font-medium shadow-sm";
-    const inactiveClasses = "bg-white/10 text-white hover:bg-white/20";
-    
+    const baseClasses =
+      "transition-all duration-200 cursor-pointer text-center text-[13px] md:text-sm px-3 py-2.5 rounded-md leading-tight h-full flex items-center justify-center font-medium";
+    const activeClasses = "bg-white text-[#08b36a] shadow-sm font-bold";
+    const inactiveClasses = "bg-white/15 text-white hover:bg-white/25";
+
     return `${baseClasses} ${activeTab === tabName ? activeClasses : inactiveClasses}`;
   };
 
   return (
-    <div className="w-full p-4 md:p-6 font-sans">
-      {/* HEADER */}
-      <div className="flex justify-between items-center mb-4">
-        <span className="text-[#08b36a] text-xl md:text-2xl font-semibold">
-          Login As
+    <div className="w-full p-2 md:p-6 font-sans">
+      {/* MODAL HEADER */}
+      <div className="flex justify-between items-center mb-4 px-1">
+        <span className="text-[#08b36a] text-xl md:text-2xl font-bold">
+          Login Portal
         </span>
-        <span 
-          className="text-[#08b36a] text-2xl cursor-pointer hover:scale-110 transition-transform" 
+        <span
+          className="text-gray-400 hover:text-gray-600 text-2xl cursor-pointer transition-colors p-1"
           onClick={closeModal}
         >
           ✖
@@ -49,13 +55,9 @@ function MainLogin() {
       </div>
 
       {/* TABS CONTAINER */}
-      {/* 
-          - grid-cols-2: 2 columns on tiny phones 
-          - sm:grid-cols-3: 3 columns on small tablets 
-          - lg:flex: Back to single line on desktop
-      */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-row lg:justify-center bg-[#08b36a] p-3 md:p-5 gap-2 md:gap-4 rounded-t-lg">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-row lg:justify-center bg-[#08b36a] p-2.5 md:p-4 gap-2 rounded-t-xl">
         <button
+          type="button"
           className={getTabClass("user")}
           onClick={() => setActiveTab("user")}
         >
@@ -63,6 +65,7 @@ function MainLogin() {
         </button>
 
         <button
+          type="button"
           className={getTabClass("provider")}
           onClick={() => setActiveTab("provider")}
         >
@@ -70,6 +73,7 @@ function MainLogin() {
         </button>
 
         <button
+          type="button"
           className={getTabClass("hospital")}
           onClick={() => setActiveTab("hospital")}
         >
@@ -77,6 +81,7 @@ function MainLogin() {
         </button>
 
         <button
+          type="button"
           className={getTabClass("doctor")}
           onClick={() => setActiveTab("doctor")}
         >
@@ -84,6 +89,7 @@ function MainLogin() {
         </button>
 
         <button
+          type="button"
           className={getTabClass("appointment")}
           onClick={() => setActiveTab("appointment")}
         >
@@ -91,8 +97,8 @@ function MainLogin() {
         </button>
       </div>
 
-      {/* BODY CONTENT */}
-      <div className="bg-white p-4 md:p-8 flex flex-col md:flex-row gap-6 md:gap-10">
+      {/* BODY CONTENT CONTAINER */}
+      <div className="bg-white p-4 md:p-8 rounded-b-xl border border-t-0 border-gray-100 shadow-sm">
         {renderContent()}
       </div>
     </div>

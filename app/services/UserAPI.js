@@ -1198,6 +1198,27 @@ const UserAPI = {
         const response = await authApi.patch(`/user/ambulance/cancel/${bookingId}`);
         return response.data;
     },
+    // --- PHARMACY RETURN & REPLACEMENT (PART 1) ---
+
+// 1. Check Return Eligibility & Active Tracking OTP (GET /user/pharmacy/track-order/:orderId)
+getPharmacyOrderTracking: async (orderId) => {
+    const response = await authApi.get(`/user/pharmacy/track-order/${orderId}`);
+    return response.data;
+},
+
+// 2. Submit Return Request with Proof Photos (POST /user/pharmacy/orders/return-request/:orderId)
+submitPharmacyReturnRequest: async (orderId, formData) => {
+    const response = await authApi.post(`/user/pharmacy/orders/return-request/${orderId}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+},
+
+// 3. Cancel Return Request Before Driver Pickup (POST /user/pharmacy/orders/return-request/cancel/:orderId)
+cancelPharmacyReturnRequest: async (orderId) => {
+    const response = await authApi.post(`/user/pharmacy/orders/return-request/cancel/${orderId}`);
+    return response.data;
+},
 
   
 

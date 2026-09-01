@@ -12,7 +12,9 @@ import {
   FaUpload,
   FaTrash,
   FaBarcode,
-  FaFileInvoice
+  FaFileInvoice,
+  FaUndoAlt,
+  FaExchangeAlt
 } from 'react-icons/fa'
 import PharmacyVendorAPI from '@/app/services/PharmacyVendorAPI';
 
@@ -75,6 +77,8 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
     expiry_date: '',
     manufacturing_date: '',
     hsn_number: '',
+    isReturnAllowed: true, // 👈 Item-Level Return Toggle
+    isReplacementAllowed: true, // 👈 Item-Level Replacement Toggle
     newName: '', 
     newManufacturer: '', 
     newSalt: '', 
@@ -168,8 +172,6 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
           try {
             const res = await PharmacyVendorAPI.listHsnCodes();
 
-            // Handle every reasonable response envelope shape:
-            // { success, count, data: [...] } | { data: { data: [...] } } | [...]
             let items = [];
             if (Array.isArray(res?.data)) {
               items = res.data;
@@ -179,15 +181,11 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
               items = res;
             }
 
-            // Only exclude items EXPLICITLY marked inactive.
-            // Some records may omit isActive entirely (treat as active),
-            // and some backends may send it as a string/number.
             const activeItems = items.filter(item => {
               const val = item.isActive;
               return !(val === false || val === 'false' || val === 0 || val === '0');
             });
 
-            // Sort by HSN code for a predictable, scannable dropdown
             activeItems.sort((a, b) => {
               const codeA = (a.hsnCode || a.hsn_code || a.code || '').toString();
               const codeB = (b.hsnCode || b.hsn_code || b.code || '').toString();
@@ -204,7 +202,7 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
             setHsnCodesList([]);
             const status = err?.response?.status;
             if (status === 401) {
-              setHsnError('HSN list request was rejected (401). This usually means NEXT_PUBLIC_BACKEND_URL is missing/misconfigured, not an auth issue with this endpoint.');
+              setHsnError('HSN list request was rejected (401). This usually means NEXT_PUBLIC_BACKEND_URL is missing/misconfigured.');
             } else if (err.message?.includes('not configured')) {
               setHsnError('Backend URL is not configured. Check NEXT_PUBLIC_BACKEND_URL in your env file.');
             } else {
@@ -227,7 +225,9 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
               stock_quantity: initialData.stock_quantity ?? '', 
               expiry_date: initialData.expiry_date?.split('T')[0] || '',
               manufacturing_date: initialData.manufacturing_date?.split('T')[0] || '',
-              hsn_number: initialData.hsn_number || initialData.hsnCode || ''
+              hsn_number: initialData.hsn_number || initialData.hsnCode || '',
+              isReturnAllowed: initialData.isReturnAllowed !== undefined ? Boolean(initialData.isReturnAllowed) : true,
+              isReplacementAllowed: initialData.isReplacementAllowed !== undefined ? Boolean(initialData.isReplacementAllowed) : true
             }));
             setActiveTab('config');
             setShowMrpRequestForm(false);
@@ -252,6 +252,8 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
               expiry_date: '',
               manufacturing_date: '',
               hsn_number: '',
+              isReturnAllowed: true,
+              isReplacementAllowed: true,
               newName: '',
               newManufacturer: '',
               newSalt: '',
@@ -283,7 +285,6 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
     try {
       const res = await PharmacyVendorAPI.getMyHsnRequests();
       const items = Array.isArray(res?.data) ? res.data : [];
-      // Most recent first
       items.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
       setMyHsnRequests(items);
     } catch (err) {
@@ -732,7 +733,9 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
                   stock_quantity: stock, 
                   expiry_date: formData.expiry_date,
                   manufacturing_date: formData.manufacturing_date,
-                  hsn_number: formData.hsn_number
+                  hsn_number: formData.hsn_number,
+                  isReturnAllowed: formData.isReturnAllowed, // 👈 Included in payload
+                  isReplacementAllowed: formData.isReplacementAllowed // 👈 Included in payload
                 }); 
               }} 
               className="grid grid-cols-2 gap-5"
@@ -973,7 +976,6 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
                             </option>
                           );
                         })}
-                        {/* Preserve existing batch HSN if not present in the list */}
                         {formData.hsn_number && !hsnCodesList.some(i => (i.hsnCode || i.hsn_code) === formData.hsn_number) && (
                           <option value={formData.hsn_number}>
                             {formData.hsn_number} (Selected)
@@ -1030,6 +1032,60 @@ export default function AddInventoryModal({ isOpen, onClose, onSave, loading, in
                     />
                 </div>
 
+                {/* ========================================================================= */}
+                {/* 🆕 RETURN & REPLACEMENT ITEM-LEVEL VENDOR TOGGLES (SECTION 2.1 & 2.2) */}
+                {/* ========================================================================= */}
+                <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                  {/* Toggle 1: Return (Refund) */}
+                  <div className="flex items-center justify-between p-3.5 bg-white rounded-xl border border-slate-200/70 shadow-sm">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg shrink-0">
+                        <FaUndoAlt size={12} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-800 uppercase tracking-wide">Allow Return</p>
+                        <p className="text-[10px] font-semibold text-slate-400">Permit customer refunds for this batch</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, isReturnAllowed: !prev.isReturnAllowed }))}
+                      className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 ${
+                        formData.isReturnAllowed ? 'bg-[#08B36A]' : 'bg-slate-300'
+                      }`}
+                    >
+                      <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
+                        formData.isReturnAllowed ? 'translate-x-5' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
+
+                  {/* Toggle 2: Replacement (Exchange) */}
+                  <div className="flex items-center justify-between p-3.5 bg-white rounded-xl border border-slate-200/70 shadow-sm">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
+                        <FaExchangeAlt size={12} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-800 uppercase tracking-wide">Allow Replacement</p>
+                        <p className="text-[10px] font-semibold text-slate-400">Permit product exchange for this batch</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, isReplacementAllowed: !prev.isReplacementAllowed }))}
+                      className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-200 ${
+                        formData.isReplacementAllowed ? 'bg-indigo-600' : 'bg-slate-300'
+                      }`}
+                    >
+                      <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
+                        formData.isReplacementAllowed ? 'translate-x-5' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Submit Button */}
                 <button 
                   type="submit" 
                   disabled={loading || batchMrpExceedsMaster} 

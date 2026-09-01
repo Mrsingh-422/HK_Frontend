@@ -14,8 +14,8 @@ import {
   FaUser,
   FaIdCard,
   FaCamera,
+  FaAt
 } from 'react-icons/fa'
-// Ensure this path is correct
 import { toast } from 'react-hot-toast';
 import PharmacyVendorAPI from '@/app/services/PharmacyVendorAPI';
 
@@ -30,6 +30,7 @@ export default function ManagePharmacyDrivers() {
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
+    alternateNumber: '',
     username: '', 
     password: '',
     address: '',
@@ -58,7 +59,6 @@ export default function ManagePharmacyDrivers() {
     try {
       setLoading(true);
       const response = await PharmacyVendorAPI.getDrivers();
-      // Adjust based on your API response structure (often res.data or res.drivers)
       const driverList = response?.drivers || response?.data || response || [];
       setDrivers(Array.isArray(driverList) ? driverList : []);
     } catch (error) {
@@ -75,15 +75,7 @@ export default function ManagePharmacyDrivers() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'phone') {
-        setFormData(prev => ({ 
-            ...prev, 
-            phone: value,
-            username: value 
-        }));
-    } else {
-        setFormData(prev => ({ ...prev, [name]: value }));
-    }
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleFileChange = (e, fieldName) => {
@@ -97,11 +89,23 @@ export default function ManagePharmacyDrivers() {
     setSelectedId(null);
     setSelectedAgentData(null);
     setFormData({
-      name: '', phone: '', username: '', password: '',
-      address: '', city: '', state: '', country: 'India',
-      vehicleNumber: '', vehicleType: 'Motorcycle',
-      aadhaarNumber: '', status: 'Available', profilePic: null,
-      certificate: null, license: null, rcImage: null
+      name: '', 
+      phone: '', 
+      alternateNumber: '',
+      username: '', 
+      password: '',
+      address: '', 
+      city: '', 
+      state: '', 
+      country: 'India',
+      vehicleNumber: '', 
+      vehicleType: 'Motorcycle',
+      aadhaarNumber: '', 
+      status: 'Available', 
+      profilePic: null,
+      certificate: null, 
+      license: null, 
+      rcImage: null
     });
     setIsModalOpen(true);
   };
@@ -113,7 +117,8 @@ export default function ManagePharmacyDrivers() {
     setFormData({
       name: agent.name || '',
       phone: agent.phone || '',
-      username: agent.username || agent.phone || '',
+      alternateNumber: agent.alternateNumber || '',
+      username: agent.username || '',
       password: '', 
       address: agent.address || '',
       city: agent.city || '',
@@ -146,7 +151,7 @@ export default function ManagePharmacyDrivers() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // 1. Check if mobile number is already registered in the local state
+    // 1. Check if mobile number is already registered in local list
     const isPhoneDuplicate = drivers.some(driver => 
       driver.phone === formData.phone && driver._id !== selectedId
     );
@@ -160,7 +165,22 @@ export default function ManagePharmacyDrivers() {
       return; 
     }
 
-    // 2. Start Loading Alert
+    // 2. Check if username is already registered in local list
+    if (formData.username) {
+      const isUsernameDuplicate = drivers.some(driver => 
+        driver.username && driver.username.toLowerCase() === formData.username.toLowerCase() && driver._id !== selectedId
+      );
+
+      if (isUsernameDuplicate) {
+        toast.error("This username is already taken. Please choose another username.", {
+          duration: 5000,
+          position: 'top-center',
+          icon: '🚫'
+        });
+        return;
+      }
+    }
+
     const actionToast = toast.loading(modalMode === 'add' ? "Adding new driver..." : "Updating driver...");
     setLoading(true);
 
@@ -173,7 +193,7 @@ export default function ManagePharmacyDrivers() {
             if (value instanceof File) {
                 data.append(key, value);
             }
-        } else if (value !== null && value !== undefined) {
+        } else if (value !== null && value !== undefined && value !== '') {
             if (key === 'password' && modalMode === 'edit' && value === '') return;
             data.append(key, value);
         }
@@ -181,16 +201,14 @@ export default function ManagePharmacyDrivers() {
 
       data.append('vendorType', 'Pharmacy');
 
-      let response;
       if (modalMode === 'add') {
-        response = await PharmacyVendorAPI.addDriver(data);
+        await PharmacyVendorAPI.addDriver(data);
       } else {
-        response = await PharmacyVendorAPI.updateDriver(selectedId, data);
+        await PharmacyVendorAPI.updateDriver(selectedId, data);
       }
 
-      // 3. Success Confirmation
       toast.success(
-        modalMode === 'add' ? "Driver added successfully!" : "Driver profile updated!", 
+        modalMode === 'add' ? "Driver added successfully!" : "Driver updated successfully!", 
         { id: actionToast }
       );
       
@@ -198,12 +216,15 @@ export default function ManagePharmacyDrivers() {
       fetchDrivers();
 
     } catch (error) {
-      // 4. Detailed Error Alert
       const serverMessage = error.response?.data?.message || "";
-      const isDuplicate = serverMessage.toLowerCase().includes("phone") || error.response?.status === 409;
+      const lowerMsg = serverMessage.toLowerCase();
       
-      if (isDuplicate) {
+      if (lowerMsg.includes("phone") || (lowerMsg.includes("duplicate") && lowerMsg.includes("phone_1"))) {
         toast.error("Mobile number already exists in the database.", { id: actionToast });
+      } else if (lowerMsg.includes("username") || (lowerMsg.includes("duplicate") && lowerMsg.includes("username_1"))) {
+        toast.error("Username is already taken. Please choose a unique username.", { id: actionToast });
+      } else if (error.response?.status === 409) {
+        toast.error("Driver with this Phone or Username already exists.", { id: actionToast });
       } else {
         toast.error(serverMessage || "Failed to save driver. Please check all fields.", { id: actionToast });
       }
@@ -265,7 +286,7 @@ export default function ManagePharmacyDrivers() {
                         </div>
                         <div>
                           <span className="font-bold text-slate-800 block text-base">{agent.name}</span>
-                          <span className="text-xs text-[#08B36A] font-bold">Driver ID: @{agent.username || agent.phone}</span>
+                          <span className="text-xs text-[#08B36A] font-bold">@{agent.username || agent.phone}</span>
                         </div>
                       </div>
                     </td>
@@ -275,8 +296,13 @@ export default function ManagePharmacyDrivers() {
                         <div className="flex items-center gap-2 text-slate-700 font-bold">
                           <FaPhoneAlt className="text-slate-300 text-[10px]" /> {agent.phone}
                         </div>
-                        <div className="flex items-start gap-2 text-slate-400 text-xs">
-                          <FaMapMarkerAlt className="mt-0.5" /> <span className="max-w-[180px] truncate">{agent.city}, {agent.state}</span>
+                        {agent.alternateNumber && (
+                          <div className="text-[11px] text-slate-400 font-semibold ml-4">
+                            Alt: {agent.alternateNumber}
+                          </div>
+                        )}
+                        <div className="flex items-start gap-2 text-slate-400 text-xs mt-0.5">
+                          <FaMapMarkerAlt className="mt-0.5" /> <span className="max-w-[180px] truncate">{agent.city || 'N/A'}, {agent.state || 'N/A'}</span>
                         </div>
                       </div>
                     </td>
@@ -299,7 +325,7 @@ export default function ManagePharmacyDrivers() {
                         'bg-slate-100 text-slate-500 border border-slate-200'
                       }`}>
                         <FaCircle size={6} className={agent.status === 'Available' ? "animate-pulse" : ""} />
-                        {agent.status}
+                        {agent.status || 'Available'}
                       </span>
                     </td>
 
@@ -389,9 +415,37 @@ export default function ManagePharmacyDrivers() {
                     </div>
                 </div>
 
+                {/* Name and Username */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
-                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number (Unique ID) *</label>
+                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name *</label>
+                    <div className="relative">
+                        <FaUser className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-xs" />
+                        <input name="name" type="text" value={formData.name} onChange={handleInputChange} placeholder="e.g. Pankaj Kumar" className="w-full pl-10 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all" required />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Login Username *</label>
+                    <div className="relative">
+                        <FaAt className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-xs" />
+                        <input 
+                            name="username" 
+                            type="text" 
+                            value={formData.username} 
+                            onChange={handleInputChange} 
+                            placeholder="e.g. pankaj_pharmacy" 
+                            className="w-full pl-10 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all" 
+                            required 
+                        />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Phone Numbers */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Primary Phone Number *</label>
                     <div className="relative">
                         <FaPhoneAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-xs" />
                         <input 
@@ -399,23 +453,30 @@ export default function ManagePharmacyDrivers() {
                             type="tel" 
                             value={formData.phone} 
                             onChange={handleInputChange} 
-                            placeholder="9988776655"
+                            placeholder="9876543210"
                             className="w-full pl-10 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all" 
                             required 
                         />
                     </div>
-                    <p className="text-[9px] text-slate-400 font-bold ml-1 uppercase italic">This will also be used as the login username.</p>
                   </div>
-                  
+
                   <div className="space-y-2">
-                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name *</label>
+                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Alternate / Emergency Contact</label>
                     <div className="relative">
-                        <FaUser className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-xs" />
-                        <input name="name" type="text" value={formData.name} onChange={handleInputChange} className="w-full pl-10 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all" required />
+                        <FaPhoneAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-xs" />
+                        <input 
+                            name="alternateNumber" 
+                            type="tel" 
+                            value={formData.alternateNumber} 
+                            onChange={handleInputChange} 
+                            placeholder="9812345678"
+                            className="w-full pl-10 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all" 
+                        />
                     </div>
                   </div>
                 </div>
 
+                {/* Password and Aadhaar */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
@@ -430,19 +491,20 @@ export default function ManagePharmacyDrivers() {
                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Aadhaar Number *</label>
                     <div className="relative">
                         <FaIdCard className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-xs" />
-                        <input name="aadhaarNumber" type="text" value={formData.aadhaarNumber} onChange={handleInputChange} className="w-full pl-10 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all" required />
+                        <input name="aadhaarNumber" type="text" value={formData.aadhaarNumber} onChange={handleInputChange} placeholder="12-digit Aadhaar" className="w-full pl-10 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all" required />
                     </div>
                   </div>
                 </div>
 
+                {/* Location Details */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                         <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">City *</label>
-                        <input name="city" type="text" value={formData.city} onChange={handleInputChange} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all" required />
+                        <input name="city" type="text" value={formData.city} onChange={handleInputChange} placeholder="e.g. Mohali" className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all" required />
                     </div>
                     <div className="space-y-2">
                         <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">State *</label>
-                        <input name="state" type="text" value={formData.state} onChange={handleInputChange} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all" required />
+                        <input name="state" type="text" value={formData.state} onChange={handleInputChange} placeholder="e.g. Punjab" className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all" required />
                     </div>
                     <div className="space-y-2">
                         <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Country</label>
@@ -452,16 +514,21 @@ export default function ManagePharmacyDrivers() {
 
                 <div className="space-y-2">
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Residential Address *</label>
-                  <textarea name="address" rows="2" value={formData.address} onChange={handleInputChange} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all resize-none" required></textarea>
+                  <textarea name="address" rows="2" value={formData.address} onChange={handleInputChange} placeholder="Flat / House number, Sector, Street" className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all resize-none" required></textarea>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Vehicle & Status */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Vehicle Plate No. *</label>
-                    <input name="vehicleNumber" type="text" value={formData.vehicleNumber} onChange={handleInputChange} placeholder="MH 12 AB 1234" className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-black text-slate-700 uppercase transition-all" required />
+                    <input name="vehicleNumber" type="text" value={formData.vehicleNumber} onChange={handleInputChange} placeholder="PB65AB1234" className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-black text-slate-700 uppercase transition-all" required />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Initial Status</label>
+                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Vehicle Type</label>
+                    <input name="vehicleType" type="text" value={formData.vehicleType} onChange={handleInputChange} placeholder="Bike / Scooter / Car" className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Current Status</label>
                     <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-[#08B36A] outline-none font-bold text-slate-700 transition-all appearance-none">
                       <option value="Available">Available</option>
                       <option value="Busy">Busy</option>
