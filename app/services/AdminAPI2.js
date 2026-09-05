@@ -59,6 +59,116 @@ getUnifiedRefundQueue: () =>
 processRefundPayout: (bookingId, vendorModel = 'Pharmacy') => 
     api.post('/api/admin/refunds/process', { bookingId, vendorModel }),
 
+ // =========================================================================
+    // --- ADMIN CONTROL CENTER: AMBULANCE BREAKDOWNS & FLEET MANAGEMENT ---
+    // =========================================================================
+
+    // 1. Live Fleet Command Map (GET /admin/ambulance/live-fleet)
+    getAmbulanceLiveFleet: () => 
+        api.get('/admin/ambulance/live-fleet'),
+
+    // 2. Force Re-Assign Ambulance for Breakdowns (PATCH /admin/ambulance/reassign-booking/:bookingId)
+    reassignAmbulanceBooking: (bookingId, data) => 
+        api.patch(`/admin/ambulance/reassign-booking/${bookingId}`, data),
+
+    // 3. 108 Emergency Call Manual Dispatch (POST /admin/ambulance/dispatch-call)
+    dispatchEmergencyCall: (data) => 
+        api.post('/admin/ambulance/dispatch-call', data),
+ // --- BANNED USERS & UNBAN REQUESTS (NEW) ---
+    // 1. Fetch Banned Users
+    getBannedUsers: (page = 1, limit = 10) => 
+        api.get(`/admin/users/banned-users?page=${page}&limit=${limit}`),
+
+    // 2. Direct Unban User
+    unbanUser: (userId, data = {}) => 
+        api.patch(`/admin/users/unban/${userId}`, data),
+
+    // 3. Fetch Unban Requests (Pending / Approved / Rejected)
+    getUnbanRequests: (status = 'Pending', page = 1, limit = 10) => 
+        api.get(`/admin/users/unban-requests?status=${status}&page=${page}&limit=${limit}`),
+
+    // 4. Approve / Reject Unban Request
+    reviewUnbanRequest: (requestId, data) => 
+        api.patch(`/admin/users/unban-requests/${requestId}`, data),
+// =========================================================================
+    // --- ADMIN COMMISSION & WALLET REVENUE MANAGEMENT ---
+    // =========================================================================
+
+    // 1. Commission Cutoffs
+    getCommissionConfigs: () => 
+        api.get('/api/admin/commission-config'),
+
+    updateCommissionConfig: (data) => 
+        api.post('/api/admin/commission-config/update', data),
+
+    // 2. Cancellation Policy
+    updateCancellationPolicy: (data) => 
+        api.post('/api/admin/policy-config/cancellation', data),
+
+    // 3. Admin Global Wallet & Revenue Dashboard Stats
+    getWalletDashboardStats: () => 
+        api.get('/api/admin/wallet/dashboard-stats'),
+
+    // 4. Payout Approvals & Rejections
+    approveWithdrawal: (requestId, data) => 
+        api.patch(`/api/admin/wallet/approve-withdrawal/${requestId}`, data),
+
+    rejectWithdrawal: (requestId, data) => 
+        api.patch(`/api/admin/wallet/reject-withdrawal/${requestId}`, data),
+
+    // 5. Vendor Bank Account Verification
+    verifyVendorBankAccount: (vendorModel, vendorId, data) => 
+        api.patch(`/api/admin/wallet/verify-bank/${vendorModel}/${vendorId}`, data),
+
+   // =========================================================================
+    // --- OTP RATE LIMITS & SECURITY GOVERNANCE ---
+    // =========================================================================
+    
+    // 1. Live Blocked Numbers & Emails List
+    getBlockedOtpList: (params = {}) => {
+        const { page = 1, limit = 20, search = '', otpType = 'All' } = params;
+        return api.get(`/api/admin/otp-limits/blocked-list?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&otpType=${encodeURIComponent(otpType)}`);
+    },
+
+    // 2. Dynamic OTP Limit Configs & 24h Stats
+    getOtpLimitsAndStats: () => 
+        api.get('/api/admin/otp-limits'),
+
+    // 3. 1-Click Unblock / Reset Identifier
+    resetOtpIdentifier: (identifier, otpType = 'All') => 
+        api.post('/api/admin/otp-limits/reset-identifier', { identifier, otpType }),
+
+    // 4. Update Dynamic OTP Limit Rule
+    updateOtpLimit: (data) => 
+        api.post('/api/admin/otp-limits/update', data),
+
+     // =========================================================================
+    // --- VENDOR WITHDRAWALS & BANK VERIFICATION APIS ---
+    // =========================================================================
+
+    // API 1: Get All Pending Withdrawal Requests
+    getPendingWithdrawals: () => 
+        api.get('/api/admin/wallet/pending-withdrawals'),
+
+    // API 2: Approve Withdrawal (With Bank UTR Reference)
+    approveWithdrawal: (requestId, data) => 
+        api.patch(`/api/admin/wallet/approve-withdrawal/${requestId}`, data),
+
+    // API 3: Reject Withdrawal (With Auto-Refund to Vendor Wallet)
+    rejectWithdrawal: (requestId, data) => 
+        api.patch(`/api/admin/wallet/reject-withdrawal/${requestId}`, data),
+
+    // API 4: Get All Pending Bank Account Verifications
+    getPendingBanks: () => 
+        api.get('/api/admin/wallet/pending-banks'),
+
+    // API 5: Verify / Unverify Vendor Bank Account
+    verifyVendorBankAccount: (vendorModel, vendorId, data) => 
+        api.patch(`/api/admin/wallet/verify-bank/${vendorModel}/${vendorId}`, data),
+
+    // API 6: Global Platform Financial Monitor & Liability Stats
+    getWalletDashboardStats: () => 
+        api.get('/api/admin/wallet/dashboard-stats'),
 };
 
 export default AdminAPI2;

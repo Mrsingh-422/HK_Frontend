@@ -8,7 +8,7 @@ const doctorApi = axios.create({
 });
 
 // Helper to get token
-const getDoctorToken = () => typeof window !== 'undefined' ? localStorage.getItem('independentDoctorToken') : null;
+const getDoctorToken = () => typeof window !== 'undefined' ? localStorage.getItem('doctorToken') : null;
 
 // 2. Add Request Interceptor
 doctorApi.interceptors.request.use(

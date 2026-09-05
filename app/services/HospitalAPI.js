@@ -52,7 +52,7 @@ anyOneApi.interceptors.request.use((config) => {
 
 const HospitalAPI = {
   regester: async (formData) => {
-    const response = await publicApi.post('/api/auth/hospital/register', formData)
+    const response = await publicApi.post('', formData)
     return response.data;
   },
 

@@ -961,6 +961,12 @@ const UserAPI = {
         return response.data;
     },
 
+    // 2. Live Tracking & 6-Digit OTP API
+    getAmbulanceLiveTrack: async (bookingId) => {
+        const response = await authApi.get(`/user/ambulance/live-track/${bookingId}`);
+        return response.data;
+    },
+
     getAmbulanceDetail: async (ambulanceId) => {
         const response = await publicApi.get(`/user/ambulance/details/${ambulanceId}`
         );
@@ -977,8 +983,13 @@ const UserAPI = {
         return response.data;
     },
 
-    myAmbulanceBooking: async () => {
-        const response = await authApi.get("/user/ambulance/my-bookings");
+   myAmbulanceBooking: async (params = {}) => {
+        // Clean undefined / empty params
+        const cleanParams = Object.fromEntries(
+            Object.entries(params).filter(([_, v]) => v !== undefined && v !== "" && v !== "all" && v !== "All")
+        );
+        const query = new URLSearchParams(cleanParams).toString();
+        const response = await authApi.get(`/user/ambulance/my-bookings${query ? `?${query}` : ''}`);
         return response.data;
     },
 
@@ -1193,34 +1204,75 @@ const UserAPI = {
         const response = await authApi.post('/user/pharmacy/cancel-order', { orderId });
         return response.data;
     },
-
-    cancelAmbulanceBooking: async (bookingId) => {
-        const response = await authApi.patch(`/user/ambulance/cancel/${bookingId}`);
-        return response.data;
-    },
+// ✅ Update this function in UserAPI.js:
+cancelAmbulanceBooking: async (bookingId, cancelData = {}) => {
+    const response = await authApi.patch(`/user/ambulance/cancel/${bookingId}`, cancelData || {});
+    return response.data;
+},
     // --- PHARMACY RETURN & REPLACEMENT (PART 1) ---
 
-// 1. Check Return Eligibility & Active Tracking OTP (GET /user/pharmacy/track-order/:orderId)
-getPharmacyOrderTracking: async (orderId) => {
-    const response = await authApi.get(`/user/pharmacy/track-order/${orderId}`);
-    return response.data;
-},
+    // 1. Check Return Eligibility & Active Tracking OTP (GET /user/pharmacy/track-order/:orderId)
+    getPharmacyOrderTracking: async (orderId) => {
+        const response = await authApi.get(`/user/pharmacy/track-order/${orderId}`);
+        return response.data;
+    },
 
-// 2. Submit Return Request with Proof Photos (POST /user/pharmacy/orders/return-request/:orderId)
-submitPharmacyReturnRequest: async (orderId, formData) => {
-    const response = await authApi.post(`/user/pharmacy/orders/return-request/${orderId}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return response.data;
-},
+    // 2. Submit Return Request with Proof Photos (POST /user/pharmacy/orders/return-request/:orderId)
+    submitPharmacyReturnRequest: async (orderId, formData) => {
+        const response = await authApi.post(`/user/pharmacy/orders/return-request/${orderId}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
+    },
 
-// 3. Cancel Return Request Before Driver Pickup (POST /user/pharmacy/orders/return-request/cancel/:orderId)
-cancelPharmacyReturnRequest: async (orderId) => {
-    const response = await authApi.post(`/user/pharmacy/orders/return-request/cancel/${orderId}`);
-    return response.data;
-},
+    // 3. Cancel Return Request Before Driver Pickup (POST /user/pharmacy/orders/return-request/cancel/:orderId)
+    cancelPharmacyReturnRequest: async (orderId) => {
+        const response = await authApi.post(`/user/pharmacy/orders/return-request/cancel/${orderId}`);
+        return response.data;
+    },
 
-  
+// 1. Nearby Hospitals Discovery (Public)
+    getNearbyHospitals: async (coords) => {
+        const response = await authApi.post(`/user/ambulance/nearby-hospitals`, coords);
+        return response.data;
+    },
+
+    // 2. User Emergency Numbers Selector
+    getMyEmergencyNumbers: async () => {
+        const response = await authApi.get(`/user/ambulance/my-numbers`);
+        return response.data;
+    },
+
+    // 3. Static Booking Details Lookup
+    getStaticBookingDetails: async (bookingId) => {
+        const response = await authApi.get(`/user/ambulance/track/${bookingId}`);
+        return response.data;
+    },
+
+    // 4. Ambulance Reviews List (Paginated)
+    getAmbulanceReviews: async (ambulanceId, page = 1, limit = 10) => {
+        const response = await authApi.get(`/user/ambulance/reviews/${ambulanceId}?page=${page}&limit=${limit}`);
+        return response.data;
+    },
+
+    // 5. Post-Booking Incident Photo Upload
+    uploadIncidentPhoto: async (bookingId, formData) => {
+        const response = await authApi.post(`/user/ambulance/accidental/upload-photo/${bookingId}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+    // 1-Click Accidental Short Booking (Public / No Token Required)
+    accidentalShortBook: async (shortBookingData) => {
+        const response = await authApi.post(`/user/ambulance/accidental/short-book`, shortBookingData);
+        return response.data;
+    },
+
+    // Verify Phone OTP in Profile (Lifts 1-Time Limit)
+    verifyPhoneOtp: async (otpData) => {
+        const response = await authApi.post(`/api/auth/user/verify-phone-otp`, otpData);
+        return response.data;
+    },
 
 };
 

@@ -1,16 +1,22 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useAuth } from "@/app/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import { useUserContext } from "@/app/context/UserContext";
 import { getCountries, getCountryCallingCode, parsePhoneNumberFromString } from "libphonenumber-js";
 
+// Firebase imports
+import { auth } from "@/lib/firebase";
+import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+
 function RegisterAsHospital() {
-  const { registerAsHospital, loading } = useAuth();
+  const { checkHospitalExists, registerAsHospital, loading } = useAuth();
   const { closeModal, openModal } = useGlobalContext();
   const { getAllCountries, getStatesByCountry, getCitiesByState } = useUserContext();
   const router = useRouter();
+
+  const recaptchaVerifierRef = useRef(null);
 
   // Country Dialing Codes
   const countryCallingCodes = useMemo(() => {
@@ -28,7 +34,7 @@ function RegisterAsHospital() {
 
   // Form State
   const [formData, setFormData] = useState({
-    type: "", // "Govt" | "Private" | "Charity"
+    type: "Private", // "Govt" | "Private" | "Charity"
     name: "",
     email: "",
     countryDialCode: "+91",
@@ -41,6 +47,14 @@ function RegisterAsHospital() {
     termsAccepted: false,
   });
 
+  // OTP & Verification States
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [firebaseIdToken, setFirebaseIdToken] = useState("");
+  const [confirmationResult, setConfirmationResult] = useState(null);
+
+  const [otpLoading, setOtpLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -76,7 +90,105 @@ function RegisterAsHospital() {
     }
   };
 
-  // ================= 2. FORM FIELD HANDLERS =================
+  // ================= 2. FIREBASE RECAPTCHA SETUP =================
+  const getOrCreateRecaptcha = () => {
+    if (typeof window === "undefined") return null;
+    if (!recaptchaVerifierRef.current) {
+      recaptchaVerifierRef.current = new RecaptchaVerifier(auth, "hospital-recaptcha-container", {
+        size: "invisible",
+        callback: () => {},
+        "expired-callback": () => setError("reCAPTCHA expired. Please try sending OTP again."),
+      });
+    }
+    return recaptchaVerifierRef.current;
+  };
+
+  // ================= 3. PRE-CHECK & SEND SMS OTP =================
+  const handleSendOtp = async () => {
+    setError("");
+    setSuccess("");
+
+    if (!formData.type) {
+      setError("Please select the Hospital Type first.");
+      return;
+    }
+
+    if (!formData.phone || formData.phone.trim().length === 0) {
+      setError("Please enter the 10-digit official hospital phone number.");
+      return;
+    }
+
+    const cleanPhone = formData.phone.replace(/\s+/g, "");
+    const fullNumber = `${formData.countryDialCode}${cleanPhone}`;
+    const parsed = parsePhoneNumberFromString(fullNumber);
+
+    if (!parsed || !parsed.isValid()) {
+      setError("Please enter a valid mobile number for the selected country.");
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      // Step 1: Pre-check if phone or email already registered as Hospital
+      if (checkHospitalExists) {
+        const checkRes = await checkHospitalExists({
+          phone: cleanPhone,
+          email: formData.email ? formData.email.trim().toLowerCase() : undefined,
+        });
+
+        if (checkRes?.exists) {
+          setError(checkRes.message || "This mobile number is already registered for a Hospital. Please Login.");
+          setOtpLoading(false);
+          return;
+        }
+      }
+
+      // Step 2: Trigger Firebase Real SMS OTP
+      const appVerifier = getOrCreateRecaptcha();
+      const confirmation = await signInWithPhoneNumber(auth, fullNumber, appVerifier);
+      setConfirmationResult(confirmation);
+      setOtpSent(true);
+      setSuccess(`6-digit SMS OTP sent to ${fullNumber}`);
+    } catch (err) {
+      console.error("Firebase Hospital OTP Error:", err);
+      if (recaptchaVerifierRef.current) {
+        try { recaptchaVerifierRef.current.clear(); } catch (e) {}
+        recaptchaVerifierRef.current = null;
+      }
+      setError(typeof err === "string" ? err : err?.message || "Failed to send SMS OTP. Please check your phone number.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // ================= 4. CONFIRM OTP & GET ID TOKEN =================
+  const handleVerifyOtp = async () => {
+    setError("");
+    setSuccess("");
+
+    if (!otpCode || otpCode.trim().length < 6) {
+      setError("Please enter the complete 6-digit OTP.");
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      const userCredential = await confirmationResult.confirm(otpCode.trim());
+      const idToken = await userCredential.user.getIdToken();
+
+      setFirebaseIdToken(idToken);
+      setIsPhoneVerified(true);
+      setOtpSent(false);
+      setSuccess("Hospital official phone number verified successfully!");
+    } catch (err) {
+      console.error("Hospital OTP Verification Error:", err);
+      setError("Invalid or expired OTP. Please try again.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // ================= 5. FORM FIELD HANDLERS =================
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -86,27 +198,30 @@ function RegisterAsHospital() {
 
     if (name === "country") fetchStates(value);
     if (name === "state") fetchCities(value);
+
+    // Reset phone verification if phone or country code changes
+    if (name === "phone" || name === "countryDialCode") {
+      setIsPhoneVerified(false);
+      setFirebaseIdToken("");
+      setOtpSent(false);
+    }
   };
 
   const validateForm = () => {
-    const { type, name, email, phone, countryDialCode, country, state, city, password, confirmPassword, termsAccepted } = formData;
-    if (!type || !name || !email || !phone || !country || !state || !city || !password || !confirmPassword) {
-      return "All fields are required.";
+    const { type, name, phone, country, state, city, password, confirmPassword, termsAccepted } = formData;
+    if (!type || !name || !phone || !country || !state || !city || !password || !confirmPassword) {
+      return "All required fields must be filled.";
     }
-
-    const cleanPhone = phone.replace(/\s+/g, "");
-    const fullNumber = `${countryDialCode}${cleanPhone}`;
-    const parsed = parsePhoneNumberFromString(fullNumber);
-    if (!parsed || !parsed.isValid()) {
-      return "Please enter a valid hospital phone number (digits only).";
+    if (!isPhoneVerified || !firebaseIdToken) {
+      return "Please verify the hospital mobile number with SMS OTP before submitting.";
     }
-
     if (password.length < 6) return "Password must be at least 6 characters.";
     if (password !== confirmPassword) return "Passwords do not match.";
-    if (!termsAccepted) return "You must accept terms & conditions.";
+    if (!termsAccepted) return "You must accept the Terms & Conditions.";
     return null;
   };
 
+  // ================= 6. SUBMIT REGISTRATION =================
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -124,19 +239,20 @@ function RegisterAsHospital() {
       const selectedCity = cities.find((c) => c.id == formData.city);
 
       const finalData = {
-        type: formData.type,
         name: formData.name,
-        email: formData.email,
+        type: formData.type,
+        email: formData.email ? formData.email.trim().toLowerCase() : undefined,
         countryCode: formData.countryDialCode,
         phone: formData.phone.replace(/\s+/g, ""),
         password: formData.password,
         country: selectedCountry?.name || "",
         state: selectedState?.name || "",
         city: selectedCity?.name || "",
+        idToken: firebaseIdToken, // Firebase Verified ID Token
       };
 
       await registerAsHospital(finalData);
-      setSuccess("Hospital Registered Successfully! Redirecting...");
+      setSuccess("Hospital Registered & Phone Verified Successfully! Redirecting to KYC upload...");
 
       setTimeout(() => {
         closeModal();
@@ -149,8 +265,11 @@ function RegisterAsHospital() {
 
   return (
     <div className="w-full bg-white">
+      {/* Invisible Recaptcha Element */}
+      <div id="hospital-recaptcha-container"></div>
+
       <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-6 rounded-lg w-full max-w-[1100px] mx-auto">
-        {/* LEFT IMAGE / ILLUSTRATION */}
+        {/* LEFT IMAGE */}
         <div className="hidden md:flex flex-col items-center justify-center flex-shrink-0 p-4">
           <img
             src="https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=600&auto=format&fit=crop&q=80"
@@ -165,12 +284,12 @@ function RegisterAsHospital() {
             Get Started
           </h2>
 
+          {/* Alert Banners */}
           {success && (
             <div className="bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] p-2.5 rounded-md mb-3 text-sm font-medium animate-in fade-in duration-300">
               {success}
             </div>
           )}
-
           {error && (
             <div className="bg-[#ffe6e6] text-[#d93025] border border-[#d93025] p-2.5 rounded-md mb-3 text-sm font-medium animate-in fade-in duration-300">
               {error}
@@ -178,22 +297,22 @@ function RegisterAsHospital() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-3">
+            {/* Hospital Type Selection */}
             <select
               name="type"
               value={formData.type}
               onChange={handleChange}
               className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883] bg-white cursor-pointer"
             >
-              <option value="">Register As (Hospital Type)</option>
-              <option value="Govt">Government Hospital</option>
               <option value="Private">Private Hospital</option>
+              <option value="Govt">Government Hospital</option>
               <option value="Charity">Charity / Trust Hospital</option>
             </select>
 
             <input
               type="text"
               name="name"
-              placeholder="Hospital Name"
+              placeholder="Hospital Name (e.g. Fortis Super Speciality Hospital)"
               className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
               value={formData.name}
               onChange={handleChange}
@@ -203,37 +322,78 @@ function RegisterAsHospital() {
             <input
               type="email"
               name="email"
-              placeholder="Hospital Official Email"
+              placeholder="Hospital Official Email (Optional)"
               className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
               value={formData.email}
               onChange={handleChange}
               autoComplete="email"
             />
 
-            {/* PHONE ROW */}
-            <div className="flex gap-2">
-              <select
-                name="countryDialCode"
-                value={formData.countryDialCode}
-                onChange={handleChange}
-                className="w-[115px] p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883] bg-white cursor-pointer"
-              >
-                {countryCallingCodes.map((item, index) => (
-                  <option key={`${item.country}-${index}`} value={item.callingCode}>
-                    {item.country} ({item.callingCode})
-                  </option>
-                ))}
-              </select>
+            {/* PHONE ROW WITH FIREBASE SMS OTP */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <select
+                  name="countryDialCode"
+                  value={formData.countryDialCode}
+                  onChange={handleChange}
+                  disabled={isPhoneVerified}
+                  className="w-[115px] p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883] bg-white cursor-pointer disabled:bg-gray-100"
+                >
+                  {countryCallingCodes.map((item, index) => (
+                    <option key={`${item.country}-${index}`} value={item.callingCode}>
+                      {item.country} ({item.callingCode})
+                    </option>
+                  ))}
+                </select>
 
-              <input
-                type="tel"
-                name="phone"
-                placeholder="Hospital Phone Number"
-                className="flex-1 p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
-                value={formData.phone}
-                onChange={handleChange}
-                autoComplete="tel-national"
-              />
+                <input
+                  type="tel"
+                  name="phone"
+                  placeholder="10-digit Hospital Contact Phone"
+                  className="flex-1 p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883] disabled:bg-gray-100"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  disabled={isPhoneVerified}
+                  autoComplete="tel-national"
+                />
+
+                {isPhoneVerified ? (
+                  <span className="flex items-center justify-center gap-1 bg-[#e6ffed] text-[#1a7f37] border border-[#1a7f37] px-4 py-2 rounded text-xs font-bold whitespace-nowrap">
+                    ✓ Verified
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={otpLoading || !formData.phone}
+                    className="bg-[#2f8f5b] hover:bg-[#256f47] text-white px-4 py-2 rounded text-xs font-semibold transition-colors whitespace-nowrap disabled:bg-gray-400 cursor-pointer"
+                  >
+                    {otpLoading ? "Sending..." : "Send OTP"}
+                  </button>
+                )}
+              </div>
+
+              {/* INLINE OTP INPUT BOX */}
+              {otpSent && !isPhoneVerified && (
+                <div className="flex gap-2 p-2.5 bg-gray-50 border border-dashed border-[#42b883] rounded-md animate-in fade-in">
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="Enter 6-digit OTP"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value)}
+                    className="flex-1 p-2 border border-gray-300 rounded outline-none text-center tracking-widest text-sm bg-white font-bold"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleVerifyOtp}
+                    disabled={otpLoading || otpCode.length < 6}
+                    className="bg-[#08b36a] text-white px-4 py-2 rounded text-xs font-medium hover:bg-[#068f54] disabled:bg-gray-300 cursor-pointer"
+                  >
+                    {otpLoading ? "Verifying..." : "Confirm OTP"}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* LOCATION ROW */}
@@ -286,7 +446,7 @@ function RegisterAsHospital() {
             <input
               type="password"
               name="password"
-              placeholder="Create Password"
+              placeholder="Create Password (min. 6 characters)"
               className="w-full p-3 border border-[#42b883] rounded outline-none text-sm focus:ring-1 focus:ring-[#42b883]"
               value={formData.password}
               onChange={handleChange}
@@ -322,7 +482,7 @@ function RegisterAsHospital() {
               disabled={loading}
               className="w-full md:w-auto mt-4 bg-[#2f8f5b] hover:bg-[#256f47] text-white py-3 px-10 rounded text-base transition-colors disabled:bg-gray-300 cursor-pointer font-medium"
             >
-              {loading ? "Registering..." : "Register →"}
+              {loading ? "Registering..." : "Register Hospital →"}
             </button>
           </form>
 

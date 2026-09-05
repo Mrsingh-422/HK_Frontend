@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import {
   MapPin, ChevronDown, Camera, ShieldAlert, MessageSquare,
   Info, ChevronLeft, Navigation, Clock, User, CheckCircle2,
-  Stethoscope, Activity, AlertCircle, Map, Phone, Mail, Truck, Ticket
+  Stethoscope, Activity, AlertCircle, Map, Phone, Mail, Truck, Ticket, KeyRound
 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import UserAPI from "@/app/services/UserAPI";
@@ -15,15 +15,15 @@ import CostoumPopup from '@/lib/CostoumPopup';
 export default function AmbulanceBookingPage() {
   const router = useRouter();
   const { id } = useParams(); // Get ambulance ID from URL
-  const { openModal } = useGlobalContext()
+  const { openModal } = useGlobalContext();
 
   // --- State Management ---
   const [ambulance, setAmbulance] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [previewImage, setPreviewImage] = useState(null);
-  const [coords, setCoords] = useState({ lat: 30.6, lng: 76.7 }); // Lifted state to fix payload crash
-  const [showSuccessModal, setShowSuccessModal] = useState(false); // Modal visibility state
+  const [coords, setCoords] = useState({ lat: 30.6, lng: 76.7 });
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [bookingSuccessData, setBookingSuccessData] = useState(null);
 
   // Dynamic Data States
   const [hospitals, setHospitals] = useState([]);
@@ -43,17 +43,16 @@ export default function AmbulanceBookingPage() {
     emergencyType: "",
     supportStaff: { nurse: false, doctor: false },
     hospital: "",
-    priority: "Emergency"
+    priority: "Emergency",
+    paymentMethod: "COD"
   });
 
   // --- Fetch Data ---
   useEffect(() => {
     const token = localStorage.getItem('userToken');
     if (!token) {
-      // toast.error("Please login to continue");
       CostoumPopup("Please Login To Continue", "warning", 4000);
       router.push('/ambulance');
-      // openModal("login")
       return;
     }
     const init = async () => {
@@ -171,31 +170,49 @@ export default function AmbulanceBookingPage() {
     try {
       // 1. Prepare Staff Type
       const staffArr = [];
-      if (formData.supportStaff.nurse) staffArr.push("Nurse");
       if (formData.supportStaff.doctor) staffArr.push("Doctor");
-      const staffTypeVal = staffArr.length > 0 ? staffArr.join(", ") : "None";
+      if (formData.supportStaff.nurse) staffArr.push("Nurse");
+      const staffTypeVal = staffArr.length > 0 ? staffArr.join(",") : "";
 
-      // 2. Build FormData to send to bookAmbulance API directly
+      const activeCouponCode = appliedCoupon ? (appliedCoupon.couponName || couponCode).trim() : "";
+
+      // 2. Fetch patient relation details
+      const member = familyMembers.find(m => m._id === formData.relation);
+      const patientDetailsObj = {
+        name: formData.relation === "self" ? "User" : (member?.memberName || "Patient"),
+        relation: formData.relation === "self" ? "Self" : (member?.relation || "Relative"),
+        age: member?.age || 30,
+        gender: member?.gender || "Male",
+        emergencyDescription: formData.emergencyType || "Emergency",
+        condition: formData.emergencyType || "Emergency"
+      };
+
+      // 3. Prepare Pickup Location details
+      const pickupLocationObj = {
+        address: formData.pickupLocation,
+        lat: coords.lat,
+        lng: coords.lng
+      };
+
+      // 4. Build FormData matching confirm-booking API specs
       const data = new FormData();
       data.append("ambulanceId", id);
       data.append("hospitalId", formData.hospital);
-      data.append("pickupLocation", formData.pickupLocation);
       data.append("serviceType", "Medical Ambulance");
-      data.append("staffType", staffTypeVal);
-
-      const activeCouponCode = appliedCoupon ? (appliedCoupon.couponName || couponCode).trim() : "";
-      data.append("couponCode", activeCouponCode);
       data.append("triageLevel", formData.priority);
+      data.append("paymentMethod", formData.paymentMethod || "COD");
+      
+      if (staffTypeVal) {
+        data.append("staffType", staffTypeVal);
+      }
+      if (activeCouponCode) {
+        data.append("couponCode", activeCouponCode);
+      }
 
-      // Fetch patient relation details
-      const member = familyMembers.find(m => m._id === formData.relation);
-      data.append("patientDetails", JSON.stringify({
-        name: formData.relation === "self" ? "User" : (member?.memberName || "Patient"),
-        relation: formData.relation === "self" ? "Self" : (member?.relation || "Relative"),
-        condition: formData.emergencyType || "Emergency",
-      }));
+      data.append("pickupLocation", JSON.stringify(pickupLocationObj));
+      data.append("patientDetails", JSON.stringify(patientDetailsObj));
 
-      // Calculate and append local pricing details
+      // Calculate supporting staff charge
       const supportingStaffCharge =
         (formData.supportStaff.doctor ? (ambulance.supportStaff?.doctor?.price || 500) : 0) +
         (formData.supportStaff.nurse ? (ambulance.supportStaff?.nurse?.price || 200) : 0);
@@ -214,20 +231,17 @@ export default function AmbulanceBookingPage() {
         discountValue: discountAmount
       }));
 
-      // Append flat pricing fields to support alternative backend parsers
       data.append("subtotal", currentSubtotal.toString());
       data.append("discount", discountAmount.toString());
       data.append("total", finalTotalAmount.toString());
       data.append("amount", finalTotalAmount.toString());
       data.append("totalAmount", finalTotalAmount.toString());
 
-      console.log("Form Data Coupon Details:", data.get("couponDetails"));
-      console.log("Form Data Pricing Details:", data.get("pricing"));
-
-      // 3. Initiate direct booking without payment gateway redirections
+      // Execute Booking API Call
       const res = await UserAPI.bookAmbulance(data);
 
       if (res.success) {
+        setBookingSuccessData(res.booking || null);
         setShowSuccessModal(true);
       } else {
         alert(res.message || "Booking Failed to initiate");
@@ -458,6 +472,27 @@ export default function AmbulanceBookingPage() {
               </div>
             </div>
 
+            {/* PAYMENT METHOD */}
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
+              <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Payment Method</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {['COD', 'Online'].map((method) => (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, paymentMethod: method })}
+                    className={`py-4 px-6 rounded-2xl font-bold text-sm border-2 transition-all text-center ${
+                      formData.paymentMethod === method
+                        ? 'border-[#08B36A] bg-emerald-50/50 text-[#08B36A]'
+                        : 'border-slate-100 text-slate-600 hover:border-slate-200'
+                    }`}
+                  >
+                    {method === 'COD' ? 'Cash on Pickup (COD)' : 'Online Payment'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 space-y-4">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Apply Offers & Coupons</h3>
               <div className="flex gap-3">
@@ -533,10 +568,19 @@ export default function AmbulanceBookingPage() {
               <CheckCircle2 className="w-10 h-10" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-2xl font-black text-slate-900">Booking Initiated</h3>
+              <h3 className="text-2xl font-black text-slate-900">Booking Request Sent</h3>
               <p className="text-sm font-semibold text-slate-600 leading-relaxed">
-                You have to pay after the driver accepts your request, then your booking will be completed.
+                Your ambulance booking request has been dispatched successfully.
               </p>
+              {bookingSuccessData?.otp && (
+                <div className="mt-4 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 inline-block w-full">
+                  <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5">
+                    <KeyRound className="w-4 h-4 text-[#08B36A]" /> Pickup OTP
+                  </p>
+                  <p className="text-3xl font-black text-[#08B36A] tracking-widest">{bookingSuccessData.otp}</p>
+                  <p className="text-[11px] font-bold text-slate-400 mt-1">Share this OTP with driver on arrival</p>
+                </div>
+              )}
             </div>
             <button
               onClick={() => {
@@ -545,7 +589,7 @@ export default function AmbulanceBookingPage() {
               }}
               className="w-full bg-[#08B36A] hover:bg-[#079f5e] text-white py-4 rounded-2xl font-black text-base shadow-lg shadow-emerald-200 transition-all active:scale-95"
             >
-              OK
+              Go to Appointments
             </button>
           </div>
         </div>

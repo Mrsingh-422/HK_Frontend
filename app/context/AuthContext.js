@@ -169,7 +169,77 @@ export const AuthProvider = ({ children }) => {
 
             return response.data;
         } catch (error) {
+            // If user is suspended/banned, pass full error object to show unban request UI
+            if (error.response?.data?.isBanned) {
+                return Promise.reject(error.response.data);
+            }
             const message = error.response?.data?.message || error.message || "Login failed";
+            return Promise.reject(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /**
+     * UNBAN REQUEST (PUBLIC API)
+     * Route: POST /api/auth/user/request-unban
+     * Payload: { phone, reason }
+     */
+    const requestUnban = async (payload) => {
+        try {
+            setLoading(true);
+            const baseUrl = getBaseUrl();
+            const response = await axios.post(`${baseUrl}/api/auth/user/request-unban`, {
+                phone: payload.phone.replace(/\s+/g, ""),
+                reason: payload.reason.trim(),
+            });
+            return response.data;
+        } catch (error) {
+            const message = error.response?.data?.message || error.message || "Failed to submit unban request.";
+            return Promise.reject(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /**
+     * UNIFIED EMERGENCY USER UPGRADE:
+     * Phone Verification (Firebase SMS) + Permanent Password Creation
+     * Route: POST /api/auth/user/verify-phone-and-set-password
+     * Auth: Protected (Bearer <userToken>)
+     * Payload: { idToken, newPassword, confirmPassword, name?, email? }
+     */
+    const verifyPhoneAndSetPassword = async (payload) => {
+        try {
+            setLoading(true);
+            const baseUrl = getBaseUrl();
+            const token = localStorage.getItem("userToken");
+
+            const response = await axios.post(
+                `${baseUrl}/api/auth/user/verify-phone-and-set-password`,
+                payload,
+                {
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
+
+            const { user: updatedUser } = response.data;
+
+            // Update user in localStorage & AuthContext state
+            if (updatedUser) {
+                const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+                const mergedUser = { ...currentUser, ...updatedUser, isPhoneVerified: true, isShortRegistered: false };
+                
+                localStorage.setItem("user", JSON.stringify(mergedUser));
+                setUser(mergedUser);
+            }
+
+            return response.data;
+        } catch (error) {
+            const message = error.response?.data?.message || error.message || "Failed to verify phone and set password.";
             return Promise.reject(message);
         } finally {
             setLoading(false);
@@ -459,6 +529,21 @@ export const AuthProvider = ({ children }) => {
     // 4. HOSPITAL & ADMIN METHODS
     // =========================================================================
 
+    const checkHospitalExists = async (payload) => {
+        try {
+            const baseUrl = getBaseUrl();
+            const response = await axios.post(`${baseUrl}/api/auth/hospital/check-exists`, payload);
+            return response.data;
+        } catch (error) {
+            if (error.response?.status === 404) {
+                console.warn("Pre-check endpoint /api/auth/hospital/check-exists returned 404. Proceeding to SMS OTP.");
+                return { exists: false, success: true };
+            }
+            const message = error.response?.data?.message || error.message || "Failed to check hospital availability";
+            return Promise.reject(message);
+        }
+    };
+
     const registerAsHospital = async (hospitalData) => {
         try {
             setLoading(true);
@@ -545,12 +630,6 @@ export const AuthProvider = ({ children }) => {
     // 5. UNIVERSAL FORGOT PASSWORD METHODS (Phone & Email)
     // =========================================================================
 
-    /**
-     * PRIMARY PHONE FLOW:
-     * Step 1: Discover Accounts by Phone Number
-     * Payload: { phone: "9876543210" }
-     * Returns: { success: true, accounts: [{ role, name, maskedEmail }] }
-     */
     const forgotPasswordPhone = async (phone) => {
         try {
             setLoading(true);
@@ -567,12 +646,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    /**
-     * PRIMARY PHONE FLOW:
-     * Step 3: Verify Firebase idToken & Get 15-Min SHA-256 Reset Token
-     * Payload: { phone, idToken, selectedRole }
-     * Returns: { success: true, resetToken, role }
-     */
     const verifyFirebaseOtp = async (payload) => {
         try {
             setLoading(true);
@@ -591,12 +664,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    /**
-     * PRIMARY PHONE FLOW:
-     * Step 4: Reset Password with Reset Token
-     * Payload: { phone, resetToken, selectedRole, newPassword, confirmPassword }
-     * Returns: { success: true, message: "..." }
-     */
     const resetPasswordPhone = async (payload) => {
         try {
             setLoading(true);
@@ -617,11 +684,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    /**
-     * SECONDARY EMAIL FLOW:
-     * Step 1: Send 6-Digit OTP to Email (Universal across all 13 models)
-     * Payload: { email: "user@example.com" }
-     */
     const forgotPassword = async (email) => {
         try {
             setLoading(true);
@@ -638,11 +700,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    /**
-     * SECONDARY EMAIL FLOW:
-     * Step 2: Verify 6-Digit Email OTP
-     * Payload: { email, otp }
-     */
     const verifyOtp = async (email, otp) => {
         try {
             setLoading(true);
@@ -660,11 +717,6 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    /**
-     * SECONDARY EMAIL FLOW:
-     * Step 3: Reset Password via Email
-     * Payload: { email, newPassword, confirmPassword }
-     */
     const resetPassword = async (payload) => {
         try {
             setLoading(true);
@@ -756,6 +808,8 @@ export const AuthProvider = ({ children }) => {
                 checkUserExists,
                 registerAsUser,
                 loginAsUser,
+                requestUnban, // 🎯 Added & exposed!
+                verifyPhoneAndSetPassword,
                 // Doctor
                 doctor,
                 doctorToken,
@@ -782,6 +836,7 @@ export const AuthProvider = ({ children }) => {
                 // Hospital & Admin
                 hospital,
                 hospitalToken,
+                checkHospitalExists,
                 registerAsHospital,
                 uploadHospitalDocuments,
                 admin,

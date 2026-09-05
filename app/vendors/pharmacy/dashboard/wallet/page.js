@@ -9,7 +9,10 @@ import {
   FaPlus, 
   FaArrowDown, 
   FaArrowUp, 
-  FaClock
+  FaClock,
+  FaCheckCircle,
+  FaExclamationCircle,
+  FaSpinner
 } from 'react-icons/fa';
 
 export default function WalletDashboard() {
@@ -21,6 +24,7 @@ export default function WalletDashboard() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [selectedBank, setSelectedBank] = useState('');
   const [loading, setLoading] = useState(false);
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   
@@ -42,22 +46,24 @@ export default function WalletDashboard() {
 
       const statsRes = await PharmacyVendorAPI.getWalletStats();
       if (statsRes?.success) {
-        setStats(statsRes);
+        setStats(statsRes.data || statsRes);
         
         // Map the verified settlement account returned by API
-        if (statsRes.bankDetails) {
+        const bankData = statsRes.bankDetails || statsRes.data?.bankDetails;
+        if (bankData) {
           const mainBank = {
             id: 'verified-primary',
-            holder: statsRes.bankDetails.accountHolderName,
-            accNo: statsRes.bankDetails.accountNumber,
-            bankName: statsRes.bankDetails.bankName,
-            ifsc: statsRes.bankDetails.ifscCode,
-            isVerified: statsRes.bankDetails.isVerified
+            holder: bankData.accountHolderName,
+            accNo: bankData.accountNumber,
+            bankName: bankData.bankName,
+            ifsc: bankData.ifscCode,
+            isVerified: bankData.isVerified
           };
           setBankAccounts([mainBank]);
           setSelectedBank('verified-primary');
         } else {
           setBankAccounts([]);
+          setSelectedBank('');
         }
       } else {
         setFormError(statsRes?.message || "Failed to load wallet metrics.");
@@ -67,14 +73,14 @@ export default function WalletDashboard() {
       if (typeof PharmacyVendorAPI?.getWalletTransactions === 'function') {
         const txRes = await PharmacyVendorAPI.getWalletTransactions();
         if (txRes?.success) {
-          setTransactions(txRes.transactions || []);
+          setTransactions(txRes.transactions || txRes.data || []);
         } else {
           setTransactions([]);
         }
       }
 
     } catch (err) {
-      setFormError("An unexpected connection error occurred.");
+      setFormError(err?.response?.data?.message || "An unexpected connection error occurred.");
     } finally {
       setLoading(false);
     }
@@ -95,21 +101,24 @@ export default function WalletDashboard() {
     setFormError('');
     setFormSuccess('');
 
-    const parsedAmount = parseFloat(withdrawAmount);
+    const parsedAmount = Number(withdrawAmount);
 
+    // Validation: Check positive number
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       setFormError("Please enter a valid positive withdrawal amount.");
       return;
     }
 
-    if (!selectedBank) {
-      setFormError("Please map a verified bank destination.");
+    // Validation: Check settlement destination
+    if (!selectedBank && bankAccounts.length === 0) {
+      setFormError("Please map a verified bank destination before submitting a withdrawal request.");
       return;
     }
 
-    // Spec [1.2.2] Limit Validation: Check requestedAmount <= withdrawableBalance
-    if (stats && parsedAmount > stats.withdrawableBalance) {
-      setFormError("You cannot withdraw more than your available cleared balance.");
+    // Limit Validation: Check requestedAmount <= withdrawableBalance
+    const availableBalance = stats?.withdrawableBalance ?? 0;
+    if (parsedAmount > availableBalance) {
+      setFormError(`Insufficient balance. Your available withdrawable balance is ₹${availableBalance.toLocaleString('en-IN')}.`);
       return;
     }
 
@@ -119,19 +128,29 @@ export default function WalletDashboard() {
         return;
       }
 
-      setLoading(true);
+      setWithdrawLoading(true);
+
+      // POST /provider/wallet/withdraw with { amount: parsedAmount }
       const res = await PharmacyVendorAPI.requestWithdrawal(parsedAmount);
+
       if (res?.success) {
-        setFormSuccess(res.message || "Withdrawal request submitted successfully. Waiting for admin manual payout approval.");
+        const successMessage = res.message || "Withdrawal request submitted successfully. Waiting for Admin manual payout approval.";
+        setFormSuccess(successMessage);
         setWithdrawAmount('');
-        await loadWalletData(); // Reload stats
+        
+        // Reload wallet stats to reflect the updated balance
+        await loadWalletData();
       } else {
         setFormError(res?.message || "Failed to submit withdrawal request.");
       }
     } catch (err) {
-      setFormError("An error occurred during submission.");
+      setFormError(
+        err?.response?.data?.message || 
+        err?.message || 
+        "An error occurred during withdrawal submission."
+      );
     } finally {
-      setLoading(false);
+      setWithdrawLoading(false);
     }
   };
 
@@ -148,7 +167,7 @@ export default function WalletDashboard() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
-          {/* Card 1: Withdrawable Balance (Primary Action Card) [1.2.2] */}
+          {/* Card 1: Withdrawable Balance (Primary Action Card) */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col justify-between">
             <div className="p-6">
               <div className="flex justify-between items-center mb-2">
@@ -169,28 +188,54 @@ export default function WalletDashboard() {
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">₹</span>
                     <input 
                       type="number" 
+                      min="1"
+                      step="any"
                       value={withdrawAmount}
-                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      onChange={(e) => {
+                        setWithdrawAmount(e.target.value);
+                        if (formError) setFormError('');
+                        if (formSuccess) setFormSuccess('');
+                      }}
                       placeholder="Amount" 
-                      className="w-full pl-7 pr-3 py-1.5 bg-white rounded-lg border border-slate-200 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20 focus:border-[#08B36A] transition-all"
+                      disabled={withdrawLoading}
+                      className="w-full pl-7 pr-3 py-2 bg-white rounded-lg border border-slate-200 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20 focus:border-[#08B36A] transition-all disabled:bg-slate-100"
                       required
                     />
                   </div>
                   <button 
                     type="submit"
-                    disabled={loading}
-                    className="px-4 py-1.5 bg-[#08B36A] hover:bg-green-600 text-white font-bold rounded-lg text-xs transition-all disabled:opacity-50"
+                    disabled={withdrawLoading || loading}
+                    className="px-4 py-2 bg-[#08B36A] hover:bg-green-600 active:scale-95 text-white font-bold rounded-lg text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                   >
-                    Withdraw
+                    {withdrawLoading ? (
+                      <>
+                        <FaSpinner className="animate-spin text-xs" />
+                        <span>Sending...</span>
+                      </>
+                    ) : (
+                      'Withdraw'
+                    )}
                   </button>
                 </div>
-                {formError && <p className="text-[10px] text-red-600 font-bold">{formError}</p>}
-                {formSuccess && <p className="text-[10px] text-emerald-600 font-bold">{formSuccess}</p>}
+
+                {/* Status Notifications */}
+                {formError && (
+                  <div className="flex items-start gap-1.5 p-2 rounded-md bg-red-50 text-red-700 text-[11px] font-semibold border border-red-100">
+                    <FaExclamationCircle className="mt-0.5 shrink-0" />
+                    <span>{formError}</span>
+                  </div>
+                )}
+                {formSuccess && (
+                  <div className="flex items-start gap-1.5 p-2 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-semibold border border-emerald-100">
+                    <FaCheckCircle className="mt-0.5 shrink-0" />
+                    <span>{formSuccess}</span>
+                  </div>
+                )}
               </form>
             </div>
           </div>
 
-          {/* Card 2: Pending Balance (Locked 7-day period window with clock icon) [1.2.2] */}
+          {/* Card 2: Pending Balance (Locked 7-day period window) */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
             <div>
               <div className="flex justify-between items-center mb-2">
@@ -280,9 +325,8 @@ export default function WalletDashboard() {
                 <div key={trx._id || idx} className="py-2.5 flex justify-between items-center text-xs font-semibold">
                   <div className="space-y-1">
                     <p className="text-slate-800 font-bold">{trx.remark || "Settlement Transaction"}</p>
-                    <p className="text-[10px] text-slate-400">{new Date(trx.date).toLocaleDateString('en-IN')}</p>
+                    <p className="text-[10px] text-slate-400">{new Date(trx.date || trx.createdAt).toLocaleDateString('en-IN')}</p>
                   </div>
-                  {/* Spec [1.2.2] Color and positive/negative indicators mapping */}
                   <span className={`text-sm font-extrabold ${trx.type === 'Credit' ? 'text-emerald-600' : 'text-red-600'}`}>
                     {trx.type === 'Credit' ? `+ ₹${trx.amount}` : `- ₹${trx.amount}`}
                   </span>

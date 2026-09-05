@@ -3,11 +3,18 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FaTachometerAlt, FaMoneyBillWave, FaUsers, FaStore, FaChevronDown, FaChevronRight, FaCog, FaPills, FaTruck, FaHospital, FaFlask, FaUserMd, FaHandHoldingHeart, FaUserShield, FaTags, FaGift, FaAd, FaBan, FaUserTimes, FaShieldAlt, FaFire, FaClipboardList, FaWallet, FaBoxes, FaQuestionCircle, FaImages, FaNewspaper, FaUserPlus, FaMoneyBill, FaUser, FaRegCalendarAlt } from "react-icons/fa";
+import { 
+  FaTachometerAlt, FaMoneyBillWave, FaUsers, FaStore, FaChevronDown, 
+  FaChevronRight, FaCog, FaPills, FaTruck, FaHospital, FaFlask, 
+  FaUserMd, FaHandHoldingHeart, FaUserShield, FaTags, FaGift, 
+  FaAd, FaBan, FaUserTimes, FaShieldAlt, FaFire, FaClipboardList, 
+  FaWallet, FaBoxes, FaQuestionCircle, FaImages, FaNewspaper, 
+  FaUserPlus, FaMoneyBill, FaUser, FaRegCalendarAlt, FaAmbulance,
+  FaKey, FaPercentage,FaPhone
+} from "react-icons/fa";
 
 import "./Sidebar.css";
 import { useGlobalContext } from "@/app/context/GlobalContext";
-// Auth Context import kiya hai taaki admin ka data mil sake
 import { useAuth } from "@/app/context/AuthContext";
 
 export default function Sidebar() {
@@ -18,7 +25,7 @@ export default function Sidebar() {
     const [isHovering, setIsHovering] = useState(false);
 
     const { sidebarOpen } = useGlobalContext();
-    const { admin } = useAuth(); // Logged-in admin ka data nikal liya
+    const { admin } = useAuth(); // Logged-in admin access data
 
     const toggleMenu = (menu) => {
         setOpenMenu(openMenu === menu ? null : menu);
@@ -28,7 +35,7 @@ export default function Sidebar() {
 
     useEffect(() => {
         if (pathname.includes("/subadmin")) setOpenMenu("subadmin");
-        if (pathname.includes("/users")) setOpenMenu("users");
+        if (pathname.includes("/users") || pathname.includes("/banned-users")) setOpenMenu("users");
         if (pathname.includes("/vendors")) setOpenMenu("vendors");
         if (pathname.includes("/manageorders")) setOpenMenu("manageorders");
         if (pathname.includes("/managepackages")) setOpenMenu("managepackages");
@@ -43,7 +50,7 @@ export default function Sidebar() {
         if (pathname.includes("/manage-firestation")) setOpenMenu("manage-firestation");
         if (pathname.includes("/manage-issues")) setOpenMenu("/admind/manage-issues");
         if (pathname.includes("/withdraw-request")) setOpenMenu("/admind/manage-withdraw");
-        if (pathname.includes("/settings")) setOpenMenu("settings");
+        if (pathname.includes("/settings") || pathname.includes("/OtpLimits") || pathname.includes("/managecommission")) setOpenMenu("settings");
 
         if (pathname.includes("/vendors/lab")) {
             setOpenMenu("vendors");
@@ -55,13 +62,11 @@ export default function Sidebar() {
     const isParentActive = (route) => pathname.startsWith(route);
 
     // ==========================================
-    // ACCESS CONTROL LOGIC (Naya Code)
+    // ACCESS CONTROL LOGIC
     // ==========================================
     const hasAccess = (tabId) => {
         if (!admin) return false;
-        // Superadmin ko sab kuch dikhana hai
         if (admin.role === 'superadmin' || admin.allowedTabs === 'ALL') return true;
-        // Subadmin ke array me ID match karna hai
         if (Array.isArray(admin.allowedTabs)) {
             return admin.allowedTabs.includes(tabId);
         }
@@ -88,7 +93,7 @@ export default function Sidebar() {
 
             <div className="menu">
 
-                {/* Dashboard (Sabke liye open rakha hai) */}
+                {/* Dashboard */}
                 {hasAccess(5) && (
                     <Link href="/admind" className={`menu-item ${isActive("/admind") ? "active" : ""}`}>
                         <FaTachometerAlt className="icon" />
@@ -109,9 +114,7 @@ export default function Sidebar() {
                     </Link>
                 )}
 
-
-
-                {/* Sub Admin - Sirf Superadmin ko dikhega */}
+                {/* Sub Admin - Superadmin Only */}
                 {isSuperAdmin && (
                     <>
                         <div className={`menu-item dropdown ${isParentActive("/admind/subadmin") ? "active" : ""}`} onClick={() => toggleMenu("subadmin")}>
@@ -132,8 +135,12 @@ export default function Sidebar() {
                 {hasAccess(1) && (
                     <>
                         <Link href="/admind/users" className={`menu-item ${isActive("/admind/users") ? "active" : ""}`}>
-                            <FaRegCalendarAlt className="icon" />
+                            <FaUsers className="icon" />
                             <span>Manage Users</span>
+                        </Link>
+                        <Link href="/admind/banned-users" className={`menu-item ${isActive("/admind/banned-users") ? "active" : ""}`}>
+                            <FaUserTimes className="icon" />
+                            <span>Banned Users & Appeals</span>
                         </Link>
                     </>
                 )}
@@ -226,7 +233,7 @@ export default function Sidebar() {
                             <div className="submenu fade-in">
                                 <Link href="/admind/managemedicines/approvedmedicines" className={`submenu-link ${isActive("/admind/managemedicines/approvedmedicines") ? "sub-active" : ""}`}>Approve Medicine</Link>
                                 <Link href="/admind/managemedicines/manageallmedicines" className={`submenu-link ${isActive("/admind/managemedicines/manageallmedicines") ? "sub-active" : ""}`}>Manage All Medicines</Link>
-                                <Link href="/admind/managemedicines/managecategories" className={`submenu-link ${isActive("/admind/managemedicines/managecategories") ? "sub-active" : ""}`}>Manage Categories </Link>
+                                <Link href="/admind/managemedicines/managecategories" className={`submenu-link ${isActive("/admind/managemedicines/managecategories") ? "sub-active" : ""}`}>Manage Categories</Link>
                                 <Link href="/admind/managemedicines/managepricerequests" className={`submenu-link ${isActive("/admind/managemedicines/managepricerequests") ? "sub-active" : ""}`}>Manage Price Requests</Link>
                             </div>
                         )}
@@ -252,7 +259,7 @@ export default function Sidebar() {
                 {/* Manage Doctors (Tab 31) */}
                 {hasAccess(31) && (
                     <Link href="/admind/managedoctors" className={`menu-item ${isActive("/admind/managedoctors") ? "active" : ""}`}>
-                        <FaRegCalendarAlt className="icon" />
+                        <FaUserMd className="icon" />
                         <span>Manage Doctors</span>
                     </Link>
                 )}
@@ -268,7 +275,7 @@ export default function Sidebar() {
                 {/* App Banners (Tab 13) */}
                 {hasAccess(13) && (
                     <Link href="/admind/appbanners" className={`menu-item ${isActive("/admind/appbanners") ? "active" : ""}`}>
-                        <FaRegCalendarAlt className="icon" />
+                        <FaImages className="icon" />
                         <span>App Banners</span>
                     </Link>
                 )}
@@ -276,7 +283,7 @@ export default function Sidebar() {
                 {/* Articles (Tab 14) */}
                 {hasAccess(14) && (
                     <Link href="/admind/articles" className={`menu-item ${isActive("/admind/articles") ? "active" : ""}`}>
-                        <FaRegCalendarAlt className="icon" />
+                        <FaNewspaper className="icon" />
                         <span>Articles</span>
                     </Link>
                 )}
@@ -308,7 +315,7 @@ export default function Sidebar() {
                 {/* Manage Insurance Companies (Tab 21) */}
                 {hasAccess(21) && (
                     <Link href="/admind/manageinsurancecompanies" className={`menu-item ${isActive("/admind/manageinsurancecompanies") ? "active" : ""}`}>
-                        <FaAd className="icon" />
+                        <FaShieldAlt className="icon" />
                         <span>Manage Insurance Companies</span>
                     </Link>
                 )}
@@ -316,7 +323,7 @@ export default function Sidebar() {
                 {/* Manage Helpline (Tab 22) */}
                 {hasAccess(22) && (
                     <Link href="/admind/managehelpline" className={`menu-item ${isActive("/admind/managehelpline") ? "active" : ""}`}>
-                        <FaAd className="icon" />
+                        <FaPhone className="icon" />
                         <span>Manage Helpline</span>
                     </Link>
                 )}
@@ -329,7 +336,7 @@ export default function Sidebar() {
                     </Link>
                 )}
 
-                {/* No Show Management (Merged with Cancellation Tab 8) */}
+                {/* No Show Management */}
                 {hasAccess(8) && (
                     <Link href="/admind/noshow" className={`menu-item ${isActive("/admind/noshow") ? "active" : ""}`}>
                         <FaUserTimes className="icon" />
@@ -400,10 +407,8 @@ export default function Sidebar() {
                         </div>
                         {openMenu === "/admind/manage-withdraw" && (
                             <div className="submenu fade-in">
-                                <Link href="/admind/withdraw-request/vendorwithdraw" className={`submenu-link ${isActive("/admind/withdraw-request/vendorwithdraw") ? "sub-active" : ""}`}> Withdraw Request</Link>
-                                <Link href="/admind/withdraw-request/hospitalwithdraw" className={`submenu-link ${isActive("/admind/withdraw-request/hospitalwithdraw") ? "sub-active" : ""}`}> Withdraw History</Link>
-
-                                <Link href="/admind/withdraw-request/withdrawlimit" className={`submenu-link ${isActive("/admind/withdraw-request/withdrawlimit") ? "sub-active" : ""}`}>Withdraw Limit</Link>
+                                <Link href="/admind/WithdrawalAndPayout" className={`submenu-link ${isActive("/admind/WithdrawalAndPayout") ? "sub-active" : ""}`}>Withdraw Request</Link>
+                               
                             </div>
                         )}
                     </>
@@ -430,16 +435,16 @@ export default function Sidebar() {
                         <FaBan className="icon" />
                         <span>Manage Banks</span>
                     </Link>
-
                 )}
+
                 {hasAccess(54) && (
                     <Link href="/admind/locationfilter" className={`menu-item ${isActive("/admind/locationfilter") ? "active" : ""}`}>
                         <FaBan className="icon" />
-                        <span>Location Filter </span>
+                        <span>Location Filter</span>
                     </Link>
                 )}
 
-                {/* Settings (Tab 25) */}
+                {/* Settings & System Governance (Tab 25) */}
                 {hasAccess(25) && (
                     <>
                         <div className={`menu-item dropdown ${isParentActive("/admind/settings") ? "active" : ""}`} onClick={() => toggleMenu("settings")}>
@@ -449,13 +454,17 @@ export default function Sidebar() {
                         </div>
                         {openMenu === "settings" && (
                             <div className="submenu fade-in">
-                                <Link href="/admind/settings/managecommission" className={`submenu-link ${isActive("/admind/settings/managecommission") ? "sub-active" : ""}`}>Manage Commission</Link>
-                                <Link href="/admind/settings/commissiondetails" className={`submenu-link ${isActive("/admind/settings/commissiondetails") ? "sub-active" : ""}`}>Commission Details</Link>
+                                <Link href="/admind/settings/managecommission" className={`submenu-link ${isActive("/admind/settings/managecommission") ? "sub-active" : ""}`}>
+                                    <FaPercentage className="sub-icon mr-1" /> Manage Commission & Cutoffs
+                                </Link>
+                                <Link href="/admind/OtpLimits" className={`submenu-link ${isActive("/admind/OtpLimits") ? "sub-active" : ""}`}>
+                                    <FaKey className="sub-icon mr-1" /> OTP Limits & Spam Defense
+                                </Link>
                                 <Link href="/admind/settings/socialmedia" className={`submenu-link ${isActive("/admind/settings/socialmedia") ? "sub-active" : ""}`}>Social Media</Link>
                                 <Link href="/admind/settings/maintenancemode" className={`submenu-link ${isActive("/admind/settings/maintenancemode") ? "sub-active" : ""}`}>Maintenance Mode</Link>
                                 <Link href="/admind/settings/projectdetails" className={`submenu-link ${isActive("/admind/settings/projectdetails") ? "sub-active" : ""}`}>Manage Project Details</Link>
                                 <Link href="/admind/settings/paymentmethod" className={`submenu-link ${isActive("/admind/settings/paymentmethod") ? "sub-active" : ""}`}>Manage Payment Method</Link>
-                                 <Link href="/admind/settings/returnreplacement" className={`submenu-link ${isActive("/admind/settings/returnreplacement") ? "sub-active" : ""}`}>Manage Return & Replacement</Link>
+                                <Link href="/admind/settings/returnreplacement" className={`submenu-link ${isActive("/admind/settings/returnreplacement") ? "sub-active" : ""}`}>Manage Return & Replacement</Link>
                             </div>
                         )}
                     </>
@@ -468,27 +477,34 @@ export default function Sidebar() {
                         <span>Notifications</span>
                     </Link>
                 )}
-                { }
+                
+                {/* Ambulance Breakdowns & Live Fleet Control */}
+                {hasAccess(3) && (
+                    <Link href="/admind/ambulance-breakdowns" className={`menu-item ${isActive("/admind/ambulance-breakdowns") ? "active" : ""}`}>
+                        <FaAmbulance className="icon" />
+                        <span>Ambulance Breakdowns</span>
+                    </Link>
+                )}
 
                 {hasAccess(29) && (
                     <Link href="/admind/managelabreport" className={`menu-item ${isActive("/admind/managelabreport") ? "active" : ""}`}>
-                        <FaBan className="icon" />
-                        <span>Manage Lab Report </span>
+                        <FaFlask className="icon" />
+                        <span>Manage Lab Report</span>
                     </Link>
                 )}
+
                 {hasAccess(2) && (
                     <Link href="/admind/update-request-profile" className={`menu-item ${isActive("/admind/update-request-profile") ? "active" : ""}`}>
-                        <FaBan className="icon" />
+                        <FaUser className="icon" />
                         <span>Update Profile Request</span>
                     </Link>
-
                 )}
+
                 {hasAccess(2) && (
                     <Link href="/admind/cashondelivery" className={`menu-item ${isActive("/admind/cashondelivery") ? "active" : ""}`}>
-                        <FaBan className="icon" />
+                        <FaMoneyBill className="icon" />
                         <span>Cash On Delivery</span>
                     </Link>
-
                 )}
 
             </div>

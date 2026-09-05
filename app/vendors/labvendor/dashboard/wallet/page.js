@@ -1,5 +1,6 @@
-'use client'
-import React, { useState, useEffect, useCallback } from 'react'
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import LabVendorAPI from '@/app/services/LabVendorAPI'; // Adjust path based on your structure
 import { 
   FaWallet, 
@@ -7,11 +8,14 @@ import {
   FaRupeeSign, 
   FaUniversity, 
   FaPlus, 
-  FaArrowDown,
-  FaArrowUp,
-  FaClock,
-  FaTimes
-} from 'react-icons/fa'
+  FaArrowDown, 
+  FaArrowUp, 
+  FaClock, 
+  FaTimes,
+  FaCheckCircle,
+  FaExclamationCircle,
+  FaSpinner
+} from 'react-icons/fa';
 
 export default function WalletAndEarningsPage() {
   
@@ -22,6 +26,9 @@ export default function WalletAndEarningsPage() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [selectedBank, setSelectedBank] = useState('');
   const [loading, setLoading] = useState(false);
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
+  const [bankLoading, setBankLoading] = useState(false);
+
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   
@@ -32,6 +39,7 @@ export default function WalletAndEarningsPage() {
 
   // Modal State for Adding/Updating Bank
   const [isAddBankModalOpen, setIsAddBankModalOpen] = useState(false);
+  const [modalError, setModalError] = useState('');
 
   // Load Wallet Statistics and Ledger Logs
   const loadWalletData = useCallback(async () => {
@@ -41,22 +49,24 @@ export default function WalletAndEarningsPage() {
       // 1. Fetch Balances and Mapped Settlement Account
       const statsRes = await LabVendorAPI.getWalletStats();
       if (statsRes?.success) {
-        setStats(statsRes);
+        setStats(statsRes.data || statsRes);
         
         // Map the verified settlement account returned by API
-        if (statsRes.bankDetails) {
+        const bankData = statsRes.bankDetails || statsRes.data?.bankDetails;
+        if (bankData) {
           const mainBank = {
             id: 'verified-primary',
-            holder: statsRes.bankDetails.accountHolderName,
-            accNo: statsRes.bankDetails.accountNumber,
-            bankName: statsRes.bankDetails.bankName,
-            ifsc: statsRes.bankDetails.ifscCode,
-            isVerified: statsRes.bankDetails.isVerified
+            holder: bankData.accountHolderName,
+            accNo: bankData.accountNumber,
+            bankName: bankData.bankName,
+            ifsc: bankData.ifscCode,
+            isVerified: bankData.isVerified
           };
           setBankAccounts([mainBank]);
           setSelectedBank('verified-primary');
         } else {
           setBankAccounts([]);
+          setSelectedBank('');
         }
       } else {
         setErrorMsg(statsRes?.message || "Failed to load wallet metrics.");
@@ -65,13 +75,13 @@ export default function WalletAndEarningsPage() {
       // 2. Fetch Transaction History Ledger
       const txRes = await LabVendorAPI.getWalletTransactions().catch(() => null);
       if (txRes?.success) {
-        setTransactions(txRes.transactions || []);
+        setTransactions(txRes.transactions || txRes.data || []);
       } else {
-        setTransactions([]); // REMOVED STATIC MOCK ENTRIES FALLBACK
+        setTransactions([]);
       }
 
     } catch (err) {
-      setErrorMsg("An unexpected connection error occurred.");
+      setErrorMsg(err?.response?.data?.message || "An unexpected connection error occurred.");
     } finally {
       setLoading(false);
     }
@@ -92,81 +102,84 @@ export default function WalletAndEarningsPage() {
     setErrorMsg('');
     setSuccessMsg('');
 
-    const parsedAmount = parseFloat(withdrawAmount);
+    const parsedAmount = Number(withdrawAmount);
 
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       setErrorMsg("Please enter a valid positive withdrawal amount.");
       return;
     }
 
-    if (!selectedBank) {
-      setErrorMsg("Please map a verified bank destination.");
+    if (!selectedBank && bankAccounts.length === 0) {
+      setErrorMsg("Please map a verified bank destination before withdrawing.");
       return;
     }
 
-    // Spec [1.2.2] Limit Validation: Check requestedAmount <= withdrawableBalance
-    if (stats && parsedAmount > stats.withdrawableBalance) {
-      setErrorMsg("You cannot withdraw more than your available cleared balance.");
+    // Limit Validation: Check requestedAmount <= withdrawableBalance
+    const availableBalance = stats?.withdrawableBalance ?? 0;
+    if (parsedAmount > availableBalance) {
+      setErrorMsg(`Insufficient balance. Your available withdrawable balance is ₹${availableBalance.toLocaleString('en-IN')}.`);
       return;
     }
 
     try {
-      setLoading(true);
+      setWithdrawLoading(true);
+
+      // POST /provider/wallet/withdraw { amount: parsedAmount }
       const res = await LabVendorAPI.requestWithdrawal(parsedAmount);
+
       if (res?.success) {
-        setSuccessMsg(res.message || "Withdrawal request submitted successfully. Waiting for admin manual payout approval.");
+        setSuccessMsg(res.message || "Withdrawal request submitted successfully. Waiting for Admin manual payout approval.");
         setWithdrawAmount('');
-        await loadWalletData(); // Reload stats
+        await loadWalletData(); // Reload stats to refresh withdrawable balance
       } else {
         setErrorMsg(res?.message || "Failed to submit withdrawal request.");
       }
     } catch (err) {
-      setErrorMsg("An error occurred during submission.");
+      setErrorMsg(
+        err?.response?.data?.message || 
+        err?.message || 
+        "An error occurred during submission."
+      );
     } finally {
-      setLoading(false);
+      setWithdrawLoading(false);
     }
   };
 
   const handleAddBank = async (e) => {
     e.preventDefault();
+    setModalError('');
     setErrorMsg('');
     setSuccessMsg('');
 
-    const form = e.target;
-    const holder = form.elements[0].value;
-    const accNo = form.elements[1].value;
-    const bankName = form.elements[2].value;
-    const ifsc = form.elements[3].value;
-
+    const formData = new FormData(e.currentTarget);
     const bankPayload = {
       accountType: 'Savings',
-      bankName,
-      accountHolderName: holder,
-      accountNumber: accNo,
-      ifscCode: ifsc,
+      bankName: formData.get('bankName'),
+      accountHolderName: formData.get('accountHolderName'),
+      accountNumber: formData.get('accountNumber'),
+      ifscCode: formData.get('ifscCode')?.toUpperCase(),
       upiId: ''
     };
 
     try {
-      setLoading(true);
-      // Calls direct, live API to patch the settlement changes on the DB
+      setBankLoading(true);
       const res = await LabVendorAPI.updateBankDetails(bankPayload);
       if (res?.success) {
         setSuccessMsg(res.message || "Settlement bank details assigned successfully!");
         setIsAddBankModalOpen(false);
         await loadWalletData(); // Sync live states
       } else {
-        setErrorMsg(res?.message || "Failed to assign bank account.");
+        setModalError(res?.message || "Failed to assign bank account.");
       }
     } catch (err) {
-      setErrorMsg("Connection error while updating bank details.");
+      setModalError(err?.response?.data?.message || "Connection error while updating bank details.");
     } finally {
-      setLoading(false);
+      setBankLoading(false);
     }
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-8 pb-10">
+    <div className="w-full max-w-7xl mx-auto space-y-8 pb-10 min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
       
       {/* ========================================= */}
       {/* 1. MY WALLET BALANCE GRID                 */}
@@ -178,7 +191,7 @@ export default function WalletAndEarningsPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
-          {/* Card 1: Withdrawable Balance (Primary Action Card) [1.2.2] */}
+          {/* Card 1: Withdrawable Balance (Primary Action Card) */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col justify-between">
             <div className="p-6">
               <div className="flex justify-between items-center mb-2">
@@ -199,28 +212,54 @@ export default function WalletAndEarningsPage() {
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">₹</span>
                     <input 
                       type="number" 
+                      min="1"
+                      step="any"
                       value={withdrawAmount}
-                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      onChange={(e) => {
+                        setWithdrawAmount(e.target.value);
+                        if (errorMsg) setErrorMsg('');
+                        if (successMsg) setSuccessMsg('');
+                      }}
                       placeholder="Amount" 
-                      className="w-full pl-7 pr-3 py-1.5 bg-white rounded-lg border border-slate-200 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20 focus:border-[#08B36A] transition-all"
+                      disabled={withdrawLoading}
+                      className="w-full pl-7 pr-3 py-2 bg-white rounded-lg border border-slate-200 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#08B36A]/20 focus:border-[#08B36A] transition-all disabled:bg-slate-100"
                       required
                     />
                   </div>
                   <button 
                     type="submit"
-                    disabled={loading}
-                    className="px-4 py-1.5 bg-[#08B36A] hover:bg-green-600 text-white font-bold rounded-lg text-xs transition-all disabled:opacity-50"
+                    disabled={withdrawLoading || loading}
+                    className="px-4 py-2 bg-[#08B36A] hover:bg-green-600 active:scale-95 text-white font-bold rounded-lg text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                   >
-                    Withdraw
+                    {withdrawLoading ? (
+                      <>
+                        <FaSpinner className="animate-spin text-xs" />
+                        <span>Sending...</span>
+                      </>
+                    ) : (
+                      'Withdraw'
+                    )}
                   </button>
                 </div>
-                {errorMsg && <p className="text-[10px] text-red-600 font-bold">{errorMsg}</p>}
-                {successMsg && <p className="text-[10px] text-emerald-600 font-bold">{successMsg}</p>}
+
+                {/* Status Messages */}
+                {errorMsg && (
+                  <div className="flex items-start gap-1.5 p-2 rounded-md bg-red-50 text-red-700 text-[11px] font-semibold border border-red-100">
+                    <FaExclamationCircle className="mt-0.5 shrink-0" />
+                    <span>{errorMsg}</span>
+                  </div>
+                )}
+                {successMsg && (
+                  <div className="flex items-start gap-1.5 p-2 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-semibold border border-emerald-100">
+                    <FaCheckCircle className="mt-0.5 shrink-0" />
+                    <span>{successMsg}</span>
+                  </div>
+                )}
               </form>
             </div>
           </div>
 
-          {/* Card 2: Pending Balance (Locked 7-day period window with clock icon) [1.2.2] */}
+          {/* Card 2: Pending Balance */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
             <div>
               <div className="flex justify-between items-center mb-2">
@@ -268,7 +307,10 @@ export default function WalletAndEarningsPage() {
           <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
             <h3 className="font-bold text-slate-900 text-sm">Settlement Account</h3>
             <button 
-              onClick={() => setIsAddBankModalOpen(true)}
+              onClick={() => {
+                setModalError('');
+                setIsAddBankModalOpen(true);
+              }}
               className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1"
             >
               Update
@@ -316,9 +358,8 @@ export default function WalletAndEarningsPage() {
                 <div key={trx._id || idx} className="py-2.5 flex justify-between items-center text-xs font-semibold">
                   <div className="space-y-1">
                     <p className="text-slate-800 font-bold">{trx.remark || "Settlement Transaction"}</p>
-                    <p className="text-[10px] text-slate-400">{new Date(trx.date).toLocaleDateString('en-IN')}</p>
+                    <p className="text-[10px] text-slate-400">{new Date(trx.date || trx.createdAt).toLocaleDateString('en-IN')}</p>
                   </div>
-                  {/* Spec [1.2.2] Color and positive/negative indicators mapping */}
                   <span className={`text-sm font-extrabold ${trx.type === 'Credit' ? 'text-emerald-600' : 'text-red-600'}`}>
                     {trx.type === 'Credit' ? `+ ₹${trx.amount}` : `- ₹${trx.amount}`}
                   </span>
@@ -349,28 +390,70 @@ export default function WalletAndEarningsPage() {
               </button>
             </div>
 
+            {modalError && (
+              <div className="mb-4 flex items-start gap-1.5 p-2.5 rounded-lg bg-red-50 text-red-700 text-xs font-semibold border border-red-100">
+                <FaExclamationCircle className="mt-0.5 shrink-0" />
+                <span>{modalError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleAddBank} className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Account Holder Name</label>
-                <input type="text" placeholder="John Doe" className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" required />
+                <input 
+                  type="text" 
+                  name="accountHolderName"
+                  placeholder="John Doe" 
+                  className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all text-xs" 
+                  required 
+                />
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Account Number</label>
-                <input type="text" placeholder="XXXXXXXXX1234" className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" required />
+                <input 
+                  type="text" 
+                  name="accountNumber"
+                  placeholder="XXXXXXXXX1234" 
+                  className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all text-xs font-mono" 
+                  required 
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Bank Name</label>
-                  <input type="text" placeholder="HDFC Bank" className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all" required />
+                  <input 
+                    type="text" 
+                    name="bankName"
+                    placeholder="HDFC Bank" 
+                    className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] transition-all text-xs" 
+                    required 
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">IFSC Code</label>
-                  <input type="text" placeholder="HDFC0001234" className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] uppercase transition-all" required />
+                  <input 
+                    type="text" 
+                    name="ifscCode"
+                    placeholder="HDFC0001234" 
+                    className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] uppercase transition-all text-xs font-mono" 
+                    required 
+                  />
                 </div>
               </div>
 
-              <button type="submit" className="w-full mt-4 py-3 bg-[#08B36A] hover:bg-green-600 text-white font-bold rounded-xl shadow-md transition-all">
-                Save Bank Details
+              <button 
+                type="submit" 
+                disabled={bankLoading}
+                className="w-full mt-4 py-3 bg-[#08B36A] hover:bg-green-600 active:scale-95 text-white font-bold rounded-xl shadow-md transition-all flex justify-center items-center gap-2 disabled:opacity-50"
+              >
+                {bankLoading ? (
+                  <>
+                    <FaSpinner className="animate-spin text-sm" />
+                    <span>Saving Details...</span>
+                  </>
+                ) : (
+                  'Save Bank Details'
+                )}
               </button>
             </form>
           </div>
@@ -378,5 +461,5 @@ export default function WalletAndEarningsPage() {
       )}
 
     </div>
-  )
+  );
 }

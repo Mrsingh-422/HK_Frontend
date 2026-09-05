@@ -63,11 +63,11 @@ const AdminAPI = {
         return response.data;
     },
 
-    //Hospital APIS in Admin
-    getAllHospitals: async () => {
-        const response = await api.get("/api/admin/approval/hospitals");
-        return response.data;
-    },
+   // Get Hospitals Approval List (GET /api/admin/approval/hospitals)
+getHospitalApprovals: (params = {}) => {
+    return api.get('/api/admin/approval/hospitals', { params });
+},
+
     approveHospital: async (hospitalId) => {
         const response = await api.patch(`/api/admin/approval/hospitals/approve/${hospitalId}`);
         return response.data;
@@ -843,8 +843,14 @@ const AdminAPI = {
         });
         return response.data;
     },
-
-
+// Get User Order History (GET /admin/users/details/:id/orders)
+adminGetUserOrders: (userId, params = {}) => {
+    return api.get(`/admin/users/details/${userId}/orders`, { params });
+},
+// Get Specialized Order / Booking Details (GET /admin/users/orders/details/:type/:id)
+adminGetOrderDetails: (type, id) => {
+    return api.get(`/admin/users/orders/details/${type}/${id}`);
+},
 
 };
 

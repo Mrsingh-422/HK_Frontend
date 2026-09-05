@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
     FaArrowLeft, FaSearch, FaAmbulance, FaStar,
     FaChevronDown, FaFilter, FaMapMarkerAlt, FaLocationArrow,
-    FaClock, FaShieldAlt
+    FaClock, FaShieldAlt, FaTimes, FaUserCircle, FaChevronLeft, FaChevronRight
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
@@ -24,6 +24,14 @@ export default function AllAmbulancesPage() {
     const [ambulances, setAmbulances] = useState([]);
     const [categories, setCategories] = useState(["All"]);
     const [loading, setLoading] = useState(true);
+
+    // --- Reviews Modal States ---
+    const [selectedAmbulanceForReviews, setSelectedAmbulanceForReviews] = useState(null);
+    const [reviewsList, setReviewsList] = useState([]);
+    const [reviewsLoading, setReviewsLoading] = useState(false);
+    const [reviewsPage, setReviewsPage] = useState(1);
+    const [reviewsTotalPages, setReviewsTotalPages] = useState(1);
+    const [totalReviewsCount, setTotalReviewsCount] = useState(0);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -50,17 +58,48 @@ export default function AllAmbulancesPage() {
                     }));
                     setAmbulances(dataWithImages);
                 }
-                console.log(ambRes.data)
             } catch (error) {
                 console.error("Error fetching ambulance data:", error);
             } finally {
-                // Small timeout to prevent flicker on fast connections
                 setTimeout(() => setLoading(false), 500);
             }
         };
 
         fetchData();
     }, []);
+
+    // --- Fetch Paginated Reviews ---
+    const fetchReviews = async (ambulanceId, page = 1) => {
+        try {
+            setReviewsLoading(true);
+            if (UserAPI.getAmbulanceReviews) {
+                const res = await UserAPI.getAmbulanceReviews(ambulanceId, page, 10);
+                if (res.success) {
+                    setReviewsList(res.data || []);
+                    setReviewsPage(res.currentPage || page);
+                    setReviewsTotalPages(res.totalPages || 1);
+                    setTotalReviewsCount(res.totalReviews || 0);
+                }
+            }
+        } catch (err) {
+            console.error("Error fetching reviews:", err);
+        } finally {
+            setReviewsLoading(false);
+        }
+    };
+
+    const handleOpenReviews = (e, amb) => {
+        e.stopPropagation();
+        setSelectedAmbulanceForReviews(amb);
+        setReviewsPage(1);
+        fetchReviews(amb._id, 1);
+    };
+
+    const handleReviewsPageChange = (newPage) => {
+        if (!selectedAmbulanceForReviews) return;
+        setReviewsPage(newPage);
+        fetchReviews(selectedAmbulanceForReviews._id, newPage);
+    };
 
     const filteredAmbulances = useMemo(() => {
         let result = [...ambulances].filter((amb) => {
@@ -74,9 +113,9 @@ export default function AllAmbulancesPage() {
         });
 
         if (sortBy === "price-low") {
-            result.sort((a, b) => a.pricing.fixedPrice - b.pricing.fixedPrice);
+            result.sort((a, b) => (a.pricing?.fixedPrice || 0) - (b.pricing?.fixedPrice || 0));
         } else if (sortBy === "distance") {
-            result.sort((a, b) => a.rawDistance - b.rawDistance);
+            result.sort((a, b) => (a.rawDistance || 0) - (b.rawDistance || 0));
         }
 
         return result;
@@ -180,7 +219,7 @@ export default function AllAmbulancesPage() {
                     {filteredAmbulances.map((amb) => (
                         <div
                             key={amb._id}
-                            className="bg-white rounded-[2rem] p-4 shadow-sm border border-slate-100 flex flex-col group hover:shadow-2xl hover:shadow-slate-200 transition-all duration-500 hover:-translate-y-1 cursor-pointer"
+                            className="bg-white rounded-[2rem] p-4 shadow-sm border border-slate-100 flex flex-col group hover:shadow-2xl hover:shadow-slate-200 transition-all duration-500 hover:-translate-y-1"
                         >
                             <div className="h-44 md:h-52 w-full relative overflow-hidden rounded-[1.5rem] bg-slate-50 mb-4">
                                 <img
@@ -193,10 +232,16 @@ export default function AllAmbulancesPage() {
                                         {amb.vehicleType}
                                     </span>
                                 </div>
-                                <div className="absolute bottom-3 right-3 bg-[#08B36A] text-white px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-lg shadow-emerald-900/20">
+                                
+                                {/* Clickable Star Rating for Reviews */}
+                                <button
+                                    onClick={(e) => handleOpenReviews(e, amb)}
+                                    title="View Patient Reviews"
+                                    className="absolute bottom-3 right-3 bg-[#08B36A] hover:bg-[#069656] text-white px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-lg shadow-emerald-900/20 transition-transform active:scale-90"
+                                >
                                     <FaStar className="text-yellow-300 text-[10px]" />
-                                    <span className="text-[10px] font-black">{amb.rating || 0}</span>
-                                </div>
+                                    <span className="text-[10px] font-black">{amb.rating || 5.0}</span>
+                                </button>
                             </div>
 
                             <div className="flex-1 px-1">
@@ -208,7 +253,7 @@ export default function AllAmbulancesPage() {
                                         <div className="flex items-center gap-1.5 text-slate-400 mt-1">
                                             <FaMapMarkerAlt className="text-[10px]" />
                                             <span className="text-[11px] font-bold truncate">
-                                                {amb.driverInfo?.fullName || "Verified Driver"} • {amb.vehicleNumber || "TN-01-XXXX"}
+                                                {amb.driverInfo?.fullName || "Verified Driver"} • {amb.vehicleNumber || "PB65AB1234"}
                                             </span>
                                         </div>
                                     </div>
@@ -226,7 +271,7 @@ export default function AllAmbulancesPage() {
                             <div className="mt-6 flex items-center justify-between pt-4 border-t border-slate-50">
                                 <div>
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Fixed Fare</p>
-                                    <p className="text-2xl font-black text-slate-900 leading-none mt-1">₹{amb.pricing.fixedPrice}</p>
+                                    <p className="text-2xl font-black text-slate-900 leading-none mt-1">₹{amb.pricing?.fixedPrice || 0}</p>
                                 </div>
                                 <button
                                     onClick={() => router.push(`/ambulance/medicalambuancebooking/${amb._id}`)}
@@ -256,6 +301,112 @@ export default function AllAmbulancesPage() {
                     </div>
                 )}
             </div>
+
+            {/* --- PATIENT REVIEWS & RATINGS MODAL --- */}
+            {selectedAmbulanceForReviews && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-white rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-2xl border border-slate-100 space-y-6 max-h-[85vh] flex flex-col">
+                        
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                                    {selectedAmbulanceForReviews.name}
+                                </h3>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="flex items-center gap-1 text-xs font-black text-yellow-500 bg-yellow-50 px-2 py-0.5 rounded-md">
+                                        <FaStar /> {selectedAmbulanceForReviews.rating || 5.0}
+                                    </span>
+                                    <span className="text-xs font-bold text-slate-400">
+                                        ({totalReviewsCount} Verified Reviews)
+                                    </span>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setSelectedAmbulanceForReviews(null)}
+                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                            >
+                                <FaTimes size={16} />
+                            </button>
+                        </div>
+
+                        {/* Reviews Content List */}
+                        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                            {reviewsLoading ? (
+                                <div className="py-12 text-center">
+                                    <div className="w-8 h-8 border-3 border-[#08B36A] border-t-transparent rounded-full animate-spin mx-auto"></div>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-3">Loading feedback...</p>
+                                </div>
+                            ) : reviewsList.length === 0 ? (
+                                <div className="py-12 text-center text-slate-400">
+                                    <p className="text-sm font-bold">No reviews recorded yet.</p>
+                                    <p className="text-xs mt-1">Be the first patient to rate this dispatch unit!</p>
+                                </div>
+                            ) : (
+                                reviewsList.map((rev) => (
+                                    <div key={rev._id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <FaUserCircle className="text-slate-400 text-base" />
+                                                <span className="text-xs font-black text-slate-800">{rev.userName || "Verified Patient"}</span>
+                                            </div>
+                                            <div className="flex items-center gap-0.5 text-yellow-400 text-xs">
+                                                {[...Array(rev.rating || 5)].map((_, i) => (
+                                                    <FaStar key={i} />
+                                                ))}
+                                            </div>
+                                        </div>
+                                        {rev.comment && (
+                                            <p className="text-xs text-slate-600 font-medium leading-relaxed italic">
+                                                "{rev.comment}"
+                                            </p>
+                                        )}
+                                        {rev.createdAt && (
+                                            <p className="text-[9px] font-bold text-slate-400">
+                                                {new Date(rev.createdAt).toLocaleDateString()}
+                                            </p>
+                                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        {/* Pagination for Reviews */}
+                        {reviewsTotalPages > 1 && (
+                            <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                                <span className="text-[10px] font-bold text-slate-400">
+                                    Page {reviewsPage} of {reviewsTotalPages}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        disabled={reviewsPage === 1 || reviewsLoading}
+                                        onClick={() => handleReviewsPageChange(reviewsPage - 1)}
+                                        className="p-1.5 rounded-lg border border-slate-200 disabled:opacity-30 hover:bg-slate-50"
+                                    >
+                                        <FaChevronLeft size={10} />
+                                    </button>
+                                    <button
+                                        disabled={reviewsPage === reviewsTotalPages || reviewsLoading}
+                                        onClick={() => handleReviewsPageChange(reviewsPage + 1)}
+                                        className="p-1.5 rounded-lg border border-slate-200 disabled:opacity-30 hover:bg-slate-50"
+                                    >
+                                        <FaChevronRight size={10} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Modal Close Button */}
+                        <button
+                            onClick={() => setSelectedAmbulanceForReviews(null)}
+                            className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-black uppercase tracking-wider"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }

@@ -49,8 +49,8 @@ const DoctorTopBar = ({ onMobileMenuClick, onToggleCollapse, isCollapsed }) => {
 
     const handleLogout = () => {
         localStorage.removeItem('doctorToken');
-        localStorage.removeItem('doctorProvider');
-        localStorage.removeItem('token');
+        // localStorage.removeItem('doctorProvider');
+        // localStorage.removeItem('token');
         setIsDropdownOpen(false);
         router.push('/');
     };

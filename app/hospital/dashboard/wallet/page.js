@@ -3,7 +3,6 @@
 import HospitalAPI from '@/app/services/HospitalAPI';
 import React, { useState, useEffect } from 'react';
 
-
 export default function HospitalWalletPage() {
   const [walletData, setWalletData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -30,13 +29,13 @@ export default function HospitalWalletPage() {
     setError(null);
     try {
       const res = await HospitalAPI.getWalletStats();
-      if (res && res.success) {
-        setWalletData(res);
+      if (res?.success) {
+        setWalletData(res.data || res);
       } else {
         setError(res?.message || "Failed to load wallet data.");
       }
     } catch (err) {
-      setError("An unexpected error occurred while fetching wallet details.");
+      setError(err?.response?.data?.message || "An unexpected error occurred while fetching wallet details.");
     } finally {
       setLoading(false);
     }
@@ -52,37 +51,50 @@ export default function HospitalWalletPage() {
     e.preventDefault();
     setActionMessage({ type: '', text: '' });
 
-    const amountNum = parseFloat(withdrawAmount);
-    const withdrawable = walletData?.withdrawableBalance || 0;
+    const amountNum = Number(withdrawAmount);
+    const withdrawable = walletData?.withdrawableBalance ?? 0;
 
-    // Client-side validation check
+    // Client-side validations
     if (isNaN(amountNum) || amountNum <= 0) {
-      setActionMessage({ type: 'error', text: 'Please enter a valid positive amount.' });
+      setActionMessage({ type: 'error', text: 'Please enter a valid positive withdrawal amount.' });
+      return;
+    }
+
+    if (!walletData?.bankDetails?.accountNumber) {
+      setActionMessage({ type: 'error', text: 'No verified bank settlement account found. Please map an account first.' });
       return;
     }
 
     if (amountNum > withdrawable) {
       setActionMessage({
         type: 'error',
-        text: `The requested amount exceeds your withdrawable balance. You can withdraw up to ₹${withdrawable.toLocaleString()}.`
+        text: `The requested amount exceeds your available balance. You can withdraw up to ₹${withdrawable.toLocaleString('en-IN')}.`
       });
       return;
     }
 
     setSubmitLoading(true);
     try {
-      const response = await HospitalAPI.requestWithdraw(amountNum);
-      if (response && response.success) {
+      // POST /hospital/wallet/withdraw with { amount: amountNum }
+      const requestFn = HospitalAPI.requestWithdrawal || HospitalAPI.requestWithdraw;
+      if (typeof requestFn !== 'function') {
+        setActionMessage({ type: 'error', text: "Withdrawal API method is missing in HospitalAPI.js." });
+        return;
+      }
+
+      const response = await requestFn(amountNum);
+      if (response?.success) {
+        const successText = response.message || "Withdrawal request submitted successfully. Waiting for Admin manual payout approval.";
         setActionMessage({
           type: 'success',
-          text: response.message || 'Withdrawal request submitted successfully.'
+          text: successText
         });
         
-        // Refresh wallet details and close modal after a brief delay
-        setTimeout(() => {
-          fetchWalletDetails();
+        // Refresh wallet data and close modal after slight delay
+        setTimeout(async () => {
+          await fetchWalletDetails();
           setShowWithdrawModal(false);
-        }, 2000);
+        }, 1800);
       } else {
         setActionMessage({
           type: 'error',
@@ -92,7 +104,7 @@ export default function HospitalWalletPage() {
     } catch (err) {
       setActionMessage({
         type: 'error',
-        text: 'A network error occurred while submitting your withdrawal.'
+        text: err?.response?.data?.message || err?.message || 'A network error occurred while submitting your withdrawal.'
       });
     } finally {
       setSubmitLoading(false);
@@ -161,7 +173,7 @@ export default function HospitalWalletPage() {
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
           <div>
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Balance</span>
-            <h2 className="text-3xl font-bold text-gray-800 mt-2">₹{totalBalance.toLocaleString()}</h2>
+            <h2 className="text-3xl font-bold text-gray-800 mt-2">₹{totalBalance.toLocaleString('en-IN')}</h2>
           </div>
           <p className="text-xs text-gray-400 mt-4">Cleared + Uncleared locked earnings</p>
         </div>
@@ -171,12 +183,12 @@ export default function HospitalWalletPage() {
           <div className="absolute top-0 right-0 h-1 w-full bg-blue-500"></div>
           <div>
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Withdrawable Balance</span>
-            <h2 className="text-3xl font-bold text-gray-800 mt-2">₹{withdrawableBalance.toLocaleString()}</h2>
+            <h2 className="text-3xl font-bold text-gray-800 mt-2">₹{withdrawableBalance.toLocaleString('en-IN')}</h2>
           </div>
           <div className="mt-6">
             <button
               onClick={handleOpenWithdrawModal}
-              className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors text-xs flex justify-center items-center"
+              className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-medium rounded-lg shadow-sm transition-all text-xs flex justify-center items-center"
             >
               Withdraw Funds
             </button>
@@ -208,7 +220,7 @@ export default function HospitalWalletPage() {
                 )}
               </div>
             </div>
-            <h2 className="text-3xl font-bold text-gray-800 mt-2">₹{pendingBalance.toLocaleString()}</h2>
+            <h2 className="text-3xl font-bold text-gray-800 mt-2">₹{pendingBalance.toLocaleString('en-IN')}</h2>
           </div>
           <p className="text-xs text-gray-400 mt-4">Locked under 7-day clearance period</p>
         </div>
@@ -244,7 +256,7 @@ export default function HospitalWalletPage() {
             </div>
             <div>
               <p className="text-xs text-gray-400">IFSC Code</p>
-              <p className="font-semibold text-gray-800 mt-0.5 font-mono">{bankDetails.ifscCode || "N/A"}</p>
+              <p className="font-semibold text-gray-800 mt-0.5 font-mono uppercase">{bankDetails.ifscCode || "N/A"}</p>
             </div>
           </div>
         </div>
@@ -255,11 +267,11 @@ export default function HospitalWalletPage() {
           <div className="space-y-3">
             <div className="flex justify-between items-center py-1">
               <span className="text-xs text-gray-500">Earnings Today</span>
-              <span className="text-sm font-semibold text-gray-800">₹{stats.today?.toLocaleString() || '0'}</span>
+              <span className="text-sm font-semibold text-gray-800">₹{(stats.today || stats.todayEarning || 0).toLocaleString('en-IN')}</span>
             </div>
             <div className="flex justify-between items-center py-1 border-t border-gray-50">
               <span className="text-xs text-gray-500">Earnings This Week</span>
-              <span className="text-sm font-semibold text-gray-800">₹{stats.weekly?.toLocaleString() || '0'}</span>
+              <span className="text-sm font-semibold text-gray-800">₹{(stats.weekly || stats.weeklyEarning || 0).toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>
@@ -285,7 +297,7 @@ export default function HospitalWalletPage() {
               </thead>
               <tbody className="divide-y divide-gray-100 text-gray-600">
                 {transactions.map((tx, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                  <tr key={tx._id || idx} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-full ${
                         tx.type === 'Credit' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
@@ -293,16 +305,16 @@ export default function HospitalWalletPage() {
                         {tx.type}
                       </span>
                     </td>
-                    <td className="px-6 py-4 font-medium text-gray-800">{tx.remark}</td>
+                    <td className="px-6 py-4 font-medium text-gray-800">{tx.remark || 'Settlement'}</td>
                     <td className="px-6 py-4">
-                      {new Date(tx.date).toLocaleDateString(undefined, { 
+                      {new Date(tx.date || tx.createdAt).toLocaleDateString('en-IN', { 
                         year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
                       })}
                     </td>
                     <td className={`px-6 py-4 text-right font-semibold ${
                       tx.type === 'Credit' ? 'text-green-600' : 'text-gray-800'
                     }`}>
-                      {tx.type === 'Credit' ? '+' : '-'} ₹{tx.amount.toLocaleString()}
+                      {tx.type === 'Credit' ? '+' : '-'} ₹{Number(tx.amount || 0).toLocaleString('en-IN')}
                     </td>
                   </tr>
                 ))}
@@ -314,10 +326,10 @@ export default function HospitalWalletPage() {
 
       {/* Next.js Friendly Payout Modal */}
       {showWithdrawModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
-          <div className="bg-white w-full max-w-sm rounded-xl shadow-lg border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             
-            <div className="flex justify-between items-center p-4 border-b border-gray-50">
+            <div className="flex justify-between items-center p-4 border-b border-gray-100">
               <h3 className="text-sm font-bold text-gray-800">Request Withdrawal</h3>
               <button 
                 onClick={() => setShowWithdrawModal(false)}
@@ -334,9 +346,9 @@ export default function HospitalWalletPage() {
                   Settlement Destination
                 </span>
                 <div className="bg-gray-50 border border-gray-100 p-2.5 rounded-lg text-xs text-gray-500 space-y-1">
-                  <p className="font-semibold text-gray-700">{bankDetails.bankName}</p>
-                  <p>A/C Holder: {bankDetails.accountHolderName}</p>
-                  <p>A/C Number: •••• {bankDetails.accountNumber?.slice(-4)}</p>
+                  <p className="font-semibold text-gray-700">{bankDetails.bankName || 'Mapped Bank'}</p>
+                  <p>A/C Holder: {bankDetails.accountHolderName || 'N/A'}</p>
+                  <p className="font-mono">A/C Number: •••• {bankDetails.accountNumber?.slice(-4) || 'N/A'}</p>
                 </div>
               </div>
 
@@ -346,22 +358,26 @@ export default function HospitalWalletPage() {
                     Amount (₹)
                   </label>
                   <span className="text-[10px] text-gray-400">
-                    Limit: ₹{withdrawableBalance.toLocaleString()}
+                    Limit: ₹{withdrawableBalance.toLocaleString('en-IN')}
                   </span>
                 </div>
                 <div className="relative mt-1">
-                  <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs">
+                  <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400 text-xs font-bold">
                     ₹
                   </span>
                   <input
                     type="number"
                     name="amount"
                     id="amount"
+                    min="1"
                     step="any"
                     value={withdrawAmount}
-                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    onChange={(e) => {
+                      setWithdrawAmount(e.target.value);
+                      if (actionMessage.text) setActionMessage({ type: '', text: '' });
+                    }}
                     placeholder="Enter withdrawal amount"
-                    className="block w-full pl-6 pr-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-xs"
+                    className="block w-full pl-6 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-semibold"
                     required
                   />
                 </div>
@@ -388,10 +404,17 @@ export default function HospitalWalletPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium shadow-sm transition disabled:opacity-50"
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg text-xs font-medium shadow-sm transition disabled:opacity-50 flex items-center gap-1.5"
                   disabled={submitLoading || !withdrawAmount}
                 >
-                  {submitLoading ? 'Processing...' : 'Submit Request'}
+                  {submitLoading ? (
+                    <>
+                      <span className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      <span>Processing...</span>
+                    </>
+                  ) : (
+                    'Submit Request'
+                  )}
                 </button>
               </div>
 

@@ -4,7 +4,7 @@ import {
   MapPin, ChevronDown, Camera, ShieldAlert, FileText,
   Calendar, Clock, User, CheckCircle2, Stethoscope,
   Activity, AlertCircle, Building2, ChevronLeft,
-  Upload, Info, Hospital, ArrowRightLeft, CreditCard, Plus, Ticket
+  Upload, Info, Hospital, ArrowRightLeft, CreditCard, Plus, Ticket, KeyRound
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import UserAPI from "@/app/services/UserAPI";
@@ -14,13 +14,15 @@ import CostoumPopup from '@/lib/CostoumPopup';
 
 export default function ReferralBookingPage() {
   const router = useRouter();
-  const { openModal } = useGlobalContext()
+  const { openModal } = useGlobalContext();
 
   // --- State Management ---
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [bookingSuccessData, setBookingSuccessData] = useState(null);
+  const [coords, setCoords] = useState({ lat: 30.6, lng: 76.7 });
 
   // Data Lists
   const [hospitals, setHospitals] = useState([]);
@@ -44,6 +46,7 @@ export default function ReferralBookingPage() {
     hospitalId: "", // Drop Hospital
     serviceType: "Referral Ambulance",
     triageLevel: "Urgent", // Default
+    paymentMethod: "COD",
     scheduledDate: "",
     appointmentTime: "",
     supportStaff: {
@@ -62,18 +65,18 @@ export default function ReferralBookingPage() {
     if (!token) {
       CostoumPopup("Please Login To Continue", "warning", 4000);
       router.push('/ambulance');
-      // openModal("login")
       return;
     }
     const fetchData = async () => {
       try {
         const storedCoordsString = localStorage.getItem('userCoords');
-        const coords = storedCoordsString ? JSON.parse(storedCoordsString) : { lat: 30.6, lng: 76.7 };
+        const userCoords = storedCoordsString ? JSON.parse(storedCoordsString) : { lat: 30.6, lng: 76.7 };
+        setCoords(userCoords);
 
         const [hospRes, familyRes, ambRes] = await Promise.all([
-          UserAPI.getHospitalsList(coords),
+          UserAPI.getHospitalsList(userCoords),
           UserAPI.getFamilyMembers(),
-          UserAPI.getNearestAmbulances(coords)
+          UserAPI.getNearestAmbulances(userCoords)
         ]);
 
         if (hospRes.success) setHospitals(hospRes.data);
@@ -201,7 +204,7 @@ export default function ReferralBookingPage() {
     }
   };
 
-  // --- Direct Submit Process (Without Razorpay Payments) ---
+  // --- Direct Submit Process ---
   const handleSubmit = async () => {
     if (!selectedAmbulance || !formData.hospitalId || !formData.pickupHospitalId) {
       alert("Please complete hospital and ambulance selections.");
@@ -212,56 +215,84 @@ export default function ReferralBookingPage() {
     try {
       // 1. Prepare Staff Type Selection
       const staffArr = [];
-      if (formData.supportStaff.nurse) staffArr.push("Nurse");
       if (formData.supportStaff.doctor) staffArr.push("Doctor");
-      const staffTypeVal = staffArr.length > 0 ? staffArr.join(", ") : "None";
+      if (formData.supportStaff.nurse) staffArr.push("Nurse");
+      const staffTypeVal = staffArr.length > 0 ? staffArr.join(",") : "";
 
-      // 2. CHECKOUT CALL (JSON) - Calculate Pricing
-      const checkoutPayload = {
-        ambulanceId: selectedAmbulance._id,
-        serviceType: "Referral Ambulance",
-        staffType: staffTypeVal,
-        couponCode: couponCode.trim()
+      const activeCouponCode = appliedCoupon ? (appliedCoupon.couponName || couponCode).trim() : "";
+
+      // 2. Pricing details fallback / checkout
+      let pricingData = {
+        ambulanceCharge: ambCharge,
+        supportingStaffCharge: staffCharge,
+        subtotal: currentSubtotal,
+        discount: discountAmount,
+        total: finalTotalAmount
       };
 
-      const checkoutRes = await UserAPI.checkOutAmbulance(checkoutPayload);
-
-      if (!checkoutRes.success) {
-        alert(checkoutRes.message || "Pricing calculation failed");
-        setIsSubmitting(false);
-        return;
+      try {
+        const checkoutPayload = {
+          ambulanceId: selectedAmbulance._id,
+          serviceType: "Referral Ambulance",
+          staffType: staffTypeVal,
+          couponCode: activeCouponCode
+        };
+        const checkoutRes = await UserAPI.checkOutAmbulance(checkoutPayload);
+        if (checkoutRes.success && checkoutRes.data) {
+          pricingData = checkoutRes.data;
+        }
+      } catch (checkErr) {
+        console.warn("Using local pricing fallback:", checkErr);
       }
 
-      const pricingData = checkoutRes.data;
+      // 3. Prepare Pickup Location details (From Selected Pickup Hospital)
+      const pickupHospitalObj = hospitals.find(h => h._id === formData.pickupHospitalId);
+      const pickupLocationObj = {
+        address: pickupHospitalObj?.address || pickupHospitalObj?.name || "Pickup Hospital",
+        lat: pickupHospitalObj?.location?.coordinates ? pickupHospitalObj.location.coordinates[1] : coords.lat,
+        lng: pickupHospitalObj?.location?.coordinates ? pickupHospitalObj.location.coordinates[0] : coords.lng
+      };
 
-      // 3. PREPARE FINAL BOOKING (FORM DATA)
+      // 4. Patient details
+      const member = familyMembers.find(m => m._id === formData.selectedPatientId);
+      const patientDetailsObj = {
+        name: formData.patientName,
+        relation: formData.patientRelation,
+        age: member?.age || 30,
+        gender: member?.gender || "Male",
+        emergencyDescription: formData.referralReason || "Referral Transfer",
+        referralReason: formData.referralReason,
+        condition: 'Stable'
+      };
+
+      // 5. Build FormData matching confirm-booking API specs
       const data = new FormData();
-
       data.append("ambulanceId", selectedAmbulance._id);
       data.append("pickupHospitalId", formData.pickupHospitalId);
       data.append("hospitalId", formData.hospitalId);
       data.append("serviceType", "Referral Ambulance");
+      data.append("triageLevel", formData.triageLevel);
+      data.append("paymentMethod", formData.paymentMethod || "COD");
+
+      if (staffTypeVal) {
+        data.append("staffType", staffTypeVal);
+      }
+      if (activeCouponCode) {
+        data.append("couponCode", activeCouponCode);
+      }
+
       data.append("scheduledDate", formData.scheduledDate);
       data.append("appointmentTime", formData.appointmentTime);
+      data.append("scheduledAt", formData.scheduledDate);
       data.append("reason", formData.referralReason);
-      data.append("triageLevel", formData.triageLevel);
-      data.append("staffType", staffTypeVal);
-      data.append("couponCode", couponCode.trim());
 
-      // patientDetails object matches the expected schema configuration
-      data.append("patientDetails", JSON.stringify({
-        name: formData.patientName,
-        relation: formData.patientRelation,
-        condition: 'Stable',
-        referralReason: formData.referralReason
-      }));
+      data.append("pickupLocation", JSON.stringify(pickupLocationObj));
+      data.append("patientDetails", JSON.stringify(patientDetailsObj));
 
-      // referralCard File payload
       if (referralCardFile) {
         data.append("referralCard", referralCardFile);
       }
 
-      // pricing object schema structure
       data.append("pricing", JSON.stringify({
         ambulanceCharge: pricingData.ambulanceCharge,
         supportingStaffCharge: pricingData.supportingStaffCharge,
@@ -270,26 +301,29 @@ export default function ReferralBookingPage() {
         total: pricingData.total
       }));
 
-      // couponDetails object
       data.append("couponDetails", JSON.stringify({
-        couponId: pricingData.couponId || null,
-        couponCode: pricingData.finalCouponCode || couponCode,
-        discountValue: pricingData.discount || 0
+        couponId: pricingData.couponId || (appliedCoupon ? (appliedCoupon._id || appliedCoupon.id) : null),
+        couponCode: activeCouponCode,
+        discountValue: pricingData.discount || discountAmount
       }));
 
-      // scheduledAt fallback
-      data.append("scheduledAt", formData.scheduledDate);
+      data.append("subtotal", (pricingData.subtotal || currentSubtotal).toString());
+      data.append("discount", (pricingData.discount || discountAmount).toString());
+      data.append("total", (pricingData.total || finalTotalAmount).toString());
+      data.append("amount", (pricingData.total || finalTotalAmount).toString());
+      data.append("totalAmount", (pricingData.total || finalTotalAmount).toString());
 
-      // 4. Directly Execute Booking
+      // 6. Directly Execute Booking API Call
       const res = await UserAPI.bookAmbulance(data);
       if (res.success) {
+        setBookingSuccessData(res.booking || null);
         setShowSuccessModal(true);
       } else {
         alert(res.message || "An error occurred while placing the booking.");
       }
     } catch (err) {
       console.error("SUBMIT ERROR:", err);
-      alert("Something went wrong during submission. Verification step bypassed.");
+      alert("Something went wrong during submission.");
     } finally {
       setIsSubmitting(false);
     }
@@ -383,6 +417,28 @@ export default function ReferralBookingPage() {
                 className="w-full bg-slate-50 rounded-2xl p-5 text-sm font-semibold outline-none border-none resize-none"
               />
             </div>
+
+            {/* Payment Method */}
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
+              <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4">Payment Method</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {['COD', 'Online'].map((method) => (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, paymentMethod: method })}
+                    className={`py-4 px-6 rounded-2xl font-bold text-sm border-2 transition-all text-center ${
+                      formData.paymentMethod === method
+                        ? 'border-[#08B36A] bg-emerald-50/50 text-[#08B36A]'
+                        : 'border-slate-100 text-slate-600 hover:border-slate-200'
+                    }`}
+                  >
+                    {method === 'COD' ? 'Cash on Pickup (COD)' : 'Online Payment'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
           </div>
 
           {/* RIGHT: AMBULANCE, STAFF & TRIAGE */}
@@ -395,7 +451,7 @@ export default function ReferralBookingPage() {
                   <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4">Referral Document</h3>
                   <label className="relative aspect-video w-full bg-slate-800 rounded-3xl border-2 border-dashed border-slate-700 flex flex-col items-center justify-center cursor-pointer hover:border-[#08B36A] transition-all overflow-hidden group">
                     {previewImage ? (
-                      <img src={previewImage} className="w-full h-full object-cover" />
+                      <img src={previewImage} alt="Referral Card Preview" className="w-full h-full object-cover" />
                     ) : (
                       <>
                         <Camera className="w-8 h-8 text-slate-600 group-hover:text-[#08B36A] mb-2" />
@@ -602,10 +658,19 @@ export default function ReferralBookingPage() {
               <CheckCircle2 className="w-10 h-10" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-2xl font-black text-slate-900">Booking Initiated</h3>
+              <h3 className="text-2xl font-black text-slate-900">Booking Request Sent</h3>
               <p className="text-sm font-semibold text-slate-600 leading-relaxed">
-                You have to pay after the driver accepts your request, then your booking will be completed.
+                Your referral ambulance transfer request has been placed successfully.
               </p>
+              {bookingSuccessData?.otp && (
+                <div className="mt-4 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 inline-block w-full">
+                  <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1 flex items-center justify-center gap-1.5">
+                    <KeyRound className="w-4 h-4 text-[#08B36A]" /> Pickup OTP
+                  </p>
+                  <p className="text-3xl font-black text-[#08B36A] tracking-widest">{bookingSuccessData.otp}</p>
+                  <p className="text-[11px] font-bold text-slate-400 mt-1">Share this OTP with driver on arrival</p>
+                </div>
+              )}
             </div>
             <button
               onClick={() => {
@@ -614,7 +679,7 @@ export default function ReferralBookingPage() {
               }}
               className="w-full bg-[#08B36A] hover:bg-[#079f5e] text-white py-4 rounded-2xl font-black text-base shadow-lg shadow-emerald-200 transition-all active:scale-95"
             >
-              OK
+              Go to Appointments
             </button>
           </div>
         </div>
