@@ -1,5 +1,6 @@
-'use client'
-import { AuthProvider, useAuth } from "../context/AuthContext"; // Import useAuth
+'use client';
+
+import { AuthProvider, useAuth } from "../context/AuthContext";
 import { CartProvider } from "../context/CartContext";
 import { GlobalProvider } from "../context/GlobalContext";
 import { UserProvider } from "../context/UserContext";
@@ -10,18 +11,15 @@ import GlobalModal from "./components/GlobalModal";
 import TopNavbar from "./components/TopNavbar";
 import { Toaster } from 'react-hot-toast';
 import CallListener from "./components/videoCall/CallListener";
-import { useNotification } from "@/hooks/useNotification"; // Import your hook
+import { useNotification } from "@/hooks/useNotification"; 
+import WebsiteGuard from "./components/WebsiteGuard";
 
-// Create a wrapper component to handle the notification hook
-// because we need access to the Auth state
 function AppContent({ children }) {
   const { user } = useAuth();
-
-  // This hook asks for permission and saves the FCM token to the DB
   useNotification(user?._id);
 
   return (
-    <>
+    <WebsiteGuard>
       <TopNavbar />
       {children}
       <CallListener />
@@ -29,7 +27,7 @@ function AppContent({ children }) {
       <GlobalModal />
       <Toaster />
       <ChatBot />
-    </>
+    </WebsiteGuard>
   );
 }
 

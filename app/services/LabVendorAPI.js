@@ -601,6 +601,28 @@ resetPasswordPhone: async ({ phone, resetToken, selectedRole, newPassword, confi
         return Promise.reject(error);
     }
 },
+  // ==========================================
+  // 📋 LAB INCIDENT & ISSUE APIS
+  // ==========================================
+
+  // 3.1 Submit New Lab Issue Ticket (multipart/form-data)
+  createIssue: (formData) => {
+    return labVendorApi.post('/api/user-vendor/issues/create', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // 3.2 Get Lab Reported Issues List
+  getMyIssues: (params = {}) => {
+    return labVendorApi.get('/api/user-vendor/issues/my-issues', { params });
+  },
+
+  // 3.3 Get Live Issue Tracking & Resolution Timeline
+  trackIssue: (issueId) => {
+    return labVendorApi.get(`/api/user-vendor/issues/track/${issueId}`);
+  },
 };
  
 export default LabVendorAPI;

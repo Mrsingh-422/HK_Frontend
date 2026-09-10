@@ -542,6 +542,24 @@ const DoctorAPI = {
             return Promise.reject(error.response?.data?.message || "Failed to log No-Show status");
         }
     },
+      // 3.1 Submit Doctor Consultation Issue Ticket (multipart/form-data)
+  createIssue: (formData) => {
+    return doctorApi.post('/api/user-vendor/issues/create', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // 3.2 Get Doctor Reported Issues List
+  getMyIssues: (params = {}) => {
+    return doctorApi.get('/api/user-vendor/issues/my-issues', { params });
+  },
+
+  // 3.3 Get Live Issue Tracking & Resolution Timeline
+  trackIssue: (issueId) => {
+    return doctorApi.get(`/api/user-vendor/issues/track/${issueId}`);
+  },
 };
 
 export default DoctorAPI;

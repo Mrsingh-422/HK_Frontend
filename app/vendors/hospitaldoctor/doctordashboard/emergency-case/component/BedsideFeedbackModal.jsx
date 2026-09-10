@@ -17,8 +17,28 @@ export default function BedsideFeedbackModal({
 
     const handleFormSubmit = (e) => {
         e.preventDefault();
-        // Pass the latest feedbackForm state directly on submit
-        onSubmit(feedbackForm);
+        
+        // Extract with logical OR (||) to prevent empty string blockage
+        const bp = feedbackForm.vitals?.bp || feedbackForm.bp || '';
+        const pulse = feedbackForm.vitals?.pulse || feedbackForm.pulse || '';
+        const temp = feedbackForm.vitals?.temp || feedbackForm.temp || '';
+        const spo2 = feedbackForm.vitals?.spo2 || feedbackForm.spo2 || '';
+
+        const submissionData = {
+            ...feedbackForm,
+            bp,
+            pulse,
+            temp,
+            spo2,
+            vitals: {
+                bp,
+                pulse,
+                temp,
+                spo2
+            }
+        };
+
+        onSubmit(submissionData);
     };
 
     const handleRemoveMedicine = (indexToRemove) => {
@@ -28,15 +48,22 @@ export default function BedsideFeedbackModal({
         }));
     };
 
-    // Helper to safely update nested vitals properties
     const handleVitalUpdate = (key, value) => {
-        setFeedbackForm(prev => ({
-            ...prev,
-            vitals: {
-                ...(prev.vitals || {}),
-                [key]: value
-            }
-        }));
+        setFeedbackForm(prev => {
+            const currentVitals = prev?.vitals || {};
+            return {
+                ...prev,
+                [key]: value,
+                vitals: {
+                    ...currentVitals,
+                    bp: key === 'bp' ? value : (currentVitals.bp || prev.bp || ''),
+                    pulse: key === 'pulse' ? value : (currentVitals.pulse || prev.pulse || ''),
+                    temp: key === 'temp' ? value : (currentVitals.temp || prev.temp || ''),
+                    spo2: key === 'spo2' ? value : (currentVitals.spo2 || prev.spo2 || ''),
+                    [key]: value
+                }
+            };
+        });
     };
 
     const currentMeds = feedbackForm.recommendedMedicines || [];
@@ -152,12 +179,13 @@ export default function BedsideFeedbackModal({
                             >
                                 <option value="Routine">Routine</option>
                                 <option value="Urgent">Urgent</option>
+                                <option value="Most Urgent">Most Urgent</option>
                                 <option value="Critical">Critical</option>
                             </select>
                         </div>
                     </div>
 
-                    {/* Integrated Medicine Section - Only visible to Co-Doctors, completely removed for Attending Doctor */}
+                    {/* Integrated Medicine Section */}
                     {!isMainDoctor && (
                         <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/30 space-y-4 font-sans">
                             <div className="flex justify-between items-center">

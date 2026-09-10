@@ -4,31 +4,31 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Wallet, IndianRupee, TrendingUp, ArrowUpRight, Clock, 
   CheckCircle2, AlertCircle, RefreshCw, ArrowLeft, Search, 
-  Check, X, Ban, Building2, UserCheck, ShieldCheck, ShieldAlert,
-  CreditCard, Loader2, Copy, ExternalLink, FileText, Phone, Mail
+  Check, X, Ban, Building2, UserCheck, CreditCard, Loader2, 
+  Copy, Mail, Phone, ShieldCheck, CheckCheck
 } from 'lucide-react';
 import AdminAPI2 from '@/app/services/AdminAPI2';
 
 export default function AdminWithdrawalAndPayoutPage() {
-  // --- States ---
+  // --- Tab States ---
   const [activeTab, setActiveTab] = useState('withdrawals'); // 'withdrawals' | 'banks'
   
-  // Data States
+  // --- Data States ---
   const [stats, setStats] = useState(null);
   const [withdrawals, setWithdrawals] = useState([]);
   const [pendingBanks, setPendingBanks] = useState([]);
   
-  // Loading & Notifications
+  // --- Loading & Notifications ---
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  // Search & Filters
+  // --- Search & Filters ---
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('All'); // 'All' | 'Doctor' | 'Hospital' | 'Lab' | 'Pharmacy' | 'Nurse' | 'Ambulance'
 
-  // Modal States
+  // --- Modal States ---
   const [approveModalData, setApproveModalData] = useState(null);
   const [utrReference, setUtrReference] = useState('');
 
@@ -72,7 +72,7 @@ export default function AdminWithdrawalAndPayoutPage() {
         setPendingBanks(banksRes.value.data?.data || []);
       }
     } catch (err) {
-      triggerError(err.message || 'Error loading payout data');
+      triggerError(err.response?.data?.message || err.message || 'Error loading payout dashboard data');
     } finally {
       setLoading(false);
     }
@@ -82,7 +82,7 @@ export default function AdminWithdrawalAndPayoutPage() {
     loadAllData();
   }, [loadAllData]);
 
-  // --- Action 1: Approve Withdrawal with UTR Reference ---
+  // --- Action 1: Approve Withdrawal with Bank UTR Reference ---
   const handleApproveSubmit = async (e) => {
     e.preventDefault();
     if (!approveModalData?._id) return;
@@ -115,7 +115,7 @@ export default function AdminWithdrawalAndPayoutPage() {
     if (!rejectModalData?._id) return;
 
     if (!rejectionReason.trim()) {
-      triggerError('Please provide a reason for rejecting this payout');
+      triggerError('Please provide a reason for rejecting this payout request');
       return;
     }
 
@@ -136,8 +136,8 @@ export default function AdminWithdrawalAndPayoutPage() {
     }
   };
 
-  // --- Action 3: Verify / Unverify Bank Account ---
-  const handleVerifyBank = async (vendorModel, vendorId, isVerified) => {
+  // --- Action 3: Verify Vendor Bank Account ---
+  const handleVerifyBank = async (vendorModel, vendorId, isVerified = true) => {
     try {
       setActionLoading(true);
       const res = await AdminAPI2.verifyVendorBankAccount(vendorModel, vendorId, { isVerified });
@@ -150,16 +150,21 @@ export default function AdminWithdrawalAndPayoutPage() {
     }
   };
 
-  // --- Filter Logic ---
+  // --- Filtering Logic ---
   const filteredWithdrawals = useMemo(() => {
-    return withdrawals.filter(item => {
+    return withdrawals.filter((item) => {
       const vendorName = item.vendorId?.name || '';
       const vendorPhone = item.vendorId?.phone || '';
+      const vendorEmail = item.vendorId?.email || '';
       const bankAcc = item.bankDetails?.accountNumber || '';
+      const upi = item.bankDetails?.upiId || '';
+
       const matchesSearch = 
         vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         vendorPhone.includes(searchTerm) ||
-        bankAcc.includes(searchTerm);
+        vendorEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        bankAcc.includes(searchTerm) ||
+        upi.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesRole = roleFilter === 'All' || item.vendorModel?.toLowerCase() === roleFilter.toLowerCase();
 
@@ -168,14 +173,19 @@ export default function AdminWithdrawalAndPayoutPage() {
   }, [withdrawals, searchTerm, roleFilter]);
 
   const filteredBanks = useMemo(() => {
-    return pendingBanks.filter(item => {
+    return pendingBanks.filter((item) => {
       const name = item.name || '';
       const phone = item.phone || '';
+      const email = item.email || '';
       const acc = item.bankDetails?.accountNumber || '';
+      const upi = item.bankDetails?.upiId || '';
+
       const matchesSearch = 
         name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         phone.includes(searchTerm) ||
-        acc.includes(searchTerm);
+        email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        acc.includes(searchTerm) ||
+        upi.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesRole = roleFilter === 'All' || item.vendorModel?.toLowerCase() === roleFilter.toLowerCase();
 
@@ -183,12 +193,14 @@ export default function AdminWithdrawalAndPayoutPage() {
     });
   }, [pendingBanks, searchTerm, roleFilter]);
 
-  // Copy to clipboard helper
+  // Copy helper
   const copyToClipboard = (text, label) => {
+    if (!text) return;
     navigator.clipboard.writeText(text);
     triggerSuccess(`${label} copied to clipboard!`);
   };
 
+  // Role Badges Color Mapper
   const getRoleBadgeColor = (role) => {
     switch (role?.toLowerCase()) {
       case 'doctor': return 'bg-blue-50 text-blue-700 border-blue-200';
@@ -205,7 +217,7 @@ export default function AdminWithdrawalAndPayoutPage() {
     <div className="min-h-screen bg-[#f8fafc] p-4 md:p-10 font-sans text-slate-700">
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* Notifications */}
+        {/* --- Alert Notifications --- */}
         {successMsg && (
           <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-2xl flex items-center justify-between shadow-sm text-sm animate-in fade-in duration-200">
             <div className="flex items-center gap-2">
@@ -223,14 +235,14 @@ export default function AdminWithdrawalAndPayoutPage() {
           </div>
         )}
 
-        {/* Top Header */}
+        {/* --- Top Header --- */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
               <Wallet className="text-emerald-500" size={28} /> Vendor Payouts & Settlement Command Center
             </h1>
             <p className="text-xs text-slate-500 mt-1">
-              Review pending withdrawals across Doctors, Hospitals, Labs, Pharmacies, Nurses & Ambulances.
+              Review & finalize pending settlements across Doctors, Hospitals, Labs, Pharmacies, Nurses & Ambulances.
             </p>
           </div>
 
@@ -251,10 +263,10 @@ export default function AdminWithdrawalAndPayoutPage() {
           </div>
         </div>
 
-        {/* Financial KPI Dashboard Cards */}
+        {/* --- Financial KPI Dashboard Cards --- */}
         {stats && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Platform Gross Business */}
+            {/* Gross Business Volume */}
             <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-xs font-bold uppercase tracking-wider">Gross Business Volume</span>
@@ -264,11 +276,11 @@ export default function AdminWithdrawalAndPayoutPage() {
                 <h3 className="text-2xl font-extrabold text-slate-800">
                   ₹{Number(stats.totalGrossOrderVolume || 0).toLocaleString('en-IN')}
                 </h3>
-                <span className="text-[11px] font-semibold text-slate-400">Total volume processed</span>
+                <span className="text-[11px] font-semibold text-slate-400">Total volume processed across 6 models</span>
               </div>
             </div>
 
-            {/* Platform Cutoff Profit */}
+            {/* Platform Admin Commission */}
             <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-xs font-bold uppercase tracking-wider">Platform Profit</span>
@@ -278,11 +290,11 @@ export default function AdminWithdrawalAndPayoutPage() {
                 <h3 className="text-2xl font-extrabold text-emerald-600">
                   ₹{Number(stats.totalAdminCommissionRevenue || 0).toLocaleString('en-IN')}
                 </h3>
-                <span className="text-[11px] font-semibold text-emerald-600/80">Admin Cutoff Revenue</span>
+                <span className="text-[11px] font-semibold text-emerald-600/80">Admin Cutoff Commission</span>
               </div>
             </div>
 
-            {/* Net Vendor Liability */}
+            {/* Platform Total Liability */}
             <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-xs font-bold uppercase tracking-wider">Vendor Liability</span>
@@ -292,14 +304,14 @@ export default function AdminWithdrawalAndPayoutPage() {
                 <h3 className="text-2xl font-extrabold text-amber-600">
                   ₹{Number(stats.platformTotalLiability || 0).toLocaleString('en-IN')}
                 </h3>
-                <span className="text-[11px] font-semibold text-slate-400">Net balance owed to vendors</span>
+                <span className="text-[11px] font-semibold text-slate-400">Net balance owed to all active vendors</span>
               </div>
             </div>
 
-            {/* Pending Payouts & Unverified Banks */}
+            {/* Pending Payout Queue & Bank Badge */}
             <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
               <div className="flex items-center justify-between text-slate-400">
-                <span className="text-xs font-bold uppercase tracking-wider">Pending Payouts Queue</span>
+                <span className="text-xs font-bold uppercase tracking-wider">Pending Payout Queue</span>
                 <Clock size={18} className="text-indigo-500" />
               </div>
               <div className="mt-4 flex items-baseline justify-between">
@@ -308,7 +320,7 @@ export default function AdminWithdrawalAndPayoutPage() {
                     ₹{Number(stats.payoutStats?.Pending?.amount || 0).toLocaleString('en-IN')}
                   </h3>
                   <span className="text-[11px] font-semibold text-indigo-600">
-                    {stats.payoutStats?.Pending?.count || 0} withdrawal requests
+                    {stats.payoutStats?.Pending?.count || 0} pending requests
                   </span>
                 </div>
                 {Number(stats.pendingBankVerificationsCount || 0) > 0 && (
@@ -321,7 +333,7 @@ export default function AdminWithdrawalAndPayoutPage() {
           </div>
         )}
 
-        {/* Tab Switcher & Search Bar */}
+        {/* --- Tab Switcher & Search Bar --- */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-3">
           <div className="flex gap-2">
             <button
@@ -352,7 +364,7 @@ export default function AdminWithdrawalAndPayoutPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               <input
                 type="text"
-                placeholder="Search vendor name, phone, account..."
+                placeholder="Search vendor, phone, email, acc..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-xl py-2 pl-9 pr-3 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20"
@@ -387,7 +399,7 @@ export default function AdminWithdrawalAndPayoutPage() {
                 </div>
               ) : filteredWithdrawals.length === 0 ? (
                 <div className="text-center py-20 text-slate-400 text-sm font-medium">
-                  No pending withdrawal requests found. All payouts are cleared!
+                  No pending withdrawal requests found. All payouts are settled!
                 </div>
               ) : (
                 <table className="w-full border-separate border-spacing-y-2 text-left">
@@ -407,9 +419,17 @@ export default function AdminWithdrawalAndPayoutPage() {
                         {/* Vendor Name & Contact */}
                         <td className="bg-slate-50/50 py-4 px-5 rounded-l-2xl">
                           <div className="font-bold text-slate-900 text-sm">{req.vendorId?.name || 'Unnamed Vendor'}</div>
-                          <div className="flex flex-col text-[11px] text-slate-500 mt-0.5">
-                            {req.vendorId?.phone && <span>📞 {req.vendorId.phone}</span>}
-                            {req.vendorId?.speciality && <span className="text-indigo-600 font-semibold">{req.vendorId.speciality}</span>}
+                          <div className="flex flex-col text-[11px] text-slate-500 mt-0.5 space-y-0.5">
+                            {req.vendorId?.phone && (
+                              <span className="flex items-center gap-1">
+                                <Phone size={10} /> {req.vendorId.phone}
+                              </span>
+                            )}
+                            {req.vendorId?.email && (
+                              <span className="flex items-center gap-1 text-slate-400">
+                                <Mail size={10} /> {req.vendorId.email}
+                              </span>
+                            )}
                           </div>
                         </td>
 
@@ -434,6 +454,7 @@ export default function AdminWithdrawalAndPayoutPage() {
                               <button 
                                 onClick={() => copyToClipboard(req.bankDetails?.accountNumber, 'Account number')}
                                 className="text-slate-400 hover:text-slate-700"
+                                title="Copy Account Number"
                               >
                                 <Copy size={11} />
                               </button>
@@ -442,8 +463,15 @@ export default function AdminWithdrawalAndPayoutPage() {
                               IFSC: {req.bankDetails?.ifscCode} | {req.bankDetails?.bankName}
                             </div>
                             {req.bankDetails?.upiId && (
-                              <div className="text-[10px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-mono inline-block">
-                                UPI: {req.bankDetails.upiId}
+                              <div className="text-[10px] bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-mono inline-flex items-center gap-1">
+                                <span>UPI: {req.bankDetails.upiId}</span>
+                                <button 
+                                  onClick={() => copyToClipboard(req.bankDetails.upiId, 'UPI ID')} 
+                                  className="hover:opacity-75"
+                                  title="Copy UPI ID"
+                                >
+                                  <Copy size={10} />
+                                </button>
                               </div>
                             )}
                           </div>
@@ -499,7 +527,7 @@ export default function AdminWithdrawalAndPayoutPage() {
                 </div>
               ) : filteredBanks.length === 0 ? (
                 <div className="text-center py-20 text-slate-400 text-sm font-medium">
-                  No unverified bank accounts pending review.
+                  No unverified bank accounts pending review. All vendor bank profiles verified!
                 </div>
               ) : (
                 <table className="w-full border-separate border-spacing-y-2 text-left">
@@ -519,9 +547,17 @@ export default function AdminWithdrawalAndPayoutPage() {
                         {/* Vendor Name */}
                         <td className="bg-slate-50/50 py-4 px-5 rounded-l-2xl">
                           <div className="font-bold text-slate-900 text-sm">{item.name || 'Unnamed Vendor'}</div>
-                          <div className="flex flex-col text-[11px] text-slate-500 mt-0.5">
-                            {item.phone && <span>📞 {item.phone}</span>}
-                            {item.email && <span>✉️ {item.email}</span>}
+                          <div className="flex flex-col text-[11px] text-slate-500 mt-0.5 space-y-0.5">
+                            {item.phone && (
+                              <span className="flex items-center gap-1">
+                                <Phone size={10} /> {item.phone}
+                              </span>
+                            )}
+                            {item.email && (
+                              <span className="flex items-center gap-1 text-slate-400">
+                                <Mail size={10} /> {item.email}
+                              </span>
+                            )}
                           </div>
                         </td>
 
@@ -540,10 +576,19 @@ export default function AdminWithdrawalAndPayoutPage() {
 
                         {/* Account No & IFSC */}
                         <td className="bg-slate-50/50 py-4 px-5 font-mono">
-                          <div className="font-bold text-slate-900">A/C: {item.bankDetails?.accountNumber}</div>
+                          <div className="font-bold text-slate-900 flex items-center gap-1">
+                            <span>A/C: {item.bankDetails?.accountNumber}</span>
+                            <button 
+                              onClick={() => copyToClipboard(item.bankDetails?.accountNumber, 'Account number')}
+                              className="text-slate-400 hover:text-slate-700"
+                              title="Copy Account Number"
+                            >
+                              <Copy size={11} />
+                            </button>
+                          </div>
                           <div className="text-slate-500 text-[11px]">IFSC: {item.bankDetails?.ifscCode}</div>
                           {item.bankDetails?.upiId && (
-                            <div className="text-[10px] text-indigo-600">UPI: {item.bankDetails.upiId}</div>
+                            <div className="text-[10px] text-indigo-600 font-mono">UPI: {item.bankDetails.upiId}</div>
                           )}
                         </td>
 
@@ -619,6 +664,12 @@ export default function AdminWithdrawalAndPayoutPage() {
                     <span className="text-slate-400 block font-semibold">IFSC Code:</span>
                     <span className="font-mono font-bold text-slate-800">{approveModalData.bankDetails?.ifscCode}</span>
                   </div>
+                  {approveModalData.bankDetails?.upiId && (
+                    <div className="col-span-2">
+                      <span className="text-slate-400 block font-semibold">UPI ID:</span>
+                      <span className="font-mono font-bold text-indigo-600">{approveModalData.bankDetails?.upiId}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -630,13 +681,13 @@ export default function AdminWithdrawalAndPayoutPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. UTR-HDFC-20260904-982134 or IMPS1290381029"
+                  placeholder="e.g. UTR202609079812 or IMPS1290381029"
                   value={utrReference}
                   onChange={(e) => setUtrReference(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-mono font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500/20 outline-none"
                 />
                 <span className="text-[11px] text-slate-400 mt-1 block">
-                  Enter the transaction ID generated from your netbanking or business payment gateway.
+                  Enter the transaction reference code generated from your netbanking or business payout gateway.
                 </span>
               </div>
 
@@ -684,7 +735,7 @@ export default function AdminWithdrawalAndPayoutPage() {
 
             <form onSubmit={handleRejectSubmit} className="p-6 space-y-4 text-xs">
               <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl text-rose-800 text-[11px] font-medium leading-relaxed">
-                🚨 <strong>Safety Guard Rail:</strong> When you reject this request, the system automatically executes a credit transaction back into the vendor's wallet balance so no money is lost.
+                🚨 <strong>Safety Guard Rail:</strong> When you reject this request, the system automatically executes a credit transaction back into the vendor's wallet balance so no funds are locked.
               </div>
 
               <div>
@@ -694,7 +745,7 @@ export default function AdminWithdrawalAndPayoutPage() {
                 <textarea
                   rows={3}
                   required
-                  placeholder="e.g. Bank Account Number & Name Mismatch, Invalid IFSC Code, etc."
+                  placeholder="e.g. Bank account name does not match legal vendor entity."
                   value={rejectionReason}
                   onChange={(e) => setRejectionReason(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-rose-500/20 outline-none"

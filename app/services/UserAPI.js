@@ -1273,6 +1273,108 @@ cancelAmbulanceBooking: async (bookingId, cancelData = {}) => {
         const response = await authApi.post(`/api/auth/user/verify-phone-otp`, otpData);
         return response.data;
     },
+      // 3.1 Create Issue / Support Ticket (With Screenshots) - multipart/form-data
+  createIssue: (formData) => {
+    return authApi.post('/api/user-vendor/issues/create', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // 3.2 Get My Reported Issues List
+  getMyIssues: (params = {}) => {
+    return authApi.get('/api/user-vendor/issues/my-issues', { params });
+  },
+
+  // 3.3 Get Issue Tracking & Step-by-Step Resolution Timeline
+  trackIssue: (issueId) => {
+    return authApi.get(`/api/user-vendor/issues/track/${issueId}`);
+  },
+  // ==========================================
+    // SUBSCRIPTION SYSTEM APIS (UPDATED)
+    // ==========================================
+
+    // 1.1 Step 1: Get Active Plan Categories (Public / User)
+    // Endpoint: GET /user/subscriptions/categories
+    getSubscriptionCategories: async () => {
+        const response = await publicApi.get('/user/subscriptions/categories');
+        return response.data;
+    },
+
+    // 1.2 Step 2: Get Diseases by Category (If isDiseaseSpecific: true)
+    // Endpoint: GET /user/subscriptions/diseases?categoryId=...
+    getDiseasesByCategory: async (categoryId) => {
+        const response = await publicApi.get('/user/subscriptions/diseases', {
+            params: { categoryId }
+        });
+        return response.data;
+    },
+
+    // 1.3 Step 3: Get Plans with VIP COD Badge & Covered Diseases
+    // Endpoint: GET /user/subscriptions/list?categoryId=...&diseaseId=...
+    listAvailablePlans: async (categoryId = "", diseaseId = "") => {
+        const params = {};
+        if (categoryId) params.categoryId = categoryId;
+        if (diseaseId) params.diseaseId = diseaseId;
+
+        const response = await publicApi.get('/user/subscriptions/list', { params });
+        return response.data;
+    },
+
+    // 2.1 Buy Plan / Initiate Razorpay Order (Private)
+    // Endpoint: POST /user/subscriptions/buy
+    buySubscriptionPlan: async (planId) => {
+        const response = await authApi.post('/user/subscriptions/buy', { planId });
+        return response.data;
+    },
+
+    // 2.2 Verify Payment & Activate VIP Subscription (Private)
+    // Endpoint: POST /user/subscriptions/verify-payment
+    verifySubscriptionPayment: async (paymentData) => {
+        const response = await authApi.post('/user/subscriptions/verify-payment', paymentData);
+        return response.data;
+    },
+
+    // 2.3 Get My Active Plan & Live Benefits Balance (Private)
+    // Endpoint: GET /user/subscriptions/my-status
+    getMySubscriptionStatus: async () => {
+        const response = await authApi.get('/user/subscriptions/my-status');
+        return response.data;
+    },
+
+    getUserPlanDetail: async () => {
+        const response = await authApi.get('/user/subscriptions/my-status');
+        return response.data;
+    },
+
+    // 3. Specialized Disease Care Booking
+    // Endpoint: POST /user/doctors/book/specialist/:diseaseType
+    bookSpecializedAppointment: async (diseaseType, bookingData) => {
+        const response = await authApi.post(`/user/doctors/book/specialist/${diseaseType}`, bookingData);
+        return response.data;
+    },
+
+    // 4. Cancellation & Benefit Restores
+    cancelNurseBooking: async (bookingId) => {
+        const response = await authApi.patch(`/user/nurse/cancel/${bookingId}`);
+        return response.data;
+    },
+
+    cancelLabBooking: async (bookingId) => {
+        const response = await authApi.put(`/user/labs/cancel/${bookingId}`);
+        return response.data;
+    },
+
+    cancelPharmacyOrder: async (orderId) => {
+        const response = await authApi.post('/user/pharmacy/cancel-order', { orderId });
+        return response.data;
+    },
+
+    cancelAmbulanceBooking: async (bookingId, cancelData = {}) => {
+        const response = await authApi.patch(`/user/ambulance/cancel/${bookingId}`, cancelData || {});
+        return response.data;
+    },
 
 };
 

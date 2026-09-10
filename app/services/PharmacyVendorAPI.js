@@ -495,6 +495,24 @@ confirmStoreReceipt: (orderId, decision, remarks = '') =>
 // 5. Direct Reject Action (PUT /provider/pharmacy/orders/return-action/:orderId)
 reviewReturnAction: (orderId, payload) => 
     pharmacyVendorApi.put(`/provider/pharmacy/orders/return-action/${orderId}`, payload),
+// 3.1 Submit Pharmacy Issue Ticket (multipart/form-data)
+  createIssue: (formData) => {
+    return pharmacyVendorApi.post('/api/user-vendor/issues/create', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // 3.2 Get Pharmacy Reported Issues List
+  getMyIssues: (params = {}) => {
+    return pharmacyVendorApi.get('/api/user-vendor/issues/my-issues', { params });
+  },
+
+  // 3.3 Get Live Issue Tracking & Resolution Timeline
+  trackIssue: (issueId) => {
+    return pharmacyVendorApi.get(`/api/user-vendor/issues/track/${issueId}`);
+  },
 };
 
 export default PharmacyVendorAPI;

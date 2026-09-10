@@ -229,16 +229,7 @@ getCases: async (tabOrType = "active", legacyStatus = "") => {
             return Promise.reject(error.response?.data?.message || "Failed to respond to bedside request");
         }
     },
- 
-    // 16. Submit Specialist Observation Feedback (Specialist Action)
-    submitBedsideFeedback: async (body) => {
-        try {
-            const response = await hospitalDoctorApi.post('/hospital-doctor/panel/case/bedside-feedback', body);
-            return response.data;
-        } catch (error) {
-            return Promise.reject(error.response?.data?.message || "Failed to submit bedside observation feedback");
-        }
-    },
+
  
    // 17. Get Doctor Profile Details (Page Load)
     getProfile: async () => {
@@ -467,19 +458,47 @@ getCases: async (tabOrType = "active", legacyStatus = "") => {
         }
     },
 
-    /**
-     * Submit Specialist Bedside Consultation Feedback (with Vitals support)
-     * POST /hospital-doctor/panel/case/bedside-feedback
-     */
-    submitBedsideFeedback: async (body) => {
-        try {
-            const response = await hospitalDoctorApi.post('/hospital-doctor/panel/case/bedside-feedback', body);
-            return response.data;
-        } catch (error) {
-            return Promise.reject(error.response?.data?.message || "Failed to submit bedside observation feedback");
+   /**
+ * Submit Specialist Bedside Consultation Feedback (with Vitals support)
+ * POST /hospital-doctor/panel/case/bedside-feedback
+ */
+submitBedsideFeedback: async (body) => {
+    try {
+        if (!body?.appointmentId) {
+            return Promise.reject("Missing appointmentId: cannot submit bedside feedback without a valid case/appointment reference.");
         }
-    },
 
+        // Force-build vitals from ANY available source on `body`, whether the caller
+        // passed nested vitals, flat keys, or both. This guarantees vitals are never
+        // silently dropped even if the parent component only spreads part of the form.
+        const bp   = body?.vitals?.bp   ?? body?.bp   ?? '';
+        const pulse = body?.vitals?.pulse ?? body?.pulse ?? '';
+        const temp  = body?.vitals?.temp  ?? body?.temp  ?? '';
+        const spo2  = body?.vitals?.spo2  ?? body?.spo2  ?? '';
+
+        const payload = {
+            appointmentId: body.appointmentId,
+            observation: body.observation || '',
+            patientCondition: body.patientCondition || 'Stable',
+            priorityRating: body.priorityRating || 'Routine',
+            // Nested format (Option A from API docs)
+            vitals: { bp, pulse, temp, spo2 },
+            // Flat format too (Option B), in case backend controller reads flat keys
+            bp,
+            pulse,
+            temp,
+            spo2,
+            recommendedMedicines: body.recommendedMedicines || [],
+        };
+
+        console.log('[submitBedsideFeedback] Outgoing payload:', payload); // TEMP: verify vitals are present before removing
+
+        const response = await hospitalDoctorApi.post('/hospital-doctor/panel/case/bedside-feedback', payload);
+        return response.data;
+    } catch (error) {
+        return Promise.reject(error.response?.data?.message || "Failed to submit bedside observation feedback");
+    }
+},
     /**
      * Fetch Collaborative Medications Pool
      * GET /hospital-doctor/panel/case/bedside-medications/:appointmentId
@@ -491,7 +510,25 @@ getCases: async (tabOrType = "active", legacyStatus = "") => {
         } catch (error) {
             return Promise.reject(error.response?.data?.message || "Failed to fetch bedside medications");
         }
-    }
+    },
+      // 3.1 Submit Hospital Doctor Issue Ticket (multipart/form-data)
+  createIssue: (formData) => {
+    return hospitalDoctorApi.post('/api/user-vendor/issues/create', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // 3.2 Get Hospital Doctor Reported Issues List
+  getMyIssues: (params = {}) => {
+    return hospitalDoctorApi.get('/api/user-vendor/issues/my-issues', { params });
+  },
+
+  // 3.3 Get Live Issue Tracking & Resolution Timeline
+  trackIssue: (issueId) => {
+    return hospitalDoctorApi.get(`/api/user-vendor/issues/track/${issueId}`);
+  },
 
 };
  

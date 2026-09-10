@@ -220,30 +220,38 @@ export default function CaseDetailsModal({
                                         <FaClipboardList className="text-[#08B36A]" /> Attending Clinical Rounds Logs ({caseDetails.clinicalLogs.length})
                                     </h4>
                                     <div className="grid grid-cols-1 gap-4">
-                                        {caseDetails.clinicalLogs.map((log, idx) => (
-                                            <div key={log._id || idx} className="p-4 bg-emerald-50/10 border border-emerald-100/30 rounded-xl space-y-2 animate-in fade-in duration-200">
-                                                <div className="flex justify-between items-center text-[10px] text-slate-400 font-extrabold uppercase">
-                                                    <span>Attending Round Logs</span>
-                                                    {log.loggedAt && <span>{formatDateTime(log.loggedAt)}</span>}
-                                                </div>
-                                                <p className="text-xs text-slate-800 font-serif italic">"{log.observation}"</p>
-                                                
-                                                {/* Display rounded vitals logs */}
-                                                {log.vitals && (
-                                                    <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-100/50 text-[10px] text-slate-500 font-semibold">
-                                                        <span>BP: {log.vitals.bp || 'N/A'}</span>
-                                                        <span>Pulse: {log.vitals.pulse ? `${log.vitals.pulse} bpm` : 'N/A'}</span>
-                                                        <span>Temp: {log.vitals.temp ? `${log.vitals.temp} °F` : 'N/A'}</span>
-                                                        <span>SpO2: {log.vitals.spo2 ? `${log.vitals.spo2} %` : 'N/A'}</span>
-                                                    </div>
-                                                )}
+                                        {caseDetails.clinicalLogs.map((log, idx) => {
+                                            const bpVal = log.vitals?.bp || log.bp;
+                                            const pulseVal = log.vitals?.pulse || log.pulse;
+                                            const tempVal = log.vitals?.temp || log.temp;
+                                            const spo2Val = log.vitals?.spo2 || log.spo2;
+                                            const hasVitals = log.vitals || bpVal || pulseVal || tempVal || spo2Val;
 
-                                                <div className="flex gap-4 text-[10px] text-slate-500 font-bold border-t border-dashed border-slate-100 pt-2 mt-1">
-                                                    <span>Condition: <strong className="text-slate-600">{log.patientCondition}</strong></span>
-                                                    <span>Priority Rating: <strong className="text-slate-600">{log.priorityRating}</strong></span>
+                                            return (
+                                                <div key={log._id || idx} className="p-4 bg-emerald-50/10 border border-emerald-100/30 rounded-xl space-y-2 animate-in fade-in duration-200">
+                                                    <div className="flex justify-between items-center text-[10px] text-slate-400 font-extrabold uppercase">
+                                                        <span>Attending Round Logs</span>
+                                                        {log.loggedAt && <span>{formatDateTime(log.loggedAt)}</span>}
+                                                    </div>
+                                                    <p className="text-xs text-slate-800 font-serif italic">"{log.observation}"</p>
+                                                    
+                                                    {/* Display rounded vitals logs with nested & flat fallback support */}
+                                                    {hasVitals && (
+                                                        <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-100/50 text-[10px] text-slate-500 font-semibold">
+                                                            <span>BP: {bpVal || 'N/A'}</span>
+                                                            <span>Pulse: {pulseVal ? `${pulseVal} bpm` : 'N/A'}</span>
+                                                            <span>Temp: {tempVal ? `${tempVal} °F` : 'N/A'}</span>
+                                                            <span>SpO2: {spo2Val ? `${spo2Val} %` : 'N/A'}</span>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="flex gap-4 text-[10px] text-slate-500 font-bold border-t border-dashed border-slate-100 pt-2 mt-1">
+                                                        <span>Condition: <strong className="text-slate-600">{log.patientCondition}</strong></span>
+                                                        <span>Priority Rating: <strong className="text-slate-600">{log.priorityRating}</strong></span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
@@ -368,18 +376,23 @@ export default function CaseDetailsModal({
                                                             </span>
                                                             <div className="space-y-2">
                                                                 {feedback.map((item, fIdx) => {
-                                                                    // Extract vitals safely using fallback mapping matching both arrays and parents
-                                                                    const checkupVitals = item.vitals || team.vitals || null;
+                                                                    // Extract vitals safely with fallback mapping matching nested vitals, item flat keys, and team vitals
+                                                                    const bpVal = item.vitals?.bp || item.bp || team.vitals?.bp || team.bp;
+                                                                    const pulseVal = item.vitals?.pulse || item.pulse || team.vitals?.pulse || team.pulse;
+                                                                    const tempVal = item.vitals?.temp || item.temp || team.vitals?.temp || team.temp;
+                                                                    const spo2Val = item.vitals?.spo2 || item.spo2 || team.vitals?.spo2 || team.spo2;
+                                                                    const hasItemVitals = item.vitals || team.vitals || bpVal || pulseVal || tempVal || spo2Val;
+
                                                                     return (
                                                                         <div key={item._id || fIdx} className="bg-indigo-50/20 p-3 rounded-xl border border-indigo-100/50 space-y-2 animate-in fade-in duration-200">
                                                                             <p className="italic text-slate-800 font-serif font-semibold">"{item.observation}"</p>
                                                                             
-                                                                            {checkupVitals && (
+                                                                            {hasItemVitals && (
                                                                                 <div className="grid grid-cols-4 gap-2 pt-1 border-t border-indigo-100/30 text-[9px] text-slate-500 font-bold uppercase tracking-wide">
-                                                                                    <span>BP: {checkupVitals.bp || 'N/A'}</span>
-                                                                                    <span>Pulse: {checkupVitals.pulse ? `${checkupVitals.pulse} bpm` : 'N/A'}</span>
-                                                                                    <span>Temp: {checkupVitals.temp ? `${checkupVitals.temp} °F` : 'N/A'}</span>
-                                                                                    <span>SpO2: {checkupVitals.spo2 ? `${checkupVitals.spo2} %` : 'N/A'}</span>
+                                                                                    <span>BP: {bpVal || 'N/A'}</span>
+                                                                                    <span>Pulse: {pulseVal ? `${pulseVal} bpm` : 'N/A'}</span>
+                                                                                    <span>Temp: {tempVal ? `${tempVal} °F` : 'N/A'}</span>
+                                                                                    <span>SpO2: {spo2Val ? `${spo2Val} %` : 'N/A'}</span>
                                                                                 </div>
                                                                             )}
 
@@ -428,12 +441,12 @@ export default function CaseDetailsModal({
                                                             <span className="font-extrabold text-slate-850 block">Specialist Clinical Feedback:</span>
                                                             <p className="italic bg-indigo-50/30 p-3 rounded-lg border border-indigo-100 font-serif font-semibold">"{feedback.observation}"</p>
                                                             
-                                                            {(feedback.vitals || team.vitals) && (
+                                                            {(feedback.vitals || team.vitals || feedback.bp || feedback.pulse || feedback.temp || feedback.spo2 || team.bp || team.pulse || team.temp || team.spo2) && (
                                                                 <div className="grid grid-cols-4 gap-2 py-1.5 border-t border-b border-indigo-100/30 text-[9px] text-slate-500 font-bold uppercase tracking-wide">
-                                                                    <span>BP: {(feedback.vitals || team.vitals).bp || 'N/A'}</span>
-                                                                    <span>Pulse: {(feedback.vitals || team.vitals).pulse ? `${(feedback.vitals || team.vitals).pulse} bpm` : 'N/A'}</span>
-                                                                    <span>Temp: {(feedback.vitals || team.vitals).temp ? `${(feedback.vitals || team.vitals).temp} °F` : 'N/A'}</span>
-                                                                    <span>SpO2: {(feedback.vitals || team.vitals).spo2 ? `${(feedback.vitals || team.vitals).spo2} %` : 'N/A'}</span>
+                                                                    <span>BP: {feedback.vitals?.bp || feedback.bp || team.vitals?.bp || team.bp || 'N/A'}</span>
+                                                                    <span>Pulse: {(feedback.vitals?.pulse || feedback.pulse || team.vitals?.pulse || team.pulse) ? `${feedback.vitals?.pulse || feedback.pulse || team.vitals?.pulse || team.pulse} bpm` : 'N/A'}</span>
+                                                                    <span>Temp: {(feedback.vitals?.temp || feedback.temp || team.vitals?.temp || team.temp) ? `${feedback.vitals?.temp || feedback.temp || team.vitals?.temp || team.temp} °F` : 'N/A'}</span>
+                                                                    <span>SpO2: {(feedback.vitals?.spo2 || feedback.spo2 || team.vitals?.spo2 || team.spo2) ? `${feedback.vitals?.spo2 || feedback.spo2 || team.vitals?.spo2 || team.spo2} %` : 'N/A'}</span>
                                                                 </div>
                                                             )}
                                                             

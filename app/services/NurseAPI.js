@@ -400,6 +400,24 @@ const NurseAPI = {
             return Promise.reject(error);
         }
     },
+     // 3.1 Submit Nurse Visit / Task Issue Ticket (multipart/form-data)
+  createIssue: (formData) => {
+    return nurseVendorApi.post('/api/user-vendor/issues/create', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // 3.2 Get Nurse Reported Issues List
+  getMyIssues: (params = {}) => {
+    return nurseVendorApi.get('/api/user-vendor/issues/my-issues', { params });
+  },
+
+  // 3.3 Get Live Issue Tracking & Resolution Timeline
+  trackIssue: (issueId) => {
+    return nurseVendorApi.get(`/api/user-vendor/issues/track/${issueId}`);
+  },
  
 };
  

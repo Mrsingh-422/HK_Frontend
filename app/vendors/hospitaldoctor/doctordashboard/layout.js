@@ -218,6 +218,7 @@ export default function DoctorVendorLayout({ children }) {
         { name: 'Emergency Case', href: '/vendors/hospitaldoctor/doctordashboard/emergency-case', icon: FaAmbulance },
         { name: 'Admission Case', href: '/vendors/hospitaldoctor/doctordashboard/admission-case', icon: FaHospital },
         { name: 'Consultation History', href: '/vendors/hospitaldoctor/doctordashboard/consultation-history', icon: FaHistory },
+        { name: 'Issues', href: '/vendors/hospitaldoctor/doctordashboard/issues', icon: FaHistory },
         {
             name: 'Settings',
             icon: FaCog,

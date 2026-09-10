@@ -166,6 +166,7 @@ export default function IndependentDoctorLayout({ children }) {
         { name: 'Prescription', href: '/vendors/independentdoctor/doctordashboard/prescriptions', icon: FaPrescription },
         { name: 'Patient History', href: '/vendors/independentdoctor/doctordashboard/patienthistory', icon: FaHistory },
         { name: 'Wallet & Earnings', href: '/vendors/independentdoctor/doctordashboard/wallet', icon: FaWallet },
+        { name: 'Issues', href: '/vendors/independentdoctor/doctordashboard/issues', icon: FaWallet },
         {
             name: 'Settings',
             icon: FaCog,

@@ -900,6 +900,24 @@ transferBed: async (data) => {
     } catch (error) {
       return { success: false, message: error.response?.data?.message || error.message };
     }
-  }
+  },
+    // 3.1 Submit Hospital Incident Ticket (multipart/form-data)
+  createIssue: (formData) => {
+    return hospitalVendorApi.post('/api/user-vendor/issues/create', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // 3.2 Get Hospital Reported Issues List
+  getMyIssues: (params = {}) => {
+    return hospitalVendorApi.get('/api/user-vendor/issues/my-issues', { params });
+  },
+
+  // 3.3 Get Live Issue Tracking & Resolution Timeline
+  trackIssue: (issueId) => {
+    return hospitalVendorApi.get(`/api/user-vendor/issues/track/${issueId}`);
+  },
 };
 export default HospitalAPI;

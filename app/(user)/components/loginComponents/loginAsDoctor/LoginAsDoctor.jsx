@@ -39,7 +39,8 @@ function LoginAsDoctor() {
       };
 
       const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/+$/, "") || "";
-      const response = await axios.post(`${baseUrl}/api/auth/hospital-doctor/login`, credentials);
+      const response = await axios.post(`${baseUrl}/api/hospital/doctors/login
+ `, credentials);
       const res = response.data;
 
       const token = res?.token || res?.data?.token;

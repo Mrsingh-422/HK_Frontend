@@ -169,6 +169,165 @@ processRefundPayout: (bookingId, vendorModel = 'Pharmacy') =>
     // API 6: Global Platform Financial Monitor & Liability Stats
     getWalletDashboardStats: () => 
         api.get('/api/admin/wallet/dashboard-stats'),
+  // =========================================================================
+// --- 👑 HEALTH KANGAROO COMPLETE SUBSCRIPTION & DYNAMIC PLAN APIS ---
+// =========================================================================
+
+// --- 1. DYNAMIC CATEGORY MANAGEMENT ---
+// 1.1 Create Master Category (POST /admin/subscriptions/categories)
+createSubscriptionCategory: (data) => 
+    api.post('/admin/subscriptions/categories', data),
+
+// 1.2 Get All Categories (GET /admin/subscriptions/categories)
+getSubscriptionCategories: (params = {}) => 
+    api.get('/admin/subscriptions/categories', { params }),
+
+// 1.3 Update Category (PUT /admin/subscriptions/categories/:id)
+updateSubscriptionCategory: (id, data) => 
+    api.put(`/admin/subscriptions/categories/${id}`, data),
+
+// 1.4 Delete Category (DELETE /admin/subscriptions/categories/:id)
+deleteSubscriptionCategory: (id) => 
+    api.delete(`/admin/subscriptions/categories/${id}`),
+
+
+// --- 2. DYNAMIC DISEASE / CONDITION MANAGEMENT ---
+// 2.1 Add Disease under Category (POST /admin/subscriptions/diseases)
+createSubscriptionDisease: (data) => 
+    api.post('/admin/subscriptions/diseases', data),
+
+// 2.2 Get Diseases List (GET /admin/subscriptions/diseases)
+getSubscriptionDiseases: (params = {}) => 
+    api.get('/admin/subscriptions/diseases', { params }),
+
+// 2.3 Update Disease (PUT /admin/subscriptions/diseases/:id)
+updateSubscriptionDisease: (id, data) => 
+    api.put(`/admin/subscriptions/diseases/${id}`, data),
+
+// 2.4 Delete Disease (DELETE /admin/subscriptions/diseases/:id)
+deleteSubscriptionDisease: (id) => 
+    api.delete(`/admin/subscriptions/diseases/${id}`),
+
+
+// --- 3. MASTER SUBSCRIPTION PLANS MANAGEMENT ---
+// 3.1 Create Master Plan (POST /admin/subscriptions/plans/create)
+createSubscriptionPlan: (data) => 
+    api.post('/admin/subscriptions/plans/create', data),
+
+// 3.2 Get All Plans with Active Subscriber Counters (GET /admin/subscriptions/plans)
+getMasterSubscriptionPlans: (params = {}) => 
+    api.get('/admin/subscriptions/plans', { params }),
+
+// 3.3 Get Single Plan Details by ID (GET /admin/subscriptions/plans/:id)
+getSingleSubscriptionPlan: (planId) => 
+    api.get(`/admin/subscriptions/plans/${planId}`),
+
+// 3.4 Update Master Plan (PUT /admin/subscriptions/plans/:id)
+updateSubscriptionPlan: (planId, data) => 
+    api.put(`/admin/subscriptions/plans/${planId}`, data),
+
+// 3.5 Delete Master Plan (DELETE /admin/subscriptions/plans/:id)
+deleteSubscriptionPlan: (planId) => 
+    api.delete(`/admin/subscriptions/plans/${planId}`),
+
+
+// --- 4. SUBSCRIBED USERS QUEUE & HISTORY ---
+// 4.1 Get Subscribed Users List with KPIs (GET /admin/subscriptions/subscribers)
+getSubscribedUsers: (params = {}) => 
+    api.get('/admin/subscriptions/subscribers', { params }),
+
+// 4.2 Get Single Subscriber Full Detail (GET /admin/subscriptions/subscribers/:id)
+getSingleSubscriber: (subscriptionId) => 
+    api.get(`/admin/subscriptions/subscribers/${subscriptionId}`),
+ // 4.1 Get All Issues Table (GET /admin/issues)
+  getIssuesList: (params = {}) => {
+    return api.get('/admin/issues', { params });
+  },
+
+  // 4.2 Update Status & Add Resolution Note (PATCH /admin/issues/update-status/:id)
+  updateIssueStatus: (issueId, data) => {
+    return api.patch(`/admin/issues/update-status/${issueId}`, data);
+  },
+
+  // 4.3 Quick Resolve Issue (PATCH /admin/issues/resolve/:id)
+  resolveIssue: (issueId) => {
+    return api.patch(`/admin/issues/resolve/${issueId}`);
+  },
+
+  // 4.4 Delete Issue (DELETE /admin/issues/delete/:id)
+  deleteIssue: (issueId) => {
+    return api.delete(`/admin/issues/delete/${issueId}`);
+  },
+// =========================================================================
+// --- 👩‍⚕️ NURSE SERVICES & PACKAGES MANAGEMENT APIS ---
+// =========================================================================
+
+// 4.1 Get All Nurse Services (Daily Care & Procedures)
+getNurseServices: (params = {}) => {
+    return api.get('/admin/nurse/services', { params });
+},
+
+// 4.2 Approve / Reject Nurse Service
+updateNurseServiceStatus: (serviceId, data) => {
+    return api.patch(`/admin/nurse/services/status/${serviceId}`, data);
+},
+
+// 5.1 Get All Nurse Standalone Packages (Bundles)
+getNursePackages: (params = {}) => {
+    return api.get('/admin/nurse/packages', { params });
+},
+
+// 5.2 Approve / Reject / Toggle Nurse Package Status
+updateNursePackageStatus: (packageId, data) => {
+    return api.patch(`/admin/nurse/packages/status/${packageId}`, data);
+},
+// =========================================================================
+// --- 🌐 FOOTER & SOCIAL MEDIA LINKS APIS ---
+// =========================================================================
+
+// 1. Get Footer Data (GET /api/footer)
+getFooterData: () => {
+    return api.get('/api/footer');
+},
+
+// 2. Save / Update Footer Content & Social Links (POST /api/footer)
+updateFooterData: (data) => {
+    return api.post('/api/footer', data);
+},
+// =========================================================================
+// --- 🔒 MAINTENANCE MODE APIS ---
+// =========================================================================
+
+/// =========================================================================
+// --- 🔒 MAINTENANCE MODE APIS ---
+// =========================================================================
+
+// 1. Get Public Maintenance Status (Website/App Root Guard)
+getMaintenanceStatus: () => {
+    return api.get('/api/maintenance/status');
+},
+
+// 2. Get Admin Current Maintenance Settings (GET /api/admin/maintenance)
+getMaintenanceSettings: () => {
+    return api.get('/api/admin/maintenance');
+},
+
+// 3. Update Maintenance Settings & Hero Banner (POST /api/admin/maintenance)
+updateMaintenanceSettings: (formData) => {
+    return api.post('/api/admin/maintenance', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    });
+},
+
+// 4. Helper to resolve full banner image URL
+getMaintenanceMediaUrl: (path) => {
+    const fallback = "https://healthvideos12-new1.s3.us-west-2.amazonaws.com/1742900654_Health_Kangaroo-1_1.png";
+    if (!path) return fallback;
+    if (path.startsWith('http')) return path;
+    const base = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5002').replace(/\/$/, '');
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${base}${cleanPath}`;
+},
 };
 
 export default AdminAPI2;

@@ -165,23 +165,34 @@ export default function Sidebar() {
                 )}
 
                 {/* Manage Packages (Tab 6) */}
-                {hasAccess(6) && (
-                    <>
-                        <div className={`menu-item dropdown ${isParentActive("/admind/managepackages") ? "active" : ""}`} onClick={() => toggleMenu("managepackages")}>
-                            <FaBoxes className="icon" />
-                            <span>Tests/Packages</span>
-                            {openMenu === "managepackages" ? <FaChevronDown className="arrow rotate" /> : <FaChevronRight className="arrow" />}
-                        </div>
-                        {openMenu === "managepackages" && (
-                            <div className="submenu fade-in">
-                                <Link href="/admind/managepackages/labtest" className={`submenu-link ${isActive("/admind/managepackages/labtest") ? "sub-active" : ""}`}>Lab Test</Link>
-                                <Link href="/admind/managepackages/approvetests" className={`submenu-link ${isActive("/admind/managepackages/approvetests") ? "sub-active" : ""}`}>Approve Tests</Link>
-                                <Link href="/admind/managepackages/labpackages" className={`submenu-link ${isActive("/admind/managepackages/labpackages") ? "sub-active" : ""}`}>Lab Package</Link>
-                                <Link href="/admind/managepackages/approvepackage" className={`submenu-link ${isActive("/admind/managepackages/approvepackage") ? "sub-active" : ""}`}>Approve Package</Link>
-                            </div>
-                        )}
-                    </>
-                )}
+{hasAccess(6) && (
+    <>
+        <div className={`menu-item dropdown ${isParentActive("/admind/managepackages") ? "active" : ""}`} onClick={() => toggleMenu("managepackages")}>
+            <FaBoxes className="icon" />
+            <span>Tests/Packages</span>
+            {openMenu === "managepackages" ? <FaChevronDown className="arrow rotate" /> : <FaChevronRight className="arrow" />}
+        </div>
+        {openMenu === "managepackages" && (
+            <div className="submenu fade-in">
+                <Link href="/admind/managepackages/labtest" className={`submenu-link ${isActive("/admind/managepackages/labtest") ? "sub-active" : ""}`}>
+                    Lab Test
+                </Link>
+                <Link href="/admind/managepackages/approvetests" className={`submenu-link ${isActive("/admind/managepackages/approvetests") ? "sub-active" : ""}`}>
+                    Approve Tests
+                </Link>
+                <Link href="/admind/managepackages/labpackages" className={`submenu-link ${isActive("/admind/managepackages/labpackages") ? "sub-active" : ""}`}>
+                    Lab Package
+                </Link>
+                <Link href="/admind/managepackages/approvepackage" className={`submenu-link ${isActive("/admind/managepackages/approvepackage") ? "sub-active" : ""}`}>
+                    Approve Package
+                </Link>
+                <Link href="/admind/managepackages/nursingservices" className={`submenu-link ${isActive("/admind/managepackages/nursingservices") ? "sub-active" : ""}`}>
+                    Nursing Services & Packages
+                </Link>
+            </div>
+        )}
+    </>
+)}
 
                 {/* Requests Issue (Tab 12) */}
                 {hasAccess(12) && (
@@ -390,8 +401,7 @@ export default function Sidebar() {
                         </div>
                         {openMenu === "/admind/manage-issues" && (
                             <div className="submenu fade-in">
-                                <Link href="/admind/manage-issues/issuelists" className={`submenu-link ${isActive("/admind/manage-issues/issuelists") ? "sub-active" : ""}`}>Issue Lists</Link>
-                                <Link href="/admind/manage-issues/user-issues" className={`submenu-link ${isActive("/admind/manage-issues/user-issues") ? "sub-active" : ""}`}>User Issues</Link>
+                                <Link href="/admind/manage-issues" className={`submenu-link ${isActive("/admind/manage-issues") ? "sub-active" : ""}`}>Issue Lists</Link>
                             </div>
                         )}
                     </>
@@ -424,7 +434,7 @@ export default function Sidebar() {
                         </div>
                         {openMenu === "subscribers" && (
                             <div className="submenu fade-in">
-                                <Link href="/admind/subscribers/addsubscribers" className={`submenu-link ${isActive("/admind/subscribers/addsubscribers") ? "sub-active" : ""}`}>Add Subscribers</Link>
+                                <Link href="/admind/subscribers" className={`submenu-link ${isActive("/admind/subscribers") ? "sub-active" : ""}`}>Subscribers</Link>
                             </div>
                         )}
                     </>
@@ -462,8 +472,8 @@ export default function Sidebar() {
                                 </Link>
                                 <Link href="/admind/settings/socialmedia" className={`submenu-link ${isActive("/admind/settings/socialmedia") ? "sub-active" : ""}`}>Social Media</Link>
                                 <Link href="/admind/settings/maintenancemode" className={`submenu-link ${isActive("/admind/settings/maintenancemode") ? "sub-active" : ""}`}>Maintenance Mode</Link>
-                                <Link href="/admind/settings/projectdetails" className={`submenu-link ${isActive("/admind/settings/projectdetails") ? "sub-active" : ""}`}>Manage Project Details</Link>
-                                <Link href="/admind/settings/paymentmethod" className={`submenu-link ${isActive("/admind/settings/paymentmethod") ? "sub-active" : ""}`}>Manage Payment Method</Link>
+                                {/* <Link href="/admind/settings/projectdetails" className={`submenu-link ${isActive("/admind/settings/projectdetails") ? "sub-active" : ""}`}>Manage Project Details</Link> */}
+                                {/* <Link href="/admind/settings/paymentmethod" className={`submenu-link ${isActive("/admind/settings/paymentmethod") ? "sub-active" : ""}`}>Manage Payment Method</Link> */}
                                 <Link href="/admind/settings/returnreplacement" className={`submenu-link ${isActive("/admind/settings/returnreplacement") ? "sub-active" : ""}`}>Manage Return & Replacement</Link>
                             </div>
                         )}

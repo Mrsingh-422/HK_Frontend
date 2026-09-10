@@ -85,12 +85,12 @@ function MyHospitalAppointments() {
 
   useEffect(() => {
     if (isRescheduling && selectedAppt) {
-      if (selectedAppt.startDate) {
-        setCurrentMonth(new Date(selectedAppt.startDate));
-      }
+      setRescheduleData({ start: "", end: "" });
+      setCurrentMonth(new Date());
       const bedId = selectedAppt.bedId?._id || selectedAppt.bedId;
       if (bedId) {
-        fetchBedMonthlySchedule(bedId, currentMonth.getMonth() + 1, currentMonth.getFullYear());
+        const today = new Date();
+        fetchBedMonthlySchedule(bedId, today.getMonth() + 1, today.getFullYear());
       }
     }
   }, [isRescheduling, selectedAppt]);
@@ -284,8 +284,8 @@ function MyHospitalAppointments() {
     }
   };
 
-  const handleDayClick = (dateStr, isBooked) => {
-    if (isBooked) return;
+  const handleDayClick = (dateStr, isBooked, isPast) => {
+    if (isBooked || isPast) return;
     if (!rescheduleData.start || (rescheduleData.start && rescheduleData.end)) {
       setRescheduleData({ start: dateStr, end: "" });
     } else {
@@ -307,8 +307,14 @@ function MyHospitalAppointments() {
   };
 
   const handlePrevMonth = () => {
-    const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
-    handleMonthChange(nextMonth);
+    const today = new Date();
+    const currentYearMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const prevMonthDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
+    
+    // Prevent navigating to past months
+    if (prevMonthDate < currentYearMonth) return;
+
+    handleMonthChange(prevMonthDate);
   };
 
   const handleNextMonth = () => {
@@ -740,17 +746,20 @@ function MyHospitalAppointments() {
                       {allDays.map((day, idx) => {
                         if (day === null) return <div key={`empty-${idx}`} />;
                         const dateStr = formatDateString(year, month, day);
+                        const todayStr = formatDateString(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+                        const isPast = dateStr < todayStr;
                         const daySchedule = monthlySchedule.find((item) => item.date === dateStr);
                         const isBooked = daySchedule ? daySchedule.status !== "Available" : false;
                         const isStart = rescheduleData.start === dateStr;
                         const isEnd = rescheduleData.end === dateStr;
                         const isInRange = rescheduleData.start && rescheduleData.end && dateStr > rescheduleData.start && dateStr < rescheduleData.end;
                         let dayStyle = "bg-white text-gray-800 hover:bg-gray-100";
-                        if (isBooked) dayStyle = "bg-red-50 text-red-500 line-through cursor-not-allowed opacity-60";
+                        if (isPast) dayStyle = "bg-gray-100 text-gray-300 cursor-not-allowed opacity-50";
+                        else if (isBooked) dayStyle = "bg-red-50 text-red-500 line-through cursor-not-allowed opacity-60";
                         else if (isStart || isEnd) dayStyle = "bg-[#08b36a] text-white font-black scale-105 shadow-md shadow-green-100";
                         else if (isInRange) dayStyle = "bg-green-50 text-[#08b36a] font-bold";
                         return (
-                          <button key={`day-${day}`} type="button" disabled={isBooked} onClick={() => handleDayClick(dateStr, isBooked)} className={`h-10 w-full rounded-xl text-xs flex items-center justify-center transition-all ${dayStyle}`}>{day}</button>
+                          <button key={`day-${day}`} type="button" disabled={isBooked || isPast} onClick={() => handleDayClick(dateStr, isBooked, isPast)} className={`h-10 w-full rounded-xl text-xs flex items-center justify-center transition-all ${dayStyle}`}>{day}</button>
                         );
                       })}
                     </div>

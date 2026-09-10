@@ -31,7 +31,8 @@ const menuItems = [
     { name: 'Delivery Charges', href: '/vendors/labvendor/dashboard/delivery-charge', icon: FaTruck },
     { name: 'Manage Banking', href: '/vendors/labvendor/dashboard/ManageBanking', icon: FaUniversity }, 
     { name: 'Change Password', href: '/vendors/labvendor/dashboard/change-password', icon: FaTruck },// ADDED MANAGE BANKING TO SETTINGS SECTION
-    
+    { name: 'Manage Issues', href: '/vendors/labvendor/dashboard/issues', icon: FaUniversity },
+
 ];
 
 export default function LabVendorLayout({ children }) {

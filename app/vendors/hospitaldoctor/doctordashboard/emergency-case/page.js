@@ -345,67 +345,72 @@ export default function DoctorEmergencyCasesPage() {
         }
     };
 
-    // Vitals-enabled dynamic submission handler (Argument-injected to bypass state closure lag)
-    const handleFeedbackSubmit = async (formData) => {
-        const activeForm = formData || feedbackForm;
+ const handleFeedbackSubmit = async (formData) => {
+    const activeForm = formData || feedbackForm;
 
-        if (!activeForm.observation) {
-            alert("Observation is required.");
-            return;
+    if (!activeForm.observation) {
+        alert("Observation is required.");
+        return;
+    }
+    try {
+        setActionLoading(true);
+
+        // Uses || instead of ?? so non-empty strings are properly captured
+        const bp = String(activeForm.vitals?.bp || activeForm.bp || "").trim();
+        const pulse = String(activeForm.vitals?.pulse || activeForm.pulse || "").trim();
+        const temp = String(activeForm.vitals?.temp || activeForm.temp || "").trim();
+        const spo2 = String(activeForm.vitals?.spo2 || activeForm.spo2 || "").trim();
+
+        const vitalsPayload = { bp, pulse, temp, spo2 };
+
+        const myDoctorId = getDoctorIdFromToken();
+        const isMainDoctor = caseDetails?.doctorId?._id === myDoctorId || caseDetails?.doctorId === myDoctorId;
+
+        let response;
+        if (isMainDoctor) {
+            response = await HospitalDoctorAPI.addClinicalLog({
+                appointmentId: selectedCaseId,
+                observation: activeForm.observation,
+                patientCondition: activeForm.patientCondition,
+                priorityRating: activeForm.priorityRating,
+                vitals: vitalsPayload,
+                bp,
+                pulse,
+                temp,
+                spo2
+            });
+        } else {
+            response = await HospitalDoctorAPI.submitBedsideFeedback({
+                appointmentId: selectedCaseId,
+                observation: activeForm.observation,
+                patientCondition: activeForm.patientCondition,
+                priorityRating: activeForm.priorityRating,
+                vitals: vitalsPayload,
+                bp,
+                pulse,
+                temp,
+                spo2,
+                recommendedMedicines: activeForm.recommendedMedicines || []
+            });
         }
-        try {
-            setActionLoading(true);
-            
-            // Explicitly map coordinates to guarantee payload values are serialized
-            const vitalsPayload = {
-                bp: String(activeForm.bp || "").trim(),
-                pulse: String(activeForm.pulse || "").trim(),
-                temp: String(activeForm.temp || "").trim(),
-                spo2: String(activeForm.spo2 || "").trim()
-            };
 
-            const myDoctorId = getDoctorIdFromToken();
-            const isMainDoctor = caseDetails?.doctorId?._id === myDoctorId || caseDetails?.doctorId === myDoctorId;
-
-            let response;
-            if (isMainDoctor) {
-                // Attending Progress Round Submission
-                response = await HospitalDoctorAPI.addClinicalLog({
-                    appointmentId: selectedCaseId,
-                    observation: activeForm.observation,
-                    patientCondition: activeForm.patientCondition,
-                    priorityRating: activeForm.priorityRating,
-                    vitals: vitalsPayload
-                });
-            } else {
-                // Specialist Bedside Feedback Submission
-                response = await HospitalDoctorAPI.submitBedsideFeedback({
-                    appointmentId: selectedCaseId,
-                    observation: activeForm.observation,
-                    patientCondition: activeForm.patientCondition,
-                    priorityRating: activeForm.priorityRating,
-                    vitals: vitalsPayload,
-                    recommendedMedicines: activeForm.recommendedMedicines || []
-                });
-            }
-
-            if (response.success) {
-                alert("Clinical observation feedback submitted successfully!");
-                setIsFeedbackOpen(false);
-                if (selectedCaseId) {
-                    const detailRes = await HospitalDoctorAPI.getCaseDetails(selectedCaseId);
-                    if (detailRes.success) {
-                        setCaseDetails(detailRes.data);
-                    }
+        if (response.success) {
+            alert("Clinical observation feedback submitted successfully!");
+            setIsFeedbackOpen(false);
+            if (selectedCaseId) {
+                const detailRes = await HospitalDoctorAPI.getCaseDetails(selectedCaseId);
+                if (detailRes.success) {
+                    setCaseDetails(detailRes.data);
                 }
-                fetchEmergencyCases();
             }
-        } catch (err) {
-            alert(getErrorMessage(err));
-        } finally {
-            setActionLoading(false);
+            fetchEmergencyCases();
         }
-    };
+    } catch (err) {
+        alert(getErrorMessage(err));
+    } finally {
+        setActionLoading(false);
+    }
+};
 
     const handleFinalizeDischarge = async () => {
         try {
