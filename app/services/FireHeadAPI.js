@@ -167,6 +167,24 @@ const FireHeadAPI = {
         const response = await api.put('/fireHQ/auth/change-password', passwordData);
         return response. Data;
     },
+     // 3.1 Submit Issue Ticket (multipart/form-data)
+  createIssue: (formData) => {
+    return api.post('/api/user-vendor/issues/create', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // 3.2 Get Reported Issues List
+  getMyIssues: (params = {}) => {
+    return api.get('/api/user-vendor/issues/my-issues', { params });
+  },
+
+  // 3.3 Get Live Issue Tracking & Resolution Timeline
+  trackIssue: (issueId) => {
+    return api.get(`/api/user-vendor/issues/track/${issueId}`);
+  },
 
 };
 

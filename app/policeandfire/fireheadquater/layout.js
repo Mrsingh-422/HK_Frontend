@@ -236,6 +236,8 @@ export default function FHQLayout({ children }) {
         { name: 'Manage Fire Station', href: '/policeandfire/fireheadquater/manage-fire-station', icon: FaBuilding },
         { name: 'Manage Jurisdiction Area', href: '/policeandfire/fireheadquater/jurisdiction-area-manage', icon: FaHome },
         { name: 'Change Password', href: '/policeandfire/fireheadquater/change-password', icon: FaShieldAlt },
+                { name: 'Issue', href: '/policeandfire/fireheadquater/issues', icon: FaShieldAlt },
+
     ];
  
     return (

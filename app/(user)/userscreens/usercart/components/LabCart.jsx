@@ -4,7 +4,9 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     FaPlus, FaMinus, FaShieldAlt,
-    FaPrescriptionBottleAlt, FaTag, FaSpinner, FaArrowLeft, FaCheckCircle, FaTicketAlt, FaUserCircle, FaWalking, FaHome, FaBolt, FaMapMarkerAlt, FaTrash, FaGem
+    FaPrescriptionBottleAlt, FaTag, FaSpinner, FaArrowLeft, FaCheckCircle,
+    FaTicketAlt, FaUserCircle, FaWalking, FaHome, FaBolt, FaMapMarkerAlt,
+    FaTrash, FaGem, FaCreditCard, FaMoneyBillWave, FaLock
 } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
@@ -12,7 +14,7 @@ import UserAPI from '@/app/services/UserAPI';
 import SlotSelectionModal from './SlotSelectionModal';
 import FamilyMemberModal from './FamilyMemberModal';
 
-// Utility to dynamically load the Razorpay SDK script
+// Dynamically load Razorpay SDK
 const loadRazorpayScript = () => {
     return new Promise((resolve) => {
         if (window.Razorpay) {
@@ -30,8 +32,9 @@ const loadRazorpayScript = () => {
 
 const LabCart = () => {
     const router = useRouter();
-    const { cart, updateQuantity, removeItem, loading } = useCart();
+    const { cart, updateQuantity, removeItem, loading, clearCart } = useCart();
 
+    // Coupons & Pricing
     const [availableCoupons, setAvailableCoupons] = useState([]);
     const [couponCode, setCouponCode] = useState("");
     const [appliedCouponName, setAppliedCouponName] = useState(null);
@@ -39,196 +42,175 @@ const LabCart = () => {
     const [isValidating, setIsValidating] = useState(false);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
 
-    // --- NEW SUBSCRIPTION STATE ---
+    // Subscription & COD State
     const [subscription, setSubscription] = useState(null);
+    const [paymentMethod, setPaymentMethod] = useState("Online"); // 'Online' | 'COD'
 
     // Collection Method State
-    const [collectionMethod, setCollectionMethod] = useState('Walk-in'); // 'Walk-in' or 'Home'
+    const [collectionMethod, setCollectionMethod] = useState('Home Collection'); // 'Home Collection' or 'Visit Lab'
 
     // Address State
     const [addresses, setAddresses] = useState([]);
     const [selectedAddress, setSelectedAddress] = useState(null);
     const [isAddressLoading, setIsAddressLoading] = useState(false);
 
-    // Delivery Charges State
+    // Delivery & Fast Report Config
     const [deliveryConfig, setDeliveryConfig] = useState(null);
     const [isFastDelivery, setIsFastDelivery] = useState(false);
-    const [userDistance, setUserDistance] = useState(0);
 
-    // Patient & Slot State (MODIFIED: selectedMembers is now an Array)
+    // Patients & Slot Selection
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
     const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false);
     const [selectedMembers, setSelectedMembers] = useState([]);
     const [selectedAppointment, setSelectedAppointment] = useState(null);
 
-    const labItems = useMemo(() => cart?.items || [], [cart]);
-    const currentLabId = useMemo(() => cart?.labId?._id, [cart]);
+    // Success Modal State
+    const [confirmedBookingData, setConfirmedBookingData] = useState(null);
 
-    // Validation: Home collection allowed only for Pathology
+    const labItems = useMemo(() => cart?.items || [], [cart]);
+    const currentLabId = useMemo(() => cart?.labId?._id || cart?.labId, [cart]);
+
+    // Home collection allowed only for Pathology (General)
     const isHomeCollectionAllowed = useMemo(() => {
-        return cart?.categoryType === 'General';
+        return cart?.categoryType === 'General' || !cart?.categoryType;
     }, [cart?.categoryType]);
 
-    // Force Walk-in if Radiology is detected
+    // Fallback to Visit Lab if Radiology detected
     useEffect(() => {
-        if (!isHomeCollectionAllowed && collectionMethod === 'Home') {
-            setCollectionMethod('Walk-in');
+        if (!isHomeCollectionAllowed && collectionMethod === 'Home Collection') {
+            setCollectionMethod('Visit Lab');
         }
     }, [isHomeCollectionAllowed, collectionMethod]);
 
-    // BASE SUBTOTAL (Items * Quantity)
+    // Items Subtotal Calculation
     const baseSubtotal = useMemo(() => {
         return labItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
     }, [labItems]);
 
-    // MULTIPLIED SUBTOTAL (Base * Number of Patients)
+    const multiplier = useMemo(() => {
+        return selectedMembers.length || 1;
+    }, [selectedMembers]);
+
     const subtotal = useMemo(() => {
-        const multiplier = selectedMembers.length || 1;
         return baseSubtotal * multiplier;
-    }, [baseSubtotal, selectedMembers]);
+    }, [baseSubtotal, multiplier]);
 
-    const fetchSuggested = useCallback(async () => {
-        if (labItems.length === 0) return;
+    // 1. Fetch Metadata (Coupons, Addresses, Delivery Config, Subscription)
+    const fetchMetadata = useCallback(async () => {
         try {
-            const response = await UserAPI.getCouponsForCart();
-            if (response.success) setAvailableCoupons(response.data);
-        } catch (error) {
-            console.error("Fetch Coupons Error:", error);
-        }
-    }, [labItems.length]);
+            setIsAddressLoading(true);
+            const [couponRes, addrRes, subRes] = await Promise.all([
+                UserAPI.getCouponsForCart(),
+                UserAPI.getUserAddresses(),
+                UserAPI.getMySubscriptionStatus()
+            ]);
 
-    // Fetch Delivery Charges Configuration
-    const fetchDeliveryCharges = useCallback(async () => {
-        if (!currentLabId) return;
-        try {
-            const res = await UserAPI.getLabDeliveryCharges({ labId: currentLabId });
-            if (res.success) {
-                setDeliveryConfig(res.data);
+            if (couponRes?.success) setAvailableCoupons(couponRes.data || []);
+            if (addrRes?.success && addrRes.data?.length > 0) {
+                setAddresses(addrRes.data);
+                const defaultAddr = addrRes.data.find(a => a.isDefault) || addrRes.data[0];
+                setSelectedAddress(defaultAddr);
+            }
+            if (subRes?.success && subRes.hasActivePlan) {
+                setSubscription(subRes.data);
             }
         } catch (error) {
-            console.error("Error fetching delivery charges:", error);
-        }
-    }, [currentLabId]);
-
-    // Fetch Addresses from API
-    const fetchAddresses = useCallback(async () => {
-        setIsAddressLoading(true);
-        try {
-            const res = await UserAPI.getUserAddresses();
-            if (res.success) {
-                setAddresses(res.data);
-                const defaultAddr = res.data.find(a => a.isDefault);
-                if (defaultAddr) setSelectedAddress(defaultAddr);
-            }
-        } catch (error) {
-            console.error("Error fetching addresses:", error);
+            console.error("Metadata fetch error:", error);
         } finally {
             setIsAddressLoading(false);
         }
     }, []);
 
-    // --- NEW: FETCH SUBSCRIPTION STATUS ---
-    const fetchSubscriptionStatus = useCallback(async () => {
+    const fetchDeliveryCharges = useCallback(async () => {
+        if (!currentLabId) return;
         try {
-            const res = await UserAPI.getMySubscriptionStatus();
-            if (res.success && res.hasActivePlan) {
-                setSubscription(res.data);
-            }
+            const res = await UserAPI.getLabDeliveryCharges({ labId: currentLabId });
+            if (res?.success) setDeliveryConfig(res.data);
         } catch (error) {
-            console.error("Error fetching subscription:", error);
+            console.error("Error fetching delivery charges:", error);
         }
-    }, []);
+    }, [currentLabId]);
 
     useEffect(() => {
-        fetchSuggested();
-        fetchDeliveryCharges();
-        fetchAddresses();
-        fetchSubscriptionStatus(); // Call subscription check
-    }, [fetchSuggested, fetchDeliveryCharges, fetchAddresses, fetchSubscriptionStatus]);
+        if (labItems.length > 0) {
+            fetchMetadata();
+            fetchDeliveryCharges();
+        }
+    }, [labItems.length, fetchMetadata, fetchDeliveryCharges]);
 
+    // 2. Coupon Validation
     const handleApplyCoupon = async (name) => {
-        const codeToApply = name || couponCode;
+        const codeToApply = (name || couponCode).trim().toUpperCase();
         if (!codeToApply) return toast.error("Please enter a coupon code");
         if (!currentLabId) return toast.error("Lab information missing");
 
         setIsValidating(true);
         try {
-            const res = await UserAPI.validateCouponCart(codeToApply.toUpperCase(), currentLabId, subtotal);
-            if (res.success) {
-                setAppliedCouponName(codeToApply.toUpperCase());
-                setServerDiscount(res.discount);
+            const res = await UserAPI.validateCouponCart(codeToApply, currentLabId, subtotal);
+            if (res?.success) {
+                setAppliedCouponName(codeToApply);
+                setServerDiscount(res.discount || res.data?.discount || 0);
                 setCouponCode("");
-                toast.success(`Coupon Applied! Saved ₹${res.discount}`);
+                toast.success(`Coupon Applied! Saved ₹${res.discount || res.data?.discount}`);
+            } else {
+                setAppliedCouponName(null);
+                setServerDiscount(0);
+                toast.error(res?.message || "Invalid coupon code");
             }
         } catch (error) {
             setAppliedCouponName(null);
             setServerDiscount(0);
-            const errorMsg = error.response?.data?.message || "Invalid or Expired Coupon";
-            toast.error(errorMsg);
+            toast.error(error.response?.data?.message || "Invalid or Expired Coupon");
         } finally {
             setIsValidating(false);
         }
     };
 
-    useEffect(() => {
-        if (appliedCouponName) {
-            handleApplyCoupon(appliedCouponName);
-        }
-    }, [subtotal]);
+    const removeCoupon = () => {
+        setAppliedCouponName(null);
+        setServerDiscount(0);
+        setCouponCode("");
+    };
 
+    // 3. Computed Bill Totals
     const totals = useMemo(() => {
-        const extraFee = selectedAppointment?.slot?.extraFee || 0;
+        const extraSlotFee = selectedAppointment?.slot?.extraFee || 0;
         const discountedAmount = Math.max(0, subtotal - serverDiscount);
 
-        let homeCollectionFee = 0;
-        let distanceFee = 0;
-        let fastReportFee = 0;
-        let taxAmount = 0;
+        let homeVisitCharge = 0;
+        let rapidDeliveryCharge = 0;
 
         if (deliveryConfig) {
             if (isFastDelivery) {
-                fastReportFee = deliveryConfig.fastDeliveryExtra;
+                rapidDeliveryCharge = deliveryConfig.fastDeliveryExtra || 0;
             }
-            if (collectionMethod === 'Home') {
-                // --- SUBSCRIPTION LOGIC: Home Collection Fee becomes 0 ---
+            if (collectionMethod === 'Home Collection') {
+                // Subscription VIP Waiver
                 if (subscription) {
-                    homeCollectionFee = 0;
-                } else if (subtotal < deliveryConfig.freeDeliveryThreshold) {
-                    homeCollectionFee = deliveryConfig.fixedPrice;
-                }
-
-                if (userDistance > deliveryConfig.fixedDistance) {
-                    distanceFee = (userDistance - deliveryConfig.fixedDistance) * deliveryConfig.pricePerKM;
+                    homeVisitCharge = 0;
+                } else if (subtotal < (deliveryConfig.freeDeliveryThreshold ?? 500)) {
+                    homeVisitCharge = deliveryConfig.fixedPrice ?? 50;
                 }
             }
-            if (deliveryConfig.taxPercentage > 0) {
-                taxAmount = (discountedAmount * deliveryConfig.taxPercentage) / 100;
-            }
-            taxAmount = 0;
         }
 
-        const total = discountedAmount + extraFee + homeCollectionFee + distanceFee + fastReportFee + taxAmount;
+        const totalAmount = discountedAmount + extraSlotFee + homeVisitCharge + rapidDeliveryCharge;
 
         return {
-            subtotal,
             baseSubtotal,
-            multiplier: selectedMembers.length || 1,
+            multiplier,
+            subtotal,
             discount: serverDiscount,
-            extraFee,
-            homeCollectionFee,
-            distanceFee,
-            fastReportFee,
-            taxAmount,
-            total,
-            isSubscriptionApplied: !!subscription && collectionMethod === 'Home'
+            extraSlotFee,
+            homeVisitCharge,
+            rapidDeliveryCharge,
+            totalAmount,
+            isSubscriptionApplied: Boolean(subscription && collectionMethod === 'Home Collection'),
+            isCodAvailable: true // Always unlocked for Subscribed VIPs
         };
-    }, [subtotal, baseSubtotal, selectedMembers, serverDiscount, selectedAppointment, collectionMethod, deliveryConfig, userDistance, isFastDelivery, subscription]);
+    }, [subtotal, baseSubtotal, multiplier, serverDiscount, selectedAppointment, collectionMethod, deliveryConfig, isFastDelivery, subscription]);
 
-    const handleQtyChange = (itemId, currentQty, action) => {
-        if (action === 'dec' && currentQty <= 1) return toast.error("Quantity cannot be less than 1");
-        updateQuantity(itemId, action);
-    };
-
+    // Handle Slot & Patient Modals
     const onFamilyConfirm = (membersList) => {
         setSelectedMembers(membersList);
         setIsFamilyModalOpen(false);
@@ -241,122 +223,127 @@ const LabCart = () => {
         toast.success(`Slot selected: ${slot.time}`);
     };
 
+    // 4. Final Booking & Razorpay Flow (Section 3.1 & Section 7)
     const handleProceed = async () => {
-        if (collectionMethod === 'Home' && !selectedAddress) {
+        if (collectionMethod === 'Home Collection' && !selectedAddress) {
             return toast.error("Please select a home collection address");
         }
         if (selectedMembers.length === 0) {
-            setIsFamilyModalOpen(true);
-        } else if (!selectedAppointment) {
-            setIsSlotModalOpen(true);
-        } else {
-            setIsCheckingOut(true);
-            try {
-                const isScriptLoaded = await loadRazorpayScript();
-                if (!isScriptLoaded) {
-                    toast.error("Failed to load Razorpay SDK. Please check your network connection.");
-                    setIsCheckingOut(false);
-                    return;
-                }
+            return setIsFamilyModalOpen(true);
+        }
+        if (!selectedAppointment) {
+            return setIsSlotModalOpen(true);
+        }
 
-                const payload = {
-                    appointmentDate: selectedAppointment.date,
-                    appointmentTime: selectedAppointment.slot.time,
+        setIsCheckingOut(true);
 
-                    selectedPatientIds: selectedMembers.map(m =>
-                        m.relation === 'Self' ? 'Self' : m._id
-                    ),
+        try {
+            const isZeroTotal = Math.round(totals.totalAmount) === 0;
+            const finalPaymentMethod = isZeroTotal ? "COD" : paymentMethod;
 
-                    collectionType: collectionMethod === 'Home'
-                        ? "Home Collection"
-                        : "Visit Lab",
+            // Build patientMappings as per documentation Section 3.1
+            const patientMappings = selectedMembers.map((member) => ({
+                patientId: member.relation === 'Self' ? 'Self' : member._id,
+                address: collectionMethod === 'Home Collection' ? {
+                    houseNo: selectedAddress.houseNo || "",
+                    sector: selectedAddress.sector || "",
+                    city: selectedAddress.city || "",
+                    state: selectedAddress.state || "",
+                    pincode: selectedAddress.pincode || ""
+                } : undefined,
+                items: labItems.map((item) => ({
+                    itemId: item.itemId || item._id,
+                    productType: item.productType || "LabTest"
+                }))
+            }));
 
-                    address: collectionMethod === 'Home' ? {
-                        addressType: selectedAddress.addressType,
-                        name: selectedAddress.name,
-                        phone: selectedAddress.phone,
-                        houseNo: selectedAddress.houseNo,
-                        sector: selectedAddress.sector,
-                        landmark: selectedAddress.landmark,
-                        city: selectedAddress.city,
-                        state: selectedAddress.state,
-                        country: selectedAddress.country,
-                        pincode: selectedAddress.pincode,
-                        isDefault: selectedAddress.isDefault,
-                        _id: selectedAddress._id
-                    } : null,
+            const payload = {
+                collectionType: collectionMethod,
+                appointmentDate: selectedAppointment.date,
+                appointmentTime: selectedAppointment.slot.time,
+                isRapid: isFastDelivery,
+                paymentMethod: finalPaymentMethod,
+                couponCode: appliedCouponName || undefined,
+                patientMappings
+            };
 
-                    isRapid: isFastDelivery,
-                    couponCode: appliedCouponName || "",
-                };
+            const res = await UserAPI.checkoutLabCart(payload);
 
-                const res = await UserAPI.checkoutLabCart(payload);
-                if (res.success) {
-                    // --- SKIP RAZORPAY IF TOTAL IS 0 ---
-                    if (res.amount === 0 || Math.round(totals.total) === 0) {
-                        toast.success(res.message || "Booking confirmed successfully!");
-                        router.push('/userscreens/previousorders');
-                        return;
-                    }
-
-                    const { key_id, amount, razorpayOrderId, appointmentId, orderId } = res;
-
-                    const options = {
-                        key: key_id,
-                        amount: amount,
-                        currency: "INR",
-                        name: "HK Healthcare App",
-                        description: "Lab Test Booking Fee",
-                        order_id: razorpayOrderId,
-                        prefill: {
-                            name: selectedMembers?.[0]?.memberName || "Patient Name",
-                            contact: selectedAddress?.phone || "9876543210"
-                        },
-                        theme: {
-                            color: "#059669"
-                        },
-                        modal: {
-                            ondismiss: function () {
-                                setIsCheckingOut(false);
-                            }
-                        },
-                        handler: async function (response) {
-                            try {
-                                setIsCheckingOut(true);
-                                const verificationPayload = {
-                                    appointmentId: appointmentId || orderId,
-                                    razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
-                                    razorpayPaymentId: response.razorpay_payment_id,
-                                    razorpaySignature: response.razorpay_signature
-                                };
-
-                                const verificationRes = await UserAPI.verifyPaymentLab(verificationPayload);
-
-                                if (verificationRes?.success) {
-                                    toast.success(verificationRes.message || "Order Confirmed!");
-                                    router.push('/userscreens/previousorders');
-                                } else {
-                                    toast.error(verificationRes?.message || "Payment verification failed.");
-                                }
-                            } catch (verificationError) {
-                                toast.error("An error occurred during payment verification.");
-                            } finally {
-                                setIsCheckingOut(false);
-                            }
-                        }
-                    };
-
-                    const rzpInstance = new window.Razorpay(options);
-                    rzpInstance.open();
-
-                } else {
-                    toast.error(res?.message || "Checkout initialization failed");
-                    setIsCheckingOut(false);
-                }
-            } catch (error) {
-                toast.error(error.response?.data?.message || "Checkout failed");
+            if (!res?.success) {
+                toast.error(res?.message || "Failed to initiate booking");
                 setIsCheckingOut(false);
+                return;
             }
+
+            // --- CASE A: Direct Confirmation for COD or Free Booking ---
+            if (isZeroTotal || finalPaymentMethod === "COD" || res.data?.paymentStatus === "Paid" || res.data?.paymentStatus === "Pending") {
+                await clearCart();
+                setConfirmedBookingData(res.data || { bookingId: res.bookingId || "ORD-SUCCESS" });
+                setIsCheckingOut(false);
+                return;
+            }
+
+            // --- CASE B: Online Payment via Razorpay ---
+            const isScriptLoaded = await loadRazorpayScript();
+            if (!isScriptLoaded) {
+                toast.error("Failed to load Razorpay SDK.");
+                setIsCheckingOut(false);
+                return;
+            }
+
+            const { key_id, amount, razorpayOrderId, appointmentId, orderId } = res;
+
+            const options = {
+                key: key_id,
+                amount: amount,
+                currency: "INR",
+                name: "Health Kangaroo Diagnostic Labs",
+                description: "Lab Test Booking Payment",
+                order_id: razorpayOrderId,
+                prefill: {
+                    name: selectedMembers[0]?.memberName || "Patient",
+                    contact: selectedAddress?.phone || ""
+                },
+                theme: { color: "#10b981" },
+                modal: {
+                    ondismiss: () => {
+                        setIsCheckingOut(false);
+                        toast.error("Payment cancelled");
+                    }
+                },
+                handler: async function (response) {
+                    try {
+                        setIsCheckingOut(true);
+                        const verificationPayload = {
+                            appointmentId: appointmentId || orderId || res.data?._id,
+                            razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
+                            razorpayPaymentId: response.razorpay_payment_id,
+                            razorpaySignature: response.razorpay_signature
+                        };
+
+                        const verificationRes = await UserAPI.verifyPaymentLab(verificationPayload);
+
+                        if (verificationRes?.success) {
+                            await clearCart();
+                            setConfirmedBookingData(verificationRes.data || { bookingId: orderId || "ORD-SUCCESS" });
+                        } else {
+                            toast.error(verificationRes?.message || "Payment verification failed.");
+                        }
+                    } catch (e) {
+                        toast.error("Error verifying payment.");
+                    } finally {
+                        setIsCheckingOut(false);
+                    }
+                }
+            };
+
+            const rzpInstance = new window.Razorpay(options);
+            rzpInstance.open();
+
+        } catch (error) {
+            console.error("Checkout error:", error);
+            toast.error(error.response?.data?.message || "Checkout failed");
+            setIsCheckingOut(false);
         }
     };
 
@@ -364,284 +351,351 @@ const LabCart = () => {
         return <div className="p-20 text-center font-bold text-slate-400 animate-pulse uppercase tracking-widest">Loading Lab Cart...</div>;
     }
 
-    if (labItems.length === 0) {
+    if (labItems.length === 0 && !confirmedBookingData) {
         return (
             <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
-                <FaPrescriptionBottleAlt className="text-slate-100 text-7xl mb-6" />
-                <h2 className="text-2xl font-black text-slate-800">Lab Cart is Empty</h2>
-                <button onClick={() => router.push('/booklabtest')} className="mt-8 bg-emerald-600 text-white px-10 py-3 rounded-2xl font-black uppercase text-sm tracking-widest">Browse Tests</button>
+                <FaPrescriptionBottleAlt className="text-slate-200 text-7xl mb-6" />
+                <h2 className="text-2xl font-black text-slate-800">Your Lab Cart is Empty</h2>
+                <button
+                    onClick={() => router.push('/booklabtest')}
+                    className="mt-6 bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-wider shadow-lg shadow-emerald-600/20"
+                >
+                    Browse Tests & Packages
+                </button>
             </div>
         );
     }
 
     return (
-        <div className="bg-gray-50 min-h-screen pb-20">
-
-            <div className="max-w-7xl mx-auto px-4 py-6">
+        <div className="bg-[#F8FAFC] min-h-screen pb-20 font-sans">
+            <div className="max-w-7xl mx-auto px-4 pt-6">
                 <div className="flex flex-col lg:flex-row gap-8 items-start">
 
-                    {/* LEFT: LAB ITEMS */}
-                    <div className="flex-1 w-full space-y-4">
+                    {/* LEFT COLUMN */}
+                    <div className="flex-1 w-full space-y-6">
                         
-                        {/* --- SUBSCRIPTION BADGE --- */}
-                        {subscription && (
-                            <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex items-center gap-3">
-                                <FaGem className="text-emerald-500" />
-                                <p className="text-xs font-bold text-emerald-800 uppercase tracking-tight">
-                                    {subscription.planId.name} Active: Free Home Collection Applied
-                                </p>
+                        {/* VIP Plan Badge */}
+                        {totals.isSubscriptionApplied && (
+                            <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex items-center gap-3">
+                                <FaGem className="text-emerald-600" />
+                                <div>
+                                    <p className="text-xs font-bold text-emerald-900 uppercase tracking-tight">
+                                        {subscription.planId?.name || "VIP Plan"} Active
+                                    </p>
+                                    <p className="text-[11px] text-emerald-700">Free Home Sample Collection Applied</p>
+                                </div>
                             </div>
                         )}
 
-                        {/* COLLECTION METHOD SELECTION */}
-                        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Choose Collection Method</h3>
-                            <div className="flex gap-4">
+                        {/* COLLECTION METHOD */}
+                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">1. Collection Method</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <button
-                                    onClick={() => setCollectionMethod('Walk-in')}
-                                    className={`flex-1 flex flex-col items-center gap-2 py-4 rounded-2xl border-2 transition-all ${collectionMethod === 'Walk-in' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'}`}
+                                    onClick={() => setCollectionMethod('Visit Lab')}
+                                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left
+                                        ${collectionMethod === 'Visit Lab' ? 'border-emerald-600 bg-emerald-50/50 text-emerald-900' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}
                                 >
-                                    <FaWalking size={20} />
-                                    <span className="text-sm font-bold">Walk-in at Lab</span>
+                                    <div className="p-2.5 bg-slate-100 rounded-xl"><FaWalking size={18} /></div>
+                                    <div>
+                                        <p className="text-xs font-black">Visit Lab</p>
+                                        <p className="text-[10px] text-slate-400">Walk-in at diagnostic center</p>
+                                    </div>
                                 </button>
+
                                 <button
                                     disabled={!isHomeCollectionAllowed}
-                                    onClick={() => setCollectionMethod('Home')}
-                                    className={`flex-1 flex flex-col items-center gap-2 py-4 rounded-2xl border-2 transition-all ${!isHomeCollectionAllowed ? 'opacity-40 cursor-not-allowed grayscale border-gray-100 bg-gray-50' : collectionMethod === 'Home' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-gray-100 bg-gray-50 text-gray-500 hover:border-gray-200'}`}
+                                    onClick={() => setCollectionMethod('Home Collection')}
+                                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left relative
+                                        ${!isHomeCollectionAllowed ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : ''}
+                                        ${collectionMethod === 'Home Collection' ? 'border-emerald-600 bg-emerald-50/50 text-emerald-900' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}
                                 >
-                                    <FaHome size={20} />
-                                    <span className="text-sm font-bold">Home Collection</span>
+                                    <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl"><FaHome size={18} /></div>
+                                    <div>
+                                        <p className="text-xs font-black">Home Collection</p>
+                                        <p className="text-[10px] text-slate-400">Phlebotomist visits your doorstep</p>
+                                    </div>
                                 </button>
                             </div>
-                            {!isHomeCollectionAllowed && (
-                                <p className="text-[10px] text-rose-500 font-bold mt-3 uppercase tracking-tighter">* Home collection not available for {cart?.categoryType} tests</p>
-                            )}
 
-                            {/* ADDRESS SELECTION SECTION */}
-                            {collectionMethod === 'Home' && (
-                                <div className="mt-6 pt-6 border-t border-gray-100">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Select Address</h3>
-                                        <button onClick={() => router.push('/profile/addresses')} className="text-[10px] font-bold text-emerald-600 uppercase">+ Add New</button>
+                            {/* ADDRESS SELECTION */}
+                            {collectionMethod === 'Home Collection' && (
+                                <div className="mt-6 pt-6 border-t border-slate-100">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Sample Pickup Address</h4>
+                                        <button onClick={() => router.push('/profile/addresses')} className="text-[10px] font-bold text-emerald-600 uppercase hover:underline">+ Add New</button>
                                     </div>
 
                                     {isAddressLoading ? (
                                         <div className="flex justify-center py-4"><FaSpinner className="animate-spin text-emerald-500" /></div>
                                     ) : (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {addresses.map((addr) => (
-                                                <div
-                                                    key={addr._id}
-                                                    onClick={() => setSelectedAddress(addr)}
-                                                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedAddress?._id === addr._id ? 'border-emerald-600 bg-emerald-50' : 'border-gray-100 bg-white hover:border-gray-200'}`}
-                                                >
-                                                    <div className="flex items-start gap-3">
-                                                        <FaMapMarkerAlt className={selectedAddress?._id === addr._id ? 'text-emerald-600 mt-1' : 'text-gray-400 mt-1'} />
-                                                        <div className="flex-1">
-                                                            <div className="flex justify-between">
-                                                                <span className="text-xs font-black text-gray-900 uppercase">{addr.addressType}</span>
+                                            {addresses.map((addr) => {
+                                                const isSelected = selectedAddress?._id === addr._id;
+                                                return (
+                                                    <div
+                                                        key={addr._id}
+                                                        onClick={() => setSelectedAddress(addr)}
+                                                        className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all
+                                                            ${isSelected ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                                                    >
+                                                        <div className="flex items-start gap-2.5">
+                                                            <FaMapMarkerAlt className={`mt-0.5 text-xs ${isSelected ? 'text-emerald-600' : 'text-slate-300'}`} />
+                                                            <div>
+                                                                <span className="text-[10px] font-black uppercase text-slate-900">{addr.addressType}</span>
+                                                                <p className="text-xs font-bold text-slate-700 mt-0.5">{addr.name}</p>
+                                                                <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+                                                                    {addr.houseNo}, {addr.sector}, {addr.city}
+                                                                </p>
                                                             </div>
-                                                            <p className="text-[11px] font-bold text-gray-700 mt-1">{addr.name}</p>
-                                                            <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">
-                                                                H.No {addr.houseNo}, {addr.city}
-                                                            </p>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
                             )}
 
-                            {/* FAST DELIVERY OPTION */}
-                            {deliveryConfig && (
-                                <div className="mt-6 pt-6 border-t border-gray-100">
+                            {/* FAST REPORT OPTION */}
+                            {deliveryConfig?.fastDeliveryExtra > 0 && (
+                                <div className="mt-4 pt-4 border-t border-slate-100">
                                     <div
                                         onClick={() => setIsFastDelivery(!isFastDelivery)}
-                                        className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${isFastDelivery ? 'border-amber-500 bg-amber-50' : 'border-gray-100 bg-white'}`}
+                                        className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all
+                                            ${isFastDelivery ? 'border-amber-500 bg-amber-50/50' : 'border-slate-200 bg-white'}`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className={`p-2 rounded-lg ${isFastDelivery ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
-                                                <FaBolt />
+                                            <div className={`p-2 rounded-lg ${isFastDelivery ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                                <FaBolt size={13} />
                                             </div>
                                             <div>
-                                                <h4 className="text-sm font-bold text-gray-800">Fast Report Delivery</h4>
-                                                <p className="text-[10px] text-gray-500 font-medium">Get reports delivered 2x faster</p>
+                                                <h4 className="text-xs font-bold text-slate-800">Fast Express Reporting</h4>
+                                                <p className="text-[10px] text-slate-400">Get verified digital reports 2x faster</p>
                                             </div>
                                         </div>
-                                        <span className="font-bold text-sm text-gray-900">+₹{deliveryConfig.fastDeliveryExtra}</span>
+                                        <span className="font-black text-xs text-slate-900">+₹{deliveryConfig.fastDeliveryExtra}</span>
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        {/* SELECTION SUMMARY */}
-                        {(selectedMembers.length > 0 || selectedAppointment || (collectionMethod === 'Home' && selectedAddress)) && (
-                            <div className="bg-white border border-emerald-100 rounded-xl p-4 flex flex-wrap gap-4 items-center">
-                                {selectedMembers.length > 0 && (
-                                    <div className="flex items-center gap-2 border-r pr-4 border-gray-100">
-                                        <FaUserCircle className="text-emerald-500" />
-                                        <span className="text-xs font-bold text-gray-700">Patients: {selectedMembers.map(m => m.memberName).join(", ")}</span>
-                                    </div>
-                                )}
-                                {selectedAppointment && (
-                                    <div className="text-xs font-bold text-emerald-600 flex items-center gap-1 border-r pr-4 border-gray-100">
-                                        <FaCheckCircle /> Slot: {selectedAppointment.date} @ {selectedAppointment.slot.time}
-                                    </div>
-                                )}
+                        {/* PATIENT & SLOT SELECTION STATUS */}
+                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">2. Patient & Schedule</h3>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <button
-                                    onClick={() => { setSelectedMembers([]); setSelectedAppointment(null); setSelectedAddress(null); }}
-                                    className="text-[10px] font-bold text-rose-500 uppercase ml-auto underline"
+                                    onClick={() => setIsFamilyModalOpen(true)}
+                                    className={`p-4 rounded-xl border text-left flex items-center justify-between transition-all
+                                        ${selectedMembers.length > 0 ? 'border-emerald-600 bg-emerald-50/30' : 'border-slate-200 hover:border-slate-300'}`}
                                 >
-                                    Reset
-                                </button>
-                            </div>
-                        )}
-
-                        {/* ADD MORE TESTS BUTTON */}
-                        {currentLabId && (
-                            <div className="flex justify-between items-center bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                                <span className="text-xs font-black text-gray-500 uppercase tracking-widest">Need to add more?</span>
-                                <button
-                                    onClick={() => router.push(`/booklabtest/singlelabdetail/${currentLabId}`)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl font-bold text-xs uppercase tracking-wider transition hover:bg-emerald-100 active:scale-95 shadow-sm"
-                                >
-                                    + Add More Tests / Packages
-                                </button>
-                            </div>
-                        )}
-
-                        {labItems.map((item) => (
-                            <div key={item._id} className="bg-white border border-gray-200 rounded-xl p-5 flex items-center gap-5 shadow-sm">
-                                <div className="w-16 h-16 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600 flex-shrink-0"><FaPrescriptionBottleAlt size={24} /></div>
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-start">
+                                    <div className="flex items-center gap-3">
+                                        <FaUserCircle className={selectedMembers.length > 0 ? 'text-emerald-600' : 'text-slate-400'} size={18} />
                                         <div>
-                                            <h3 className="font-bold text-gray-900 text-lg leading-tight">{item.name}</h3>
-                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-100 px-2 py-0.5 rounded mt-1 inline-block">{item.productType}</span>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="font-bold text-gray-900 text-lg">₹{(item.price * item.quantity * (selectedMembers.length || 1)).toLocaleString()}</p>
-                                            <p className="text-[10px] text-gray-400">₹{item.price} x {selectedMembers.length || 1} Patient(s)</p>
+                                            <p className="text-xs font-black text-slate-900">
+                                                {selectedMembers.length > 0 ? `${selectedMembers.length} Patient(s) Selected` : "Select Patients *"}
+                                            </p>
+                                            <p className="text-[10px] text-slate-500 truncate max-w-[180px]">
+                                                {selectedMembers.length > 0 ? selectedMembers.map(m => m.memberName).join(", ") : "Click to choose"}
+                                            </p>
                                         </div>
                                     </div>
-                                    <div className="mt-4 flex items-center justify-between w-full">
-                                        <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-                                            <button
-                                                onClick={() => handleQtyChange(item.itemId, item.quantity, 'dec')}
-                                                className="px-3 py-1 bg-gray-50 hover:bg-gray-100 transition"
-                                            >
-                                                <FaMinus size={14} />
-                                            </button>
-                                            <span className="px-4 text-sm font-bold">{item.quantity}</span>
-                                            <button
-                                                onClick={() => handleQtyChange(item.itemId, item.quantity, 'inc')}
-                                                className="px-3 py-1 bg-gray-50 hover:bg-gray-100 transition"
-                                            >
-                                                <FaPlus size={14} />
-                                            </button>
+                                    <span className="text-[10px] font-bold text-emerald-600 uppercase">Change</span>
+                                </button>
+
+                                <button
+                                    onClick={() => setIsSlotModalOpen(true)}
+                                    className={`p-4 rounded-xl border text-left flex items-center justify-between transition-all
+                                        ${selectedAppointment ? 'border-emerald-600 bg-emerald-50/30' : 'border-slate-200 hover:border-slate-300'}`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <FaCheckCircle className={selectedAppointment ? 'text-emerald-600' : 'text-slate-400'} size={18} />
+                                        <div>
+                                            <p className="text-xs font-black text-slate-900">
+                                                {selectedAppointment ? `${selectedAppointment.slot.time}` : "Select Time Slot *"}
+                                            </p>
+                                            <p className="text-[10px] text-slate-500">
+                                                {selectedAppointment ? `${selectedAppointment.date}` : "Click to select"}
+                                            </p>
                                         </div>
-                                        <button
-                                            onClick={() => removeItem(item.itemId)}
-                                            className="flex items-center gap-1 text-rose-500 hover:text-rose-600 transition"
-                                        >
-                                            <FaTrash size={12} />
-                                            <span className="text-xs font-semibold">Remove</span>
-                                        </button>
                                     </div>
+                                    <span className="text-[10px] font-bold text-emerald-600 uppercase">Change</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* PAYMENT METHOD SELECTOR */}
+                        {totals.totalAmount > 0 && (
+                            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">3. Payment Method</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaymentMethod("Online")}
+                                        className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between
+                                            ${paymentMethod === "Online" ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'bg-white border-slate-200'}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl"><FaCreditCard size={15} /></div>
+                                            <div>
+                                                <p className="text-xs font-black text-slate-900">Pay Online</p>
+                                                <p className="text-[10px] text-slate-500">UPI, Cards, NetBanking</p>
+                                            </div>
+                                        </div>
+                                        {paymentMethod === "Online" && <FaCheckCircle className="text-emerald-600" size={15} />}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaymentMethod("COD")}
+                                        className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between
+                                            ${paymentMethod === "COD" ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'bg-white border-slate-200'}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 bg-slate-100 text-slate-700 rounded-xl"><FaMoneyBillWave size={15} /></div>
+                                            <div>
+                                                <p className="text-xs font-black text-slate-900">Pay on Collection (COD)</p>
+                                                <p className="text-[10px] text-slate-500">Pay cash during sample collection</p>
+                                            </div>
+                                        </div>
+                                        {paymentMethod === "COD" && <FaCheckCircle className="text-emerald-600" size={15} />}
+                                    </button>
                                 </div>
                             </div>
-                        ))}
+                        )}
+
+                        {/* REVIEW ITEMS */}
+                        <div className="space-y-3">
+                            {labItems.map((item) => (
+                                <div key={item._id} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
+                                            <FaPrescriptionBottleAlt size={18} />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-slate-900 text-xs">{item.name}</h4>
+                                            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 bg-slate-100 px-2 py-0.5 rounded mt-0.5 inline-block">
+                                                {item.productType}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-black text-slate-900 text-sm">₹{(item.price * (selectedMembers.length || 1)).toLocaleString()}</p>
+                                        <p className="text-[10px] text-slate-400">₹{item.price} × {selectedMembers.length || 1} Patient(s)</p>
+                                        <button onClick={() => removeItem(item.itemId)} className="text-[10px] text-rose-500 font-bold uppercase hover:underline mt-1">Remove</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
                     </div>
 
-                    {/* RIGHT: BILLING & COUPONS */}
-                    <div className="w-full lg:w-[400px] space-y-6">
+                    {/* RIGHT COLUMN: BILLING & SUMMARY */}
+                    <div className="w-full lg:w-[380px] space-y-6 lg:sticky lg:top-24">
 
-                        {/* COUPON SECTION */}
-                        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                            <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2"><FaTicketAlt className="text-emerald-500" /> Apply Coupon</h3>
-                            <div className="flex gap-2 mb-4">
+                        {/* Coupon Section */}
+                        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
+                            <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                                <FaTicketAlt className="text-emerald-500" /> Apply Coupon
+                            </h3>
+                            <div className="flex gap-2">
                                 <input
                                     type="text"
-                                    placeholder={appliedCouponName || "Enter code"}
+                                    placeholder="COUPON CODE"
                                     value={couponCode}
                                     onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                                     disabled={!!appliedCouponName}
-                                    className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-sm font-bold outline-none focus:border-emerald-500 disabled:opacity-50"
+                                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-emerald-500/20"
                                 />
                                 {appliedCouponName ? (
-                                    <button onClick={() => { setAppliedCouponName(null); setServerDiscount(0); }} className="bg-rose-50 text-rose-600 px-4 rounded-lg text-xs font-bold border border-rose-100">REMOVE</button>
+                                    <button onClick={removeCoupon} className="bg-rose-50 text-rose-600 px-4 rounded-xl text-[10px] font-black uppercase">Remove</button>
                                 ) : (
-                                    <button onClick={() => handleApplyCoupon()} disabled={isValidating || !couponCode} className="bg-gray-900 text-white px-6 rounded-lg text-xs font-bold">
-                                        {isValidating ? <FaSpinner className="animate-spin" /> : "APPLY"}
+                                    <button onClick={() => handleApplyCoupon()} disabled={isValidating || !couponCode} className="bg-slate-900 hover:bg-slate-800 text-white px-5 rounded-xl text-[10px] font-black uppercase">
+                                        {isValidating ? <FaSpinner className="animate-spin" /> : "Apply"}
                                     </button>
                                 )}
                             </div>
-
-                            <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
-                                {availableCoupons.map((coupon) => (
-                                    <div
-                                        key={coupon._id}
-                                        onClick={() => !appliedCouponName && coupon.isApplicable && handleApplyCoupon(coupon.couponName)}
-                                        className={`p-3 rounded-lg border text-xs transition-all ${appliedCouponName === coupon.couponName ? "border-emerald-500 bg-emerald-50" : coupon.isApplicable ? "border-gray-100 bg-gray-50 cursor-pointer" : "opacity-40 grayscale cursor-not-allowed"}`}
-                                    >
-                                        <div className="flex justify-between font-bold text-gray-800">
-                                            <span>{coupon.couponName}</span>
-                                            {appliedCouponName === coupon.couponName && <FaCheckCircle className="text-emerald-600" />}
-                                        </div>
-                                        <p className="text-gray-500 text-[10px]">Get {coupon.discountPercentage}% OFF (Max ₹{coupon.maxDiscount})</p>
-                                    </div>
-                                ))}
-                            </div>
                         </div>
 
-                        {/* ORDER SUMMARY */}
-                        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                            <h2 className="text-lg font-black text-gray-900 mb-5">Order Summary</h2>
-                            <div className="space-y-3 pb-5 border-b border-gray-100 text-sm">
-                                <div className="flex justify-between text-gray-500 font-medium">
-                                    <span>Items Subtotal</span>
-                                    <span className="text-gray-900">₹{totals.baseSubtotal.toLocaleString()}</span>
+                        {/* Cost Summary Box */}
+                        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Order Summary</h3>
+
+                            <div className="space-y-2.5 text-xs">
+                                <div className="flex justify-between text-slate-600">
+                                    <span>Base Tests Total</span>
+                                    <span className="font-bold text-slate-900">₹{totals.baseSubtotal.toFixed(2)}</span>
                                 </div>
-                                <div className="flex justify-between text-gray-500 font-medium">
+                                <div className="flex justify-between text-slate-600">
                                     <span>Patient Multiplier</span>
-                                    <span className="text-gray-900 font-bold">x {totals.multiplier}</span>
+                                    <span className="font-black text-slate-900">× {totals.multiplier}</span>
                                 </div>
-                                <div className="flex justify-between text-emerald-700 font-black pt-1">
-                                    <span>Cart Total</span>
-                                    <span>₹{totals.subtotal.toLocaleString()}</span>
+                                <div className="flex justify-between text-emerald-800 font-bold bg-emerald-50/60 p-2 rounded-xl">
+                                    <span>Multiplied Total</span>
+                                    <span>₹{totals.subtotal.toFixed(2)}</span>
                                 </div>
 
-                                {totals.discount > 0 && <div className="flex justify-between text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg"><span>Coupon Discount</span><span>-₹{totals.discount.toLocaleString()}</span></div>}
-
-                                <div className="pt-2 space-y-2">
-                                    <div className="flex justify-between text-gray-500 text-xs">
-                                        <span>Collection ({collectionMethod})</span>
-                                        <div className="flex flex-col items-end">
-                                            <span className={`font-semibold ${totals.isSubscriptionApplied ? 'line-through text-gray-300' : 'text-gray-900'}`}>
-                                                {totals.homeCollectionFee === 0 && !totals.isSubscriptionApplied ? 'FREE' : `+₹${totals.homeCollectionFee}`}
-                                            </span>
-                                            {totals.isSubscriptionApplied && (
-                                                <span className="text-emerald-600 font-black text-[9px] uppercase">Plan Benefit: ₹0</span>
-                                            )}
-                                        </div>
+                                {totals.discount > 0 && (
+                                    <div className="flex justify-between text-emerald-600 font-bold">
+                                        <span>Coupon Discount</span>
+                                        <span>-₹{totals.discount.toFixed(2)}</span>
                                     </div>
-                                    {totals.fastReportFee > 0 && <div className="flex justify-between text-amber-600 text-xs font-bold"><span>Fast Report Delivery</span><span>+₹{totals.fastReportFee}</span></div>}
-                                    <div className="flex justify-between text-gray-500 text-xs"><span>Taxes & Service Fees</span><span className="font-semibold text-gray-900">+₹{Math.round(totals.taxAmount).toLocaleString()}</span></div>
-                                    {totals.extraFee > 0 && <div className="flex justify-between text-amber-600 text-xs font-bold"><span>Urgent Slot Fee</span><span>+₹{totals.extraFee.toLocaleString()}</span></div>}
+                                )}
+
+                                <div className="flex justify-between text-slate-600">
+                                    <span>Home Sample Collection</span>
+                                    <span className="font-bold">
+                                        {totals.homeVisitCharge === 0 ? (
+                                            <span className="text-emerald-600 uppercase font-black text-[10px]">Free</span>
+                                        ) : (
+                                            `₹${totals.homeVisitCharge.toFixed(2)}`
+                                        )}
+                                    </span>
+                                </div>
+
+                                {totals.rapidDeliveryCharge > 0 && (
+                                    <div className="flex justify-between text-amber-600 font-bold">
+                                        <span>Fast Report Charge</span>
+                                        <span>+₹{totals.rapidDeliveryCharge.toFixed(2)}</span>
+                                    </div>
+                                )}
+
+                                <div className="h-px bg-slate-100 my-2" />
+
+                                <div className="flex justify-between items-end">
+                                    <div>
+                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Total Payable</span>
+                                        <span className="text-[10px] text-slate-400 font-medium">Inclusive of all taxes</span>
+                                    </div>
+                                    <span className="text-2xl font-black text-slate-900">
+                                        ₹{totals.totalAmount.toFixed(2)}
+                                    </span>
                                 </div>
                             </div>
 
-                            <div className="py-5 flex justify-between items-center">
-                                <span className="font-black text-gray-400 text-[10px] uppercase tracking-widest">Grand Total</span>
-                                <span className="text-2xl font-black text-gray-900">₹{Math.round(totals.total).toLocaleString()}</span>
-                            </div>
-
-                            <button onClick={handleProceed} disabled={isCheckingOut} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-bold text-sm transition-all shadow-lg flex items-center justify-center gap-2 uppercase">
-                                {isCheckingOut ? <FaSpinner className="animate-spin" /> : selectedMembers.length === 0 ? "Select Patients" : !selectedAppointment ? "Select Time Slot" : totals.total === 0 ? "Confirm Free Booking" : "Confirm & Pay Online"} <FaShieldAlt />
+                            <button
+                                onClick={handleProceed}
+                                disabled={isCheckingOut}
+                                className={`w-full py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2
+                                    ${!isCheckingOut ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 active:scale-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                            >
+                                {isCheckingOut ? (
+                                    <FaSpinner className="animate-spin" size={14} />
+                                ) : selectedMembers.length === 0 ? (
+                                    "Select Patients"
+                                ) : !selectedAppointment ? (
+                                    "Select Time Slot"
+                                ) : totals.totalAmount === 0 ? (
+                                    <>Confirm Free Booking <FaCheckCircle size={12} /></>
+                                ) : paymentMethod === "COD" ? (
+                                    <>Confirm & Pay on Collection <FaMoneyBillWave size={12} /></>
+                                ) : (
+                                    <>Proceed to Pay ₹{totals.totalAmount.toFixed(2)} <FaLock size={10} /></>
+                                )}
                             </button>
                         </div>
+
                     </div>
                 </div>
             </div>
@@ -659,6 +713,46 @@ const LabCart = () => {
                 labId={currentLabId}
                 onConfirm={onSlotConfirm}
             />
+
+            {/* CONFIRMATION MODAL */}
+            {confirmedBookingData && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2rem] p-8 max-w-md w-full border border-slate-100 shadow-2xl text-center space-y-5">
+                        <div className="mx-auto w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
+                            <FaCheckCircle className="w-9 h-9" />
+                        </div>
+                        <div className="space-y-1">
+                            <h3 className="text-2xl font-black text-slate-900">Lab Booking Confirmed!</h3>
+                            <p className="text-xs font-semibold text-slate-500">Your lab appointment has been successfully scheduled.</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-left space-y-2 text-xs">
+                            <div className="flex justify-between">
+                                <span className="text-slate-400 font-medium">Booking ID:</span>
+                                <span className="font-bold text-slate-800">{confirmedBookingData.bookingId || "ORD-xxxx"}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-slate-400 font-medium">Payment Status:</span>
+                                <span className="font-black text-emerald-600 uppercase">{confirmedBookingData.paymentStatus || "Pending"}</span>
+                            </div>
+                            {confirmedBookingData.tracking?.otp && (
+                                <div className="flex justify-between pt-2 border-t border-slate-200">
+                                    <span className="text-slate-500 font-bold">Verification OTP:</span>
+                                    <span className="font-black text-sm text-slate-900 tracking-widest">{confirmedBookingData.tracking.otp}</span>
+                                </div>
+                            )}
+                        </div>
+                        <button
+                            onClick={() => {
+                                setConfirmedBookingData(null);
+                                router.push('/userscreens/previousorders');
+                            }}
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20"
+                        >
+                            View My Lab Bookings
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

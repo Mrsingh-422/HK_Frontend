@@ -239,6 +239,9 @@ getSubscribedUsers: (params = {}) =>
 // 4.2 Get Single Subscriber Full Detail (GET /admin/subscriptions/subscribers/:id)
 getSingleSubscriber: (subscriptionId) => 
     api.get(`/admin/subscriptions/subscribers/${subscriptionId}`),
+
+
+
  // 4.1 Get All Issues Table (GET /admin/issues)
   getIssuesList: (params = {}) => {
     return api.get('/admin/issues', { params });

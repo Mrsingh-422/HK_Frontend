@@ -422,6 +422,44 @@ const PoliceAPI = {
         const res = await policeStationApi.put('/policeStation/station/change-password', data);
         return res.data;
     },
+     createIssue: (formData) => {
+    return policeHeadApi.post('/api/user-vendor/issues/create', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // 3.2 Get Reported Issues List
+  getMyIssues: (params = {}) => {
+    return policeHeadApi.get('/api/user-vendor/issues/my-issues', { params });
+  },
+
+  // 3.3 Get Live Issue Tracking & Resolution Timeline
+  trackIssue: (issueId) => {
+    return policeHeadApi.get(`/api/user-vendor/issues/track/${issueId}`);
+  },
+
+
+
+
+    createIssuepolicestation: (formData) => {
+    return policeStationApi.post('/api/user-vendor/issues/create', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // 3.2 Get Reported Issues List
+  getMyIssuespolicestation: (params = {}) => {
+    return policeStationApi.get('/api/user-vendor/issues/my-issues', { params });
+  },
+
+  // 3.3 Get Live Issue Tracking & Resolution Timeline
+  trackIssuepolicestation: (issueId) => {
+    return policeStationApi.get(`/api/user-vendor/issues/track/${issueId}`);
+  },
 };
 
 export default PoliceAPI;

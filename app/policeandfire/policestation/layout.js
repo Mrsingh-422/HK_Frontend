@@ -74,6 +74,11 @@ export default function PoliceStationLayout({ children }) {
             href: '/policeandfire/policestation/change-password',
             icon: FaKey
         },
+        {
+            name: 'Issue',
+            href: '/policeandfire/policestation/issues',
+            icon: FaKey
+        },
     ];
 
     return (

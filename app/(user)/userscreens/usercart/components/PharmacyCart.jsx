@@ -4,22 +4,22 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     FaPills, FaSpinner, FaTruck, FaFilePrescription,
-    FaPrescriptionBottleAlt, FaMinus, FaPlus, FaClock,
+    FaMinus, FaPlus, FaClock,
     FaCalendarAlt, FaChevronRight, FaCamera, FaTrash,
-    FaCheckCircle, FaStore, FaShieldAlt, FaGift, FaTimes, FaGem
+    FaCheckCircle, FaStore, FaShieldAlt, FaGift, FaTimes, FaGem,
+    FaCreditCard, FaMoneyBillWave, FaLock
 } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
 import UserAPI from '@/app/services/UserAPI';
 
-// Import Modular Components
+// Modular Components
 import PharmacyAddressSection from './PharmacyAddressSection';
 import PharmacyCouponSection from './PharmacyCouponSection';
-import PharmacyBillingSummary from './PharmacyBillingSummary';
 import PharmacyDeliverySection from './PharmacyDeliverySection';
 import PharmacySlotModal from './PharmacySlotModal';
 
-// Utility to dynamically load the Razorpay SDK script
+// Utility to load Razorpay SDK script
 const loadRazorpayScript = () => {
     return new Promise((resolve) => {
         if (window.Razorpay) {
@@ -39,55 +39,54 @@ const PharmacyCart = () => {
     const router = useRouter();
     const { pharmacyCart, updatePharmacyCartQuantity, loading, removePharmacyItem, clearFullCart } = useCart();
 
+    // Coupons & Pricing States
     const [availableCoupons, setAvailableCoupons] = useState([]);
     const [couponCode, setCouponCode] = useState("");
     const [appliedCouponName, setAppliedCouponName] = useState(null);
-    const [serverDiscount, setServerDiscount] = useState(0);
-    const [isValidating, setIsValidating] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [couponError, setCouponError] = useState("");
+    const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
+    // Addresses
     const [addresses, setAddresses] = useState([]);
     const [selectedAddress, setSelectedAddress] = useState(null);
     const [isAddressLoading, setIsAddressLoading] = useState(false);
 
-    // --- NEW SUBSCRIPTION STATE ---
-    const [subscription, setSubscription] = useState(null);
-
-    // Delivery & Slot States
-    const [deliveryOption, setDeliveryOption] = useState('fast');
-    const [collectionType] = useState('Home Delivery'); // Hardcoded to Home Delivery only
+    // Delivery & Slots
+    const [deliveryOption, setDeliveryOption] = useState('fast'); // 'fast' | 'standard' | 'slot'
     const [selectedSlot, setSelectedSlot] = useState(null);
     const [rawSlotData, setRawSlotData] = useState(null);
-    const [slotFee, setSlotFee] = useState(0);
-    const [deliveryChargesConfig, setDeliveryChargesConfig] = useState(null);
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
 
-    // Prescription & Zoom States
+    // Payment Method & COD Availability
+    const [paymentMethod, setPaymentMethod] = useState("Online"); // 'Online' | 'COD'
+    const [isCodAvailable, setIsCodAvailable] = useState(false);
+
+    // Server-side Checkout Summary
+    const [serverCheckout, setServerCheckout] = useState(null);
+    const [isFetchingSummary, setIsFetchingSummary] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Prescription & Images
     const [prescriptionFiles, setPrescriptionFiles] = useState([]);
     const [zoomedImage, setZoomedImage] = useState(null);
+
+    // Order Success Modal Details
+    const [orderConfirmedData, setOrderConfirmedData] = useState(null);
 
     const pharmacyItems = useMemo(() => pharmacyCart?.items || [], [pharmacyCart]);
     const pharmacyId = useMemo(() => pharmacyCart?.pharmacyId?._id || pharmacyCart?.pharmacyId, [pharmacyCart]);
 
-    const subtotal = useMemo(() => {
-        return pharmacyItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-    }, [pharmacyItems]);
-
-    const comboSavings = useMemo(() => {
-        return pharmacyCart?.billSummary?.comboSavings || 0;
-    }, [pharmacyCart]);
-
-    const activeComboItem = useMemo(() => {
-        return pharmacyItems.find(item => item.isComboApplied === true);
-    }, [pharmacyItems]);
-
-    const hasComboApplied = !!activeComboItem;
-    const activeComboOfferId = activeComboItem?.comboOfferId || null;
-
-    const needsPrescription = useMemo(() => {
+    // Check if client-side items require prescription
+    const clientNeedsRx = useMemo(() => {
         return pharmacyItems.some(item => item.medicineId?.prescription_required === "YES");
     }, [pharmacyItems]);
 
+    // Prescription needed flag (synced between server and client items)
+    const isRxMandatory = useMemo(() => {
+        return serverCheckout?.rxMandatory || serverCheckout?.orderRestrictions?.needsPrescription || clientNeedsRx;
+    }, [serverCheckout, clientNeedsRx]);
+
+    // Handle Prescription Images Upload
     const handleFileChange = (e) => {
         const files = Array.from(e.target.files);
         if (prescriptionFiles.length + files.length > 5) {
@@ -105,286 +104,275 @@ const PharmacyCart = () => {
         setPrescriptionFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const fetchDeliveryCharges = useCallback(async () => {
-        if (!pharmacyId) return;
-        try {
-            const res = await UserAPI.getPharmacyDeliveryCharges({ vendorId: pharmacyId });
-            if (res.success) setDeliveryChargesConfig(res.data);
-        } catch (error) { console.error("Delivery Charge Error:", error); }
-    }, [pharmacyId]);
+    // 1. Fetch Addresses & Coupons on mount
+    useEffect(() => {
+        const initData = async () => {
+            try {
+                setIsAddressLoading(true);
+                const [addrRes, couponRes] = await Promise.all([
+                    UserAPI.getUserAddresses(),
+                    UserAPI.getPharmacyCoupons()
+                ]);
 
-    const fetchSuggested = useCallback(async () => {
-        if (pharmacyItems.length === 0) return;
-        try {
-            const response = await UserAPI.getPharmacyCoupons();
-            if (response.success) setAvailableCoupons(response.data);
-        } catch (error) { console.error(error); }
+                if (addrRes?.success && addrRes.data?.length > 0) {
+                    setAddresses(addrRes.data);
+                    const defaultAddr = addrRes.data.find(a => a.isDefault) || addrRes.data[0];
+                    setSelectedAddress(defaultAddr);
+                }
+                if (couponRes?.success) {
+                    setAvailableCoupons(couponRes.data);
+                }
+            } catch (error) {
+                console.error("Initialization error:", error);
+            } finally {
+                setIsAddressLoading(false);
+            }
+        };
+
+        if (pharmacyItems.length > 0) {
+            initData();
+        }
     }, [pharmacyItems.length]);
 
-    const fetchAddresses = useCallback(async () => {
-        setIsAddressLoading(true);
+    // 2. Fetch Server Checkout Summary (Endpoint 4.1: POST /user/pharmacy/checkout)
+    const fetchPharmacySummary = useCallback(async () => {
+        if (!selectedAddress || pharmacyItems.length === 0) return;
+
         try {
-            const res = await UserAPI.getUserAddresses();
-            if (res.success) {
-                setAddresses(res.data);
-                const defaultAddr = res.data.find(a => a.isDefault);
-                if (defaultAddr) setSelectedAddress(defaultAddr);
-            }
-        } catch (error) { console.error(error); }
-        finally { setIsAddressLoading(false); }
-    }, []);
-
-    // --- NEW: FETCH SUBSCRIPTION STATUS ---
-    const fetchSubscriptionStatus = useCallback(async () => {
-        try {
-            const res = await UserAPI.getMySubscriptionStatus();
-            if (res.success && res.hasActivePlan) {
-                setSubscription(res.data);
-            }
-        } catch (error) {
-            console.error("Error fetching subscription:", error);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchSuggested();
-        fetchAddresses();
-        fetchDeliveryCharges();
-        fetchSubscriptionStatus(); // Check for active plan
-    }, [fetchSuggested, fetchAddresses, fetchDeliveryCharges, fetchSubscriptionStatus]);
-
-    const handleApplyCoupon = async (name) => {
-        const codeToApply = name || couponCode;
-        if (!codeToApply) return toast.error("Please enter a coupon code");
-        if (!pharmacyId) return toast.error("Pharmacy information missing");
-        setIsValidating(true);
-        try {
-            const res = await UserAPI.validatePharmacyCoupon(codeToApply.toUpperCase(), pharmacyId, subtotal);
-            if (res.success) {
-                setAppliedCouponName(codeToApply.toUpperCase());
-                setServerDiscount(res.discount);
-                setCouponCode("");
-                toast.success(`Coupon Applied! Saved ₹${res.discount}`);
-            }
-        } catch (error) {
-            setAppliedCouponName(null);
-            setServerDiscount(0);
-            toast.error(error.response?.data?.message || "Invalid Coupon");
-        } finally { setIsValidating(false); }
-    };
-
-    useEffect(() => {
-        if (appliedCouponName) handleApplyCoupon(appliedCouponName);
-    }, [subtotal]);
-
-    const handleSetDeliveryOption = (option) => {
-        setDeliveryOption(option);
-        if (option !== 'slot') {
-            setSlotFee(0);
-            setSelectedSlot(null);
-            setRawSlotData(null);
-        }
-    };
-
-    const totals = useMemo(() => {
-        const discountedAmount = Math.max(0, subtotal - serverDiscount - comboSavings);
-        let shippingFee = 0;
-        let fastFee = 0;
-
-        const freeThreshold = deliveryChargesConfig?.freeDeliveryThreshold ?? 500;
-        const defaultFixedPrice = deliveryChargesConfig?.fixedPrice ?? 40;
-
-        if (deliveryChargesConfig) {
-            if (deliveryOption === 'fast') {
-                fastFee = deliveryChargesConfig.fastDeliveryExtra || 0;
-                shippingFee = 0;
-            } else {
-                // --- SUBSCRIPTION LOGIC: deliveryCharge becomes 0 ---
-                if (subscription) {
-                    shippingFee = 0;
-                } else {
-                    shippingFee = subtotal >= freeThreshold ? 0 : defaultFixedPrice;
+            setIsFetchingSummary(true);
+            const payload = {
+                collectionType: "Home Delivery",
+                isRapid: deliveryOption === 'fast',
+                appointmentTime: deliveryOption === 'slot' && rawSlotData ? rawSlotData.time : "Immediate",
+                appointmentDate: deliveryOption === 'slot' && rawSlotData ? rawSlotData.date : undefined,
+                couponCode: appliedCouponName || undefined,
+                address: {
+                    houseNo: selectedAddress.houseNo || "",
+                    sector: selectedAddress.sector || "",
+                    city: selectedAddress.city || "",
+                    state: selectedAddress.state || "",
+                    pincode: selectedAddress.pincode || ""
                 }
-                fastFee = 0;
+            };
+
+            const res = await UserAPI.checkoutPharmacyOrder(payload);
+
+            if (res?.success && res.data) {
+                setServerCheckout(res.data);
+                const codStatus = Boolean(res.data.orderRestrictions?.isCodAvailable);
+                setIsCodAvailable(codStatus);
+
+                // Fallback payment method to Online if COD is disabled
+                if (!codStatus && paymentMethod === "COD") {
+                    setPaymentMethod("Online");
+                }
             }
-        } else {
-            shippingFee = subscription ? 0 : (subtotal >= freeThreshold ? 0 : defaultFixedPrice);
+        } catch (error) {
+            console.error("Checkout Summary Error:", error);
+        } finally {
+            setIsFetchingSummary(false);
+            setIsValidatingCoupon(false);
+        }
+    }, [selectedAddress, deliveryOption, rawSlotData, appliedCouponName, pharmacyItems.length, paymentMethod]);
+
+    useEffect(() => {
+        fetchPharmacySummary();
+    }, [fetchPharmacySummary]);
+
+    // 3. Apply / Remove Coupon
+    const handleApplyCoupon = (name) => {
+        const codeToApply = (name || couponCode).trim().toUpperCase();
+        if (!codeToApply) return toast.error("Please enter a coupon code");
+        setIsValidatingCoupon(true);
+        setAppliedCouponName(codeToApply);
+        setCouponCode("");
+        toast.success(`Applying coupon ${codeToApply}...`);
+    };
+
+    const handleRemoveCoupon = () => {
+        setAppliedCouponName(null);
+        setCouponCode("");
+        setCouponError("");
+    };
+
+    // 4. Computed Final Bill Totals
+    const billSummary = useMemo(() => {
+        if (serverCheckout?.billSummary) {
+            const b = serverCheckout.billSummary;
+            return {
+                itemTotal: b.itemTotal ?? 0,
+                originalItemTotal: b.originalItemTotal ?? b.itemTotal ?? 0,
+                comboSavings: b.comboSavings ?? 0,
+                taxableTotal: b.taxableTotal ?? 0,
+                cgstTotal: b.cgstTotal ?? 0,
+                sgstTotal: b.sgstTotal ?? 0,
+                couponDiscount: b.couponDiscount ?? 0,
+                deliveryCharge: b.deliveryCharge ?? 0,
+                rapidDeliveryCharge: b.rapidDeliveryCharge ?? 0,
+                totalAmount: b.totalAmount ?? 0
+            };
         }
 
-        const currentSlotFee = (deliveryOption === 'slot') ? slotFee : 0;
-        const tax = 0;
-
+        const fallbackItemTotal = pharmacyItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
         return {
-            subtotal,
-            discount: serverDiscount,
-            comboSavings,
-            shippingFee,
-            fastFee,
-            slotFee: currentSlotFee,
-            tax,
-            freeThreshold,
-            total: discountedAmount + shippingFee + fastFee + currentSlotFee + tax,
-            isSubscriptionApplied: !!subscription
+            itemTotal: fallbackItemTotal,
+            originalItemTotal: fallbackItemTotal,
+            comboSavings: 0,
+            taxableTotal: fallbackItemTotal,
+            cgstTotal: 0,
+            sgstTotal: 0,
+            couponDiscount: 0,
+            deliveryCharge: 0,
+            rapidDeliveryCharge: 0,
+            totalAmount: fallbackItemTotal
         };
-    }, [subtotal, serverDiscount, comboSavings, slotFee, deliveryOption, deliveryChargesConfig, subscription]);
+    }, [serverCheckout, pharmacyItems]);
 
+    // 5. Confirm Order & Payment Handler (Endpoint 4.2: POST /user/pharmacy/place-order + 7.0 Payment Verify)
     const onConfirmCheckout = async () => {
         if (!selectedAddress) {
             return toast.error("Please select a delivery address");
         }
-        if (needsPrescription && prescriptionFiles.length === 0) {
+        if (isRxMandatory && prescriptionFiles.length === 0) {
             return toast.error("One or more medicines require a prescription. Please upload it.");
         }
 
         setIsSubmitting(true);
 
         try {
-            let appDate = new Date().toISOString();
-            let appTime = new Date().toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-            });
-
-            if (deliveryOption === 'slot' && rawSlotData) {
-                appDate = new Date(rawSlotData.date).toISOString();
-                appTime = rawSlotData.time;
-            }
+            const isZeroTotal = Math.round(billSummary.totalAmount) === 0;
+            const finalPaymentMethod = isZeroTotal ? "COD" : paymentMethod;
 
             const formData = new FormData();
-            formData.append('pharmacyId', pharmacyId);
-            formData.append('collectionType', collectionType);
-            formData.append('appointmentDate', appDate);
-            formData.append('appointmentTime', appTime);
+            formData.append('pharmacyId', pharmacyId || "");
+            formData.append('collectionType', 'Home Delivery');
+            formData.append('paymentMethod', finalPaymentMethod);
             formData.append('isRapid', String(deliveryOption === 'fast'));
-            formData.append('paymentMethod', 'Online');
-            formData.append('isComboApplied', String(hasComboApplied));
-            formData.append('comboOfferId', activeComboOfferId || "");
 
+            if (appliedCouponName) {
+                formData.append('couponCode', appliedCouponName);
+            }
+
+            if (deliveryOption === 'slot' && rawSlotData) {
+                formData.append('appointmentDate', rawSlotData.date);
+                formData.append('appointmentTime', rawSlotData.time);
+            } else {
+                formData.append('appointmentTime', 'Immediate');
+            }
+
+            // Address payload
             const addressData = {
-                name: selectedAddress.name,
-                phone: selectedAddress.phone,
-                houseNo: selectedAddress.houseNo,
-                sector: selectedAddress.sector,
-                country: selectedAddress.country,
-                landmark: selectedAddress.landmark,
-                city: selectedAddress.city,
-                state: selectedAddress.state,
-                pincode: selectedAddress.pincode,
-                addressType: selectedAddress.addressType
+                name: selectedAddress.name || "",
+                phone: selectedAddress.phone || "",
+                houseNo: selectedAddress.houseNo || "",
+                sector: selectedAddress.sector || "",
+                city: selectedAddress.city || "",
+                state: selectedAddress.state || "",
+                pincode: selectedAddress.pincode || "",
+                addressType: selectedAddress.addressType || "Home"
             };
             formData.append('address', JSON.stringify(addressData));
 
-            const billSummary = {
-                itemTotal: totals.subtotal,
-                deliveryCharge: totals.shippingFee,
-                rapidDeliveryCharge: totals.fastFee,
-                slotCharge: totals.slotFee,
-                couponDiscount: totals.discount,
-                couponId: appliedCouponName || null,
-                tax: totals.tax,
-                comboSavings: totals.comboSavings,
-                totalAmount: totals.total
-            };
-            formData.append('billSummary', JSON.stringify(billSummary));
-
-            const itemsToSend = pharmacyItems.map(item => ({
-                medicineId: item.medicineId._id || item.medicineId,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-                duration: "Full Course",
-                isComboApplied: item.isComboApplied || false,
-                comboOfferId: item.comboOfferId || null
-            }));
-            formData.append('items', JSON.stringify(itemsToSend));
-
+            // Prescription Images
             prescriptionFiles.forEach((file) => {
                 formData.append('prescriptionImages', file);
             });
 
             const res = await UserAPI.placePharmacyOrder(formData);
 
-            if (res.success) {
-                // --- SKIP RAZORPAY IF TOTAL IS 0 ---
-                if (res.amount === 0 || Math.round(totals.total) === 0) {
-                    toast.success(res.message || "Order Confirmed!");
-                    await clearFullCart();
-                    router.push('/userscreens/previousorders');
-                    return;
-                }
-
-                const isScriptLoaded = await loadRazorpayScript();
-                if (!isScriptLoaded) {
-                    toast.error("Failed to load Razorpay SDK.");
-                    setIsSubmitting(false);
-                    return;
-                }
-
-                const { key_id, amount, razorpayOrderId, appointmentId, orderId } = res;
-
-                const options = {
-                    key: key_id,
-                    amount: amount,
-                    currency: "INR",
-                    name: "HK Healthcare App",
-                    description: "Pharmacy Medicine Order Fee",
-                    order_id: razorpayOrderId,
-                    prefill: {
-                        name: selectedAddress?.name || "Patient Name",
-                        contact: selectedAddress?.phone || "9876543210"
-                    },
-                    theme: { color: "#059669" },
-                    modal: { ondismiss: () => setIsSubmitting(false) },
-                    handler: async function (response) {
-                        try {
-                            setIsSubmitting(true);
-                            const verificationPayload = {
-                                appointmentId: appointmentId || orderId || res.orderId || res.data?._id,
-                                razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
-                                razorpayPaymentId: response.razorpay_payment_id,
-                                razorpaySignature: response.razorpay_signature
-                            };
-
-                            const verificationRes = await UserAPI.verifyPaymentPharmacy(verificationPayload);
-
-                            if (verificationRes?.success) {
-                                toast.success(verificationRes.message || "Order Confirmed!");
-                                await clearFullCart();
-                                router.push('/userscreens/previousorders');
-                            } else {
-                                toast.error(verificationRes?.message || "Payment verification failed.");
-                            }
-                        } catch (verificationError) {
-                            toast.error("An error occurred during payment verification.");
-                        } finally {
-                            setIsSubmitting(false);
-                        }
-                    }
-                };
-
-                const rzpInstance = new window.Razorpay(options);
-                rzpInstance.open();
-
-            } else {
-                toast.error(res?.message || "Checkout initialization failed");
+            if (!res?.success) {
+                toast.error(res?.message || "Failed to place order");
                 setIsSubmitting(false);
+                return;
             }
 
+            // --- CASE A: Free Order / COD (Skip Razorpay) ---
+            if (isZeroTotal || finalPaymentMethod === "COD" || res.data?.paymentStatus === "Paid" || res.data?.paymentStatus === "Pending") {
+                await clearFullCart();
+                setOrderConfirmedData(res.data || { orderId: res.orderId || "ORD-SUCCESS" });
+                setIsSubmitting(false);
+                return;
+            }
+
+            // --- CASE B: Online Razorpay Flow ---
+            const isScriptLoaded = await loadRazorpayScript();
+            if (!isScriptLoaded) {
+                toast.error("Failed to load Razorpay SDK.");
+                setIsSubmitting(false);
+                return;
+            }
+
+            const { key_id, amount, razorpayOrderId, appointmentId, orderId } = res;
+
+            const options = {
+                key: key_id,
+                amount: amount,
+                currency: "INR",
+                name: "Health Kangaroo Pharmacy",
+                description: "Medicine Order Payment",
+                order_id: razorpayOrderId,
+                prefill: {
+                    name: selectedAddress?.name || "Customer",
+                    contact: selectedAddress?.phone || ""
+                },
+                theme: { color: "#10b981" },
+                modal: {
+                    ondismiss: () => {
+                        setIsSubmitting(false);
+                        toast.error("Payment was cancelled");
+                    }
+                },
+                handler: async function (response) {
+                    try {
+                        setIsSubmitting(true);
+                        const verificationPayload = {
+                            appointmentId: appointmentId || orderId || res.data?._id,
+                            razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
+                            razorpayPaymentId: response.razorpay_payment_id,
+                            razorpaySignature: response.razorpay_signature
+                        };
+
+                        const verificationRes = await UserAPI.verifyPaymentPharmacy(verificationPayload);
+
+                        if (verificationRes?.success) {
+                            await clearFullCart();
+                            setOrderConfirmedData(verificationRes.data || { orderId: orderId || "ORD-SUCCESS" });
+                        } else {
+                            toast.error(verificationRes?.message || "Payment verification failed.");
+                        }
+                    } catch (verificationError) {
+                        toast.error("An error occurred during payment verification.");
+                    } finally {
+                        setIsSubmitting(false);
+                    }
+                }
+            };
+
+            const rzpInstance = new window.Razorpay(options);
+            rzpInstance.open();
+
         } catch (error) {
+            console.error("Order error:", error);
             toast.error(error.response?.data?.message || "Failed to place order");
             setIsSubmitting(false);
         }
     };
 
-    if (loading && pharmacyItems.length === 0) return <div className="p-20 text-center font-bold text-slate-400 animate-pulse">Syncing Pharmacy Cart...</div>;
+    if (loading && pharmacyItems.length === 0) {
+        return <div className="p-20 text-center font-bold text-slate-400 animate-pulse">Syncing Cart...</div>;
+    }
 
-    if (pharmacyItems.length === 0) {
+    if (pharmacyItems.length === 0 && !orderConfirmedData) {
         return (
             <div className="flex flex-col items-center justify-center py-24 text-center">
-                <FaPills className="text-slate-100 text-7xl mb-6" />
-                <h2 className="text-2xl font-black text-slate-800">Pharmacy Cart is Empty</h2>
-                <button onClick={() => router.push('/buymedicine')} className="mt-8 bg-emerald-600 text-white px-10 py-3 rounded-2xl font-black uppercase text-sm">Shop Medicines</button>
+                <FaPills className="text-slate-200 text-7xl mb-6" />
+                <h2 className="text-2xl font-black text-slate-800">Your Medicine Cart is Empty</h2>
+                <button
+                    onClick={() => router.push('/buymedicine')}
+                    className="mt-6 bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3.5 rounded-2xl font-black uppercase text-xs tracking-wider shadow-lg shadow-emerald-600/20"
+                >
+                    Browse Medicines
+                </button>
             </div>
         );
     }
@@ -393,68 +381,60 @@ const PharmacyCart = () => {
         <div className="bg-[#F8FAFC] min-h-screen pb-20 font-['Plus_Jakarta_Sans']">
             <div className="max-w-7xl mx-auto px-4 pt-6">
                 <div className="flex flex-col lg:flex-row gap-8 items-start">
+                    
+                    {/* LEFT COLUMN */}
                     <div className="flex-1 w-full space-y-6">
 
-                        {/* --- SUBSCRIPTION BADGE --- */}
-                        {subscription && (
-                            <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex items-center gap-3">
-                                <FaGem className="text-emerald-500" />
-                                <p className="text-xs font-bold text-emerald-800 uppercase tracking-tight">
-                                    {subscription.planId.name} Active: Free Home Delivery Applied
-                                </p>
+                        {/* VIP Plan Badge */}
+                        {isCodAvailable && (
+                            <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <FaGem className="text-emerald-600" />
+                                    <p className="text-xs font-bold text-emerald-900 uppercase tracking-tight">
+                                        Cash on Delivery (COD) Unlocked for your Account
+                                    </p>
+                                </div>
                             </div>
                         )}
 
+                        {/* SECTION 1: ITEMS */}
                         <div className="space-y-4">
                             <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
                                 <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">1</span>
                                 Review Items ({pharmacyItems.length})
                             </h2>
 
-                            {pharmacyId && (
-                                <div className="flex justify-between items-center bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-                                    <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Need to add more?</span>
-                                    <button
-                                        onClick={() => router.push(`/buymedicine/singlepharmacydetail/${pharmacyId}`)}
-                                        className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl font-bold text-xs uppercase tracking-wider transition hover:bg-emerald-100 active:scale-95 shadow-sm"
-                                    >
-                                        + Add More Medicines
-                                    </button>
-                                </div>
-                            )}
-
                             <div className="space-y-3">
                                 {pharmacyItems.map((item) => (
-                                    <div key={item._id} className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col shadow-sm hover:shadow-md transition-shadow">
+                                    <div key={item._id} className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col shadow-sm">
                                         <div className="flex items-center gap-4">
-                                            <div className="w-20 h-20 bg-slate-50 rounded-xl flex items-center justify-center border border-gray-50 flex-shrink-0 overflow-hidden">
-                                                {item.medicineId?.image_url?.[0] ? <img src={item.medicineId.image_url[0]} className="w-full h-full object-contain p-2 mix-blend-multiply" /> : <FaPills size={24} className="text-emerald-600 opacity-20" />}
+                                            <div className="w-16 h-16 bg-slate-50 rounded-xl flex items-center justify-center border border-gray-50 flex-shrink-0 overflow-hidden">
+                                                {item.medicineId?.image_url?.[0] ? (
+                                                    <img src={item.medicineId.image_url[0]} className="w-full h-full object-contain p-2 mix-blend-multiply" alt="Med" />
+                                                ) : (
+                                                    <FaPills size={20} className="text-emerald-600 opacity-30" />
+                                                )}
                                             </div>
                                             <div className="flex-1">
                                                 <div className="flex justify-between items-start">
                                                     <div>
-                                                        <h3 className="font-bold text-slate-900 text-md leading-tight">{item.name}</h3>
-                                                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter mt-1">{item.medicineId?.manufacturers}</p>
-                                                        {item.isComboApplied && (
-                                                            <span className="inline-flex items-center gap-1 text-emerald-600 bg-emerald-50 text-[9px] font-black uppercase px-2 py-0.5 rounded border border-emerald-100 mt-1">
-                                                                <FaGift size={8} /> BOGO Deal Applied
-                                                            </span>
-                                                        )}
+                                                        <h3 className="font-bold text-slate-900 text-sm">{item.name}</h3>
+                                                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter mt-0.5">{item.medicineId?.manufacturers}</p>
                                                     </div>
                                                     <div className="text-right">
-                                                        <p className="font-black text-slate-900 text-lg">₹{(item.price * item.quantity).toLocaleString()}</p>
-                                                        <button onClick={() => removePharmacyItem(item.medicineId._id)} className="text-[10px] text-rose-500 font-black uppercase tracking-wider hover:underline">Remove</button>
+                                                        <p className="font-black text-slate-900 text-base">₹{(item.price * item.quantity).toLocaleString()}</p>
+                                                        <button onClick={() => removePharmacyItem(item.medicineId?._id || item.medicineId)} className="text-[10px] text-rose-500 font-bold uppercase hover:underline">Remove</button>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center justify-between mt-3">
+                                                <div className="flex items-center justify-between mt-2">
                                                     <div className="flex items-center bg-slate-50 border border-slate-100 rounded-lg w-fit overflow-hidden">
-                                                        <button onClick={() => updatePharmacyCartQuantity(item.medicineId._id, 'dec')} className="px-3 py-1.5 hover:bg-white text-slate-400 transition-colors"><FaMinus size={10} /></button>
-                                                        <span className="px-4 text-xs font-black text-slate-900 border-x border-slate-100">{item.quantity}</span>
-                                                        <button onClick={() => updatePharmacyCartQuantity(item.medicineId._id, 'inc')} className="px-3 py-1.5 hover:bg-white text-slate-400 transition-colors"><FaPlus size={10} /></button>
+                                                        <button onClick={() => updatePharmacyCartQuantity(item.medicineId?._id || item.medicineId, 'dec')} className="px-2.5 py-1 text-slate-400 hover:text-slate-800"><FaMinus size={9} /></button>
+                                                        <span className="px-3 text-xs font-black text-slate-900 border-x border-slate-100">{item.quantity}</span>
+                                                        <button onClick={() => updatePharmacyCartQuantity(item.medicineId?._id || item.medicineId, 'inc')} className="px-2.5 py-1 text-slate-400 hover:text-slate-800"><FaPlus size={9} /></button>
                                                     </div>
                                                     {item.medicineId?.prescription_required === "YES" && (
-                                                        <span className="flex items-center gap-1.5 text-rose-500 text-[9px] font-black uppercase bg-rose-50 px-2 py-1 rounded-md border border-rose-100">
-                                                            <FaFilePrescription size={10} /> Prescription Required
+                                                        <span className="flex items-center gap-1 text-rose-500 text-[9px] font-black uppercase bg-rose-50 px-2 py-0.5 rounded border border-rose-100">
+                                                            <FaFilePrescription size={9} /> Prescription Needed
                                                         </span>
                                                     )}
                                                 </div>
@@ -465,7 +445,8 @@ const PharmacyCart = () => {
                             </div>
                         </div>
 
-                        {needsPrescription && (
+                        {/* SECTION 2: PRESCRIPTION UPLOAD */}
+                        {isRxMandatory && (
                             <div className="space-y-4">
                                 <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
                                     <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">2</span>
@@ -473,39 +454,32 @@ const PharmacyCart = () => {
                                 </h2>
                                 <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center">
                                     <div className="max-w-xs mx-auto">
-                                        <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                                            <FaCamera className="text-rose-500" size={20} />
+                                        <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                                            <FaCamera className="text-rose-500" size={18} />
                                         </div>
-                                        <h3 className="text-sm font-black text-slate-800 mb-1">Prescription Needed</h3>
-                                        <p className="text-[11px] text-slate-400 font-medium mb-4">Please upload a clear image of your doctor's prescription to proceed.</p>
-                                        <label className="inline-flex items-center justify-center px-6 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer hover:bg-slate-800 transition-colors">
-                                            <span>Select File</span>
+                                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-1">Prescription Required</h3>
+                                        <p className="text-[11px] text-slate-400 font-medium mb-4">Please upload a valid prescription for regulated medicines.</p>
+                                        <label className="inline-flex items-center justify-center px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer hover:bg-slate-800 transition-colors">
+                                            <span>Select Prescription</span>
                                             <input type="file" hidden accept="image/*" multiple onChange={handleFileChange} />
                                         </label>
+                                        
                                         {prescriptionFiles.length > 0 && (
-                                            <div className="mt-6 pt-6 border-t border-slate-50">
-                                                <div className="flex flex-wrap gap-3 justify-center">
-                                                    {prescriptionFiles.map((file, idx) => {
-                                                        const imgUrl = URL.createObjectURL(file);
-                                                        return (
-                                                            <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-emerald-500 group cursor-pointer" onClick={() => setZoomedImage(imgUrl)}>
-                                                                <img src={imgUrl} className="w-full h-full object-cover" />
-                                                                <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    <span className="text-white text-[9px] font-black uppercase tracking-wider">View</span>
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            removeFile(idx);
-                                                                        }}
-                                                                        className="absolute top-1 right-1 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-md transition-colors"
-                                                                    >
-                                                                        <FaTrash size={8} />
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
+                                            <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap gap-2.5 justify-center">
+                                                {prescriptionFiles.map((file, idx) => {
+                                                    const imgUrl = URL.createObjectURL(file);
+                                                    return (
+                                                        <div key={idx} className="relative w-14 h-14 rounded-xl overflow-hidden border-2 border-emerald-500 cursor-pointer" onClick={() => setZoomedImage(imgUrl)}>
+                                                            <img src={imgUrl} className="w-full h-full object-cover" alt="RX" />
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
+                                                                className="absolute top-0.5 right-0.5 w-4 h-4 bg-rose-500 text-white rounded-full flex items-center justify-center shadow"
+                                                            >
+                                                                <FaTrash size={7} />
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>
@@ -513,44 +487,181 @@ const PharmacyCart = () => {
                             </div>
                         )}
 
+                        {/* SECTION 3: DELIVERY PREFERENCE */}
                         <div className="space-y-4">
                             <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
-                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">{needsPrescription ? '3' : '2'}</span>
-                                Delivery Preference
+                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">3</span>
+                                Delivery Speed
                             </h2>
                             <PharmacyDeliverySection
                                 deliveryOption={deliveryOption}
-                                setDeliveryOption={handleSetDeliveryOption}
+                                setDeliveryOption={setDeliveryOption}
                                 selectedSlot={selectedSlot}
                                 openSlotModal={() => setIsSlotModalOpen(true)}
                             />
                         </div>
 
+                        {/* SECTION 4: DELIVERY ADDRESS */}
                         <div className="space-y-4">
                             <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
-                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">{needsPrescription ? '4' : '3'}</span>
+                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">4</span>
                                 Delivery Address
                             </h2>
-                            <PharmacyAddressSection addresses={addresses} selectedAddress={selectedAddress} setSelectedAddress={setSelectedAddress} isLoading={isAddressLoading} />
+                            <PharmacyAddressSection
+                                addresses={addresses}
+                                selectedAddress={selectedAddress}
+                                setSelectedAddress={setSelectedAddress}
+                                isLoading={isAddressLoading}
+                            />
                         </div>
+
+                        {/* SECTION 5: PAYMENT METHOD SELECTOR */}
+                        <div className="space-y-4">
+                            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
+                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">5</span>
+                                Payment Method
+                            </h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setPaymentMethod("Online")}
+                                    className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between
+                                        ${paymentMethod === "Online" ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'bg-white border-slate-200'}`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
+                                            <FaCreditCard size={15} />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-black text-slate-900">Pay Online</p>
+                                            <p className="text-[10px] text-slate-500">UPI, Cards, NetBanking</p>
+                                        </div>
+                                    </div>
+                                    {paymentMethod === "Online" && <FaCheckCircle className="text-emerald-600" size={15} />}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    disabled={!isCodAvailable}
+                                    onClick={() => setPaymentMethod("COD")}
+                                    className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between relative
+                                        ${!isCodAvailable ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : ''}
+                                        ${paymentMethod === "COD" ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'bg-white border-slate-200'}`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-slate-100 text-slate-700 rounded-xl">
+                                            <FaMoneyBillWave size={15} />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-black text-slate-900">Cash on Delivery (COD)</p>
+                                            <p className="text-[10px] text-slate-500">
+                                                {isCodAvailable ? "Pay cash when delivered" : "Unavailable for this vendor"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {paymentMethod === "COD" && <FaCheckCircle className="text-emerald-600" size={15} />}
+                                </button>
+                            </div>
+                        </div>
+
                     </div>
 
+                    {/* RIGHT COLUMN: BILL SUMMARY & CHECKOUT BUTTON */}
                     <div className="w-full lg:w-[400px] space-y-6 sticky top-6">
-                        <PharmacyCouponSection availableCoupons={availableCoupons} couponCode={couponCode} setCouponCode={setCouponCode} appliedCouponName={appliedCouponName} setAppliedCouponName={setAppliedCouponName} setServerDiscount={setServerDiscount} handleApplyCoupon={handleApplyCoupon} isValidating={isValidating} />
-
-                        <PharmacyBillingSummary
-                            totals={totals}
-                            selectedAddress={selectedAddress}
-                            subtotal={subtotal}
-                            needsPrescription={needsPrescription}
-                            prescriptionFiles={prescriptionFiles}
-                            onConfirm={onConfirmCheckout}
-                            isSubmitting={isSubmitting}
+                        
+                        {/* Coupon Section */}
+                        <PharmacyCouponSection
+                            availableCoupons={availableCoupons}
+                            couponCode={couponCode}
+                            setCouponCode={setCouponCode}
+                            appliedCouponName={appliedCouponName}
+                            setAppliedCouponName={setAppliedCouponName}
+                            setServerDiscount={() => {}}
+                            handleApplyCoupon={handleApplyCoupon}
+                            isValidating={isValidatingCoupon}
+                            onRemoveCoupon={handleRemoveCoupon}
                         />
+
+                        {/* Final Bill Box */}
+                        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Order Bill Summary</h3>
+                            
+                            <div className="space-y-2.5 text-xs">
+                                <div className="flex justify-between text-slate-600">
+                                    <span>Item Total</span>
+                                    <span className="font-bold text-slate-900">₹{billSummary.itemTotal.toFixed(2)}</span>
+                                </div>
+
+                                {billSummary.comboSavings > 0 && (
+                                    <div className="flex justify-between text-emerald-600 font-bold">
+                                        <span>Combo / BOGO Savings</span>
+                                        <span>-₹{billSummary.comboSavings.toFixed(2)}</span>
+                                    </div>
+                                )}
+
+                                {billSummary.couponDiscount > 0 && (
+                                    <div className="flex justify-between text-emerald-600 font-bold">
+                                        <span>Coupon Discount</span>
+                                        <span>-₹{billSummary.couponDiscount.toFixed(2)}</span>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-between text-slate-600">
+                                    <span>Delivery Charges</span>
+                                    <span className="font-bold text-slate-900">
+                                        {billSummary.deliveryCharge === 0 ? (
+                                            <span className="text-emerald-600 uppercase font-black text-[10px]">Free</span>
+                                        ) : (
+                                            `₹${billSummary.deliveryCharge.toFixed(2)}`
+                                        )}
+                                    </span>
+                                </div>
+
+                                {(billSummary.cgstTotal > 0 || billSummary.sgstTotal > 0) && (
+                                    <div className="flex justify-between text-[11px] text-slate-400 font-medium">
+                                        <span>Taxes (CGST + SGST)</span>
+                                        <span>₹{(billSummary.cgstTotal + billSummary.sgstTotal).toFixed(2)}</span>
+                                    </div>
+                                )}
+
+                                <div className="h-px bg-slate-100 my-2" />
+
+                                <div className="flex justify-between items-end">
+                                    <div>
+                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Total Amount</span>
+                                        <span className="text-[10px] text-slate-400 font-medium">Inclusive of all taxes</span>
+                                    </div>
+                                    <span className="text-2xl font-black text-slate-900">
+                                        ₹{billSummary.totalAmount.toFixed(2)}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <button
+                                disabled={isSubmitting || isFetchingSummary || (isRxMandatory && prescriptionFiles.length === 0)}
+                                onClick={onConfirmCheckout}
+                                className={`w-full py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2
+                                    ${(!isSubmitting && !isFetchingSummary && (!isRxMandatory || prescriptionFiles.length > 0))
+                                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 active:scale-95'
+                                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                            >
+                                {isSubmitting || isFetchingSummary ? (
+                                    <FaSpinner className="animate-spin" size={14} />
+                                ) : billSummary.totalAmount === 0 ? (
+                                    <>Confirm Free Order <FaCheckCircle size={12} /></>
+                                ) : paymentMethod === "COD" ? (
+                                    <>Place Order (Pay on Delivery) <FaTruck size={13} /></>
+                                ) : (
+                                    <>Proceed to Pay ₹{billSummary.totalAmount.toFixed(2)} <FaLock size={10} /></>
+                                )}
+                            </button>
+                        </div>
+
                     </div>
                 </div>
             </div>
 
+            {/* Delivery Slot Modal */}
             <PharmacySlotModal
                 isOpen={isSlotModalOpen}
                 onClose={() => setIsSlotModalOpen(false)}
@@ -558,15 +669,15 @@ const PharmacyCart = () => {
                 onSelectSlot={(data) => {
                     setSelectedSlot(data.displayText);
                     setRawSlotData({ date: data.apiDate, time: data.apiTime });
-                    setSlotFee(data.fee);
                     setDeliveryOption('slot');
                     setIsSlotModalOpen(false);
                 }}
             />
 
+            {/* Lightbox / Zoomed Prescription Modal */}
             {zoomedImage && (
                 <div
-                    className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in duration-200 cursor-pointer"
+                    className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm cursor-pointer"
                     onClick={() => setZoomedImage(null)}
                 >
                     <div className="relative max-w-4xl max-h-[85vh] w-full h-full flex items-center justify-center">
@@ -578,9 +689,50 @@ const PharmacyCart = () => {
                         </button>
                         <img
                             src={zoomedImage}
-                            className="max-w-full max-h-full object-contain rounded-2xl animate-in zoom-in-95 duration-200"
+                            className="max-w-full max-h-full object-contain rounded-2xl"
+                            alt="Prescription Large"
                             onClick={(e) => e.stopPropagation()}
                         />
+                    </div>
+                </div>
+            )}
+
+            {/* Order Confirmation Success Modal */}
+            {orderConfirmedData && (
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2rem] p-8 max-w-md w-full border border-slate-100 shadow-2xl text-center space-y-5">
+                        <div className="mx-auto w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
+                            <FaCheckCircle className="w-9 h-9" />
+                        </div>
+                        <div className="space-y-1">
+                            <h3 className="text-2xl font-black text-slate-900">Order Placed Successfully!</h3>
+                            <p className="text-xs font-semibold text-slate-500">Your medicine order is being processed.</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-left space-y-2 text-xs">
+                            <div className="flex justify-between">
+                                <span className="text-slate-400 font-medium">Order ID:</span>
+                                <span className="font-bold text-slate-800">{orderConfirmedData.orderId || "MED-xxxx"}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-slate-400 font-medium">Status:</span>
+                                <span className="font-black text-emerald-600 uppercase">{orderConfirmedData.status || "Placed"}</span>
+                            </div>
+                            {orderConfirmedData.deliveryOTP && (
+                                <div className="flex justify-between pt-2 border-t border-slate-200">
+                                    <span className="text-slate-500 font-bold">Delivery OTP:</span>
+                                    <span className="font-black text-sm text-slate-900 tracking-widest">{orderConfirmedData.deliveryOTP}</span>
+                                </div>
+                            )}
+                        </div>
+                        <button
+                            onClick={() => {
+                                setOrderConfirmedData(null);
+                                router.push('/userscreens/previousorders');
+                            }}
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20"
+                        >
+                            View My Orders
+                        </button>
                     </div>
                 </div>
             )}

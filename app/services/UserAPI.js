@@ -742,8 +742,19 @@ const UserAPI = {
         const response = await authApi.delete(`/user/cart/pharmacy/item/${itemId}`);
         return response.data;
     },
-    checkoutLabCart: async (checkoutData) => {
-        const response = await authApi.post("/user/labs/checkout", checkoutData);
+   // ==========================================
+    // MODULE 3: DIAGNOSTIC LAB APIS
+    // ==========================================
+    
+    // 3.1 Calculate Lab Checkout & Place Booking (POST /user/cart/lab/checkout)
+    checkoutLabCart: async (checkoutPayload) => {
+        const response = await authApi.post("/user/cart/lab/checkout", checkoutPayload);
+        return response.data;
+    },
+
+    // 7.0 Universal Lab Payment Verification (POST /user/labs/verify-payment)
+    verifyPaymentLab: async (paymentData) => {
+        const response = await authApi.post("/user/labs/verify-payment", paymentData);
         return response.data;
     },
 
@@ -771,8 +782,19 @@ const UserAPI = {
         const response = await publicApi.get(`/user/nurse/availability/${nurseId}?${query}`);
         return response.data;
     },
+  // 5.1 Calculate Nurse Checkout Summary (POST /user/nurse/checkout)
+    nurseCheckoutSummary: async (payload) => {
+        const response = await authApi.post("/user/nurse/checkout", payload);
+        return response.data;
+    },
     createNurseBooking: async (payload) => {
         const response = await authApi.post("/user/nurse/checkout", payload);
+        return response.data;
+    },
+
+    // 5.2 Place Nurse Booking (POST /user/nurse/book)
+    bookNurseAppointment: async (payload) => {
+        const response = await authApi.post("/user/nurse/book", payload);
         return response.data;
     },
     processBooking: async (payload) => {
@@ -857,14 +879,35 @@ const UserAPI = {
         const response = await authApi.post("/user/doctors/checkout-summary", data);
         return response.data
     },
-    getHospitalCheckoutSummary: async (data) => {
-        const response = await authApi.post("/user/hospital/checkout-summary", data);
-        return response.data
-    },
+   // 1. Calculate Hospital Checkout Summary (POST /user/hospital/checkout-summary)
+getHospitalCheckoutSummary: async (data) => {
+    const response = await authApi.post("/user/hospital/checkout-summary", data);
+    return response.data;
+},
+
+// 2. Final Hospital Admission Booking (POST /user/hospital/book-bed)
+bookHospitalBed: async (formData) => {
+    const response = await authApi.post("/user/hospital/book-bed", formData, {
+        headers: {
+            "Content-Type": "multipart/form-data",
+        },
+    });
+    return response.data;
+},
+
+// 3. Verify Hospital Payment (POST /user/hospital/verify-payment)
+verifyPaymentHospital: async (verifyData) => {
+    const response = await authApi.post("/user/hospital/verify-payment", verifyData);
+    return response.data;
+},
+someFunction: async () => {
+        const response = await authApi.get("/example");
+        return response.data;
+    }, // <--- ADD A COMMA HERE!
 
     bookDoctorAppointment: async (data) => {
         const response = await authApi.post("/user/doctors/book", data);
-        return response.data
+        return response.data;
     },
 
     getMyDoctorAppointments: async () => {
@@ -947,17 +990,25 @@ const UserAPI = {
         return response.data;
     },
 
+   // 6.1 Calculate Ambulance Fare (POST /user/ambulance/calculate-fare)
     checkOutAmbulance: async (data) => {
         const response = await authApi.post("/user/ambulance/calculate-fare", data);
         return response.data;
     },
 
-    bookAmbulance: async (data) => {
-        const response = await authApi.post("/user/ambulance/confirm-booking", data, {
+    // 6.2 Confirm Ambulance Booking (POST /user/ambulance/confirm-booking)
+    bookAmbulance: async (formData) => {
+        const response = await authApi.post("/user/ambulance/confirm-booking", formData, {
             headers: {
-                'Content-Type': 'application/json',
+                "Content-Type": "multipart/form-data",
             }
         });
+        return response.data;
+    },
+
+    // 7.0 Verify Ambulance Online Payment (POST /user/ambulance/verify-payment)
+    verifyPaymentAmbulance: async (paymentData) => {
+        const response = await authApi.post("/user/ambulance/verify-payment", paymentData);
         return response.data;
     },
 

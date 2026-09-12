@@ -52,6 +52,8 @@ export default function FireStationLayout({ children }) {
         { name: 'Manage Leave', href: '/policeandfire/firestation/manageleaves', icon: FaUserPlus },
         { name: 'Alerts & Sounds', href: '/policeandfire/firestation/notification', icon: FaBell },
         { name: 'Change Password', href: '/policeandfire/changepassword', icon: FaLock },
+        { name: 'Issue', href: '/policeandfire/firestation/issues', icon: FaLock },
+
     ];
 
     // Check if any settings sub-route is active

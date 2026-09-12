@@ -1,22 +1,21 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     FaArrowLeft, FaHospital, FaProcedures,
     FaShieldAlt, FaCheck, FaTimes, FaTag, FaReceipt,
     FaUser, FaPhone, FaCalendarDay, FaVenusMars, FaCreditCard,
     FaMapMarkerAlt, FaGlobe, FaPlus, FaUpload, FaUserMd, FaStethoscope,
-    FaSpinner, FaGem
+    FaSpinner, FaGem, FaMoneyBillWave, FaLock, FaCheckCircle
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import UserAPI from "@/app/services/UserAPI";
-import { useGlobalContext } from "@/app/context/GlobalContext";
 import CostoumPopup from "@/lib/CostoumPopup";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-// Utility to dynamically load the Razorpay SDK script
+// Dynamically load Razorpay SDK
 const loadRazorpayScript = () => {
     return new Promise((resolve) => {
         if (window.Razorpay) {
@@ -32,55 +31,52 @@ const loadRazorpayScript = () => {
     });
 };
 
-export default function CheckoutPage() {
+export default function HospitalCheckoutPage() {
     const router = useRouter();
     const [booking, setBooking] = useState(null);
-    const { openModal } = useGlobalContext();
 
-    // API Data State
+    // API Data States
     const [doctors, setDoctors] = useState([]);
     const [services, setServices] = useState([]);
     const [coupons, setCoupons] = useState([]);
     const [familyMembers, setFamilyMembers] = useState([]);
 
-    // --- NEW SUBSCRIPTION & SERVER PRICING STATE ---
-    const [subscription, setSubscription] = useState(null);
-    const [serverPricing, setServerPricing] = useState(null);
-    const [isFetchingSummary, setIsFetchingSummary] = useState(false);
-
-    // Selection State
+    // Selection States
     const [selectedMemberId, setSelectedMemberId] = useState("self");
     const [selectedDoctorId, setSelectedDoctorId] = useState(null);
     const [selectedServiceIds, setSelectedServiceIds] = useState([]);
     const [bedBookingType, setBedBookingType] = useState("General-Bed");
 
-    // Expanded Patient Details State
+    // Patient & Insurance Details
     const [patientDetails, setPatientDetails] = useState({
         fullName: "",
         dob: "",
         phoneNumber: "",
-        gender: "",
+        gender: "Male",
         address: "",
         city: "",
         pincode: "",
-        spokenLanguage: "",
         haveInsurance: "No",
         insuranceNo: "",
         companyName: "",
-        issueDate: "",
-        expiryDate: "",
         insuranceDocument: null,
         bookingReason: ""
     });
 
-    // Coupon State
+    // Payment & COD States
+    const [paymentMethod, setPaymentMethod] = useState("Online"); // 'Online' | 'COD'
     const [couponCode, setCouponCode] = useState("");
-    const [appliedCoupon, setAppliedCoupon] = useState(null);
-    const [discountAmount, setDiscountAmount] = useState(0);
-    const [loadingData, setLoadingData] = useState(true);
+    const [appliedCouponCode, setAppliedCouponCode] = useState("");
     const [couponError, setCouponError] = useState("");
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
+    // Server-side Checkout Summary State (Endpoint 2.1)
+    const [serverPricing, setServerPricing] = useState(null);
+    const [isFetchingSummary, setIsFetchingSummary] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [bookingSuccessData, setBookingSuccessData] = useState(null);
+
+    // 1. Initialize Booking Data from Session
     useEffect(() => {
         const token = localStorage.getItem('userToken');
         if (!token) {
@@ -88,109 +84,111 @@ export default function CheckoutPage() {
             router.push('/hospital');
             return;
         }
+
         const savedData = sessionStorage.getItem("activeBooking");
         if (!savedData) {
-            router.push("/");
+            router.push("/hospital");
         } else {
             const parsedBooking = JSON.parse(savedData);
             setBooking(parsedBooking);
             fetchHospitalData(parsedBooking.hospitalId);
             fetchFamilyData();
-            fetchSubscriptionStatus(); // Fetch subscription on load
         }
     }, [router]);
 
-    const fetchSubscriptionStatus = async () => {
-        try {
-            const res = await UserAPI.getMySubscriptionStatus();
-            if (res.success && res.hasActivePlan) {
-                setSubscription(res.data);
-            }
-        } catch (error) {
-            console.error("Subscription fetch error", error);
-        }
-    };
-
-    // --- FETCH SERVER-SIDE PRICING SUMMARY ---
-    useEffect(() => {
-        const fetchSummary = async () => {
-            if (!booking) return;
-            try {
-                setIsFetchingSummary(true);
-                const payload = {
-                    hospitalId: booking.hospitalId,
-                    bedId: booking.bedId,
-                    doctorId: selectedDoctorId,
-                    startDate: booking.startDate,
-                    endDate: booking.endDate,
-                    triageLevel: bedBookingType === "Emergency-Bed" ? "Emergency" : "Routine"
-                };
-                const res = await UserAPI.getHospitalCheckoutSummary(payload);
-                if (res.success) {
-                    setServerPricing(res.data);
-                }
-            } catch (error) {
-                console.error("Error fetching pricing summary", error);
-            } finally {
-                setIsFetchingSummary(false);
-            }
-        };
-        fetchSummary();
-    }, [booking, selectedDoctorId, bedBookingType]);
-
+    // 2. Fetch Hospital Metadata
     const fetchHospitalData = async (hospitalId) => {
         try {
-            setLoadingData(true);
             const [docRes, serviceRes, couponRes] = await Promise.all([
                 UserAPI.getHospitalDoctors(hospitalId),
                 UserAPI.getHospitalServices(hospitalId),
                 UserAPI.getHospitalCoupons(hospitalId)
             ]);
 
-            if (docRes.success) setDoctors(docRes.data);
-            if (serviceRes.success) setServices(serviceRes.data);
-            if (couponRes.success) setCoupons(couponRes.data);
+            if (docRes?.success) setDoctors(docRes.data || []);
+            if (serviceRes?.success) setServices(serviceRes.data || []);
+            if (couponRes?.success) setCoupons(couponRes.data || []);
         } catch (error) {
-            console.error("Error fetching checkout data:", error);
-        } finally {
-            setLoadingData(false);
+            console.error("Error fetching hospital metadata:", error);
         }
     };
 
     const fetchFamilyData = async () => {
         try {
-            const response = await UserAPI.getFamilyMembers();
-            if (response.success) {
-                setFamilyMembers(response.data);
-            }
+            const res = await UserAPI.getFamilyMembers();
+            if (res?.success) setFamilyMembers(res.data || []);
         } catch (error) {
             console.error("Error fetching family members:", error);
         }
     };
 
-    const getImageUrl = (path) => {
-        if (!path) return "https://via.placeholder.com/150";
-        const cleanPath = path.toString().replace(/^public\//, "").replace(/^\//, "");
-        return `${BASE_URL}/${cleanPath}`;
-    };
-
     const calculateAge = (dob) => {
-        if (!dob) return 0;
+        if (!dob) return 25;
         const birthDate = new Date(dob);
-        const difference = Date.now() - birthDate.getTime();
-        const ageDate = new Date(difference);
-        return Math.abs(ageDate.getUTCFullYear() - 1970);
+        const diff = Date.now() - birthDate.getTime();
+        const ageDate = new Date(diff);
+        return Math.abs(ageDate.getUTCFullYear() - 1970) || 25;
     };
 
+    // 3. Fetch Server-Side Summary (POST /user/hospital/checkout-summary)
+    const fetchSummary = useCallback(async (codeToApply = appliedCouponCode) => {
+        if (!booking?.hospitalId || !booking?.bedId) return;
+
+        try {
+            setIsFetchingSummary(true);
+            setCouponError("");
+
+            const payload = {
+                hospitalId: booking.hospitalId,
+                bedId: booking.bedId,
+                startDate: booking.startDate,
+                endDate: booking.endDate,
+                couponCode: codeToApply || undefined,
+                patients: [{
+                    patientName: patientDetails.fullName || "Patient",
+                    patientAge: calculateAge(patientDetails.dob),
+                    gender: patientDetails.gender || "Male",
+                    relation: selectedMemberId === "self" ? "Self" : "Family Member"
+                }]
+            };
+
+            const res = await UserAPI.getHospitalCheckoutSummary(payload);
+            if (res?.success && res.data) {
+                setServerPricing(res.data);
+                // If COD is disabled globally and user is not subscribed, switch to Online
+                if (!res.data.isCodAvailable && paymentMethod === "COD") {
+                    setPaymentMethod("Online");
+                }
+            } else {
+                if (codeToApply) {
+                    setCouponError(res?.message || "Invalid Coupon");
+                    setAppliedCouponCode("");
+                }
+            }
+        } catch (error) {
+            console.error("Pricing summary fetch error:", error);
+            if (codeToApply) setCouponError("Coupon validation failed");
+        } finally {
+            setIsFetchingSummary(false);
+            setIsValidatingCoupon(false);
+        }
+    }, [booking, patientDetails.fullName, patientDetails.dob, patientDetails.gender, selectedMemberId, appliedCouponCode, paymentMethod]);
+
+    useEffect(() => {
+        if (booking) {
+            fetchSummary(appliedCouponCode);
+        }
+    }, [booking, fetchSummary, appliedCouponCode]);
+
+    // Handle Family Member Selection
     const handleMemberSelect = (member) => {
         if (member === "self" || member === "add") {
             setSelectedMemberId(member);
             setPatientDetails({
-                fullName: "", dob: "", phoneNumber: "", gender: "",
-                address: "", city: "", pincode: "", spokenLanguage: "",
+                fullName: "", dob: "", phoneNumber: "", gender: "Male",
+                address: "", city: "", pincode: "",
                 haveInsurance: "No", insuranceNo: "", companyName: "",
-                issueDate: "", expiryDate: "", insuranceDocument: null,
-                bookingReason: ""
+                insuranceDocument: null, bookingReason: ""
             });
         } else {
             setSelectedMemberId(member._id);
@@ -203,90 +201,86 @@ export default function CheckoutPage() {
             }
 
             setPatientDetails({
-                ...patientDetails,
                 fullName: member.memberName || "",
                 phoneNumber: member.phone || "",
                 dob: formattedDob,
-                gender: member.gender || "",
+                gender: member.gender || "Male",
                 haveInsurance: member.hasInsurance ? "Yes" : "No",
                 insuranceNo: member.insuranceNo || "",
                 companyName: member.insuranceId?.provider || "",
-                address: patientDetails.address || "",
-                city: patientDetails.city || "",
-                pincode: patientDetails.pincode || "",
-                insuranceDocument: null
+                address: "",
+                city: "",
+                pincode: "",
+                insuranceDocument: null,
+                bookingReason: ""
             });
         }
     };
 
-    // --- UPDATED PRICING LOGIC ---
+    // 4. Computed Pricing Breakdown
     const totals = useMemo(() => {
         const selectedServices = services.filter(s => selectedServiceIds.includes(s._id));
         const servicesTotal = selectedServices.reduce((sum, s) => sum + s.price, 0);
-        
-        // Use server pricing if available, otherwise fallback to local
-        const bedPrice = serverPricing?.baseFee || booking?.totalPrice || 0;
-        const visitCharge = serverPricing?.visitCharge ?? 0; // Will be 0 if subscription active
-        
-        const subtotal = bedPrice + servicesTotal + visitCharge;
-        const finalTotal = subtotal - discountAmount;
 
-        return {
-            bedPrice,
-            servicesTotal,
-            visitCharge,
-            subtotal,
-            finalTotal,
-            selectedServices,
-            isSubscriptionApplied: !!subscription && visitCharge === 0 && selectedDoctorId !== null
-        };
-    }, [services, selectedServiceIds, booking, serverPricing, discountAmount, subscription, selectedDoctorId]);
+        if (serverPricing) {
+            const baseFee = serverPricing.baseFee ?? 0;
+            const discount = serverPricing.discount ?? 0;
+            const subtotal = serverPricing.subtotal ?? baseFee;
+            const totalPayable = Math.max(0, (serverPricing.totalPayable ?? (subtotal - discount)) + servicesTotal);
 
-    const handleApplyCoupon = async (codeToApply = couponCode) => {
-        setCouponError("");
-        if (!codeToApply) return;
-        try {
-            const response = await UserAPI.validateHospitalCoupon({
-                hospitalId: booking.hospitalId,
-                couponCode: codeToApply,
-                subtotal: totals.subtotal
-            });
-
-            if (response.success) {
-                const matchedCoupon = coupons.find(c => c.couponName === codeToApply);
-                setAppliedCoupon({
-                    ...response.data,
-                    ...(matchedCoupon || {}),
-                    couponName: codeToApply
-                });
-                setDiscountAmount(response.data.discountAmount || 0);
-                setCouponCode(codeToApply);
-            } else {
-                setCouponError(response.message || "Invalid Coupon");
-                setAppliedCoupon(null);
-                setDiscountAmount(0);
-            }
-        } catch (error) {
-            setCouponError("Error validating coupon");
+            return {
+                baseFee,
+                originalBaseFee: serverPricing.originalBaseFee ?? baseFee,
+                servicesTotal,
+                discount,
+                subtotal: subtotal + servicesTotal,
+                totalPayable,
+                stayDuration: serverPricing.stayDuration ?? 1,
+                isCodAvailable: !!serverPricing.isCodAvailable,
+                isSubscriptionApplied: !!serverPricing.subscriptionDetails?.isSubscriptionApplied,
+                planName: serverPricing.subscriptionDetails?.planName || "",
+                selectedServices
+            };
         }
+
+        const fallbackBase = booking?.totalPrice || 0;
+        return {
+            baseFee: fallbackBase,
+            originalBaseFee: fallbackBase,
+            servicesTotal,
+            discount: 0,
+            subtotal: fallbackBase + servicesTotal,
+            totalPayable: fallbackBase + servicesTotal,
+            stayDuration: 1,
+            isCodAvailable: true,
+            isSubscriptionApplied: false,
+            planName: "",
+            selectedServices
+        };
+    }, [serverPricing, services, selectedServiceIds, booking]);
+
+    // Coupon Actions
+    const handleApplyCoupon = (code) => {
+        const codeToApply = (code || couponCode).trim().toUpperCase();
+        if (!codeToApply) return;
+        setIsValidatingCoupon(true);
+        setAppliedCouponCode(codeToApply);
     };
 
     const removeCoupon = () => {
-        setAppliedCoupon(null);
-        setDiscountAmount(0);
+        setAppliedCouponCode("");
         setCouponCode("");
         setCouponError("");
     };
 
     const toggleService = (serviceId) => {
-        setSelectedServiceIds((prev) =>
+        setSelectedServiceIds(prev =>
             prev.includes(serviceId) ? prev.filter(id => id !== serviceId) : [...prev, serviceId]
         );
-        if (appliedCoupon) removeCoupon();
     };
 
     const toggleDoctor = (doctorId) => {
-        setSelectedDoctorId((prev) => (prev === doctorId ? null : doctorId));
+        setSelectedDoctorId(prev => (prev === doctorId ? null : doctorId));
     };
 
     const handleInputChange = (e) => {
@@ -303,298 +297,278 @@ export default function CheckoutPage() {
         }
     };
 
+    // 5. Final Hospital Admission Booking Handler (Endpoint 2.2 + 7.0 Payment Verify)
     const handlePayment = async () => {
         if (!patientDetails.fullName || !patientDetails.phoneNumber) {
-            alert("Please fill in the required patient details.");
+            CostoumPopup("Please fill in required patient name and contact number", "warning", 3000);
             return;
         }
 
         if (patientDetails.haveInsurance === "Yes" && !patientDetails.insuranceDocument) {
-            alert("Please upload your insurance card/document to proceed.");
+            CostoumPopup("Please upload your insurance document", "warning", 3000);
             return;
         }
 
         setIsSubmitting(true);
 
         try {
+            const isZeroTotal = totals.totalPayable === 0;
+            const finalPaymentMethod = isZeroTotal ? "COD" : paymentMethod;
+
             const fd = new FormData();
             fd.append("hospitalId", booking.hospitalId);
             fd.append("bedId", booking.bedId);
-            fd.append("doctorId", selectedDoctorId || "");
+            if (selectedDoctorId) fd.append("doctorId", selectedDoctorId);
             fd.append("startDate", booking.startDate);
             fd.append("endDate", booking.endDate);
-            fd.append("hasInsurance", patientDetails.haveInsurance === "Yes" ? "true" : "false");
-            fd.append("bookingReason", patientDetails.bookingReason || "");
-            fd.append("paymentMethod", "Online");
-            if (appliedCoupon) {
-                fd.append("couponCode", appliedCoupon.couponName);
+            fd.append("hasInsurance", String(patientDetails.haveInsurance === "Yes"));
+            fd.append("bookingReason", patientDetails.bookingReason || "Hospital Admission");
+            fd.append("paymentMethod", finalPaymentMethod);
+
+            if (appliedCouponCode) {
+                fd.append("couponCode", appliedCouponCode);
             }
 
             const patientArray = [{
                 patientName: patientDetails.fullName,
                 patientAge: calculateAge(patientDetails.dob),
-                gender: patientDetails.gender,
-                relation: selectedMemberId === "self" ? "Self" : "Family Member",
-                reasonForVisit: patientDetails.bookingReason || "",
-                isMainUser: true
+                gender: patientDetails.gender || "Male",
+                relation: selectedMemberId === "self" ? "Self" : "Family Member"
             }];
             fd.append("patients", JSON.stringify(patientArray));
-
-            const addressObj = {
-                name: patientDetails.fullName,
-                phone: patientDetails.phoneNumber,
-                houseNo: patientDetails.address || "",
-                sector: patientDetails.city || "",
-                city: patientDetails.city || "",
-                state: "Punjab",
-                pincode: patientDetails.pincode || "",
-                addressType: "Home"
-            };
-            fd.append("address", JSON.stringify(addressObj));
 
             if (patientDetails.haveInsurance === "Yes" && patientDetails.insuranceDocument) {
                 fd.append("insuranceDocument", patientDetails.insuranceDocument);
             }
 
-            const response = await UserAPI.bookHospitalBed(fd);
-            
-            if (response.success) {
-                // --- SKIP RAZORPAY IF TOTAL IS 0 ---
-                if (response.amount === 0 || totals.finalTotal === 0) {
-                    alert(response.message || "Booking Confirmed Successfully!");
-                    sessionStorage.removeItem("activeBooking");
-                    router.push("/userscreens/hospitalappointment");
-                    return;
-                }
+            const res = await UserAPI.bookHospitalBed(fd);
 
-                const isScriptLoaded = await loadRazorpayScript();
-                if (!isScriptLoaded) {
-                    alert("Failed to load Razorpay SDK.");
-                    setIsSubmitting(false);
-                    return;
-                }
-
-                const { key_id, amount, razorpayOrderId, appointmentId, orderId } = response;
-
-                const options = {
-                    key: key_id,
-                    amount: amount,
-                    currency: "INR",
-                    name: "HK Healthcare App",
-                    description: "Hospital Bed Admission Booking",
-                    order_id: razorpayOrderId,
-                    prefill: {
-                        name: patientDetails.fullName,
-                        contact: patientDetails.phoneNumber
-                    },
-                    theme: { color: "#10b981" },
-                    modal: { ondismiss: () => setIsSubmitting(false) },
-                    handler: async function (paymentResponse) {
-                        try {
-                            setIsSubmitting(true);
-                            const verificationRes = await UserAPI.verifyPaymentHospital({
-                                appointmentId: appointmentId || orderId,
-                                razorpayOrderId: paymentResponse.razorpay_order_id,
-                                razorpayPaymentId: paymentResponse.razorpay_payment_id,
-                                razorpaySignature: paymentResponse.razorpay_signature
-                            });
-
-                            if (verificationRes?.success) {
-                                alert("Booking Confirmed Successfully!");
-                                sessionStorage.removeItem("activeBooking");
-                                router.push("/userscreens/hospitalappointment");
-                            } else {
-                                alert("Verification failed.");
-                            }
-                        } catch (e) {
-                            alert("Something went wrong during verification.");
-                        } finally {
-                            setIsSubmitting(false);
-                        }
-                    }
-                };
-
-                const rzpInstance = new window.Razorpay(options);
-                rzpInstance.open();
-
-            } else {
-                alert(response.message || "Failed to book bed.");
+            if (!res?.success) {
+                CostoumPopup(res?.message || "Failed to initiate hospital admission", "error", 4000);
                 setIsSubmitting(false);
+                return;
             }
+
+            // --- CASE A: Direct Confirmation for COD or Free Booking ---
+            if (isZeroTotal || finalPaymentMethod === "COD" || res.data?.paymentStatus === "Paid") {
+                sessionStorage.removeItem("activeBooking");
+                setBookingSuccessData(res.data || { bookingId: res.bookingId || "HKH-CONFIRMED" });
+                setIsSubmitting(false);
+                return;
+            }
+
+            // --- CASE B: Online Razorpay Flow ---
+            const isScriptLoaded = await loadRazorpayScript();
+            if (!isScriptLoaded) {
+                CostoumPopup("Failed to load Razorpay SDK.", "error", 4000);
+                setIsSubmitting(false);
+                return;
+            }
+
+            const { key_id, amount, razorpayOrderId, appointmentId, bookingId } = res;
+
+            const options = {
+                key: key_id,
+                amount: amount,
+                currency: "INR",
+                name: "Health Kangaroo Hospital Network",
+                description: `Bed Admission at ${booking.hospitalName}`,
+                order_id: razorpayOrderId,
+                prefill: {
+                    name: patientDetails.fullName,
+                    contact: patientDetails.phoneNumber
+                },
+                theme: { color: "#10b981" },
+                modal: {
+                    ondismiss: () => {
+                        setIsSubmitting(false);
+                        CostoumPopup("Payment cancelled", "warning", 3000);
+                    }
+                },
+                handler: async function (paymentResponse) {
+                    try {
+                        setIsSubmitting(true);
+                        const verificationRes = await UserAPI.verifyPaymentHospital({
+                            appointmentId: appointmentId || res.data?._id,
+                            razorpayOrderId: paymentResponse.razorpay_order_id || razorpayOrderId,
+                            razorpayPaymentId: paymentResponse.razorpay_payment_id,
+                            razorpaySignature: paymentResponse.razorpay_signature
+                        });
+
+                        if (verificationRes?.success) {
+                            sessionStorage.removeItem("activeBooking");
+                            setBookingSuccessData(verificationRes.data || { bookingId: bookingId || "HKH-CONFIRMED" });
+                        } else {
+                            CostoumPopup(verificationRes?.message || "Payment verification failed", "error", 4000);
+                        }
+                    } catch (e) {
+                        CostoumPopup("Payment verification error", "error", 4000);
+                    } finally {
+                        setIsSubmitting(false);
+                    }
+                }
+            };
+
+            const rzpInstance = new window.Razorpay(options);
+            rzpInstance.open();
+
         } catch (error) {
-            alert("An error occurred during booking.");
+            console.error("Admission error:", error);
+            CostoumPopup("An error occurred during booking. Please try again.", "error", 4000);
             setIsSubmitting(false);
         }
     };
 
-    if (!booking) return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-            <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-    );
+    if (!booking) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50">
+                <FaSpinner className="w-8 h-8 text-emerald-500 animate-spin" />
+            </div>
+        );
+    }
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] pb-20 overflow-x-hidden">
-            {/* --- HEADER --- */}
-            <div className="bg-white border-b border-slate-200 sticky top-0 z-[100]">
+        <div className="min-h-screen bg-[#F8FAFC] pb-20 font-sans">
+            {/* HEADER */}
+            <div className="bg-white border-b border-slate-200 sticky top-0 z-40">
                 <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
-                    <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-600 font-bold text-[10px] md:text-xs uppercase tracking-widest">
-                        <FaArrowLeft /> BACK
+                    <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-600 font-bold text-xs uppercase tracking-widest hover:text-emerald-600">
+                        <FaArrowLeft /> Back
                     </button>
-                    <h1 className="text-sm md:text-lg font-black text-slate-900 tracking-tight uppercase">Checkout</h1>
-                    <div className="flex items-center gap-2 text-emerald-500 font-black text-[9px] md:text-[10px] uppercase tracking-widest">
-                        <FaShieldAlt className="hidden xs:block" /> Secure
+                    <h1 className="text-sm md:text-base font-black text-slate-900 tracking-tight uppercase">Hospital Admission Checkout</h1>
+                    <div className="flex items-center gap-2 text-emerald-600 font-black text-xs uppercase tracking-widest">
+                        <FaShieldAlt /> Secure
                     </div>
                 </div>
             </div>
 
-            <main className="max-w-7xl mx-auto px-3 md:px-6 mt-6 md:mt-10">
-                <div className="grid lg:grid-cols-12 gap-6 md:gap-8 lg:gap-10 items-start">
+            <main className="max-w-7xl mx-auto px-4 md:px-6 mt-6 md:mt-8">
+                <div className="grid lg:grid-cols-12 gap-8 items-start">
 
-                    <div className="lg:col-span-8 space-y-6 md:space-y-8">
+                    {/* LEFT COLUMN */}
+                    <div className="lg:col-span-8 space-y-6">
 
-                        {/* --- SUBSCRIPTION BADGE --- */}
-                        {subscription && (
-                            <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-[1.5rem] md:rounded-[2.5rem] flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-emerald-500 flex-shrink-0">
+                        {/* VIP Subscription Badge */}
+                        {totals.isSubscriptionApplied && (
+                            <div className="bg-emerald-50 border border-emerald-200 p-5 rounded-3xl flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-emerald-600 flex-shrink-0">
                                     <FaGem size={20} />
                                 </div>
                                 <div>
-                                    <h4 className="text-sm font-black text-emerald-800">Subscription Benefit Active</h4>
-                                    <p className="text-xs text-emerald-600 mt-1">
-                                        Your <strong>{subscription.planId.name}</strong> covers the specialist consultation fee for this admission.
+                                    <h4 className="text-sm font-black text-emerald-900 uppercase tracking-tight">
+                                        {totals.planName} Active
+                                    </h4>
+                                    <p className="text-xs font-semibold text-emerald-700 mt-0.5">
+                                        VIP Admission benefits applied with instant COD access.
                                     </p>
                                 </div>
                             </div>
                         )}
 
-                        {/* 01. ADMISSION OVERVIEW */}
-                        <section className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-10 shadow-sm border border-slate-100 overflow-hidden">
-                            <h2 className="text-[10px] md:text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
-                                <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px]">01</span> Admission Overview
+                        {/* SECTION 1: ADMISSION OVERVIEW */}
+                        <section className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200/80">
+                            <h2 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
+                                <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px]">01</span>
+                                Admission Overview
                             </h2>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="bg-slate-50 p-4 md:p-5 rounded-2xl border border-slate-100">
-                                    <div className="flex items-center gap-2 mb-2 text-slate-400"><FaHospital size={12} /><span className="text-[9px] font-black uppercase tracking-tighter">Facility</span></div>
-                                    <p className="font-bold text-slate-800 text-sm break-words leading-tight">{booking.hospitalName}</p>
+                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
+                                    <div className="flex items-center gap-2 mb-1.5 text-slate-400">
+                                        <FaHospital size={13} />
+                                        <span className="text-[10px] font-black uppercase tracking-wider">Facility</span>
+                                    </div>
+                                    <p className="font-bold text-slate-900 text-sm leading-tight">{booking.hospitalName}</p>
                                 </div>
-                                <div className="bg-emerald-50 p-4 md:p-5 rounded-2xl border border-emerald-100">
-                                    <div className="flex items-center gap-2 mb-2 text-emerald-600"><FaProcedures size={12} /><span className="text-[9px] font-black uppercase tracking-tighter">Unit</span></div>
-                                    <p className="font-bold text-emerald-900 text-sm leading-tight">{booking.wardName} — Bed #{booking.bedNumber}</p>
-                                </div>
-                            </div>
-
-                            <div className="mt-6 pt-6 border-t border-slate-100">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Booking Type</label>
-                                <div className="flex gap-3">
-                                    {["General-Bed", "Emergency-Bed"].map((type) => (
-                                        <button
-                                            key={type}
-                                            onClick={() => setBedBookingType(type)}
-                                            className={`flex-1 py-3.5 md:py-4 rounded-xl md:rounded-2xl border-2 font-bold text-[10px] md:text-xs transition-all ${bedBookingType === type ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-100 bg-slate-50 text-slate-400"
-                                                }`}
-                                        >
-                                            {type === "General-Bed" ? "General" : "Emergency"}
-                                        </button>
-                                    ))}
+                                <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
+                                    <div className="flex items-center gap-2 mb-1.5 text-emerald-600">
+                                        <FaProcedures size={13} />
+                                        <span className="text-[10px] font-black uppercase tracking-wider">Ward & Bed</span>
+                                    </div>
+                                    <p className="font-bold text-emerald-900 text-sm leading-tight">
+                                        {booking.wardName} — Bed #{booking.bedNumber} ({totals.stayDuration} Days)
+                                    </p>
                                 </div>
                             </div>
                         </section>
 
-                        {/* 02. PATIENT INFORMATION */}
-                        <section className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-10 shadow-sm border border-slate-100 overflow-hidden">
-                            <h2 className="text-[10px] md:text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
-                                <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px]">02</span> Patient Information
+                        {/* SECTION 2: PATIENT INFORMATION */}
+                        <section className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200/80">
+                            <h2 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
+                                <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px]">02</span>
+                                Patient Details
                             </h2>
 
-                            <div className="flex gap-4 overflow-x-auto pb-6 no-scrollbar -mx-1 px-1">
+                            {/* Family Selector */}
+                            <div className="flex gap-4 overflow-x-auto pb-4 mb-4">
                                 <div onClick={() => handleMemberSelect("self")} className="shrink-0 cursor-pointer flex flex-col items-center gap-2">
-                                    <div className={`w-14 h-14 md:w-20 md:h-20 rounded-full border-4 flex items-center justify-center bg-slate-50 transition-all ${selectedMemberId === "self" ? "border-emerald-500 scale-105" : "border-transparent"}`}>
-                                        <FaUser className={selectedMemberId === "self" ? "text-emerald-500 text-lg" : "text-slate-300 text-lg"} />
+                                    <div className={`w-14 h-14 rounded-full border-2 flex items-center justify-center bg-slate-50 transition-all ${selectedMemberId === "self" ? "border-emerald-600 bg-emerald-50" : "border-slate-200"}`}>
+                                        <FaUser className={selectedMemberId === "self" ? "text-emerald-600 text-base" : "text-slate-300 text-base"} />
                                     </div>
-                                    <span className="text-[9px] font-black uppercase text-slate-500">Self</span>
+                                    <span className="text-[10px] font-bold text-slate-600">Self</span>
                                 </div>
 
                                 {familyMembers.map((member) => (
                                     <div key={member._id} onClick={() => handleMemberSelect(member)} className="shrink-0 cursor-pointer flex flex-col items-center gap-2">
-                                        <div className={`w-14 h-14 md:w-20 md:h-20 rounded-full border-4 overflow-hidden bg-slate-50 transition-all ${selectedMemberId === member._id ? "border-emerald-500 scale-105" : "border-transparent"}`}>
+                                        <div className={`w-14 h-14 rounded-full border-2 overflow-hidden bg-slate-50 transition-all ${selectedMemberId === member._id ? "border-emerald-600 ring-2 ring-emerald-500/20" : "border-slate-200"}`}>
                                             {member.profilePic ? (
-                                                <img src={`${BASE_URL}${member.profilePic}`} className="w-full h-full object-cover" />
+                                                <img src={member.profilePic} className="w-full h-full object-cover" alt="Patient" />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center font-black text-slate-400 uppercase text-xs">{member.memberName?.charAt(0)}</div>
+                                                <div className="w-full h-full flex items-center justify-center font-black text-slate-400 text-xs">{member.memberName?.charAt(0)}</div>
                                             )}
                                         </div>
-                                        <span className="text-[9px] font-black uppercase text-slate-500 max-w-[60px] truncate">{member.memberName}</span>
+                                        <span className="text-[10px] font-bold text-slate-600 max-w-[60px] truncate">{member.memberName}</span>
                                     </div>
                                 ))}
-
-                                <div onClick={() => handleMemberSelect("add")} className="shrink-0 cursor-pointer flex flex-col items-center gap-2">
-                                    <div className={`w-14 h-14 md:w-20 md:h-20 rounded-full border-4 border-dashed border-slate-200 flex items-center justify-center bg-slate-50 transition-all ${selectedMemberId === "add" ? "border-emerald-500" : ""}`}>
-                                        <FaPlus className="text-slate-300" />
-                                    </div>
-                                    <span className="text-[9px] font-black uppercase text-slate-500">Add</span>
-                                </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 pt-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Full Name</label>
-                                    <input type="text" name="fullName" value={patientDetails.fullName} onChange={handleInputChange} placeholder="Patient Full Name" className="w-full bg-slate-50 px-4 py-4 rounded-xl border border-slate-100 outline-none font-bold text-sm text-slate-700" />
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Full Name *</label>
+                                    <input type="text" name="fullName" value={patientDetails.fullName} onChange={handleInputChange} placeholder="Patient Full Name" className="w-full bg-slate-50 px-4 py-3.5 rounded-xl border border-slate-200 outline-none font-bold text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500/20" />
                                 </div>
                                 <div>
-                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Date of Birth</label>
-                                    <input type="date" name="dob" value={patientDetails.dob} onChange={handleInputChange} className="w-full bg-slate-50 px-4 py-4 rounded-xl border border-slate-100 outline-none font-bold text-sm text-slate-700" />
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Date of Birth</label>
+                                    <input type="date" name="dob" value={patientDetails.dob} onChange={handleInputChange} className="w-full bg-slate-50 px-4 py-3.5 rounded-xl border border-slate-200 outline-none font-bold text-xs text-slate-800" />
                                 </div>
                                 <div>
-                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Phone Number</label>
-                                    <input type="tel" name="phoneNumber" value={patientDetails.phoneNumber} onChange={handleInputChange} className="w-full bg-slate-50 px-4 py-4 rounded-xl border border-slate-100 outline-none font-bold text-sm text-slate-700" />
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Phone Number *</label>
+                                    <input type="tel" name="phoneNumber" value={patientDetails.phoneNumber} onChange={handleInputChange} placeholder="Contact No" className="w-full bg-slate-50 px-4 py-3.5 rounded-xl border border-slate-200 outline-none font-bold text-xs text-slate-800" />
                                 </div>
                                 <div className="md:col-span-2">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Gender</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Gender</label>
                                     <div className="flex gap-3">
                                         {["Male", "Female", "Other"].map((g) => (
-                                            <button key={g} type="button" onClick={() => setPatientDetails({ ...patientDetails, gender: g })} className={`flex-1 py-3.5 rounded-xl border-2 font-black text-xs transition-all ${patientDetails.gender === g ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-50 bg-slate-50 text-slate-400"}`}>{g}</button>
+                                            <button key={g} type="button" onClick={() => setPatientDetails({ ...patientDetails, gender: g })} className={`flex-1 py-3 rounded-xl border font-black text-xs transition-all ${patientDetails.gender === g ? "border-emerald-600 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-500"}`}>{g}</button>
                                         ))}
                                     </div>
                                 </div>
                                 <div className="md:col-span-2">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Address</label>
-                                    <input type="text" name="address" value={patientDetails.address} onChange={handleInputChange} placeholder="Residential Address" className="w-full bg-slate-50 px-4 py-4 rounded-xl border border-slate-100 outline-none font-bold text-sm text-slate-700" />
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">City</label>
-                                    <input type="text" name="city" value={patientDetails.city} onChange={handleInputChange} placeholder="City" className="w-full bg-slate-50 px-4 py-4 rounded-xl border border-slate-100 outline-none font-bold text-sm text-slate-700" />
-                                </div>
-                                <div>
-                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Pincode</label>
-                                    <input type="text" name="pincode" value={patientDetails.pincode} onChange={handleInputChange} placeholder="Pincode" className="w-full bg-slate-50 px-4 py-4 rounded-xl border border-slate-100 outline-none font-bold text-sm text-slate-700" />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Clinical Reason / Symptoms</label>
-                                    <input type="text" name="bookingReason" value={patientDetails.bookingReason} onChange={handleInputChange} placeholder="e.g., Severe chest pain, shortness of breath" className="w-full bg-slate-50 px-4 py-4 rounded-xl border border-slate-100 outline-none font-bold text-sm text-slate-700" />
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Admission Reason / Symptoms</label>
+                                    <input type="text" name="bookingReason" value={patientDetails.bookingReason} onChange={handleInputChange} placeholder="e.g., Observation, Surgery, IV Treatment" className="w-full bg-slate-50 px-4 py-3.5 rounded-xl border border-slate-200 outline-none font-bold text-xs text-slate-800" />
                                 </div>
 
+                                {/* Insurance */}
                                 <div className="md:col-span-2 pt-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 block">Insurance Coverage?</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Do you have Health Insurance?</label>
                                     <div className="flex gap-6">
                                         {["Yes", "No"].map((opt) => (
                                             <label key={opt} className="flex items-center gap-2 cursor-pointer">
-                                                <input type="radio" checked={patientDetails.haveInsurance === opt} onChange={() => setPatientDetails({ ...patientDetails, haveInsurance: opt })} className="accent-emerald-500 w-4 h-4" />
-                                                <span className="text-xs font-bold text-slate-600 uppercase">{opt}</span>
+                                                <input type="radio" checked={patientDetails.haveInsurance === opt} onChange={() => setPatientDetails({ ...patientDetails, haveInsurance: opt })} className="accent-emerald-600 w-4 h-4" />
+                                                <span className="text-xs font-bold text-slate-700 uppercase">{opt}</span>
                                             </label>
                                         ))}
                                     </div>
                                 </div>
+
                                 {patientDetails.haveInsurance === "Yes" && (
-                                    <div className="md:col-span-2 bg-amber-50/30 p-4 md:p-6 rounded-2xl border border-amber-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <input type="text" name="insuranceNo" value={patientDetails.insuranceNo} onChange={handleInputChange} placeholder="Policy No." className="w-full bg-white px-4 py-3 rounded-xl border-none outline-none font-bold text-sm" />
-                                        <input type="text" name="companyName" value={patientDetails.companyName} onChange={handleInputChange} placeholder="Insurance Provider" className="w-full bg-white px-4 py-3 rounded-xl border-none outline-none font-bold text-sm" />
-                                        <div className="sm:col-span-2 border-2 border-dashed border-slate-200 rounded-xl p-4 bg-white text-center hover:border-emerald-500 transition-colors cursor-pointer relative group">
+                                    <div className="md:col-span-2 bg-amber-50/40 p-4 rounded-2xl border border-amber-200/60 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <input type="text" name="insuranceNo" value={patientDetails.insuranceNo} onChange={handleInputChange} placeholder="Policy No." className="w-full bg-white px-4 py-3 rounded-xl border border-amber-200 outline-none font-bold text-xs" />
+                                        <input type="text" name="companyName" value={patientDetails.companyName} onChange={handleInputChange} placeholder="TPA / Provider Name" className="w-full bg-white px-4 py-3 rounded-xl border border-amber-200 outline-none font-bold text-xs" />
+                                        <div className="sm:col-span-2 border-2 border-dashed border-amber-300 rounded-xl p-4 bg-white text-center cursor-pointer relative">
                                             <input type="file" onChange={handleFileChange} accept="image/*,application/pdf" className="absolute inset-0 opacity-0 cursor-pointer" />
                                             <div className="flex flex-col items-center justify-center gap-1">
-                                                <FaUpload className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
-                                                <span className="text-xs font-bold text-slate-500">{patientDetails.insuranceDocument ? patientDetails.insuranceDocument.name : "Upload Insurance Card/Document *"}</span>
-                                                <span className="text-[9px] text-slate-400 font-bold uppercase">PNG, JPG, PDF up to 10MB</span>
+                                                <FaUpload className="text-amber-500" />
+                                                <span className="text-xs font-bold text-slate-700">{patientDetails.insuranceDocument ? patientDetails.insuranceDocument.name : "Upload Insurance Card (Required) *"}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -602,152 +576,178 @@ export default function CheckoutPage() {
                             </div>
                         </section>
 
-                        {/* 03. CONSULTING SPECIALIST */}
-                        <section className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-10 shadow-sm border border-slate-100 overflow-hidden">
-                            <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-[10px] md:text-xs font-black text-slate-900 uppercase tracking-[0.2em] flex items-center gap-3">
-                                    <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px]">03</span> Consulting Specialist
+                        {/* SECTION 3: PAYMENT METHOD */}
+                        {totals.totalPayable > 0 && (
+                            <section className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200/80">
+                                <h2 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-4 flex items-center gap-3">
+                                    <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px]">03</span>
+                                    Payment Method
                                 </h2>
-                                {selectedDoctorId && (
-                                    <button onClick={() => setSelectedDoctorId(null)} className="text-[9px] font-black text-red-500 uppercase hover:underline">Remove</button>
-                                )}
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                                {doctors.map((doc) => (
-                                    <div key={doc._id} onClick={() => toggleDoctor(doc._id)} className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-center gap-4 ${selectedDoctorId === doc._id ? 'border-emerald-500 bg-emerald-50' : 'border-slate-50 hover:border-slate-200 bg-white'}`}>
-                                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
-                                            <img src={getImageUrl(doc.profileImage)} alt={doc.name} className="w-full h-full object-cover" />
-                                        </div>
-                                        <div className="flex-1 overflow-hidden">
-                                            <p className="font-black text-slate-800 text-xs truncate">Dr. {doc.name}</p>
-                                            <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-tighter truncate">{doc.speciality}</p>
-                                        </div>
-                                        {selectedDoctorId === doc._id && <FaCheck className="text-emerald-500 text-xs shrink-0" />}
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-
-                        {/* 04. ADD-ON SERVICES */}
-                        <section className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-4 md:p-10 shadow-sm border border-slate-100 overflow-hidden">
-                            <h2 className="text-[10px] md:text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
-                                <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px]">04</span> Add-on Services
-                            </h2>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {services.map((service) => {
-                                    const isSelected = selectedServiceIds.includes(service._id);
-                                    return (
-                                        <div key={service._id} onClick={() => toggleService(service._id)} className={`cursor-pointer p-4 rounded-xl md:rounded-2xl border-2 transition-all flex items-center justify-between ${isSelected ? 'border-emerald-500 bg-emerald-50' : 'border-slate-50 hover:border-slate-100 bg-white shadow-sm'}`}>
-                                            <div className="flex items-center gap-3 overflow-hidden">
-                                                <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0"><FaStethoscope size={16} /></div>
-                                                <div className="overflow-hidden">
-                                                    <p className="font-black text-slate-800 text-[10px] uppercase truncate">{service.serviceName}</p>
-                                                    <p className="text-[9px] text-emerald-600 font-bold">₹{service.price}</p>
-                                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaymentMethod("Online")}
+                                        className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between
+                                            ${paymentMethod === "Online" ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'bg-white border-slate-200'}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
+                                                <FaCreditCard size={15} />
                                             </div>
-                                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-slate-200'}`}>{isSelected && <FaCheck className="text-white text-[10px]" />}</div>
+                                            <div>
+                                                <p className="text-xs font-black text-slate-900">Pay Online</p>
+                                                <p className="text-[10px] text-slate-500">Instant Razorpay Confirmation</p>
+                                            </div>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        </section>
+                                        {paymentMethod === "Online" && <FaCheckCircle className="text-emerald-600" size={15} />}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        disabled={!totals.isCodAvailable}
+                                        onClick={() => setPaymentMethod("COD")}
+                                        className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between relative
+                                            ${!totals.isCodAvailable ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : ''}
+                                            ${paymentMethod === "COD" ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'bg-white border-slate-200'}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 bg-slate-100 text-slate-700 rounded-xl">
+                                                <FaMoneyBillWave size={15} />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-black text-slate-900">Pay at Hospital Desk</p>
+                                                <p className="text-[10px] text-slate-500">
+                                                    {totals.isCodAvailable ? "Pay cash/card during admission" : "Unavailable for this hospital"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {paymentMethod === "COD" && <FaCheckCircle className="text-emerald-600" size={15} />}
+                                    </button>
+                                </div>
+                            </section>
+                        )}
                     </div>
 
                     {/* RIGHT COLUMN: BILL SUMMARY */}
-                    <div className="lg:col-span-4 space-y-6">
-                        <div className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-6 shadow-sm border border-slate-100">
-                            <h2 className="text-[10px] font-black text-slate-900 uppercase tracking-widest mb-5 flex items-center gap-2">
+                    <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
+                        
+                        {/* Coupon Box */}
+                        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+                            <h2 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
                                 <FaTag className="text-emerald-500" /> Apply Coupon
                             </h2>
-                            <div className="flex gap-2 mb-4">
-                                <input type="text" placeholder="CODE" value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} className="flex-1 bg-slate-50 px-4 py-3 rounded-xl border border-slate-100 outline-none font-black text-xs uppercase" />
-                                <button onClick={() => handleApplyCoupon()} className="bg-slate-900 text-white px-5 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-600 transition-colors">Apply</button>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    placeholder="COUPON CODE"
+                                    value={couponCode}
+                                    onChange={(e) => {
+                                        setCouponCode(e.target.value.toUpperCase());
+                                        if (couponError) setCouponError("");
+                                    }}
+                                    className="flex-1 bg-slate-50 px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold text-xs uppercase focus:ring-2 focus:ring-emerald-500/20"
+                                />
+                                <button
+                                    disabled={isValidatingCoupon || (!couponCode && !appliedCouponCode)}
+                                    onClick={() => appliedCouponCode ? removeCoupon() : handleApplyCoupon()}
+                                    className={`px-4 rounded-xl text-[10px] font-black uppercase transition-all
+                                        ${appliedCouponCode ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                                >
+                                    {isValidatingCoupon ? <FaSpinner className="animate-spin" /> : appliedCouponCode ? 'Remove' : 'Apply'}
+                                </button>
                             </div>
-                            {couponError && <p className="text-[9px] font-black text-red-500 uppercase mb-4 px-1">{couponError}</p>}
-                            <div className="space-y-3 max-h-[160px] overflow-y-auto no-scrollbar">
-                                {coupons.map((coupon) => (
-                                    <div key={coupon._id} onClick={() => handleApplyCoupon(coupon.couponName)} className="cursor-pointer border border-dashed border-slate-200 rounded-xl p-3 hover:border-emerald-500 transition-all">
-                                        <div className="flex justify-between items-center mb-1">
-                                            <span className="text-[9px] font-black bg-slate-900 text-white px-2 py-0.5 rounded uppercase">{coupon.couponName}</span>
-                                            <span className="text-emerald-600 font-black text-[10px]">{coupon.discountPercentage}% OFF</span>
-                                        </div>
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Save up to ₹{coupon.maxDiscount}</p>
-                                    </div>
-                                ))}
-                            </div>
+                            {couponError && <p className="text-[10px] font-bold text-rose-500">{couponError}</p>}
                         </div>
 
-                        <div className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] p-6 md:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 lg:sticky lg:top-24 overflow-hidden">
-                            <h2 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-6 flex items-center gap-2">
-                                <FaReceipt className="text-slate-400" /> Bill Summary
+                        {/* Bill Breakdown */}
+                        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+                            <h2 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                                <FaReceipt className="text-slate-400" /> Admission Costing
                             </h2>
-                            <div className="space-y-4 text-[11px] md:text-xs">
-                                <div className="flex justify-between items-center">
-                                    <span className="font-bold text-slate-400 uppercase tracking-tighter">Base Admission</span>
-                                    <span className="font-black text-slate-800">₹{totals.bedPrice}</span>
+                            
+                            <div className="space-y-3 text-xs">
+                                <div className="flex justify-between items-center text-slate-600">
+                                    <span>Bed Base Rate ({totals.stayDuration} Days)</span>
+                                    <span className="font-black text-slate-900">₹{totals.baseFee}</span>
                                 </div>
-                                
-                                {/* --- DYNAMIC DOCTOR CONSULTATION CHARGE --- */}
-                                {selectedDoctorId && (
-                                    <div className="flex justify-between items-center">
-                                        <span className="font-bold text-slate-400 uppercase tracking-tighter">Specialist Consult</span>
-                                        <div className="flex flex-col items-end">
-                                            <span className={`font-black text-slate-800 ${totals.isSubscriptionApplied ? 'line-through text-slate-300 text-[10px]' : ''}`}>
-                                                ₹{serverPricing?.visitCharge ?? 600}
-                                            </span>
-                                            {totals.isSubscriptionApplied && (
-                                                <span className="text-emerald-600 font-black text-[9px] uppercase tracking-tighter">Plan Benefit: ₹0</span>
-                                            )}
-                                        </div>
+
+                                {totals.discount > 0 && (
+                                    <div className="flex justify-between items-center text-emerald-600 font-bold">
+                                        <span>Coupon Discount</span>
+                                        <span>-₹{totals.discount}</span>
                                     </div>
                                 )}
 
-                                {totals.selectedServices.length > 0 && (
-                                    <div className="pt-3 space-y-2 border-t border-slate-50">
-                                        {totals.selectedServices.map(s => (
-                                            <div key={s._id} className="flex justify-between items-center italic text-slate-500 text-[10px]">
-                                                <span>• {s.serviceName}</span>
-                                                <span>₹{s.price}</span>
-                                            </div>
-                                        ))}
+                                <div className="h-px bg-slate-100 my-2" />
+
+                                <div className="flex justify-between items-end">
+                                    <div>
+                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Total Payable</span>
+                                        <span className="text-[10px] text-slate-400 font-medium">Inclusive of all taxes</span>
                                     </div>
-                                )}
-                                <div className="flex justify-between items-center pt-3 border-t border-slate-100 font-black">
-                                    <span className="text-slate-400 uppercase">Subtotal</span>
-                                    <span className="text-slate-800">₹{totals.subtotal}</span>
-                                </div>
-                                {appliedCoupon && (
-                                    <div className="flex justify-between items-center text-emerald-600 bg-emerald-50 p-2.5 rounded-lg border border-emerald-100 font-black text-[10px] uppercase">
-                                        <div className="flex items-center gap-2"><FaTag size={10} /> <span>{appliedCoupon.couponName}</span></div>
-                                        <div className="flex items-center gap-2"><span>-₹{discountAmount}</span> <FaTimes onClick={removeCoupon} className="cursor-pointer hover:text-red-500" /></div>
-                                    </div>
-                                )}
-                                <div className="pt-6 border-t-4 border-slate-50 mt-6">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Payable</p>
-                                    <div className="flex items-baseline gap-1">
-                                        <span className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter">₹{totals.finalTotal}</span>
-                                        <span className="text-[10px] font-bold text-slate-300 uppercase italic">Inc. Taxes</span>
-                                    </div>
+                                    <span className="text-3xl font-black text-slate-900">
+                                        ₹{totals.totalPayable.toFixed(2)}
+                                    </span>
                                 </div>
                             </div>
+
                             <button
                                 onClick={handlePayment}
                                 disabled={isSubmitting || isFetchingSummary}
-                                className="w-full bg-slate-900 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs md:text-sm uppercase tracking-widest mt-8 flex items-center justify-center gap-3 transition-all duration-300 shadow-xl active:scale-95 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                                className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2
+                                    ${(!isSubmitting && !isFetchingSummary)
+                                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 active:scale-95'
+                                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
                             >
-                                {isSubmitting || isFetchingSummary ? <FaSpinner className="animate-spin text-white" /> : <FaCreditCard />}
-                                {isSubmitting ? "Processing..." : totals.finalTotal === 0 ? "Confirm Free Booking" : "Confirm Booking"}
+                                {isSubmitting || isFetchingSummary ? (
+                                    <FaSpinner className="animate-spin" size={14} />
+                                ) : totals.totalPayable === 0 ? (
+                                    <>Confirm Free Admission <FaCheckCircle size={12} /></>
+                                ) : paymentMethod === "COD" ? (
+                                    <>Confirm & Pay at Hospital Desk <FaHospital size={12} /></>
+                                ) : (
+                                    <>Proceed to Pay ₹{totals.totalPayable.toFixed(2)} <FaLock size={10} /></>
+                                )}
                             </button>
-                            <p className="text-[8px] text-center text-slate-400 mt-6 font-bold uppercase tracking-widest">Secure SSL Encrypted Transaction</p>
                         </div>
                     </div>
+
                 </div>
             </main>
 
-            <style jsx global>{`
-                .no-scrollbar::-webkit-scrollbar { display: none; }
-                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-            `}</style>
+            {/* CONFIRMATION SUCCESS MODAL */}
+            {bookingSuccessData && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2rem] p-8 max-w-md w-full border border-slate-100 shadow-2xl text-center space-y-5">
+                        <div className="mx-auto w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
+                            <FaCheckCircle className="w-9 h-9" />
+                        </div>
+                        <div className="space-y-1">
+                            <h3 className="text-2xl font-black text-slate-900">Admission Confirmed!</h3>
+                            <p className="text-xs font-semibold text-slate-500">Your hospital bed admission request is confirmed.</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-left space-y-2 text-xs">
+                            <div className="flex justify-between">
+                                <span className="text-slate-400 font-medium">Booking ID:</span>
+                                <span className="font-bold text-slate-800">{bookingSuccessData.bookingId || "HKH-xxxx"}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-slate-400 font-medium">Status:</span>
+                                <span className="font-black text-emerald-600 uppercase">{bookingSuccessData.status || "Confirmed"}</span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => {
+                                setBookingSuccessData(null);
+                                router.push('/userscreens/hospitalappointment');
+                            }}
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20"
+                        >
+                            View Admissions
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

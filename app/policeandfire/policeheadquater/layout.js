@@ -46,6 +46,7 @@ export default function LabVendorLayout({ children }) {
         { name: 'Manage Jurisdiction Area', href: '/policeandfire/policeheadquater/jurisdiction', icon: FaMap },
         { name: 'Cases History', href: '/policeandfire/policeheadquater/history', icon: FaFileMedicalAlt },
         { name: 'Terms & Conditions', href: '/policeandfire/policeheadquater/Term-and-condition', icon: FaCog },
+        { name: 'Issue', href: '/policeandfire/policeheadquater/issues', icon: FaCog },
     ];
 
     // Prevent rendering children until authorization check is done
