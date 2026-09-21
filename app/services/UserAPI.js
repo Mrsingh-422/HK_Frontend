@@ -742,13 +742,13 @@ const UserAPI = {
         const response = await authApi.delete(`/user/cart/pharmacy/item/${itemId}`);
         return response.data;
     },
-   // ==========================================
+    // ==========================================
     // MODULE 3: DIAGNOSTIC LAB APIS
     // ==========================================
     
     // 3.1 Calculate Lab Checkout & Place Booking (POST /user/cart/lab/checkout)
     checkoutLabCart: async (checkoutPayload) => {
-        const response = await authApi.post("/user/cart/lab/checkout", checkoutPayload);
+        const response = await authApi.post("/user/labs/checkout", checkoutPayload);
         return response.data;
     },
 
