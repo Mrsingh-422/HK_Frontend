@@ -746,7 +746,7 @@ const UserAPI = {
     // MODULE 3: DIAGNOSTIC LAB APIS
     // ==========================================
     
-    // 3.1 Calculate Lab Checkout & Place Booking (POST /user/cart/lab/checkout)
+    // 3.1 Calculate Lab Checkout & Place Booking (POST /user/labs/checkout)
     checkoutLabCart: async (checkoutPayload) => {
         const response = await authApi.post("/user/labs/checkout", checkoutPayload);
         return response.data;
@@ -1041,6 +1041,11 @@ someFunction: async () => {
         );
         const query = new URLSearchParams(cleanParams).toString();
         const response = await authApi.get(`/user/ambulance/my-bookings${query ? `?${query}` : ''}`);
+        return response.data;
+    },
+    // 3.4 Escalate SOS after 60s without acceptance (POST /user/ambulance/sos/escalate/:bookingId)
+    escalateSOSBooking: async (bookingId) => {
+        const response = await authApi.post(`/user/ambulance/sos/escalate/${bookingId}`, {});
         return response.data;
     },
 

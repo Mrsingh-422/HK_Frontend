@@ -1,8 +1,9 @@
 "use client";
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import {
-    MapPin, ChevronDown, Camera, ShieldAlert,
-    Info, ChevronLeft, Navigation, Clock, User, Loader2, CheckCircle2, KeyRound, Phone, Hospital, AlertTriangle, ShieldCheck, Flame
+    MapPin, Camera, ShieldAlert, ChevronLeft, Navigation, Clock,
+    Loader2, CheckCircle2, Phone, AlertTriangle, ShieldCheck,
+    Flame, Radio, PhoneCall, AlertOctagon, X, User, Truck, ShieldX
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import UserAPI from '@/app/services/UserAPI';
@@ -11,111 +12,160 @@ function AccidentalAmbulanceContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    const serviceTypeFromUrl = searchParams.get('serviceType') || "Accident emergency";
-
     const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [ambulances, setAmbulances] = useState([]);
-    const [familyMembers, setFamilyMembers] = useState([]);
-    const [hospitals, setHospitals] = useState([]);
-    const [emergencyNumbers, setEmergencyNumbers] = useState([]);
-    const [selectedNumber, setSelectedNumber] = useState("");
-
-    const [loading, setLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [selectedAmbulance, setSelectedAmbulance] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
     const [imageFile, setImageFile] = useState(null);
-    const [coords, setCoords] = useState({ lat: 30.6, lng: 76.7 });
-    
-    // Booking confirmation & Verification States
-    const [showSuccessModal, setShowSuccessModal] = useState(false);
-    const [bookingSuccessData, setBookingSuccessData] = useState(null);
-    const [showVerificationModal, setShowVerificationModal] = useState(false);
-    const [verificationMessage, setVerificationMessage] = useState("");
+    const [coords, setCoords] = useState({ lat: 30.7046, lng: 76.7179 });
+
+    // Nearby ambulances list (Preview display)
+    const [ambulances, setAmbulances] = useState([]);
+    const [loadingAmbulances, setLoadingAmbulances] = useState(true);
+
+    // --- State Machine: 'FORM' | 'SEARCHING_RADAR' ---
+    const [flowState, setFlowState] = useState('FORM');
+    const [activeBooking, setActiveBooking] = useState(null);
+
+    // --- 60-Second Countdown & Escalation States ---
+    const [timeLeft, setTimeLeft] = useState(60);
+    const [timeoutExpired, setTimeoutExpired] = useState(false);
+    const [fallbackData, setFallbackData] = useState(null);
+    const [isDriverAssigned, setIsDriverAssigned] = useState(false);
+
+    const countdownRef = useRef(null);
+    const pollingRef = useRef(null);
 
     // Form Data
     const [formData, setFormData] = useState({
         name: "",
         phone: "",
         countryCode: "+91",
-        location: "Detecting emergency GPS location...",
-        relation: "Self",
-        hospitalId: "",
-        description: "",
-        serviceType: serviceTypeFromUrl,
+        location: "Detecting emergency GPS coordinates...",
+        description: "Road accident trauma, critical emergency assistance requested",
         policeRequired: true,
-        fireRequired: false,
-        paymentMethod: "COD"
+        fireRequired: false
     });
 
-    // Check login & initialize data
+    // 1. Initial Load: GPS & Fleet Availability Check
     useEffect(() => {
         const token = localStorage.getItem('userToken');
         setIsLoggedIn(!!token);
 
-        const fetchData = async () => {
-            setLoading(true);
-            const storedCoords = localStorage.getItem('userCoords');
-            const userCoords = storedCoords ? JSON.parse(storedCoords) : { lat: 30.7046, lng: 76.7179 };
-            setCoords(userCoords);
+        const storedCoords = localStorage.getItem('userCoords');
+        const userCoords = storedCoords ? JSON.parse(storedCoords) : { lat: 30.7046, lng: 76.7179 };
+        setCoords(userCoords);
 
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userCoords.lat}&lon=${userCoords.lng}`)
+            .then(res => res.json())
+            .then(data => {
+                setFormData(prev => ({
+                    ...prev,
+                    location: data.display_name || "Location Detected"
+                }));
+            })
+            .catch(() => {});
+
+        // Fetch ambulances for area preview
+        UserAPI.getNearestAmbulances({
+            lat: userCoords.lat,
+            lng: userCoords.lng,
+            serviceType: "Accident emergency"
+        })
+            .then(res => {
+                if (res.success) setAmbulances(res.data || []);
+            })
+            .catch(() => {})
+            .finally(() => setLoadingAmbulances(false));
+    }, []);
+
+    // =========================================================================
+    // 🔄 1. LIVE STATUS POLLING (Every 3 seconds)
+    // 🚨 STRICT RULE: DO NOT REDIRECT WHILE STATUS IS 'Searching'!
+    // 🚀 REDIRECT ONLY WHEN STATUS BECOMES 'Confirmed'!
+    // =========================================================================
+    useEffect(() => {
+        if (flowState !== 'SEARCHING_RADAR' || !activeBooking || isDriverAssigned || timeoutExpired) return;
+
+        const bookingId = activeBooking._id || activeBooking.bookingId;
+
+        pollingRef.current = setInterval(async () => {
             try {
-                // Reverse geocode
-                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userCoords.lat}&lon=${userCoords.lng}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        setFormData(prev => ({
-                            ...prev,
-                            location: data.display_name || "Location Detected"
-                        }));
-                    })
-                    .catch(err => console.error("Address lookup failed", err));
+                const res = await UserAPI.getAmbulanceLiveTrack(bookingId);
+                const currentStatus = res.data?.status;
 
-                const [hospRes, numRes, familyRes, ambRes] = await Promise.allSettled([
-                    UserAPI.getNearbyHospitals ? UserAPI.getNearbyHospitals(userCoords) : UserAPI.getHospitalsList(userCoords),
-                    token && UserAPI.getMyEmergencyNumbers ? UserAPI.getMyEmergencyNumbers() : Promise.resolve({ success: false }),
-                    token ? UserAPI.getFamilyMembers() : Promise.resolve({ success: false }),
-                    UserAPI.getNearestAmbulances({
-                        lat: userCoords.lat,
-                        lng: userCoords.lng,
-                        serviceType: serviceTypeFromUrl
-                    })
-                ]);
+                // Driver accepted the emergency broadcast
+                if (currentStatus === 'Confirmed' || currentStatus === 'Arrived' || currentStatus === 'En-Route') {
+                    setIsDriverAssigned(true);
+                    clearInterval(pollingRef.current);
+                    if (countdownRef.current) clearInterval(countdownRef.current);
 
-                if (hospRes.status === "fulfilled" && hospRes.value?.success && hospRes.value.data) {
-                    setHospitals(hospRes.value.data);
-                    if (hospRes.value.data.length > 0) {
-                        setFormData(prev => ({ ...prev, hospitalId: hospRes.value.data[0]._id }));
-                    }
+                    // 🚀 AUTO-REDIRECT TO LIVE TRACKING SCREEN
+                    router.push(`/userscreens/ambulanceappointment`);
                 }
-
-                if (numRes.status === "fulfilled" && numRes.value?.success && numRes.value.numbers) {
-                    setEmergencyNumbers(numRes.value.numbers);
-                    if (numRes.value.numbers.length > 0) {
-                        setSelectedNumber(numRes.value.numbers[0]);
-                    }
-                }
-
-                if (familyRes.status === "fulfilled" && familyRes.value?.success && familyRes.value.data) {
-                    setFamilyMembers(familyRes.value.data);
-                }
-
-                if (ambRes.status === "fulfilled" && ambRes.value?.success && ambRes.value.data) {
-                    setAmbulances(ambRes.value.data);
-                    if (ambRes.value.data.length > 0) {
-                        setSelectedAmbulance(ambRes.value.data[0]._id);
-                    }
-                }
-
-            } catch (e) {
-                console.error("Data fetching error:", e);
-            } finally {
-                setLoading(false);
+            } catch (err) {
+                console.error("Polling error:", err);
             }
-        };
+        }, 3000);
 
-        fetchData();
-    }, [serviceTypeFromUrl]);
+        return () => {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+        };
+    }, [flowState, activeBooking, isDriverAssigned, timeoutExpired, router]);
+
+    // =========================================================================
+    // ⏱️ 2. 60-SECOND REVERSE TIMER (00:59 -> 00:00)
+    // =========================================================================
+    useEffect(() => {
+        if (flowState !== 'SEARCHING_RADAR' || isDriverAssigned || timeoutExpired) return;
+
+        setTimeLeft(60);
+        countdownRef.current = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    clearInterval(countdownRef.current);
+                    handleTimeout(); // 60s Over without driver acceptance -> Trigger Escalation
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => {
+            if (countdownRef.current) clearInterval(countdownRef.current);
+        };
+    }, [flowState, isDriverAssigned]);
+
+    // =========================================================================
+    // 📡 3. 60-SECOND TIMEOUT FALLBACK (POST /user/ambulance/sos/escalate/:id)
+    // =========================================================================
+    const handleTimeout = async () => {
+        if (!activeBooking) return;
+        const bookingId = activeBooking._id || activeBooking.bookingId;
+
+        try {
+            const res = await UserAPI.escalateSOSBooking(bookingId);
+            
+            // Race condition safety: Driver accepted at exact 00:00
+            if (res.isAssigned === true || res.data?.isAssigned === true) {
+                setIsDriverAssigned(true);
+                router.push(`/userscreens/ambulanceappointment`);
+            } else {
+                setTimeoutExpired(true);
+                setFallbackData(res);
+            }
+        } catch (err) {
+            console.error("Timeout escalation error:", err);
+            setTimeoutExpired(true);
+            setFallbackData({
+                message: "Nearby partner ambulances are currently busy. Please call the Government emergency helplines directly below.",
+                emergencyHelplines: {
+                    govtAmbulance: { number: "108", title: "Government Free Emergency Ambulance (108)" },
+                    nationalEmergency: { number: "112", title: "All-in-One National Emergency (112)" },
+                    policeHelpline: { number: "100", title: "Police Control Room (100)" }
+                }
+            });
+        }
+    };
 
     const handleImage = (e) => {
         const file = e.target.files[0];
@@ -125,13 +175,11 @@ function AccidentalAmbulanceContent() {
         }
     };
 
-    const activeAmbulance = ambulances.find(a => a._id === selectedAmbulance);
-
-    // --- Confirm & Dispatch Emergency Action ---
-    const handleConfirmBooking = async () => {
+    // --- Trigger 1-Click SOS Dispatch ---
+    const handleConfirmSOS = async () => {
         setIsSubmitting(true);
         try {
-            // CASE 1: Unregistered / Guest User (1-Click Short Booking API)
+            // CASE 1: Guest 1-Click Booking
             if (!isLoggedIn) {
                 if (!formData.name.trim() || !formData.phone.trim()) {
                     alert("Please provide your name and phone number for immediate driver contact.");
@@ -139,49 +187,34 @@ function AccidentalAmbulanceContent() {
                     return;
                 }
 
-                const shortBookingPayload = {
+                const shortPayload = {
                     name: formData.name.trim(),
                     phone: formData.phone.trim(),
                     countryCode: formData.countryCode,
                     pickupAddress: formData.location,
                     pickupLat: coords.lat,
                     pickupLng: coords.lng,
-                    emergencyDescription: formData.description.trim() || "Road accident trauma, critical assistance requested",
+                    emergencyDescription: formData.description || "Road accident trauma SOS",
                     policeRequired: formData.policeRequired,
                     fireRequired: formData.fireRequired
                 };
 
-                const res = await UserAPI.accidentalShortBook(shortBookingPayload);
+                const res = await UserAPI.accidentalShortBook(shortPayload);
 
                 if (res.success) {
-                    // Save JWT Token generated for guest user
                     if (res.token) {
                         localStorage.setItem('userToken', res.token);
                         setIsLoggedIn(true);
                     }
-                    setBookingSuccessData(res.booking || { bookingId: res.bookingId, isFreeCase: true });
-                    setShowSuccessModal(true);
-                } else if (res.requirePhoneVerification) {
-                    // Handle 403 1-Time Booking limit restriction
-                    setVerificationMessage(res.message || "Free emergency booking limit reached for this number. Please verify via OTP to proceed.");
-                    setShowVerificationModal(true);
+                    setActiveBooking(res.booking || { bookingId: res.bookingId, _id: res.booking?._id || res.bookingId });
+                    setFlowState('SEARCHING_RADAR'); // ➔ OPENS RADAR SCREEN (DOES NOT REDIRECT YET)
                 } else {
-                    alert(res.message || "Dispatch request failed.");
+                    alert(res.message || "SOS dispatch failed.");
                 }
                 return;
             }
 
-            // CASE 2: Logged-in User Standard Dispatch
-            if (!activeAmbulance) {
-                alert("Please select an available dispatch unit.");
-                setIsSubmitting(false);
-                return;
-            }
-
-            const selectedMemberData = familyMembers.find(
-                member => `${member.memberName} (${member.relation})` === formData.relation
-            );
-
+            // CASE 2: Logged-in User Universal SOS (Omit ambulanceId)
             const pickupLocationObj = {
                 address: formData.location,
                 lat: coords.lat,
@@ -189,25 +222,16 @@ function AccidentalAmbulanceContent() {
             };
 
             const patientDetailsObj = {
-                name: selectedMemberData ? selectedMemberData.memberName : (formData.relation === "Self" ? "Self" : "Victim"),
-                relation: formData.relation,
-                contactPhone: selectedNumber || formData.phone,
-                age: selectedMemberData?.age || 30,
-                gender: selectedMemberData?.gender || "Male",
-                emergencyDescription: formData.description || "Accident emergency response needed immediately",
-                condition: "Critical"
+                name: formData.name || "Accident Victim",
+                condition: "Critical",
+                emergencyDescription: formData.description || "Accident SOS broadcast"
             };
 
             const data = new FormData();
-            data.append('ambulanceId', activeAmbulance._id);
-            data.append('hospitalId', formData.hospitalId || "699d881dfabe095ff8304f52");
-            data.append('serviceType', "Accident emergency");
-            data.append('triageLevel', "Emergency");
-            data.append('paymentMethod', "COD");
-            data.append('incidentDescription', formData.description || "Accidental emergency dispatch");
+            data.append('serviceType', 'Accident emergency');
+            data.append('triageLevel', 'Emergency');
             data.append('policeRequired', String(formData.policeRequired));
             data.append('fireRequired', String(formData.fireRequired));
-
             data.append('pickupLocation', JSON.stringify(pickupLocationObj));
             data.append('patientDetails', JSON.stringify(patientDetailsObj));
 
@@ -215,27 +239,18 @@ function AccidentalAmbulanceContent() {
                 data.append('incidentPhoto', imageFile);
             }
 
-            const config = { headers: { 'Content-Type': 'multipart/form-data' } };
-            const bookingRes = await UserAPI.bookAmbulance(data, config);
+            const bookingRes = await UserAPI.bookAmbulance(data);
 
             if (bookingRes.success) {
-                setBookingSuccessData(bookingRes.booking || null);
-                setShowSuccessModal(true);
-            } else if (bookingRes.requirePhoneVerification) {
-                setVerificationMessage(bookingRes.message || "Please verify your mobile number via OTP in your profile.");
-                setShowVerificationModal(true);
+                setActiveBooking(bookingRes.booking || null);
+                setFlowState('SEARCHING_RADAR'); // ➔ OPENS RADAR SCREEN (DOES NOT REDIRECT YET)
             } else {
-                alert(bookingRes.message || "Failed to book ambulance");
+                alert(bookingRes.message || "Failed to dispatch SOS.");
             }
 
         } catch (error) {
-            console.error("Booking Error:", error);
-            if (error?.response?.data?.requirePhoneVerification) {
-                setVerificationMessage(error.response.data.message);
-                setShowVerificationModal(true);
-            } else {
-                alert("Error placing emergency dispatch request.");
-            }
+            console.error("SOS Dispatch Error:", error);
+            alert("Error placing emergency dispatch request.");
         } finally {
             setIsSubmitting(false);
         }
@@ -243,115 +258,92 @@ function AccidentalAmbulanceContent() {
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-10">
+            {/* Header */}
             <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between">
                     <div className="flex items-center gap-3 md:gap-6">
-                        <button onClick={() => router.back()} className="hover:bg-slate-100 p-1.5 md:p-2 rounded-full transition-colors">
+                        <button onClick={() => router.back()} className="hover:bg-slate-100 p-1.5 md:p-2 rounded-full transition-colors cursor-pointer">
                             <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
                         </button>
                         <div>
-                            <h1 className="text-lg md:text-2xl font-black tracking-tight line-clamp-1">{serviceTypeFromUrl}</h1>
-                            <p className="text-[9px] md:text-xs font-bold text-red-500 uppercase tracking-widest">Emergency Priority Mode</p>
+                            <h1 className="text-lg md:text-2xl font-black tracking-tight text-red-600 flex items-center gap-2">
+                                <ShieldAlert className="w-6 h-6 animate-pulse" /> Accident Emergency SOS
+                            </h1>
+                            <p className="text-[9px] md:text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                100% Free Live SOS Broadcast
+                            </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-red-50 text-red-600 rounded-xl font-bold text-[10px] md:text-sm border border-red-100 animate-pulse">
-                            <ShieldAlert className="w-3.5 h-3.5 md:w-4 md:h-4" /> <span>CRITICAL SOS</span>
-                        </div>
+                    <div className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-full font-black text-xs">
+                        ₹0 Always Free
                     </div>
                 </div>
             </header>
 
             <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10 items-start">
+                {/* ========================================================================= */}
+                {/* VIEW 1: INITIAL DISPATCH FORM */}
+                {/* ========================================================================= */}
+                {flowState === 'FORM' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10 items-start">
+                        {/* LEFT: Incident Form */}
+                        <div className="lg:col-span-6 space-y-6">
+                            <div className="bg-white rounded-3xl md:rounded-[2.5rem] p-6 md:p-8 shadow-sm border border-slate-100 space-y-5">
+                                <h2 className="text-base md:text-lg font-black flex items-center gap-2 text-slate-900">
+                                    <Navigation className="w-5 h-5 text-red-600" /> Incident Spot Location
+                                </h2>
 
-                    {/* LEFT COLUMN: FORM */}
-                    <div className="lg:col-span-5 space-y-6">
-                        <div className="bg-white rounded-3xl md:rounded-[2.5rem] p-5 md:p-8 shadow-sm border border-slate-100">
-                            <h2 className="text-base md:text-lg font-black mb-4 md:mb-6 flex items-center gap-2 text-slate-900">
-                                <Navigation className="w-4 h-4 md:w-5 md:h-5 text-red-600" /> Incident Location & Contact
-                            </h2>
-
-                            <div className="space-y-4 md:space-y-5">
-                                {/* Pickup Location */}
                                 <div className="space-y-2">
                                     <label className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                                        Accident Spot Location
+                                        Accident Pickup Point
                                     </label>
-                                    <div className="relative group">
-                                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-rose-500" />
+                                    <div className="relative">
+                                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-red-500" />
                                         <input
                                             type="text"
                                             value={formData.location}
                                             onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                                            className="w-full bg-slate-50 border-2 border-transparent focus:border-red-500 focus:bg-white rounded-2xl py-3 md:py-4 pl-10 md:pl-12 pr-4 text-xs md:text-sm font-semibold transition-all outline-none"
-                                            placeholder="Detecting location..."
+                                            className="w-full bg-slate-50 border-2 border-transparent focus:border-red-500 focus:bg-white rounded-2xl py-3.5 pl-12 pr-4 text-xs md:text-sm font-semibold transition-all outline-none"
                                         />
                                     </div>
                                 </div>
 
-                                {/* Guest User Info (If not logged in) */}
                                 {!isLoggedIn && (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-red-50/50 rounded-2xl border border-red-100">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-red-50 rounded-2xl border border-red-200">
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-red-600 uppercase tracking-wider">Your Name *</label>
+                                            <label className="text-[10px] font-black text-red-700 uppercase tracking-wider">Your Name *</label>
                                             <input
                                                 type="text"
-                                                placeholder="Enter full name"
+                                                placeholder="e.g. Rahul Verma"
                                                 value={formData.name}
                                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                                className="w-full bg-white rounded-xl p-2.5 text-xs font-bold outline-none border border-red-200"
+                                                className="w-full bg-white rounded-xl p-2.5 text-xs font-bold outline-none border border-red-300"
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-red-600 uppercase tracking-wider">Phone Number *</label>
+                                            <label className="text-[10px] font-black text-red-700 uppercase tracking-wider">Phone Number *</label>
                                             <input
                                                 type="tel"
                                                 placeholder="10-digit mobile"
                                                 value={formData.phone}
                                                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                                className="w-full bg-white rounded-xl p-2.5 text-xs font-bold outline-none border border-red-200"
+                                                className="w-full bg-white rounded-xl p-2.5 text-xs font-bold outline-none border border-red-300"
                                             />
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Emergency Contact Selector (For Logged in Users) */}
-                                {isLoggedIn && emergencyNumbers.length > 0 && (
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                                            Driver Contact Call Number
-                                        </label>
-                                        <div className="relative">
-                                            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
-                                            <select
-                                                className="w-full bg-slate-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white rounded-2xl py-3 md:py-4 pl-10 md:pl-12 pr-10 text-xs md:text-sm font-bold appearance-none cursor-pointer outline-none"
-                                                value={selectedNumber}
-                                                onChange={(e) => setSelectedNumber(e.target.value)}
-                                            >
-                                                {emergencyNumbers.map((num, i) => (
-                                                    <option key={i} value={num}>
-                                                        {num} {i === 0 ? "(My Registered Phone)" : `(Emergency Contact ${i})`}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Emergency Services Toggles (Police & Fire) */}
-                                <div className="space-y-2 pt-1">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                                        Additional Emergency Departments
+                                <div className="space-y-2">
+                                    <label className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                        Additional Department Alerts
                                     </label>
                                     <div className="grid grid-cols-2 gap-3">
                                         <button
                                             type="button"
                                             onClick={() => setFormData(prev => ({ ...prev, policeRequired: !prev.policeRequired }))}
-                                            className={`p-3 rounded-2xl border-2 flex items-center justify-between text-xs font-black transition-all ${formData.policeRequired ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-100 text-slate-500 bg-slate-50'}`}
+                                            className={`p-3.5 rounded-2xl border-2 flex items-center justify-between text-xs font-black transition-all ${formData.policeRequired ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-100 text-slate-400 bg-slate-50'}`}
                                         >
-                                            <span className="flex items-center gap-1.5"><ShieldCheck size={16} /> Police Control</span>
+                                            <span className="flex items-center gap-1.5"><ShieldCheck size={16} /> 112 Police Control</span>
                                             <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${formData.policeRequired ? 'bg-blue-600 text-white' : 'bg-slate-200'}`}>
                                                 {formData.policeRequired ? '✓' : ''}
                                             </span>
@@ -360,9 +352,9 @@ function AccidentalAmbulanceContent() {
                                         <button
                                             type="button"
                                             onClick={() => setFormData(prev => ({ ...prev, fireRequired: !prev.fireRequired }))}
-                                            className={`p-3 rounded-2xl border-2 flex items-center justify-between text-xs font-black transition-all ${formData.fireRequired ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-slate-100 text-slate-500 bg-slate-50'}`}
+                                            className={`p-3.5 rounded-2xl border-2 flex items-center justify-between text-xs font-black transition-all ${formData.fireRequired ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-slate-100 text-slate-400 bg-slate-50'}`}
                                         >
-                                            <span className="flex items-center gap-1.5"><Flame size={16} /> Fire Dept</span>
+                                            <span className="flex items-center gap-1.5"><Flame size={16} /> 101 Fire Brigade</span>
                                             <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${formData.fireRequired ? 'bg-orange-600 text-white' : 'bg-slate-200'}`}>
                                                 {formData.fireRequired ? '✓' : ''}
                                             </span>
@@ -370,49 +362,25 @@ function AccidentalAmbulanceContent() {
                                     </div>
                                 </div>
 
-                                {/* Destination Hospital */}
                                 <div className="space-y-2">
-                                    <label className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                                        Destination Trauma Center
-                                    </label>
-                                    <div className="relative">
-                                        <Hospital className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
-                                        <select
-                                            className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-2xl py-3 md:py-4 pl-10 md:pl-12 pr-10 text-xs md:text-sm font-bold appearance-none cursor-pointer outline-none"
-                                            value={formData.hospitalId}
-                                            onChange={(e) => setFormData({ ...formData, hospitalId: e.target.value })}
-                                        >
-                                            {hospitals.map((h) => (
-                                                <option key={h._id} value={h._id}>
-                                                    {h.name} {h.distance ? `(${h.distance} away)` : ''}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                                    </div>
-                                </div>
-
-                                {/* Emergency Description */}
-                                <div className="space-y-2">
-                                    <label className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Emergency Situation</label>
+                                    <label className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Emergency Description</label>
                                     <textarea
                                         rows="2"
                                         className="w-full bg-slate-50 border-2 border-transparent focus:border-red-500 focus:bg-white rounded-2xl p-4 text-xs md:text-sm font-semibold outline-none resize-none"
-                                        placeholder="Describe injuries (e.g. Head trauma, unconscious, oxygen required)..."
+                                        placeholder="Describe accident trauma (e.g. 2 vehicles collided, head injury)..."
                                         value={formData.description}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                     />
                                 </div>
 
-                                {/* Photo Upload */}
                                 <div>
-                                    <label className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 block mb-2">Accident Spot Photo (Optional)</label>
+                                    <label className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 block mb-2">Accident Scene Photo (Optional)</label>
                                     <label className="cursor-pointer group block relative">
-                                        <div className={`w-full h-24 md:h-28 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all ${previewImage ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'}`}>
+                                        <div className={`w-full h-24 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all ${previewImage ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'}`}>
                                             {previewImage ? (
                                                 <img src={previewImage} alt="Preview" className="h-full w-full object-cover rounded-2xl" />
                                             ) : (
-                                                <><Camera className="w-5 h-5 text-slate-400 group-hover:text-red-500 mb-1" /><span className="text-[10px] font-bold text-slate-500">Capture / Upload Photo</span></>
+                                                <><Camera className="w-5 h-5 text-slate-400 group-hover:text-red-500 mb-1" /><span className="text-[10px] font-bold text-slate-500">Capture Scene Photo</span></>
                                             )}
                                         </div>
                                         <input type="file" className="hidden" accept="image/*" onChange={handleImage} />
@@ -420,155 +388,173 @@ function AccidentalAmbulanceContent() {
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    {/* RIGHT COLUMN: DISPATCH UNITS */}
-                    <div className="lg:col-span-7 space-y-6 md:space-y-8">
-                        <div>
-                            <div className="flex items-center justify-between mb-4 md:mb-6">
-                                <h2 className="text-[10px] md:text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Nearest Available Units</h2>
-                                <div className="flex items-center gap-2 text-[10px] md:text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full">
-                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> {ambulances.length} Responders
+                        {/* RIGHT: SOS Trigger & Nearest Fleet Preview */}
+                        <div className="lg:col-span-6 space-y-6">
+                            <div className="bg-slate-900 rounded-3xl md:rounded-[2.5rem] p-8 text-white space-y-6 relative overflow-hidden shadow-2xl">
+                                <div className="text-center space-y-3 py-4">
+                                    <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
+                                        <div className="absolute inset-0 bg-red-500/20 rounded-full animate-ping" />
+                                        <div className="absolute inset-2 bg-red-500/30 rounded-full animate-pulse" />
+                                        <div className="relative w-14 h-14 bg-red-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-red-500/50">
+                                            <Radio className="w-7 h-7 animate-bounce" />
+                                        </div>
+                                    </div>
+                                    <h3 className="text-2xl font-black tracking-tight">1-Click SOS Broadcast</h3>
+                                    <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                                        Broadcasts instantly to all active Advance Life Support & ICU ambulances. First driver to accept will navigate immediately.
+                                    </p>
                                 </div>
+
+                                <div className="space-y-2.5 p-4 bg-slate-800/80 rounded-2xl border border-slate-700 text-xs">
+                                    <div className="flex items-center justify-between text-slate-300">
+                                        <span>Dispatch Cost</span>
+                                        <span className="font-bold text-emerald-400">100% Free (₹0)</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-slate-300">
+                                        <span>Pickup Verification</span>
+                                        <span className="font-bold text-white">Direct Boarding (No OTP Required)</span>
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={handleConfirmSOS}
+                                    disabled={isSubmitting}
+                                    className="w-full bg-red-600 hover:bg-red-700 disabled:bg-slate-700 text-white py-5 rounded-2xl font-black text-lg transition-all shadow-xl shadow-red-600/30 active:scale-95 cursor-pointer"
+                                >
+                                    {isSubmitting ? "Broadcasting Emergency SOS..." : "🚨 Dispatch 1-Click SOS Broadcast"}
+                                </button>
                             </div>
 
-                            <div className="space-y-4">
-                                {loading ? (
-                                    <div className="flex flex-col items-center justify-center py-16 md:py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
-                                        <Loader2 className="w-8 h-8 md:w-10 md:h-10 text-red-600 animate-spin mb-4" />
-                                        <p className="font-bold text-slate-500 text-xs md:text-sm">Locating nearest response units...</p>
+                            {/* Informational Nearest Fleet List */}
+                            <div className="bg-white rounded-3xl md:rounded-[2.5rem] p-6 border border-slate-100 shadow-sm space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                        <Truck className="w-4 h-4 text-emerald-600" /> Active Responders in Area ({ambulances.length})
+                                    </h3>
+                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                        Live Fleet Radar
+                                    </span>
+                                </div>
+
+                                {loadingAmbulances ? (
+                                    <div className="py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                                        <Loader2 className="w-4 h-4 animate-spin text-emerald-600" /> Scanning nearby units...
                                     </div>
+                                ) : ambulances.length === 0 ? (
+                                    <p className="p-4 bg-slate-50 rounded-2xl text-center text-xs text-slate-500 font-medium">
+                                        No active partner units detected. Government 108 helpline active.
+                                    </p>
                                 ) : (
-                                    ambulances.map((ambulance) => (
-                                        <div
-                                            key={ambulance._id}
-                                            onClick={() => setSelectedAmbulance(ambulance._id)}
-                                            className={`group flex flex-col sm:flex-row items-center gap-4 md:gap-6 bg-white rounded-3xl md:rounded-[2rem] p-4 border-2 transition-all cursor-pointer ${selectedAmbulance === ambulance._id ? 'border-[#08B36A] ring-4 ring-green-50' : 'border-slate-100 hover:border-slate-200 hover:shadow-lg'}`}
-                                        >
-                                            <div className="relative w-full sm:w-44 h-32 flex-shrink-0 rounded-2xl md:rounded-[1.2rem] overflow-hidden bg-slate-100">
-                                                <img
-                                                    src="https://images.unsplash.com/photo-1587745416684-47953f16f02f?auto=format&fit=crop&q=80&w=600"
-                                                    alt={ambulance.name}
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"
-                                                />
-                                                <div className="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-1 rounded-lg flex items-center gap-1 shadow-sm">
-                                                    <Clock className="w-3 h-3 text-orange-500" />
-                                                    <span className="text-[10px] font-black">{ambulance.eta || "3-5 mins"}</span>
+                                    <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                                        {ambulances.map((amb) => (
+                                            <div key={amb._id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
+                                                <div>
+                                                    <h4 className="font-bold text-slate-900">{amb.name}</h4>
+                                                    <p className="text-[10px] text-slate-500 font-medium">{amb.vehicleType} &bull; <span className="text-emerald-600 font-bold">{amb.distance || "Near you"}</span></p>
                                                 </div>
+                                                <span className="text-[10px] font-black text-slate-900 bg-white px-2 py-1 rounded-md border border-slate-200">
+                                                    ETA: {amb.eta || "3-5 mins"}
+                                                </span>
                                             </div>
-
-                                            <div className="flex-grow w-full text-center sm:text-left">
-                                                <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
-                                                    <h3 className="text-lg md:text-xl font-black truncate max-w-[200px] md:max-w-[250px]">{ambulance.name}</h3>
-                                                    <span className="text-[8px] md:text-[10px] bg-red-50 px-2 py-0.5 rounded-full font-bold text-red-600 uppercase tracking-tighter">
-                                                        {ambulance.vehicleType}
-                                                    </span>
-                                                </div>
-
-                                                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 md:gap-4 text-[10px] md:text-xs font-bold text-slate-500">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <User className="w-3.5 h-3.5 text-blue-500" />
-                                                        {ambulance.driverInfo?.fullName || "Verified Crew"}
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <MapPin className="w-3.5 h-3.5 text-green-500" />
-                                                        {ambulance.distance}
-                                                    </div>
-                                                </div>
-                                                <p className="hidden sm:block text-[10px] text-slate-400 mt-2 line-clamp-1">{ambulance.address}</p>
-                                            </div>
-
-                                            <div className="text-center sm:text-right sm:pr-4 w-full sm:w-auto border-t sm:border-t-0 pt-4 sm:pt-0 flex sm:flex-col items-center justify-between sm:justify-center">
-                                                <p className="text-xl md:text-2xl font-black text-slate-900">
-                                                    {ambulance.isFreeCase ? "FREE" : `₹${ambulance.displayPrice || ambulance.pricing?.fixedPrice || 0}`}
-                                                </p>
-                                                <div className={`sm:mt-2 inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${selectedAmbulance === ambulance._id ? 'bg-[#08B36A] text-white shadow-lg shadow-green-200' : 'bg-slate-50 text-slate-300'}`}>
-                                                    <Navigation className="w-4 h-4 fill-current" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         </div>
+                    </div>
+                )}
 
-                        {/* Dispatch Bar */}
-                        <div className="bg-slate-900 rounded-3xl md:rounded-[3rem] p-6 md:p-10 text-white flex flex-col md:flex-row items-center justify-between gap-6 md:gap-8 relative overflow-hidden shadow-2xl">
-                            <div className="absolute top-0 right-0 w-64 h-64 bg-red-500/10 rounded-full -mr-32 -mt-32 blur-3xl" />
-                            <div className="flex flex-col sm:flex-row items-center gap-4 md:gap-8 relative z-10 w-full md:w-auto text-center sm:text-left">
-                                <div className="w-full">
-                                    <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Emergency Service</p>
-                                    <h4 className="text-xl md:text-2xl font-black">{activeAmbulance ? activeAmbulance.name : "1-Tap Quick Dispatch"}</h4>
-                                    <p className="text-emerald-400 font-bold text-xs md:text-sm">
-                                        Free Emergency Accident Support (No OTP on Pickup)
-                                    </p>
-                                </div>
+                {/* ========================================================================= */}
+                {/* VIEW 2: 60-SECOND RADAR SEARCHING SCREEN (STAYS ON THIS PAGE!) */}
+                {/* ========================================================================= */}
+                {flowState === 'SEARCHING_RADAR' && (
+                    <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
+                        <div className="relative flex items-center justify-center mb-8">
+                            <div className="absolute w-72 h-72 border-2 border-red-500 rounded-full animate-ping opacity-30 pointer-events-none" />
+                            <div className="absolute w-56 h-56 border-2 border-red-500/50 rounded-full animate-pulse pointer-events-none" />
+                            <div className="w-48 h-48 bg-red-600/20 border-2 border-red-500 rounded-full flex flex-col items-center justify-center shadow-2xl">
+                                <Radio size={48} className="text-red-500 mb-2 animate-bounce" />
+                                <span className="text-4xl font-black font-mono tracking-widest text-slate-900">
+                                    00:{timeLeft < 10 ? `0${timeLeft}` : timeLeft}
+                                </span>
                             </div>
-                            <button
-                                onClick={handleConfirmBooking}
-                                disabled={isSubmitting}
-                                className="w-full md:w-auto bg-[#08B36A] hover:bg-[#079f5e] disabled:bg-slate-700 text-white px-8 md:px-14 py-4 md:py-6 rounded-2xl md:rounded-[2rem] font-black text-base md:text-lg transition-all hover:scale-105 active:scale-95 shadow-xl shadow-emerald-500/20 relative z-10 shrink-0"
-                            >
-                                {isSubmitting ? "Dispatching..." : "Confirm & Dispatch"}
-                            </button>
+                        </div>
+
+                        <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-2">Broadcasting to Nearest Ambulances...</h2>
+                        <p className="text-slate-500 text-xs md:text-sm max-w-sm mb-4">
+                            Alerting all active partner ambulance drivers within 5km radius of your accident spot.
+                        </p>
+
+                        <div className="inline-block bg-slate-900 text-red-400 text-xs px-4 py-2 rounded-full font-mono font-bold tracking-wider shadow-sm">
+                            STATUS: SEARCHING • DO NOT CLOSE THIS PAGE
                         </div>
                     </div>
-                </div>
+                )}
             </main>
 
-            {/* 1. Booking Success Modal (No OTP for accidental) */}
-            {showSuccessModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full border border-slate-100 shadow-2xl text-center space-y-6 animate-in fade-in zoom-in duration-200">
-                        <div className="mx-auto w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-[#08B36A]">
-                            <CheckCircle2 className="w-10 h-10" />
+            {/* ========================================================================= */}
+            {/* 🔴 60-SECOND TIMEOUT MODAL (If no driver accepted within 60s) */}
+            {/* ========================================================================= */}
+            {timeoutExpired && fallbackData && (
+                <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-6 z-50 animate-in zoom-in duration-200">
+                    <div className="bg-slate-800 border-2 border-red-500 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl text-white space-y-6">
+                        <div className="flex items-center gap-3 text-red-400">
+                            <ShieldAlert size={32} />
+                            <div>
+                                <h3 className="text-xl font-black text-white">Drivers Currently Unavailable</h3>
+                                <p className="text-xs text-slate-400">60-second emergency search limit reached</p>
+                            </div>
                         </div>
-                        <div className="space-y-2">
-                            <h3 className="text-2xl font-black text-slate-900">Ambulance Dispatched!</h3>
-                            <p className="text-xs font-semibold text-slate-600 leading-relaxed">
-                                Emergency dispatch request sent. Driver will arrive directly on spot without requiring pickup OTP.
-                            </p>
-                        </div>
-                        <button
-                            onClick={() => {
-                                setShowSuccessModal(false);
-                                router.push(`/userscreens/ambulanceappointment`);
-                            }}
-                            className="w-full bg-[#08B36A] hover:bg-[#079f5e] text-white py-4 rounded-2xl font-black text-base shadow-lg shadow-emerald-200 transition-all active:scale-95"
-                        >
-                            Open Live Tracking
-                        </button>
-                    </div>
-                </div>
-            )}
 
-            {/* 2. Verification Sheet for 403 1-Time Booking Restriction */}
-            {showVerificationModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full border border-slate-100 shadow-2xl text-center space-y-6">
-                        <div className="mx-auto w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center text-amber-500">
-                            <AlertTriangle className="w-10 h-10" />
-                        </div>
-                        <div className="space-y-2">
-                            <h3 className="text-xl font-black text-slate-900">Phone Verification Required</h3>
-                            <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                                {verificationMessage || "Free emergency booking limit reached for this number. Please verify your mobile number via OTP in profile to book again."}
-                            </p>
-                        </div>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setShowVerificationModal(false)}
-                                className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-black uppercase"
+                        <p className="text-xs md:text-sm text-slate-300 leading-relaxed font-medium">
+                            {fallbackData.message || "Our partner ambulance drivers are currently occupied on urgent trauma runs. Please call the Government emergency helplines directly below:"}
+                        </p>
+
+                        <div className="space-y-3">
+                            {/* GOVT 108 BUTTON */}
+                            <a
+                                href="tel:108"
+                                className="flex items-center justify-between bg-red-600 hover:bg-red-700 text-white p-4 rounded-2xl font-bold transition shadow-lg shadow-red-600/30 active:scale-95"
                             >
-                                Close
-                            </button>
-                            <button
-                                onClick={() => router.push('/profile')}
-                                className="flex-1 py-3.5 bg-[#08B36A] hover:bg-[#069656] text-white rounded-2xl text-xs font-black uppercase shadow-md shadow-emerald-100"
+                                <div className="flex items-center gap-3">
+                                    <Phone size={22} />
+                                    <span className="text-sm">Call Govt 108 Ambulance</span>
+                                </div>
+                                <span className="bg-red-800 text-[10px] font-black uppercase px-2.5 py-1 rounded-lg">FREE</span>
+                            </a>
+
+                            {/* NATIONAL EMERGENCY 112 */}
+                            <a
+                                href="tel:112"
+                                className="flex items-center justify-between bg-slate-700 hover:bg-slate-600 text-white p-4 rounded-2xl font-semibold text-sm transition active:scale-95"
                             >
-                                Verify Now
-                            </button>
+                                <div className="flex items-center gap-3">
+                                    <Phone size={20} />
+                                    <span>Call Emergency Control (112)</span>
+                                </div>
+                                <span className="text-xs text-slate-400">Direct 112</span>
+                            </a>
+
+                            {/* POLICE 100 */}
+                            <a
+                                href="tel:100"
+                                className="flex items-center justify-between bg-slate-700 hover:bg-slate-600 text-white p-4 rounded-2xl font-semibold text-sm transition active:scale-95"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Phone size={20} />
+                                    <span>Call Police Control Room (100)</span>
+                                </div>
+                                <span className="text-xs text-slate-400">Direct 100</span>
+                            </a>
                         </div>
+
+                        <button
+                            onClick={() => router.push('/')}
+                            className="w-full mt-2 bg-slate-700 hover:bg-slate-600 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-300 transition"
+                        >
+                            Back to Home
+                        </button>
                     </div>
                 </div>
             )}
@@ -580,8 +566,8 @@ export default function AccidentalAmbulanceWeb() {
     return (
         <Suspense fallback={
             <div className="flex items-center justify-center min-h-screen bg-slate-50 text-slate-500 font-sans font-bold">
-                <Loader2 className="w-8 h-8 text-blue-600 animate-spin mr-2" />
-                Loading application...
+                <Loader2 className="w-8 h-8 text-red-600 animate-spin mr-2" />
+                Loading Emergency Dispatcher...
             </div>
         }>
             <AccidentalAmbulanceContent />

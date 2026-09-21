@@ -6,7 +6,8 @@ import {
     FaPlus, FaMinus, FaShieldAlt,
     FaPrescriptionBottleAlt, FaTag, FaSpinner, FaArrowLeft, FaCheckCircle,
     FaTicketAlt, FaUserCircle, FaWalking, FaHome, FaBolt, FaMapMarkerAlt,
-    FaTrash, FaGem, FaCreditCard, FaMoneyBillWave, FaLock
+    FaTrash, FaGem, FaCreditCard, FaMoneyBillWave, FaLock, FaCalendarAlt,
+    FaClock, FaReceipt, FaUsers, FaVial, FaExternalLinkAlt, FaTimes
 } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
@@ -32,7 +33,23 @@ const loadRazorpayScript = () => {
 
 const LabCart = () => {
     const router = useRouter();
-    const { cart, updateQuantity, removeItem, loading, clearCart } = useCart();
+    const cartContext = useCart();
+    const { cart, updateQuantity, removeItem, loading, clearCart, clearFullCart } = cartContext || {};
+
+    // Helper to safely clear cart across context or API
+    const handleClearCart = async () => {
+        try {
+            if (typeof clearCart === 'function') {
+                await clearCart();
+            } else if (typeof clearFullCart === 'function') {
+                await clearFullCart();
+            } else if (UserAPI.clearCart) {
+                await UserAPI.clearCart();
+            }
+        } catch (e) {
+            console.warn("Cart clear fallback:", e);
+        }
+    };
 
     // Coupons & Pricing
     const [availableCoupons, setAvailableCoupons] = useState([]);
@@ -277,8 +294,19 @@ const LabCart = () => {
 
             // --- CASE A: Direct Confirmation for COD or Free Booking ---
             if (isZeroTotal || finalPaymentMethod === "COD" || res.data?.paymentStatus === "Paid" || res.data?.paymentStatus === "Pending") {
-                await clearCart();
-                setConfirmedBookingData(res.data || { bookingId: res.bookingId || "ORD-SUCCESS" });
+                await handleClearCart();
+                setConfirmedBookingData({
+                    ...(res.data || {}),
+                    bookingId: res.data?.bookingId || res.bookingId || "ORD-SUCCESS",
+                    appointmentDate: selectedAppointment.date,
+                    appointmentTime: selectedAppointment.slot.time,
+                    collectionType: collectionMethod,
+                    paymentMethod: finalPaymentMethod,
+                    totalAmount: totals.totalAmount,
+                    patients: selectedMembers,
+                    tests: labItems,
+                    address: selectedAddress
+                });
                 setIsCheckingOut(false);
                 return;
             }
@@ -324,8 +352,20 @@ const LabCart = () => {
                         const verificationRes = await UserAPI.verifyPaymentLab(verificationPayload);
 
                         if (verificationRes?.success) {
-                            await clearCart();
-                            setConfirmedBookingData(verificationRes.data || { bookingId: orderId || "ORD-SUCCESS" });
+                            await handleClearCart();
+                            setConfirmedBookingData({
+                                ...(verificationRes.data || res.data || {}),
+                                bookingId: verificationRes.data?.bookingId || orderId || "ORD-SUCCESS",
+                                paymentStatus: "Paid",
+                                appointmentDate: selectedAppointment.date,
+                                appointmentTime: selectedAppointment.slot.time,
+                                collectionType: collectionMethod,
+                                paymentMethod: "Online",
+                                totalAmount: totals.totalAmount,
+                                patients: selectedMembers,
+                                tests: labItems,
+                                address: selectedAddress
+                            });
                         } else {
                             toast.error(verificationRes?.message || "Payment verification failed.");
                         }
@@ -714,42 +754,172 @@ const LabCart = () => {
                 onConfirm={onSlotConfirm}
             />
 
-            {/* CONFIRMATION MODAL */}
+            {/* ========================================================= */}
+            {/* REDESIGNED ENHANCED CONFIRMATION MODAL */}
+            {/* ========================================================= */}
             {confirmedBookingData && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2rem] p-8 max-w-md w-full border border-slate-100 shadow-2xl text-center space-y-5">
-                        <div className="mx-auto w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
-                            <FaCheckCircle className="w-9 h-9" />
-                        </div>
-                        <div className="space-y-1">
-                            <h3 className="text-2xl font-black text-slate-900">Lab Booking Confirmed!</h3>
-                            <p className="text-xs font-semibold text-slate-500">Your lab appointment has been successfully scheduled.</p>
-                        </div>
-                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-left space-y-2 text-xs">
-                            <div className="flex justify-between">
-                                <span className="text-slate-400 font-medium">Booking ID:</span>
-                                <span className="font-bold text-slate-800">{confirmedBookingData.bookingId || "ORD-xxxx"}</span>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2.5rem] max-w-lg w-full border border-slate-100 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                        
+                        {/* Header Banner */}
+                        <div className="bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 p-6 text-white text-center relative shrink-0">
+                            <button
+                                onClick={() => {
+                                    setConfirmedBookingData(null);
+                                    router.push('/userscreens/previousorders');
+                                }}
+                                className="absolute right-4 top-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white/80 hover:text-white transition"
+                            >
+                                <FaTimes size={13} />
+                            </button>
+
+                            <div className="w-14 h-14 bg-white rounded-2xl mx-auto flex items-center justify-center text-emerald-600 shadow-lg shadow-black/10 mb-3">
+                                <FaCheckCircle size={28} />
                             </div>
-                            <div className="flex justify-between">
-                                <span className="text-slate-400 font-medium">Payment Status:</span>
-                                <span className="font-black text-emerald-600 uppercase">{confirmedBookingData.paymentStatus || "Pending"}</span>
-                            </div>
+                            <h3 className="text-xl font-black tracking-tight">Booking Confirmed!</h3>
+                            <p className="text-emerald-100 text-xs font-semibold mt-1">
+                                {confirmedBookingData.collectionType === "Home Collection"
+                                    ? "A verified phlebotomist will visit your address as scheduled."
+                                    : "Please present this booking at the lab diagnostic center."}
+                            </p>
+                        </div>
+
+                        {/* Modal Body (Scrollable Details) */}
+                        <div className="p-6 overflow-y-auto space-y-4 text-xs font-sans">
+                            
+                            {/* OTP Box */}
                             {confirmedBookingData.tracking?.otp && (
-                                <div className="flex justify-between pt-2 border-t border-slate-200">
-                                    <span className="text-slate-500 font-bold">Verification OTP:</span>
-                                    <span className="font-black text-sm text-slate-900 tracking-widest">{confirmedBookingData.tracking.otp}</span>
+                                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-dashed border-emerald-300 rounded-2xl p-4 text-center">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 block mb-1">
+                                        Sample Collection Security OTP
+                                    </span>
+                                    <div className="text-3xl font-black tracking-[0.25em] text-emerald-700 font-mono">
+                                        {confirmedBookingData.tracking.otp}
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 font-medium mt-1">
+                                        Share this 4-digit verification code with your medical agent upon arrival.
+                                    </p>
                                 </div>
                             )}
+
+                            {/* Booking ID & Payment Status Row */}
+                            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
+                                <div>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Booking ID</span>
+                                    <span className="text-xs font-black text-slate-900 font-mono">
+                                        {confirmedBookingData.bookingId || "ORD-SUCCESS"}
+                                    </span>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Payment</span>
+                                    <span className="inline-flex items-center gap-1 font-black text-xs text-emerald-700 uppercase">
+                                        <FaCheckCircle size={10} />
+                                        {confirmedBookingData.paymentStatus === "Paid" ? "Paid Online" : "Pay on Collection (COD)"}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Appointment Schedule & Location */}
+                            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-3 shadow-sm">
+                                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                    <div className="flex items-center gap-2 text-slate-700 font-bold">
+                                        <FaCalendarAlt className="text-emerald-600" />
+                                        <span>{confirmedBookingData.appointmentDate || selectedAppointment?.date || "Scheduled Date"}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+                                        <FaClock className="text-emerald-600" />
+                                        <span>{confirmedBookingData.appointmentTime || selectedAppointment?.slot?.time || "Time Slot"}</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-start gap-2.5 pt-1">
+                                    <FaMapMarkerAlt className="text-emerald-600 mt-0.5 shrink-0" />
+                                    <div>
+                                        <span className="font-black text-slate-900 uppercase text-[10px] block">
+                                            {confirmedBookingData.collectionType || collectionMethod}
+                                        </span>
+                                        {confirmedBookingData.address ? (
+                                            <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-0.5">
+                                                {confirmedBookingData.address.houseNo}, {confirmedBookingData.address.sector}, {confirmedBookingData.address.city}
+                                            </p>
+                                        ) : (
+                                            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                                                Direct diagnostic lab walk-in visit
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Registered Patients */}
+                            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-2 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
+                                        <FaUsers className="text-emerald-600" /> Patients ({(confirmedBookingData.patients || selectedMembers).length})
+                                    </span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {(confirmedBookingData.patients || selectedMembers).map((m, idx) => (
+                                        <span key={idx} className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-200/60">
+                                            {m.memberName || m.patientName || "Patient"}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Prescribed Tests / Packages */}
+                            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-2 shadow-sm">
+                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
+                                    <FaVial className="text-emerald-600" /> Booked Tests ({(confirmedBookingData.tests || labItems).length})
+                                </span>
+                                <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
+                                    {(confirmedBookingData.tests || labItems).map((t, idx) => (
+                                        <div key={idx} className="flex justify-between text-[11px] text-slate-600 font-medium py-0.5">
+                                            <span className="truncate max-w-[240px]">• {t.name}</span>
+                                            <span className="font-bold text-slate-900">₹{t.price}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Total Amount Paid / Payable */}
+                            <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl">
+                                <div>
+                                    <span className="text-[10px] font-black uppercase text-emerald-400 tracking-widest block">
+                                        Total Amount
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-medium">All charges & taxes included</span>
+                                </div>
+                                <span className="text-xl font-black text-emerald-400">
+                                    ₹{Math.round(confirmedBookingData.totalAmount ?? totals.totalAmount).toLocaleString()}
+                                </span>
+                            </div>
+
                         </div>
-                        <button
-                            onClick={() => {
-                                setConfirmedBookingData(null);
-                                router.push('/userscreens/previousorders');
-                            }}
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20"
-                        >
-                            View My Lab Bookings
-                        </button>
+
+                        {/* Modal Footer Actions */}
+                        <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
+                            <button
+                                onClick={() => {
+                                    setConfirmedBookingData(null);
+                                    router.push('/userscreens/previousorders');
+                                }}
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <span>Track Appointment</span>
+                                <FaExternalLinkAlt size={10} />
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setConfirmedBookingData(null);
+                                    router.push('/');
+                                }}
+                                className="px-5 py-3.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-2xl font-bold text-xs uppercase transition"
+                            >
+                                Home
+                            </button>
+                        </div>
+
                     </div>
                 </div>
             )}

@@ -67,7 +67,7 @@ function LoginAsDoctor() {
     <div className="w-full bg-white">
       {/* TOP LOGIN BOX */}
       <div className="flex flex-col md:flex-row items-center justify-center bg-white p-0 md:p-6 rounded-lg w-full max-w-[1100px] mx-auto">
-        
+
         {/* LEFT IMAGE */}
         <div className="hidden md:flex flex-col items-center justify-center flex-shrink-0 p-4">
           <img
@@ -128,7 +128,7 @@ function LoginAsDoctor() {
                 Remember Password
               </label>
 
-              <span 
+              <span
                 className="cursor-pointer hover:underline text-[#2f8f5b] font-semibold text-sm"
                 onClick={() => openModal("forgotPassword")}
               >

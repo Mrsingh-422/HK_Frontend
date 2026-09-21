@@ -7,7 +7,8 @@ import {
     FaMinus, FaPlus, FaClock,
     FaCalendarAlt, FaChevronRight, FaCamera, FaTrash,
     FaCheckCircle, FaStore, FaShieldAlt, FaGift, FaTimes, FaGem,
-    FaCreditCard, FaMoneyBillWave, FaLock
+    FaCreditCard, FaMoneyBillWave, FaLock, FaMapMarkerAlt,
+    FaExternalLinkAlt, FaReceipt, FaBoxOpen
 } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
@@ -289,7 +290,18 @@ const PharmacyCart = () => {
             // --- CASE A: Free Order / COD (Skip Razorpay) ---
             if (isZeroTotal || finalPaymentMethod === "COD" || res.data?.paymentStatus === "Paid" || res.data?.paymentStatus === "Pending") {
                 await clearFullCart();
-                setOrderConfirmedData(res.data || { orderId: res.orderId || "ORD-SUCCESS" });
+                setOrderConfirmedData({
+                    ...(res.data || {}),
+                    orderId: res.data?.orderId || res.orderId || "MED-SUCCESS",
+                    status: res.data?.status || "Placed",
+                    paymentStatus: isZeroTotal ? "Paid" : (res.data?.paymentStatus || "Pending"),
+                    paymentMethod: finalPaymentMethod,
+                    deliveryOTP: res.data?.deliveryOTP || res.deliveryOTP,
+                    items: pharmacyItems,
+                    address: selectedAddress,
+                    billSummary: billSummary,
+                    deliveryOption: deliveryOption === 'fast' ? 'Fast Express Delivery' : deliveryOption === 'slot' ? `Scheduled (${selectedSlot})` : 'Standard Delivery'
+                });
                 setIsSubmitting(false);
                 return;
             }
@@ -336,7 +348,18 @@ const PharmacyCart = () => {
 
                         if (verificationRes?.success) {
                             await clearFullCart();
-                            setOrderConfirmedData(verificationRes.data || { orderId: orderId || "ORD-SUCCESS" });
+                            setOrderConfirmedData({
+                                ...(verificationRes.data || res.data || {}),
+                                orderId: verificationRes.data?.orderId || orderId || "MED-SUCCESS",
+                                status: "Placed",
+                                paymentStatus: "Paid",
+                                paymentMethod: "Online",
+                                deliveryOTP: verificationRes.data?.deliveryOTP || res.deliveryOTP,
+                                items: pharmacyItems,
+                                address: selectedAddress,
+                                billSummary: billSummary,
+                                deliveryOption: deliveryOption === 'fast' ? 'Fast Express Delivery' : deliveryOption === 'slot' ? `Scheduled (${selectedSlot})` : 'Standard Delivery'
+                            });
                         } else {
                             toast.error(verificationRes?.message || "Payment verification failed.");
                         }
@@ -697,42 +720,152 @@ const PharmacyCart = () => {
                 </div>
             )}
 
-            {/* Order Confirmation Success Modal */}
+            {/* ========================================================= */}
+            {/* REDESIGNED ENHANCED MEDICINE ORDER CONFIRMATION MODAL */}
+            {/* ========================================================= */}
             {orderConfirmedData && (
-                <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2rem] p-8 max-w-md w-full border border-slate-100 shadow-2xl text-center space-y-5">
-                        <div className="mx-auto w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
-                            <FaCheckCircle className="w-9 h-9" />
-                        </div>
-                        <div className="space-y-1">
-                            <h3 className="text-2xl font-black text-slate-900">Order Placed Successfully!</h3>
-                            <p className="text-xs font-semibold text-slate-500">Your medicine order is being processed.</p>
-                        </div>
-                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-left space-y-2 text-xs">
-                            <div className="flex justify-between">
-                                <span className="text-slate-400 font-medium">Order ID:</span>
-                                <span className="font-bold text-slate-800">{orderConfirmedData.orderId || "MED-xxxx"}</span>
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2.5rem] max-w-lg w-full border border-slate-100 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                        
+                        {/* Header Banner */}
+                        <div className="bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 p-6 text-white text-center relative shrink-0">
+                            <button
+                                onClick={() => {
+                                    setOrderConfirmedData(null);
+                                    router.push('/userscreens/previousorders');
+                                }}
+                                className="absolute right-4 top-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white/80 hover:text-white transition"
+                            >
+                                <FaTimes size={13} />
+                            </button>
+
+                            <div className="w-14 h-14 bg-white rounded-2xl mx-auto flex items-center justify-center text-emerald-600 shadow-lg shadow-black/10 mb-3">
+                                <FaBoxOpen size={28} />
                             </div>
-                            <div className="flex justify-between">
-                                <span className="text-slate-400 font-medium">Status:</span>
-                                <span className="font-black text-emerald-600 uppercase">{orderConfirmedData.status || "Placed"}</span>
-                            </div>
+                            <h3 className="text-xl font-black tracking-tight">Order Placed Successfully!</h3>
+                            <p className="text-emerald-100 text-xs font-semibold mt-1">
+                                Your medicines are packed & being dispatched from the licensed pharmacy.
+                            </p>
+                        </div>
+
+                        {/* Modal Body (Scrollable Details) */}
+                        <div className="p-6 overflow-y-auto space-y-4 text-xs font-sans">
+                            
+                            {/* Delivery Verification OTP Box */}
                             {orderConfirmedData.deliveryOTP && (
-                                <div className="flex justify-between pt-2 border-t border-slate-200">
-                                    <span className="text-slate-500 font-bold">Delivery OTP:</span>
-                                    <span className="font-black text-sm text-slate-900 tracking-widest">{orderConfirmedData.deliveryOTP}</span>
+                                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-dashed border-emerald-300 rounded-2xl p-4 text-center">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 block mb-1">
+                                        Package Delivery Security OTP
+                                    </span>
+                                    <div className="text-3xl font-black tracking-[0.25em] text-emerald-700 font-mono">
+                                        {orderConfirmedData.deliveryOTP}
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 font-medium mt-1">
+                                        Share this verification code with the delivery rider upon package arrival.
+                                    </p>
                                 </div>
                             )}
+
+                            {/* Order ID & Payment Details */}
+                            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
+                                <div>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Order ID</span>
+                                    <span className="text-xs font-black text-slate-900 font-mono">
+                                        {orderConfirmedData.orderId || "MED-SUCCESS"}
+                                    </span>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Payment</span>
+                                    <span className="inline-flex items-center gap-1 font-black text-xs text-emerald-700 uppercase">
+                                        <FaCheckCircle size={10} />
+                                        {orderConfirmedData.paymentMethod === "Online" ? "Paid Online" : "Pay on Delivery (COD)"}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Delivery Speed & Destination Address */}
+                            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-3 shadow-sm">
+                                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                    <div className="flex items-center gap-2 text-slate-700 font-bold">
+                                        <FaTruck className="text-emerald-600" />
+                                        <span>{orderConfirmedData.deliveryOption || "Standard Home Delivery"}</span>
+                                    </div>
+                                    <span className="bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase px-2 py-0.5 rounded border border-emerald-100">
+                                        {orderConfirmedData.status || "Placed"}
+                                    </span>
+                                </div>
+
+                                <div className="flex items-start gap-2.5 pt-1">
+                                    <FaMapMarkerAlt className="text-emerald-600 mt-0.5 shrink-0" />
+                                    <div>
+                                        <span className="font-black text-slate-900 uppercase text-[10px] block">
+                                            {orderConfirmedData.address?.name || selectedAddress?.name || "Recipient"} ({orderConfirmedData.address?.phone || selectedAddress?.phone || "Contact"})
+                                        </span>
+                                        <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-0.5">
+                                            {orderConfirmedData.address?.houseNo || selectedAddress?.houseNo}, {orderConfirmedData.address?.sector || selectedAddress?.sector}, {orderConfirmedData.address?.city || selectedAddress?.city}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Ordered Medicines Summary */}
+                            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-2 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
+                                        <FaPills className="text-emerald-600" /> Ordered Items ({(orderConfirmedData.items || pharmacyItems).length})
+                                    </span>
+                                </div>
+                                <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
+                                    {(orderConfirmedData.items || pharmacyItems).map((med, idx) => (
+                                        <div key={idx} className="flex justify-between items-center text-[11px] text-slate-700 font-medium py-1 border-b border-slate-50 last:border-0">
+                                            <div className="truncate max-w-[240px]">
+                                                <p className="font-bold text-slate-900 truncate">{med.name}</p>
+                                                <p className="text-[9px] text-slate-400">Qty: {med.quantity}</p>
+                                            </div>
+                                            <span className="font-black text-slate-900">₹{(med.price * med.quantity).toLocaleString()}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Grand Total Container */}
+                            <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl">
+                                <div>
+                                    <span className="text-[10px] font-black uppercase text-emerald-400 tracking-widest block">
+                                        Total Amount
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-medium">Inclusive of all taxes & delivery</span>
+                                </div>
+                                <span className="text-xl font-black text-emerald-400">
+                                    ₹{Math.round(orderConfirmedData.billSummary?.totalAmount ?? billSummary.totalAmount).toLocaleString()}
+                                </span>
+                            </div>
+
                         </div>
-                        <button
-                            onClick={() => {
-                                setOrderConfirmedData(null);
-                                router.push('/userscreens/previousorders');
-                            }}
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20"
-                        >
-                            View My Orders
-                        </button>
+
+                        {/* Modal Footer Actions */}
+                        <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
+                            <button
+                                onClick={() => {
+                                    setOrderConfirmedData(null);
+                                    router.push('/userscreens/previousorders');
+                                }}
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <span>Track Order Status</span>
+                                <FaExternalLinkAlt size={10} />
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setOrderConfirmedData(null);
+                                    router.push('/buymedicine');
+                                }}
+                                className="px-5 py-3.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-2xl font-bold text-xs uppercase transition"
+                            >
+                                Shop More
+                            </button>
+                        </div>
+
                     </div>
                 </div>
             )}
