@@ -540,7 +540,7 @@ export default function AppointmentsPage() {
                         { label: 'Total', value: stats?.totalAppointments || 0, color: 'bg-blue-500' },
                         { label: 'Pending', value: stats?.pending || 0, color: 'bg-orange-500' },
                         { label: 'Completed', value: stats?.completed || 0, color: 'bg-emerald-500' },
-                        { label: 'Revenue', value: `₹${stats?.totalRevenue || 0}`, color: 'bg-purple-500' },
+                     
                     ].map((s, i) => (
                         <div key={i} className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">{s.label}</p>
