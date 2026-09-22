@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FaStar,
@@ -9,29 +9,24 @@ import {
   FaCheckCircle,
   FaChevronRight,
   FaBriefcase,
-  FaSpinner
+  FaSpinner,
+  FaStethoscope
 } from 'react-icons/fa';
 import UserAPI from "@/app/services/UserAPI";
 
 function SomeDoctors() {
   const router = useRouter();
-  const [doctors, setDoctors] = useState([]);
+  const [allDoctors, setAllDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedSpeciality, setSelectedSpeciality] = useState("All");
 
   // HELPER: Formats the image URL by removing 'public/' and prepending the base URL
   const getImageUrl = (path) => {
     if (!path) return "https://via.placeholder.com/400x500?text=No+Image";
-    
-    // 1. If it's already a full URL, return it
     if (path.startsWith('http')) return path;
 
-    // 2. Remove 'public/' from the start of the string
-    // This turns "public/uploads/doctors/..." into "uploads/doctors/..."
     const cleanPath = path.replace(/^public\//, '');
-    
-    // 3. Your specific backend address
-    const BASE_URL = 'http://192.168.1.26:5002';
-    
+    const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://192.168.1.26:5002';
     return `${BASE_URL}/${cleanPath}`;
   };
 
@@ -58,12 +53,11 @@ function SomeDoctors() {
         const docRes = await UserAPI.getDoctorsList(coordsPayload);
 
         if (docRes.success) {
-          // Handle both single profile object and list of profiles
           const doctorData = Array.isArray(docRes.data) 
             ? docRes.data 
             : (docRes.data.profile ? [docRes.data.profile] : []);
             
-          setDoctors(doctorData.slice(0, 3));
+          setAllDoctors(doctorData);
         }
       } catch (error) {
         console.error("Initialization Error:", error);
@@ -74,6 +68,36 @@ function SomeDoctors() {
     fetchInitialData();
   }, []);
 
+  // Helper to format doctor speciality string
+  const formatSpeciality = (spec) => {
+    if (!spec || /^[0-9a-fA-F]{24}$/.test(spec)) return "General Physician";
+    return spec.trim();
+  };
+
+  // Dynamically extract unique specialities from doctor list
+  const specialityTabs = useMemo(() => {
+    const set = new Set();
+    allDoctors.forEach((doc) => {
+      const formatted = formatSpeciality(doc.speciality);
+      if (formatted) set.add(formatted);
+    });
+    return ["All", ...Array.from(set)];
+  }, [allDoctors]);
+
+  // Filter doctors based on selected speciality tab (LIMIT TO EXACTLY 3)
+  const filteredDoctors = useMemo(() => {
+    if (!allDoctors || allDoctors.length === 0) return [];
+    
+    if (selectedSpeciality === "All") {
+      return allDoctors.slice(0, 3);
+    }
+
+    return allDoctors.filter((doc) => {
+      const formatted = formatSpeciality(doc.speciality);
+      return formatted.toLowerCase() === selectedSpeciality.toLowerCase();
+    }).slice(0, 3);
+  }, [allDoctors, selectedSpeciality]);
+
   const handleDoctorClick = (id) => {
     router.push(`/drappointment/doctordetail/${id}`);
   };
@@ -83,7 +107,7 @@ function SomeDoctors() {
       <div className="max-w-7xl mx-auto px-6">
 
         {/* --- Header Section --- */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-10">
           <div className="max-w-2xl">
             <div className="flex items-center gap-3 mb-4">
               <div className="h-1.5 w-12 bg-emerald-500 rounded-full"></div>
@@ -105,28 +129,52 @@ function SomeDoctors() {
           </button>
         </div>
 
+        {/* --- Dynamic Speciality Tabs --- */}
+        <div className="flex items-center gap-3 overflow-x-auto pb-4 mb-10 no-scrollbar">
+          {specialityTabs.map((spec) => {
+            const isSelected = selectedSpeciality.toLowerCase() === spec.toLowerCase();
+            return (
+              <button
+                key={spec}
+                onClick={() => setSelectedSpeciality(spec)}
+                className={`flex items-center gap-2.5 px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all duration-300 shrink-0
+                  ${isSelected
+                    ? "bg-slate-900 text-white shadow-xl shadow-slate-900/15 scale-105"
+                    : "bg-slate-100/80 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900"
+                  }`}
+              >
+                <FaStethoscope size={13} className={isSelected ? "text-emerald-400" : "text-slate-400"} />
+                <span>{spec === "All" ? "All Specialities" : spec}</span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* --- Doctor Grid --- */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
           {loading ? (
-            <div className="col-span-full flex justify-center py-20">
+            <div className="col-span-full flex flex-col items-center justify-center py-20 gap-3">
               <FaSpinner className="animate-spin text-emerald-500" size={30} />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Loading Doctors...</span>
             </div>
-          ) : doctors.length > 0 ? (
-            doctors.map((doc) => (
-              <div
-                key={doc._id}
-                onClick={() => handleDoctorClick(doc._id)}
-                className="group cursor-pointer relative bg-white rounded-[3.5rem] p-5 shadow-xl shadow-slate-200/40 border border-slate-50 transition-all duration-500 hover:shadow-2xl hover:-translate-y-2"
-              >
-                {/* Image Container */}
-                <div className="relative h-72 w-full rounded-[2.8rem] overflow-hidden mb-6 bg-slate-100">
-                  <img
-                    src={getImageUrl(doc.profileImage)}
-                    alt={doc.name}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                    onError={(e) => { e.target.src = "https://via.placeholder.com/400x500?text=Image+Not+Found"; }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
+          ) : filteredDoctors.length > 0 ? (
+            filteredDoctors.map((doc) => {
+              const displaySpeciality = formatSpeciality(doc.speciality);
+              return (
+                <div
+                  key={doc._id}
+                  onClick={() => handleDoctorClick(doc._id)}
+                  className="group cursor-pointer relative bg-white rounded-[3.5rem] p-5 shadow-xl shadow-slate-200/40 border border-slate-50 transition-all duration-500 hover:shadow-2xl hover:-translate-y-2"
+                >
+                  {/* Image Container */}
+                  <div className="relative h-72 w-full rounded-[2.8rem] overflow-hidden mb-6 bg-slate-100">
+                    <img
+                      src={getImageUrl(doc.profileImage)}
+                      alt={doc.name}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      onError={(e) => { e.target.src = "https://via.placeholder.com/400x500?text=Image+Not+Found"; }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
 
                   {/* Status Badges */}
                   <div className="absolute top-5 left-5">
@@ -157,8 +205,8 @@ function SomeDoctors() {
                   <h3 className="text-2xl font-black text-slate-900 truncate mb-1 group-hover:text-emerald-600 transition-colors">
                     {doc.name}
                   </h3>
-                  <p className="text-emerald-600 text-xs font-black uppercase tracking-widest mb-6">
-                    {doc.speciality}
+                  <p className="text-emerald-600 text-xs font-black uppercase tracking-widest mb-6 truncate">
+                    {displaySpeciality}
                   </p>
 
                   {/* Inner Info Card */}
@@ -167,7 +215,7 @@ function SomeDoctors() {
                       <div className="flex items-center gap-2">
                         <FaBriefcase className="text-slate-400" size={14} />
                         <span className="text-xs font-bold text-slate-600">
-                          {doc.experienceYears ? `${doc.experienceYears} Years Exp.` : "N/A"}
+                          {doc.experienceYears ? `${doc.experienceYears} Years Exp.` : "1+ Years"}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -183,7 +231,7 @@ function SomeDoctors() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Consultation Fee</p>
-                        <p className="text-xl font-black text-slate-900">₹{doc.fees?.clinic || 0}</p>
+                        <p className="text-xl font-black text-slate-900">₹{doc.fees?.clinic || doc.fees?.online || 0}</p>
                       </div>
                       <div className="h-12 w-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center transition-all group-hover:bg-emerald-500 group-hover:scale-110 shadow-lg">
                         <FaPlus size={14} />
@@ -192,13 +240,14 @@ function SomeDoctors() {
                   </div>
                 </div>
               </div>
-            ))
-          ) : (
-            <div className="col-span-full text-center py-10">
-              <p className="text-slate-400 font-bold uppercase tracking-widest">No doctors found.</p>
-            </div>
-          )}
-        </div>
+            );
+          })
+        ) : (
+          <div className="col-span-full text-center py-16 bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
+            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No doctors found in this speciality.</p>
+          </div>
+        )}
+      </div>
 
         {/* --- Global CTA --- */}
         <div className="mt-20 flex flex-col items-center">

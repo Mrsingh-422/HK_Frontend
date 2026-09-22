@@ -7,14 +7,28 @@ import {
     Video, Home, Building2, ChevronRight, 
     Stethoscope, Filter, Receipt, ArrowUpRight,
     ShieldCheck, AlertCircle, Activity, Info, X,
-    Trash2, RotateCcw, Wallet, UserCheck, Star
+    Trash2, RotateCcw, Wallet, UserCheck, Star,
+    Crown
 } from "lucide-react";
 import UserAPI from "@/app/services/UserAPI";
 import { Toaster, toast } from 'react-hot-toast';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-// --- Helper Functions for Date calculations ---
+// --- Helper Functions for Date & Slot calculations ---
+const parseSlotTime = (timeStr) => {
+  if (!timeStr) return { hour: 0, minute: 0 };
+  const isPM = /pm/i.test(timeStr);
+  const isAM = /am/i.test(timeStr);
+  const clean = timeStr.replace(/[^0-9:]/g, '');
+  const [hStr, mStr] = clean.split(':');
+  let hour = parseInt(hStr, 10) || 0;
+  const minute = parseInt(mStr, 10) || 0;
+  if (isPM && hour < 12) hour += 12;
+  if (isAM && hour === 12) hour = 0;
+  return { hour, minute };
+};
+
 const getUtcDate = (dateStr) => {
   if (!dateStr) return 0;
   const d = new Date(dateStr);
@@ -25,23 +39,6 @@ const formatDateString = (y, m, d) => {
   const mm = String(m + 1).padStart(2, '0');
   const dd = String(d).padStart(2, '0');
   return `${y}-${mm}-${dd}`;
-};
-
-const getDatesInRange = (startDate, endDate) => {
-  if (!startDate || !endDate) return [];
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const dates = [];
-  let current = new Date(start);
-
-  while (current <= end) {
-    const y = current.getFullYear();
-    const m = current.getMonth();
-    const d = current.getDate();
-    dates.push(formatDateString(y, m, d));
-    current.setDate(current.getDate() + 1);
-  }
-  return dates;
 };
 
 // --- SUB-COMPONENT: SPECIALIST REVIEW MODAL ---
@@ -248,6 +245,8 @@ export default function MedicalHistoryPage() {
     // Rescheduling Selection States
     const [isRescheduling, setIsRescheduling] = useState(false);
     const [rescheduleData, setRescheduleData] = useState({ date: "", timeSlot: "" });
+    const [availableRescheduleSlots, setAvailableRescheduleSlots] = useState([]);
+    const [loadingRescheduleSlots, setLoadingRescheduleSlots] = useState(false);
 
     const fetchRecords = async () => {
         try {
@@ -299,6 +298,53 @@ export default function MedicalHistoryPage() {
         fetchReviewForDetail();
     }, [isDetailModalOpen, selectedRecord]);
 
+    // Fetch Doctor Slots Dynamically When Rescheduling Date Changes
+    useEffect(() => {
+        const fetchRescheduleSlots = async () => {
+            const docId = selectedRecord?.doctorId?._id || selectedRecord?.doctorId;
+            if (!isRescheduling || !docId || !rescheduleData.date) {
+                setAvailableRescheduleSlots([]);
+                return;
+            }
+
+            try {
+                setLoadingRescheduleSlots(true);
+                const res = await UserAPI.getDoctorAvailability(docId, rescheduleData.date);
+                if (res && res.success) {
+                    setAvailableRescheduleSlots(res.slots || []);
+                } else {
+                    setAvailableRescheduleSlots([]);
+                }
+            } catch (error) {
+                console.error("Error fetching reschedule slots:", error);
+                setAvailableRescheduleSlots([]);
+            } finally {
+                setLoadingRescheduleSlots(false);
+            }
+        };
+
+        fetchRescheduleSlots();
+    }, [isRescheduling, rescheduleData.date, selectedRecord]);
+
+    // Filter Out Past Slots When Rescheduling For Today
+    const filteredRescheduleSlots = useMemo(() => {
+        if (!availableRescheduleSlots || availableRescheduleSlots.length === 0) return [];
+        
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
+        const isToday = rescheduleData.date === todayStr;
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+
+        return availableRescheduleSlots.filter((slot) => {
+            if (!isToday) return true;
+            const { hour, minute } = parseSlotTime(slot.time);
+            if (hour < currentHour) return false;
+            if (hour === currentHour && minute <= currentMinute) return false;
+            return true;
+        });
+    }, [availableRescheduleSlots, rescheduleData.date]);
+
     const filteredData = useMemo(() => {
         return data.filter(item => {
             const matchesFilter = filter === "All" || item.bookingType === filter;
@@ -310,7 +356,7 @@ export default function MedicalHistoryPage() {
         });
     }, [data, filter, searchQuery]);
 
-    // Action Handlers
+    // Action Handlers: Cancel Doctor Appointment via UserAPI.cancelDoctorAppointment
     const handleCancelSubmit = async () => {
         if (!cancelReason.trim()) {
             toast.error("Please provide a reason for cancellation");
@@ -319,7 +365,7 @@ export default function MedicalHistoryPage() {
 
         setIsActionLoading(true);
         try {
-            const response = await UserAPI.cancelHospitalBooking(selectedRecord._id, { reason: cancelReason });
+            const response = await UserAPI.cancelDoctorAppointment(selectedRecord._id, cancelReason);
             if (response.success) {
                 toast.success("Booking cancelled successfully");
                 setIsCancelModalOpen(false);
@@ -330,7 +376,8 @@ export default function MedicalHistoryPage() {
                 toast.error(response.message || "Cancellation failed");
             }
         } catch (error) {
-            toast.error("Something went wrong");
+            console.error("Cancellation Error:", error);
+            toast.error("Something went wrong with the cancellation");
         } finally {
             setIsActionLoading(false);
         }
@@ -373,8 +420,6 @@ export default function MedicalHistoryPage() {
         setSelectedRecord(record);
         setIsReviewModalOpen(true);
     };
-
-    const mounted = true; // Set directly to prevent hydrations in Next.js
 
     if (loading) return <LoadingSkeleton />;
 
@@ -634,40 +679,71 @@ export default function MedicalHistoryPage() {
                                                 type="date"
                                                 min={new Date().toISOString().split('T')[0]} // Restrict past dates
                                                 value={rescheduleData.date}
-                                                onChange={(e) => setRescheduleData({ ...rescheduleData, date: e.target.value })}
+                                                onChange={(e) => {
+                                                    setRescheduleData({ ...rescheduleData, date: e.target.value, timeSlot: "" });
+                                                }}
                                                 className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all text-slate-700"
                                             />
                                         </div>
 
-                                        {/* Time Slot Selector */}
+                                        {/* Dynamic Time Slot Selector (from getDoctorAvailability) */}
                                         <div>
                                             <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Select Time Slot *</label>
-                                            <div className="grid grid-cols-4 gap-2">
-                                                {["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00"].map((slot) => {
-                                                    const isSelected = rescheduleData.timeSlot === slot;
-                                                    return (
-                                                        <button
-                                                            type="button"
-                                                            key={slot}
-                                                            onClick={() => setRescheduleData({ ...rescheduleData, timeSlot: slot })}
-                                                            className={`py-3 rounded-xl text-xs font-bold transition-all border ${
-                                                                isSelected 
-                                                                    ? "bg-emerald-600 border-emerald-600 text-white font-black scale-105 shadow-md shadow-emerald-100" 
-                                                                    : "bg-white border-slate-250 text-slate-700 hover:bg-slate-50"
-                                                            }`}
-                                                        >
-                                                            {slot}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
+                                            
+                                            {loadingRescheduleSlots ? (
+                                                <div className="grid grid-cols-4 gap-2">
+                                                    {[1, 2, 3, 4].map((i) => (
+                                                        <div key={i} className="h-11 bg-slate-200/60 animate-pulse rounded-xl" />
+                                                    ))}
+                                                </div>
+                                            ) : !rescheduleData.date ? (
+                                                <div className="p-4 bg-white rounded-xl border border-dashed border-slate-200 text-center">
+                                                    <p className="text-xs font-bold text-slate-400">Please choose an appointment date first.</p>
+                                                </div>
+                                            ) : filteredRescheduleSlots.length > 0 ? (
+                                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto no-scrollbar p-1">
+                                                    {filteredRescheduleSlots.map((slot, index) => {
+                                                        const isAvailable = slot.available && !slot.isBooked && !slot.isBlocked;
+                                                        const isSelected = rescheduleData.timeSlot === slot.time;
+                                                        const premiumFee = Number(slot.premiumFee || 0);
+
+                                                        return (
+                                                            <button
+                                                                type="button"
+                                                                key={`${slot.time}-${index}`}
+                                                                disabled={!isAvailable}
+                                                                onClick={() => setRescheduleData({ ...rescheduleData, timeSlot: slot.time })}
+                                                                className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border flex flex-col items-center justify-center relative ${
+                                                                    !isAvailable 
+                                                                        ? "opacity-30 bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400" 
+                                                                        : isSelected 
+                                                                        ? "bg-emerald-600 border-emerald-600 text-white font-black shadow-md shadow-emerald-100 scale-102" 
+                                                                        : "bg-white border-slate-200 text-slate-700 hover:border-emerald-400"
+                                                                }`}
+                                                            >
+                                                                <span className="leading-tight">{slot.time}</span>
+                                                                {premiumFee > 0 && (
+                                                                    <div className={`flex items-center gap-0.5 text-[8px] font-bold mt-0.5 ${isSelected ? 'text-amber-200' : 'text-amber-600'}`}>
+                                                                        <Crown size={8} />
+                                                                        <span>+₹{premiumFee}</span>
+                                                                    </div>
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <div className="p-4 bg-white rounded-xl border border-dashed border-slate-200 text-center">
+                                                    <p className="text-xs font-bold text-slate-400">No slots available for the selected date.</p>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
                                     <div className="flex gap-4">
                                         <button onClick={() => { setIsRescheduling(false); setRescheduleData({ date: "", timeSlot: "" }); }} className="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-gray-100 text-gray-600">Back</button>
                                         <button 
-                                            disabled={isActionLoading}
+                                            disabled={isActionLoading || !rescheduleData.date || !rescheduleData.timeSlot}
                                             onClick={handleRescheduleSubmit} 
                                             className="flex-1 py-4 rounded-2xl font-black text-xs uppercase bg-gray-900 text-white hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all"
                                         >

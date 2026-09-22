@@ -6,7 +6,9 @@ import {
   FaArrowLeft, FaArrowRight,
   FaCrown, FaTag, FaSpinner,
   FaUserCircle, FaMapMarkerAlt, FaCheckCircle, FaGem,
-  FaMoneyBillWave, FaCreditCard, FaLock
+  FaMoneyBillWave, FaCreditCard, FaLock, FaCalendarAlt,
+  FaClock, FaStethoscope, FaUserAlt, FaReceipt, FaKey,
+  FaSun, FaCloudSun, FaMoon
 } from 'react-icons/fa';
 import UserAPI from "@/app/services/UserAPI";
 import CostoumPopup from '@/lib/CostoumPopup';
@@ -25,6 +27,20 @@ const loadRazorpayScript = () => {
     script.onerror = () => resolve(false);
     document.body.appendChild(script);
   });
+};
+
+// Helper: Parse slot hour and minute
+const parseSlotTime = (timeStr) => {
+  if (!timeStr) return { hour: 0, minute: 0 };
+  const isPM = /pm/i.test(timeStr);
+  const isAM = /am/i.test(timeStr);
+  const clean = timeStr.replace(/[^0-9:]/g, '');
+  const [hStr, mStr] = clean.split(':');
+  let hour = parseInt(hStr, 10) || 0;
+  const minute = parseInt(mStr, 10) || 0;
+  if (isPM && hour < 12) hour += 12;
+  if (isAM && hour === 12) hour = 0;
+  return { hour, minute };
 };
 
 export default function DoctorBookingConfirmation() {
@@ -153,7 +169,15 @@ export default function DoctorBookingConfirmation() {
           patientAge: Number(selectedMember.patientAge || selectedMember.age || 25),
           gender: selectedMember.gender || "Male",
           relation: selectedMember.relation || "Self"
-        }]
+        }],
+        address: (mappedConsultationType === "Home Visit" && selectedAddress) ? {
+          houseNo: selectedAddress.houseNo,
+          sector: selectedAddress.sector,
+          city: selectedAddress.city,
+          state: selectedAddress.state,
+          pincode: selectedAddress.pincode,
+          addressType: selectedAddress.addressType || "Home"
+        } : undefined
       };
 
       const res = await UserAPI.doctorCheckoutSummary(payload);
@@ -176,14 +200,14 @@ export default function DoctorBookingConfirmation() {
       setIsFetchingSummary(false);
       setIsValidatingCoupon(false);
     }
-  }, [bookingData, selectedSlot, selectedMember, selectedDate, mappedConsultationType, appliedCouponCode, paymentMethod]);
+  }, [bookingData, selectedSlot, selectedMember, selectedDate, mappedConsultationType, selectedAddress, appliedCouponCode, paymentMethod]);
 
   // Trigger Checkout Summary on dependency changes
   useEffect(() => {
     if (selectedSlot && selectedMember && selectedDate) {
       fetchSummary(appliedCouponCode);
     }
-  }, [selectedSlot, selectedMember, selectedDate, fetchSummary, appliedCouponCode]);
+  }, [selectedSlot, selectedMember, selectedDate, selectedAddress, fetchSummary, appliedCouponCode]);
 
   // Memoized Pricing View
   const pricing = useMemo(() => {
@@ -232,7 +256,52 @@ export default function DoctorBookingConfirmation() {
     setCouponError("");
   };
 
-  // 6. Final Booking Handler (1.2 Book + 7.0 Payment Verify)
+  // 6. Filter Out Past Slots and Group by Morning / Afternoon / Evening
+  const groupedSlots = useMemo(() => {
+    if (!availableSlots || availableSlots.length === 0) {
+      return { morning: [], afternoon: [], evening: [], totalCount: 0 };
+    }
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const isToday = selectedDate === todayStr;
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    // 1. Filter out past slots if the selected date is today
+    const validSlots = availableSlots.filter((slot) => {
+      if (!isToday) return true;
+      const { hour, minute } = parseSlotTime(slot.time);
+      if (hour < currentHour) return false;
+      if (hour === currentHour && minute <= currentMinute) return false;
+      return true;
+    });
+
+    // 2. Partition into Morning (<12:00), Afternoon (12:00 - 16:59), Evening (>=17:00)
+    const morning = [];
+    const afternoon = [];
+    const evening = [];
+
+    validSlots.forEach((slot) => {
+      const { hour } = parseSlotTime(slot.time);
+      if (hour < 12) {
+        morning.push(slot);
+      } else if (hour < 17) {
+        afternoon.push(slot);
+      } else {
+        evening.push(slot);
+      }
+    });
+
+    return {
+      morning,
+      afternoon,
+      evening,
+      totalCount: validSlots.length
+    };
+  }, [availableSlots, selectedDate]);
+
+  // 7. Final Booking Handler (1.2 Book + 7.0 Payment Verify)
   const handleFinalBooking = async () => {
     if (!selectedSlot) {
       CostoumPopup("Please select an appointment time slot", "warning", 3000);
@@ -266,7 +335,7 @@ export default function DoctorBookingConfirmation() {
           gender: selectedMember.gender || "Male",
           relation: selectedMember.relation || "Self"
         }],
-        address: selectedAddress ? {
+        address: (mappedConsultationType === "Home Visit" && selectedAddress) ? {
           houseNo: selectedAddress.houseNo,
           sector: selectedAddress.sector,
           city: selectedAddress.city,
@@ -473,41 +542,142 @@ export default function DoctorBookingConfirmation() {
               </div>
             </section>
 
-            {/* SELECT TIME SLOT */}
+            {/* SELECT TIME SLOT (FILTERED PAST SLOTS & GROUPED BY MORNING/AFTERNOON/EVENING) */}
             <section className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">3. Available Slots</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">3. Available Slots</h3>
+                {groupedSlots.totalCount > 0 && (
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                    {groupedSlots.totalCount} slots available
+                  </span>
+                )}
+              </div>
+
               {loadingSlots ? (
                 <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
-                  {[1, 2, 3, 4].map(i => <div key={i} className="h-12 bg-slate-100 animate-pulse rounded-xl" />)}
+                  {[1, 2, 3, 4].map(i => <div key={i} className="h-14 bg-slate-100 animate-pulse rounded-xl" />)}
                 </div>
-              ) : availableSlots.length > 0 ? (
-                <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
-                  {availableSlots.map((slot, idx) => {
-                    const isAvailable = slot.available && !slot.isBooked && !slot.isBlocked;
-                    const isSelected = selectedSlot?.time === slot.time;
-                    return (
-                      <button
-                        key={idx}
-                        disabled={!isAvailable}
-                        onClick={() => setSelectedSlot(slot)}
-                        className={`relative h-12 rounded-xl border text-xs font-black transition-all
-                          ${!isAvailable ? 'opacity-30 bg-slate-50 cursor-not-allowed border-slate-200' : ''}
-                          ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-md' : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-500'}`}
-                      >
-                        {slot.time}
-                        {Number(slot.premiumFee) > 0 && (
-                          <FaCrown size={9} className={`absolute top-1 right-1 ${isSelected ? 'text-amber-300' : 'text-amber-500'}`} />
-                        )}
-                      </button>
-                    );
-                  })}
+              ) : groupedSlots.totalCount > 0 ? (
+                <div className="space-y-5">
+                  {/* MORNING SLOTS */}
+                  {groupedSlots.morning.length > 0 && (
+                    <div className="space-y-2.5">
+                      <div className="flex items-center gap-2 text-slate-600">
+                        <FaSun size={12} className="text-amber-500" />
+                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">Morning Slots</span>
+                        <span className="text-[10px] text-slate-400 font-semibold">({groupedSlots.morning.length})</span>
+                      </div>
+                      <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                        {groupedSlots.morning.map((slot, idx) => {
+                          const isAvailable = slot.available && !slot.isBooked && !slot.isBlocked;
+                          const isSelected = selectedSlot?.time === slot.time;
+                          const premiumFee = Number(slot.premiumFee || 0);
+
+                          return (
+                            <button
+                              key={`morning-${idx}`}
+                              disabled={!isAvailable}
+                              onClick={() => setSelectedSlot(slot)}
+                              className={`relative py-2.5 px-2 min-h-[3.25rem] rounded-xl border text-xs font-black transition-all flex flex-col items-center justify-center
+                                ${!isAvailable ? 'opacity-30 bg-slate-50 cursor-not-allowed border-slate-200' : ''}
+                                ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-md' : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-500'}`}
+                            >
+                              <span className="leading-tight">{slot.time}</span>
+                              {premiumFee > 0 && (
+                                <div className={`flex items-center gap-1 text-[10px] font-bold mt-1 ${isSelected ? 'text-amber-300' : 'text-amber-600'}`}>
+                                  <FaCrown size={9} />
+                                  <span>+₹{premiumFee}</span>
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AFTERNOON SLOTS */}
+                  {groupedSlots.afternoon.length > 0 && (
+                    <div className="space-y-2.5 pt-2">
+                      <div className="flex items-center gap-2 text-slate-600">
+                        <FaCloudSun size={13} className="text-orange-500" />
+                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">Afternoon Slots</span>
+                        <span className="text-[10px] text-slate-400 font-semibold">({groupedSlots.afternoon.length})</span>
+                      </div>
+                      <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                        {groupedSlots.afternoon.map((slot, idx) => {
+                          const isAvailable = slot.available && !slot.isBooked && !slot.isBlocked;
+                          const isSelected = selectedSlot?.time === slot.time;
+                          const premiumFee = Number(slot.premiumFee || 0);
+
+                          return (
+                            <button
+                              key={`afternoon-${idx}`}
+                              disabled={!isAvailable}
+                              onClick={() => setSelectedSlot(slot)}
+                              className={`relative py-2.5 px-2 min-h-[3.25rem] rounded-xl border text-xs font-black transition-all flex flex-col items-center justify-center
+                                ${!isAvailable ? 'opacity-30 bg-slate-50 cursor-not-allowed border-slate-200' : ''}
+                                ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-md' : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-500'}`}
+                            >
+                              <span className="leading-tight">{slot.time}</span>
+                              {premiumFee > 0 && (
+                                <div className={`flex items-center gap-1 text-[10px] font-bold mt-1 ${isSelected ? 'text-amber-300' : 'text-amber-600'}`}>
+                                  <FaCrown size={9} />
+                                  <span>+₹{premiumFee}</span>
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* EVENING SLOTS */}
+                  {groupedSlots.evening.length > 0 && (
+                    <div className="space-y-2.5 pt-2">
+                      <div className="flex items-center gap-2 text-slate-600">
+                        <FaMoon size={12} className="text-indigo-500" />
+                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-700">Evening Slots</span>
+                        <span className="text-[10px] text-slate-400 font-semibold">({groupedSlots.evening.length})</span>
+                      </div>
+                      <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                        {groupedSlots.evening.map((slot, idx) => {
+                          const isAvailable = slot.available && !slot.isBooked && !slot.isBlocked;
+                          const isSelected = selectedSlot?.time === slot.time;
+                          const premiumFee = Number(slot.premiumFee || 0);
+
+                          return (
+                            <button
+                              key={`evening-${idx}`}
+                              disabled={!isAvailable}
+                              onClick={() => setSelectedSlot(slot)}
+                              className={`relative py-2.5 px-2 min-h-[3.25rem] rounded-xl border text-xs font-black transition-all flex flex-col items-center justify-center
+                                ${!isAvailable ? 'opacity-30 bg-slate-50 cursor-not-allowed border-slate-200' : ''}
+                                ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-md' : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-500'}`}
+                            >
+                              <span className="leading-tight">{slot.time}</span>
+                              {premiumFee > 0 && (
+                                <div className={`flex items-center gap-1 text-[10px] font-bold mt-1 ${isSelected ? 'text-amber-300' : 'text-amber-600'}`}>
+                                  <FaCrown size={9} />
+                                  <span>+₹{premiumFee}</span>
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <p className="text-slate-400 text-xs italic py-2">No slots available for the selected date.</p>
+                <div className="py-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <p className="text-slate-400 text-xs font-semibold">No active slots available for this date.</p>
+                </div>
               )}
             </section>
 
-            {/* ADDRESS SELECTION (For Home Visit or optional for clinic) */}
+            {/* ADDRESS SELECTION (For Home Visit) */}
             {mappedConsultationType === "Home Visit" && (
               <section className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
                 <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">4. Home Visit Address</h3>
@@ -549,7 +719,7 @@ export default function DoctorBookingConfirmation() {
             {pricing.total > 0 && (
               <section className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
                 <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">
-                  {mappedConsultationType === "Home Visit" ? "4. Payment Method" : "4. Payment Method"}
+                  {mappedConsultationType === "Home Visit" ? "5. Payment Method" : "4. Payment Method"}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Online Option */}
@@ -718,47 +888,168 @@ export default function DoctorBookingConfirmation() {
         </div>
       </main>
 
-      {/* CONFIRMATION SUCCESS MODAL */}
+      {/* DETAILED CONFIRMATION SUCCESS MODAL */}
       {confirmedBookingDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-[2rem] p-8 max-w-md w-full border border-slate-100 shadow-2xl text-center space-y-5 animate-in fade-in zoom-in duration-200">
-            <div className="mx-auto w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
-              <FaCheckCircle className="w-9 h-9" />
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-[2.5rem] max-w-lg w-full border border-slate-100 shadow-2xl overflow-hidden my-6 animate-in fade-in zoom-in duration-200">
             
-            <div className="space-y-1">
-              <h3 className="text-2xl font-black text-slate-900">Appointment Booked!</h3>
-              <p className="text-xs font-semibold text-slate-500">
-                Your consultation has been confirmed.
+            {/* Header / Success Banner */}
+            <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-6 text-white text-center relative">
+              <div className="mx-auto w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-white mb-3 shadow-inner">
+                <FaCheckCircle className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-black tracking-tight">Appointment Confirmed!</h3>
+              <p className="text-emerald-100 text-xs mt-1">
+                Your consultation request has been successfully booked.
               </p>
+              
+              <div className="mt-3 inline-flex items-center gap-2 bg-black/20 backdrop-blur-md px-3.5 py-1.5 rounded-full text-[11px] font-mono font-bold tracking-wider">
+                <span>ID:</span>
+                <span className="text-emerald-300">{confirmedBookingDetails.bookingId || confirmedBookingDetails._id || "CONFIRMED"}</span>
+              </div>
             </div>
 
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-left space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-400 font-medium">Booking ID:</span>
-                <span className="font-bold text-slate-800">{confirmedBookingDetails.bookingId || "N/A"}</span>
+            {/* Modal Body: Full Details */}
+            <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto">
+              
+              {/* Doctor Details */}
+              <div className="flex items-center gap-3.5 p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+                <img
+                  src={bookingData.profileImage || "/default-doctor.png"}
+                  className="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-xs"
+                  alt="Doctor"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 uppercase">
+                    <FaStethoscope size={10} />
+                    <span>{bookingData.speciality}</span>
+                  </div>
+                  <h4 className="font-black text-slate-900 text-sm truncate">Dr. {bookingData.doctorName}</h4>
+                  <p className="text-[11px] font-bold text-slate-500">{mappedConsultationType}</p>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400 font-medium">Payment Status:</span>
-                <span className="font-black text-emerald-600 uppercase">{confirmedBookingDetails.paymentStatus || "Paid"}</span>
+
+              {/* Patient & Schedule Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* Patient */}
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+                  <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                    <FaUserAlt size={10} className="text-slate-400" />
+                    <span>Patient</span>
+                  </div>
+                  <p className="text-xs font-black text-slate-800 truncate">
+                    {selectedMember?.memberName || selectedMember?.name}
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-semibold">
+                    {selectedMember?.relation} • {selectedMember?.gender || "Male"}
+                  </p>
+                </div>
+
+                {/* Schedule */}
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+                  <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                    <FaCalendarAlt size={10} className="text-slate-400" />
+                    <span>Schedule</span>
+                  </div>
+                  <p className="text-xs font-black text-slate-800">
+                    {selectedDate}
+                  </p>
+                  <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                    <FaClock size={9} />
+                    <span>{selectedSlot?.time}</span>
+                  </div>
+                </div>
               </div>
-              {confirmedBookingDetails.tracking?.otp && (
-                <div className="flex justify-between pt-2 border-t border-slate-200">
-                  <span className="text-slate-500 font-bold">Verification OTP:</span>
-                  <span className="font-black text-sm text-slate-900 tracking-widest">{confirmedBookingDetails.tracking.otp}</span>
+
+              {/* Home Visit Address (If applicable) */}
+              {mappedConsultationType === "Home Visit" && selectedAddress && (
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-start gap-3">
+                  <FaMapMarkerAlt className="text-emerald-600 mt-1 shrink-0" size={13} />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Visit Location</span>
+                      <span className="text-[9px] bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded font-bold">{selectedAddress.addressType}</span>
+                    </div>
+                    <p className="text-xs text-slate-700 font-semibold mt-0.5 leading-relaxed">
+                      {selectedAddress.houseNo}, {selectedAddress.sector}, {selectedAddress.city}, {selectedAddress.state} - {selectedAddress.pincode}
+                    </p>
+                  </div>
                 </div>
               )}
+
+              {/* OTP Verification Card (If present) */}
+              {confirmedBookingDetails.tracking?.otp && (
+                <div className="flex items-center justify-between p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-2xl">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
+                      <FaKey size={12} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Verification OTP</p>
+                      <p className="text-[10px] text-amber-600 font-semibold">Share with doctor upon arrival</p>
+                    </div>
+                  </div>
+                  <span className="text-base font-mono font-black text-amber-900 tracking-widest bg-white px-3 py-1 rounded-xl border border-amber-200 shadow-xs">
+                    {confirmedBookingDetails.tracking.otp}
+                  </span>
+                </div>
+              )}
+
+              {/* Payment Summary */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 text-xs">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <div className="flex items-center gap-1.5 text-slate-500 font-bold">
+                    <FaReceipt size={11} className="text-slate-400" />
+                    <span>Payment Status</span>
+                  </div>
+                  <span className="font-black text-emerald-600 uppercase px-2 py-0.5 bg-emerald-100/60 rounded-lg text-[10px]">
+                    {confirmedBookingDetails.paymentStatus || (pricing.total === 0 ? "Complimentary" : "Paid")}
+                  </span>
+                </div>
+
+                <div className="flex justify-between text-slate-500">
+                  <span>Payment Mode:</span>
+                  <span className="font-bold text-slate-800">
+                    {pricing.total === 0 ? "Subscription / Free" : paymentMethod === "COD" ? "Pay at Clinic / COD" : "Online (Razorpay)"}
+                  </span>
+                </div>
+
+                {pricing.extraCharges > 0 && (
+                  <div className="flex justify-between text-slate-500">
+                    <span>Premium Slot Fee:</span>
+                    <span className="font-bold text-slate-800">+₹{pricing.extraCharges}</span>
+                  </div>
+                )}
+
+                {pricing.discountAmount > 0 && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>Discount Applied:</span>
+                    <span className="font-bold">-₹{pricing.discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between text-slate-900 font-black pt-1 border-t border-slate-200 text-sm">
+                  <span>Total Amount:</span>
+                  <span className="text-emerald-600">₹{pricing.total.toFixed(2)}</span>
+                </div>
+              </div>
+
             </div>
 
-            <button
-              onClick={() => {
-                setConfirmedBookingDetails(null);
-                router.push('/userscreens/doctorappointment');
-              }}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
-            >
-              View My Appointments
-            </button>
+            {/* Footer Action */}
+            <div className="p-6 pt-2 bg-white">
+              <button
+                onClick={() => {
+                  setConfirmedBookingDetails(null);
+                  router.push('/userscreens/doctorappointment');
+                }}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-slate-900/10 transition-all active:scale-98 flex items-center justify-center gap-2"
+              >
+                <span>View My Appointments</span>
+                <FaArrowRight size={11} />
+              </button>
+            </div>
+
           </div>
         </div>
       )}
