@@ -183,7 +183,6 @@ export default function DoctorBookingConfirmation() {
       const res = await UserAPI.doctorCheckoutSummary(payload);
       if (res?.success && res.data) {
         setServerPricing(res.data);
-        // If COD is not available according to backend engine, force Online payment
         if (!res.data.isCodAvailable && paymentMethod === "COD") {
           setPaymentMethod("Online");
         }
@@ -256,7 +255,7 @@ export default function DoctorBookingConfirmation() {
     setCouponError("");
   };
 
-  // 6. Filter Out Past Slots and Group by Morning / Afternoon / Evening
+  // 6. Filter Out Slots (Must be 1 hour ahead if today) & Group by Morning / Afternoon / Evening
   const groupedSlots = useMemo(() => {
     if (!availableSlots || availableSlots.length === 0) {
       return { morning: [], afternoon: [], evening: [], totalCount: 0 };
@@ -265,16 +264,15 @@ export default function DoctorBookingConfirmation() {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     const isToday = selectedDate === todayStr;
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
+    const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+    const oneHourAheadBuffer = 60; // Must be at least 1 hour ahead from present time
 
-    // 1. Filter out past slots if the selected date is today
+    // 1. Filter out slots that are not at least 1 hour ahead if selectedDate is today
     const validSlots = availableSlots.filter((slot) => {
       if (!isToday) return true;
       const { hour, minute } = parseSlotTime(slot.time);
-      if (hour < currentHour) return false;
-      if (hour === currentHour && minute <= currentMinute) return false;
-      return true;
+      const slotTotalMinutes = hour * 60 + minute;
+      return slotTotalMinutes >= currentTotalMinutes + oneHourAheadBuffer;
     });
 
     // 2. Partition into Morning (<12:00), Afternoon (12:00 - 16:59), Evening (>=17:00)
@@ -542,7 +540,7 @@ export default function DoctorBookingConfirmation() {
               </div>
             </section>
 
-            {/* SELECT TIME SLOT (FILTERED PAST SLOTS & GROUPED BY MORNING/AFTERNOON/EVENING) */}
+            {/* SELECT TIME SLOT (FILTERED: 1 HOUR AHEAD IF TODAY) */}
             <section className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">3. Available Slots</h3>

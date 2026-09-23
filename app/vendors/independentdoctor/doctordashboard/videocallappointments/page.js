@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     FaCalendarAlt,
     FaClock,
@@ -13,7 +13,10 @@ import {
     FaPaperPlane,
     FaFileMedical,
     FaLock,
-    FaCheck
+    FaCheck,
+    FaGem,
+    FaChevronLeft,
+    FaChevronRight
 } from 'react-icons/fa';
 import { IoCloseOutline } from "react-icons/io5";
 import DoctorAPI from '@/app/services/DoctorAPI';
@@ -24,14 +27,15 @@ import VideoCallModal from '../../../../(user)/components/videoCall/VideoCallMod
 import AddPrescriptionModal from './components/AddPrescriptionModal';
 import DigitalPrescriptionTemplate from './components/DigitalPrescriptionTemplate';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
-const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239ca3af'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+const SOCKET_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239ca3af'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
 
 const getCleanProfilePicUrl = (path) => {
     if (!path) return DEFAULT_AVATAR;
     if (path.startsWith("http://") || path.startsWith("https://")) return path;
     const cleanBaseUrl = SOCKET_URL?.endsWith('/') ? SOCKET_URL.slice(0, -1) : SOCKET_URL;
-    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    let cleanPath = path.replace(/^public\//, '');
+    cleanPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
     return `${cleanBaseUrl}${cleanPath}`;
 };
 
@@ -42,6 +46,12 @@ function Page() {
     const [submitting, setSubmitting] = useState(false);
     const [activeDoctorId, setActiveDoctorId] = useState(null);
     const [doctorProfile, setDoctorProfile] = useState(null); 
+
+    // Pagination States
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalRecords, setTotalRecords] = useState(0);
+    const limit = 10;
 
     const [activeCallId, setActiveCallId] = useState(null);
     const [callType, setCallType] = useState('video');
@@ -128,26 +138,35 @@ function Page() {
         socketRef.current.emit('join_room', { appointmentId: selectedAppointment.appointmentId });
     }, [isChatModalOpen, selectedAppointment]);
 
-    useEffect(() => {
-        fetchAppointments();
-    }, []);
-
-    const fetchAppointments = async () => {
+    const fetchAppointments = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
-            const response = await DoctorAPI.getVideoCallAppointments();
+            const response = await DoctorAPI.getVideoCallAppointments({
+                page: currentPage,
+                limit: limit
+            });
+
             if (response && response.success) {
                 setAppointments(response.data || []);
+                setTotalPages(response.totalPages || 1);
+                setTotalRecords(response.total || response.count || (response.data || []).length);
+            } else if (Array.isArray(response)) {
+                setAppointments(response);
             } else {
                 setError("Failed to retrieve valid appointment data.");
             }
         } catch (err) {
+            console.error("Error fetching video consultations:", err);
             setError("An error occurred while fetching appointments.");
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentPage, limit]);
+
+    useEffect(() => {
+        fetchAppointments();
+    }, [fetchAppointments]);
 
     const handleStartCall = async (e, appointment, type) => {
         if (e) e.stopPropagation();
@@ -179,7 +198,6 @@ function Page() {
         }
     };
 
-    // 1. Instantly Open Handshake Modal & Trigger OTP Dispatch in Background
     const handleInitiateCallEndHandshake = () => {
         if (!selectedAppointment) return;
         setIsCallEndOtpModalOpen(true);
@@ -190,8 +208,6 @@ function Page() {
     const sendOtpForCallEnd = async () => {
         try {
             const apptId = selectedAppointment._id || selectedAppointment.appointmentId;
-            console.log("Requesting termination OTP for Booking ID:", selectedAppointment.bookingId);
-            
             const res = await DoctorAPI.sendCompletionOtp(apptId);
             if (res && res.success) {
                 toast.success(res.message || "Termination OTP successfully sent to patient.");
@@ -209,13 +225,11 @@ function Page() {
         }
     };
 
-    // 2. Verify Handshake OTP to Complete Handoff & End Active Call
     const handleVerifyCallEndOtp = async () => {
         if (!callEndOtpCode.trim()) return toast.error("Please enter dynamic 4-digit OTP code");
         try {
             setCallEndOtpLoading(true);
             const apptId = selectedAppointment?._id || selectedAppointment?.appointmentId;
-            console.log(`Verifying Call End OTP [${callEndOtpCode.trim()}] for Appointment ID:`, apptId);
             
             const res = await DoctorAPI.verifyCompletionOtp(apptId, callEndOtpCode.trim());
             if (res && res.success) {
@@ -226,14 +240,12 @@ function Page() {
                 setCallEndOtpCode('');
                 setCallEndDevOtp('');
 
-                // Append handshake verification flags to active appointment state
                 setSelectedAppointment(prev => ({
                     ...prev,
                     isOtpVerified: true,
                     otpVerified: true
                 }));
 
-                // Update matching item in master appointments state list to unlock table row button
                 setAppointments(prevAppts => 
                     prevAppts.map(appt => 
                         appt.appointmentId === apptId
@@ -242,7 +254,6 @@ function Page() {
                     )
                 );
 
-                // Auto-launch Prescription Form Modal immediately
                 setIsPrescriptionModalOpen(true);
             } else {
                 toast.error(res?.message || "Invalid call-end handshake OTP.");
@@ -335,7 +346,6 @@ function Page() {
             adviceGiven: stagedPayload.adviceGiven || "",
             specialInstructions: stagedPayload.specialInstructions || "",
             nextAppointment: stagedPayload.nextAppointment || "",
-            // Preserve Vitals in the preview state payload
             vitals: {
                 bp: stagedPayload.bp || "",
                 pulse: stagedPayload.pulse || "",
@@ -378,7 +388,7 @@ function Page() {
         });
     };
 
-    if (loading) {
+    if (loading && appointments.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
                 <FaSpinner className="animate-spin text-[#08B36A] mb-4" size={30} />
@@ -394,7 +404,7 @@ function Page() {
             <div className="max-w-7xl mx-auto space-y-8">
                 <div>
                     <h1 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Video Consultations</h1>
-                    <p className="text-sm text-gray-500 font-medium">Manage and connect with your remote patients</p>
+                    <p className="text-sm text-gray-500 font-medium">Manage and connect with your remote patients via live video sessions</p>
                 </div>
 
                 {appointments.length === 0 ? (
@@ -411,12 +421,13 @@ function Page() {
                                         <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Consultation Reason</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Schedule</th>
                                         <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Payment & Status</th>
-                                        <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 text-center">Consultation Actions</th>
+                                        <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-center">Consultation Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {appointments.map((appt) => (
                                         <tr key={appt.appointmentId} className="hover:bg-gray-50/50 transition-colors group">
+                                            {/* Patient Details */}
                                             <td className="px-8 py-6">
                                                 <div className="flex items-center gap-4">
                                                     <img
@@ -426,23 +437,32 @@ function Page() {
                                                         onError={(e) => { e.target.src = DEFAULT_AVATAR; }}
                                                     />
                                                     <div>
-                                                        <p className="font-black text-gray-900 text-sm uppercase tracking-tight">{appt.patientName}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="font-black text-gray-900 text-sm uppercase tracking-tight">{appt.patientName}</p>
+                                                            {appt.subscriptionDetails?.isSubscriptionApplied && (
+                                                                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-black rounded-md uppercase border border-emerald-200 flex items-center gap-1">
+                                                                    <FaGem size={8} /> VIP
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <div className="flex items-center gap-2 mt-1">
-                                                            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-black uppercase">{appt.patientGender}</span>
-                                                            <span className="text-[10px] text-gray-400 font-bold">Age: {appt.patientAge}</span>
+                                                            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-black uppercase">{appt.patientGender || "N/A"}</span>
+                                                            <span className="text-[10px] text-gray-400 font-bold">Age: {appt.patientAge || "N/A"}</span>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </td>
 
+                                            {/* Reason for Visit */}
                                             <td className="px-8 py-6">
                                                 <div className="flex items-center gap-2 mb-1">
-                                                    <FaStethoscope className="text-blue-500" />
-                                                    <p className="text-sm font-black text-gray-700 truncate max-w-[200px]">{appt.reasonForVisit}</p>
+                                                    <FaStethoscope className="text-blue-500 shrink-0" />
+                                                    <p className="text-sm font-black text-gray-700 truncate max-w-[200px]">{appt.reasonForVisit || "General Consultation"}</p>
                                                 </div>
-                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">ID: {appt.bookingId}</p>
+                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">ID: #{appt.bookingId || appt.appointmentId?.slice(-6)}</p>
                                             </td>
 
+                                            {/* Schedule */}
                                             <td className="px-8 py-6">
                                                 <div className="flex items-center gap-2 text-gray-800 font-black text-sm">
                                                     <FaCalendarAlt className="text-gray-300" size={14} />
@@ -453,31 +473,47 @@ function Page() {
                                                 </div>
                                             </td>
 
+                                            {/* Payment & Status with COD Badge */}
                                             <td className="px-8 py-6">
-                                                <div className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest mb-1 ${appt.status === 'In-Progress' ? 'bg-green-50 text-[#08B36A]' : 'bg-yellow-50 text-yellow-600'}`}>
-                                                    {appt.status}
+                                                <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                                                    <span className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                        appt.status === 'Confirmed' ? 'bg-green-50 text-[#08B36A]' :
+                                                        appt.status === 'In-Progress' ? 'bg-blue-50 text-blue-600' : 'bg-yellow-50 text-yellow-600'
+                                                    }`}>
+                                                        {appt.status}
+                                                    </span>
+
+                                                    {appt.paymentMethod === 'COD' && (
+                                                        <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-amber-50 text-amber-700 border border-amber-200">
+                                                            COD
+                                                        </span>
+                                                    )}
                                                 </div>
+                                                
                                                 <div className="flex items-center gap-2">
                                                     <p className="text-sm font-black text-[#08B36A]">₹{appt.totalAmount}</p>
-                                                    <span className="text-[10px] text-gray-400 font-bold uppercase">(Paid)</span>
+                                                    <span className="text-[10px] text-gray-400 font-bold uppercase">
+                                                        ({appt.paymentMethod || "Online"} • {appt.paymentStatus || "Paid"})
+                                                    </span>
                                                 </div>
                                             </td>
 
+                                            {/* Actions */}
                                             <td className="px-8 py-6">
                                                 <div className="flex justify-center items-center gap-2">
                                                     {appt.isCallActionEnabled ? (
                                                         <>
-                                                            <button disabled={submitting} onClick={(e) => handleStartCall(e, appt, 'video')} className="p-3.5 rounded-2xl text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all active:scale-90 hover:scale-105">
+                                                            <button disabled={submitting} onClick={(e) => handleStartCall(e, appt, 'video')} className="p-3.5 rounded-2xl text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all active:scale-90 hover:scale-105" title="Start Video Call">
                                                                 <FaVideo size={16} />
                                                             </button>
-                                                            <button disabled={submitting} onClick={(e) => handleStartCall(e, appt, 'audio')} className="p-3.5 rounded-2xl text-green-600 bg-green-50 hover:bg-green-100 transition-all active:scale-90 hover:scale-105">
+                                                            <button disabled={submitting} onClick={(e) => handleStartCall(e, appt, 'audio')} className="p-3.5 rounded-2xl text-green-600 bg-green-50 hover:bg-green-100 transition-all active:scale-90 hover:scale-105" title="Start Audio Call">
                                                                 <FaPhoneAlt size={15} />
                                                             </button>
-                                                            <button disabled={submitting} onClick={(e) => handleOpenChat(e, appt)} className="p-3.5 rounded-2xl text-purple-600 bg-purple-50 hover:bg-purple-100 transition-all active:scale-90 hover:scale-105">
+                                                            <button disabled={submitting} onClick={(e) => handleOpenChat(e, appt)} className="p-3.5 rounded-2xl text-purple-600 bg-purple-50 hover:bg-purple-100 transition-all active:scale-90 hover:scale-105" title="Open Chat">
                                                                 <FaComment size={15} />
                                                             </button>
                                                             
-                                                            {/* Prescription Button: Strictly visible only if call-completion OTP has been successfully verified */}
+                                                            {/* Prescription Button unlocked when call-completion OTP verified */}
                                                             {appt.status === "In-Progress" && (appt.isOtpVerified || appt.otpVerified) && (
                                                                 <button
                                                                     disabled={submitting}
@@ -502,6 +538,32 @@ function Page() {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-between px-8 py-5 bg-gray-50/50 border-t border-gray-100">
+                                <p className="text-xs text-gray-400 font-bold">
+                                    Page <span className="font-black text-gray-800">{currentPage}</span> of{' '}
+                                    <span className="font-black text-gray-800">{totalPages}</span> ({totalRecords} total sessions)
+                                </p>
+                                <div className="flex gap-2">
+                                    <button
+                                        disabled={currentPage === 1}
+                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                        className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                                    >
+                                        <FaChevronLeft size={9} /> Previous
+                                    </button>
+                                    <button
+                                        disabled={currentPage === totalPages}
+                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                        className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                                    >
+                                        Next <FaChevronRight size={9} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -520,12 +582,11 @@ function Page() {
                                 />
                                 <div>
                                     <h2 className="text-base font-black text-gray-900 tracking-tight uppercase">{selectedAppointment.patientName}</h2>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Booking ID: {selectedAppointment.bookingId}</p>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Booking ID: #{selectedAppointment.bookingId}</p>
                                 </div>
                             </div>
                             
                             <div className="flex items-center gap-2">
-                                {/* End Chat Button triggering the call end OTP Handshake */}
                                 <button 
                                     onClick={() => {
                                         setIsChatModalOpen(false);
@@ -664,9 +725,7 @@ function Page() {
                         onClose={handleInitiateCallEndHandshake}
                     />
                     
-                    {/* Floating Controls Overlay over the Call Interface */}
                     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[210] flex gap-4 bg-slate-900/90 px-6 py-3.5 rounded-full shadow-2xl border border-slate-700/50 backdrop-blur-md">
-                        {/* Open Live Chat Button */}
                         <button 
                             onClick={(e) => handleOpenChat(e, selectedAppointment)}
                             className="flex items-center justify-center w-12 h-12 bg-purple-600 hover:bg-purple-700 text-white rounded-full transition-all active:scale-90 hover:scale-105 shadow-lg"
@@ -675,7 +734,6 @@ function Page() {
                             <FaComment size={18} />
                         </button>
                         
-                        {/* Switch Call Type / Redial Button */}
                         <button 
                             onClick={(e) => handleStartCall(e, selectedAppointment, callType === 'video' ? 'audio' : 'video')}
                             className="flex items-center justify-center w-12 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-all active:scale-90 hover:scale-105 shadow-lg"
@@ -684,7 +742,6 @@ function Page() {
                             {callType === 'video' ? <FaPhoneAlt size={16} /> : <FaVideo size={16} />}
                         </button>
 
-                        {/* End Call Button Overlaid */}
                         <button 
                             onClick={handleInitiateCallEndHandshake}
                             className="flex items-center justify-center w-12 h-12 bg-red-600 hover:bg-red-700 text-white rounded-full transition-all active:scale-90 hover:scale-105 shadow-lg"

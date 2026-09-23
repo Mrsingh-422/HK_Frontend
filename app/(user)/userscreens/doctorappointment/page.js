@@ -8,7 +8,7 @@ import {
     Stethoscope, Filter, Receipt, ArrowUpRight,
     ShieldCheck, AlertCircle, Activity, Info, X,
     Trash2, RotateCcw, Wallet, UserCheck, Star,
-    Crown
+    Crown, Gem, FileText
 } from "lucide-react";
 import UserAPI from "@/app/services/UserAPI";
 import { Toaster, toast } from 'react-hot-toast';
@@ -27,18 +27,6 @@ const parseSlotTime = (timeStr) => {
   if (isPM && hour < 12) hour += 12;
   if (isAM && hour === 12) hour = 0;
   return { hour, minute };
-};
-
-const getUtcDate = (dateStr) => {
-  if (!dateStr) return 0;
-  const d = new Date(dateStr);
-  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
-};
-
-const formatDateString = (y, m, d) => {
-  const mm = String(m + 1).padStart(2, '0');
-  const dd = String(d).padStart(2, '0');
-  return `${y}-${mm}-${dd}`;
 };
 
 // --- SUB-COMPONENT: SPECIALIST REVIEW MODAL ---
@@ -228,7 +216,7 @@ export default function MedicalHistoryPage() {
     const [filter, setFilter] = useState("All"); 
 
     // Logic States
-    const [maxRescheduleLimit, setMaxRescheduleLimit] = useState(3);
+    const [maxRescheduleLimit, setMaxRescheduleLimit] = useState(2);
     const [selectedRecord, setSelectedRecord] = useState(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     
@@ -253,11 +241,11 @@ export default function MedicalHistoryPage() {
             setLoading(true);
             const response = await UserAPI.getMyDoctorAppointments();
             if (response.success) {
-                const sorted = response.data.sort((a, b) => 
+                const sorted = (response.data || []).sort((a, b) => 
                     new Date(b.createdAt) - new Date(a.createdAt)
                 );
                 setData(sorted);
-                if(response.maxRescheduleLimit) {
+                if (response.maxRescheduleLimit !== undefined) {
                     setMaxRescheduleLimit(response.maxRescheduleLimit);
                 }
             }
@@ -347,11 +335,16 @@ export default function MedicalHistoryPage() {
 
     const filteredData = useMemo(() => {
         return data.filter(item => {
-            const matchesFilter = filter === "All" || item.bookingType === filter;
+            const matchesFilter = 
+                filter === "All" || 
+                item.bookingType === filter || 
+                item.status === filter;
+
             const matchesSearch = 
-                item.bookingId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                item.bookingId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (item.doctorId?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-                item.patients[0]?.patientName.toLowerCase().includes(searchQuery.toLowerCase());
+                (item.patients?.[0]?.patientName || "").toLowerCase().includes(searchQuery.toLowerCase());
+            
             return matchesFilter && matchesSearch;
         });
     }, [data, filter, searchQuery]);
@@ -427,7 +420,7 @@ export default function MedicalHistoryPage() {
         <div className="min-h-screen bg-slate-50 pb-20 font-sans antialiased text-slate-800">
             <Toaster position="top-center" />
             
-            {/* --- STICKY PREMIUM HEADER --- */}
+            {/* --- STICKY HEADER --- */}
             <div className="sticky top-0 z-40 bg-white/75 backdrop-blur-md border-b border-slate-100 transition-all">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -442,7 +435,7 @@ export default function MedicalHistoryPage() {
                         </div>
 
                         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0 bg-slate-100 p-1.5 rounded-2xl border border-slate-200/40">
-                            {["All", "Appointment", "Admission"].map((tab) => (
+                            {["All", "Confirmed", "Completed", "Cancelled"].map((tab) => (
                                 <button
                                     key={tab}
                                     onClick={() => setFilter(tab)}
@@ -452,7 +445,7 @@ export default function MedicalHistoryPage() {
                                         : "text-slate-500 hover:text-slate-800 hover:bg-white/40"
                                     }`}
                                 >
-                                    {tab}s
+                                    {tab}
                                 </button>
                             ))}
                         </div>
@@ -503,7 +496,9 @@ export default function MedicalHistoryPage() {
                                     {selectedRecord.bookingType} Details
                                     <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-lg border border-white/10">{selectedRecord.bookingId}</span>
                                 </h2>
-                                <p className="text-slate-400 text-[10px] font-bold tracking-widest uppercase mt-1">Booked on: {new Date(selectedRecord.createdAt).toLocaleDateString()}</p>
+                                <p className="text-slate-400 text-[10px] font-bold tracking-widest uppercase mt-1">
+                                    Booked on: {new Date(selectedRecord.createdAt).toLocaleDateString()}
+                                </p>
                             </div>
                             <button onClick={() => { setIsDetailModalOpen(false); setIsRescheduling(false); setRescheduleData({ date: "", timeSlot: "" }); }} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X size={20} /></button>
                         </div>
@@ -512,6 +507,19 @@ export default function MedicalHistoryPage() {
                         <div className="p-8 overflow-y-auto space-y-8 no-scrollbar">
                             {!isRescheduling ? (
                                 <>
+                                    {/* VIP / Subscription Badge */}
+                                    {selectedRecord.subscriptionDetails?.isSubscriptionApplied && (
+                                        <div className="flex items-center gap-2.5 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                                            <Gem className="text-emerald-600 shrink-0" size={16} />
+                                            <div>
+                                                <span className="text-xs font-black text-emerald-800 uppercase tracking-wide">
+                                                    {selectedRecord.subscriptionDetails.planName || "VIP Member"}
+                                                </span>
+                                                <p className="text-[11px] font-semibold text-emerald-600">Base consultation fee waived with active plan</p>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Patient Info */}
                                     <section>
                                         <div className="flex items-center gap-2 mb-4 text-emerald-600">
@@ -520,17 +528,26 @@ export default function MedicalHistoryPage() {
                                         </div>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                             {[
-                                                { label: "Name", value: selectedRecord.patients[0]?.patientName },
-                                                { label: "Age", value: `${selectedRecord.patients[0]?.patientAge} Yrs` },
-                                                { label: "Gender", value: selectedRecord.patients[0]?.gender },
-                                                { label: "Relation", value: selectedRecord.patients[0]?.relation },
+                                                { label: "Name", value: selectedRecord.patients?.[0]?.patientName },
+                                                { label: "Age", value: `${selectedRecord.patients?.[0]?.patientAge} Yrs` },
+                                                { label: "Gender", value: selectedRecord.patients?.[0]?.gender },
+                                                { label: "Relation", value: selectedRecord.patients?.[0]?.relation },
                                             ].map((item, i) => (
                                                 <div key={i} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                                                     <p className="text-[9px] font-black text-slate-400 uppercase mb-1">{item.label}</p>
-                                                    <p className="text-xs font-bold text-slate-800">{item.value}</p>
+                                                    <p className="text-xs font-bold text-slate-800">{item.value || "N/A"}</p>
                                                 </div>
                                             ))}
                                         </div>
+                                        {selectedRecord.patients?.[0]?.reasonForVisit && (
+                                            <div className="mt-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-start gap-2.5">
+                                                <FileText size={14} className="text-slate-400 mt-0.5 shrink-0" />
+                                                <div>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase">Reason for Consultation</p>
+                                                    <p className="text-xs font-semibold text-slate-700 mt-0.5">{selectedRecord.patients[0].reasonForVisit}</p>
+                                                </div>
+                                            </div>
+                                        )}
                                     </section>
 
                                     {/* Appointment Timing & Specialist */}
@@ -538,24 +555,55 @@ export default function MedicalHistoryPage() {
                                         <div className="space-y-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm"><Calendar size={18}/></div>
-                                                <div><p className="text-[9px] uppercase font-black text-slate-400">Scheduled Date</p><p className="font-bold text-sm text-slate-800">{new Date(selectedRecord.appointmentDate).toLocaleDateString()}</p></div>
+                                                <div>
+                                                    <p className="text-[9px] uppercase font-black text-slate-400">Scheduled Date</p>
+                                                    <p className="font-bold text-sm text-slate-800">{new Date(selectedRecord.appointmentDate).toLocaleDateString()}</p>
+                                                </div>
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-600 shadow-sm"><Clock size={18}/></div>
-                                                <div><p className="text-[9px] uppercase font-black text-slate-400">Time / Slot</p><p className="font-bold text-sm text-slate-800">{selectedRecord.appointmentTime}</p></div>
+                                                <div>
+                                                    <p className="text-[9px] uppercase font-black text-slate-400">Time / Slot</p>
+                                                    <p className="font-bold text-sm text-slate-800">{selectedRecord.appointmentTime}</p>
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="space-y-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-purple-600 shadow-sm"><Activity size={18}/></div>
-                                                <div><p className="text-[9px] uppercase font-black text-slate-400">Specialist</p><p className="font-bold text-sm text-slate-800">{selectedRecord.doctorId?.name}</p></div>
+                                                <div>
+                                                    <p className="text-[9px] uppercase font-black text-slate-400">Specialist</p>
+                                                    <p className="font-bold text-sm text-slate-800">{selectedRecord.doctorId?.name}</p>
+                                                </div>
                                             </div>
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-amber-600 shadow-sm"><ConsultationIcon type={selectedRecord.consultationType} /></div>
-                                                <div><p className="text-[9px] uppercase font-black text-slate-400">Consultation</p><p className="font-bold text-sm text-slate-800">{selectedRecord.consultationType}</p></div>
+                                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-amber-600 shadow-sm">
+                                                    <ConsultationIcon type={selectedRecord.consultationType} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] uppercase font-black text-slate-400">Consultation Mode</p>
+                                                    <p className="font-bold text-sm text-slate-800">{selectedRecord.consultationType}</p>
+                                                </div>
                                             </div>
                                         </div>
                                     </section>
+
+                                    {/* Home Visit Address Details */}
+                                    {selectedRecord.address && (
+                                        <section className="bg-slate-50 p-6 rounded-[24px] border border-slate-100 flex items-start gap-3.5">
+                                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm shrink-0">
+                                                <MapPin size={18}/>
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-[9px] uppercase font-black text-slate-400">Visit Address ({selectedRecord.address.addressType || "Home"})</p>
+                                                </div>
+                                                <p className="text-xs font-bold text-slate-800 mt-1">
+                                                    {selectedRecord.address.houseNo}, {selectedRecord.address.sector}, {selectedRecord.address.city}, {selectedRecord.address.state} - {selectedRecord.address.pincode}
+                                                </p>
+                                            </div>
+                                        </section>
+                                    )}
 
                                     {/* Rating & Review Summary (Loaded Dynamically inside Details Modal) */}
                                     {selectedRecord.status === "Completed" && (
@@ -583,7 +631,7 @@ export default function MedicalHistoryPage() {
                                                         </div>
                                                     </div>
                                                     <p className="text-xs font-bold text-gray-700 italic">"{activeDetailReview.comment}"</p>
-                                                    <p className="text-[8px] font-bold text-gray-400 uppercase font-bold">
+                                                    <p className="text-[8px] font-bold text-gray-400 uppercase">
                                                         Date: {new Date(activeDetailReview.updatedAt || activeDetailReview.createdAt).toLocaleDateString()}
                                                     </p>
                                                 </div>
@@ -606,19 +654,19 @@ export default function MedicalHistoryPage() {
 
                                     {/* Action buttons (Cancellation & Rescheduling) */}
                                     {selectedRecord.status !== "Cancelled" && (
-                                        <div className="flex flex-col bg-green-50/50 p-6 rounded-3xl border border-green-100 gap-6">
+                                        <div className="flex flex-col bg-emerald-50/40 p-6 rounded-3xl border border-emerald-100/70 gap-6">
                                             <div className="flex justify-between items-center">
                                                 <div className="flex items-center gap-4">
                                                     <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-[#08b36a] shadow-sm"><Building2 size={24} /></div>
                                                     <div>
-                                                        <p className="text-[10px] font-black text-[#08b36a] uppercase">Booking Type</p>
-                                                        <p className="font-bold text-gray-800">{selectedRecord.bookingType}</p>
+                                                        <p className="text-[10px] font-black text-[#08b36a] uppercase">Booking Status</p>
+                                                        <p className="font-bold text-gray-800">{selectedRecord.status}</p>
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
-                                                    <p className="text-[9px] font-black text-gray-400 uppercase">Reschedule Status</p>
-                                                    <p className={`text-xs font-bold ${selectedRecord.rescheduleCount >= maxRescheduleLimit ? 'text-red-500' : 'text-gray-700'}`}>
-                                                        {selectedRecord.rescheduleCount} / {maxRescheduleLimit} Used
+                                                    <p className="text-[9px] font-black text-gray-400 uppercase">Reschedules Left</p>
+                                                    <p className={`text-xs font-bold ${(selectedRecord.remainingReschedules ?? (maxRescheduleLimit - selectedRecord.rescheduleCount)) <= 0 ? 'text-red-500' : 'text-gray-700'}`}>
+                                                        {selectedRecord.remainingReschedules !== undefined ? `${selectedRecord.remainingReschedules} Left` : `${selectedRecord.rescheduleCount} / ${maxRescheduleLimit} Used`}
                                                     </p>
                                                 </div>
                                             </div>
@@ -626,7 +674,7 @@ export default function MedicalHistoryPage() {
                                             <div className="flex gap-2">
                                                 {/* Cancellation Button Logic */}
                                                 {selectedRecord.status !== "Completed" && (
-                                                    selectedRecord.cancellationCount < 1 ? (
+                                                    (selectedRecord.remainingCancellations !== undefined ? selectedRecord.remainingCancellations > 0 : selectedRecord.cancellationCount < 1) ? (
                                                         <button 
                                                             onClick={() => setIsCancelModalOpen(true)}
                                                             className="flex-1 bg-rose-50 text-rose-600 border border-rose-100 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all flex items-center justify-center gap-2"
@@ -641,7 +689,7 @@ export default function MedicalHistoryPage() {
                                                 )}
 
                                                 {/* Reschedule Button Logic */}
-                                                {selectedRecord.rescheduleCount < maxRescheduleLimit ? (
+                                                {(selectedRecord.remainingReschedules !== undefined ? selectedRecord.remainingReschedules > 0 : selectedRecord.rescheduleCount < maxRescheduleLimit) ? (
                                                     <button 
                                                         className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
                                                         onClick={() => {
@@ -667,7 +715,7 @@ export default function MedicalHistoryPage() {
                                             <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest">Select New Schedule</h4>
                                         </div>
                                         <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">
-                                            Reschedule count: {selectedRecord.rescheduleCount} / {maxRescheduleLimit}
+                                            {selectedRecord.remainingReschedules !== undefined ? `${selectedRecord.remainingReschedules} Reschedules Remaining` : `Reschedule count: ${selectedRecord.rescheduleCount} / ${maxRescheduleLimit}`}
                                         </span>
                                     </div>
 
@@ -753,29 +801,48 @@ export default function MedicalHistoryPage() {
                                 </section>
                             )}
 
+                            {/* Billing Breakdown */}
                             <section>
-                                <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><Wallet size={18} className="text-[#08b36a]" /><h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Billing Summary</h4></div></div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <Wallet size={18} className="text-[#08b36a]" />
+                                        <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Billing Summary</h4>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Payment: {selectedRecord.paymentMethod || "Online"} ({selectedRecord.paymentStatus || "Paid"})</span>
+                                </div>
                                 <div className="border border-slate-100 rounded-3xl overflow-hidden bg-slate-50/30">
                                     <table className="w-full text-left">
                                         <tbody className="divide-y divide-slate-100">
-                                            <tr className="text-xs"><td className="px-6 py-4 font-semibold text-slate-500">Base Consultation Fee</td><td className="px-6 py-4 font-bold text-slate-800 text-right">₹{selectedRecord.pricingBreakdown?.baseFee}</td></tr>
-                                            {selectedRecord.pricingBreakdown?.discountAmount > 0 && (
-                                                <tr className="text-xs"><td className="px-6 py-4 font-semibold text-rose-500">Discount Applied</td><td className="px-6 py-4 font-bold text-rose-500 text-right">-₹{selectedRecord.pricingBreakdown.discountAmount}</td></tr>
+                                            <tr className="text-xs">
+                                                <td className="px-6 py-3.5 font-semibold text-slate-500">Base Consultation Fee</td>
+                                                <td className="px-6 py-3.5 font-bold text-slate-800 text-right">₹{selectedRecord.pricingBreakdown?.baseFee ?? selectedRecord.totalAmount}</td>
+                                            </tr>
+                                            {selectedRecord.pricingBreakdown?.visitCharges > 0 && (
+                                                <tr className="text-xs">
+                                                    <td className="px-6 py-3.5 font-semibold text-slate-500">Home Visit Charge</td>
+                                                    <td className="px-6 py-3.5 font-bold text-slate-800 text-right">+₹{selectedRecord.pricingBreakdown.visitCharges}</td>
+                                                </tr>
                                             )}
-                                            <tr className="bg-slate-900 text-white"><td className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Total Amount Paid</td><td className="px-6 py-4 font-black text-right">₹{selectedRecord.totalAmount}</td></tr>
+                                            {selectedRecord.pricingBreakdown?.extraCharges > 0 && (
+                                                <tr className="text-xs">
+                                                    <td className="px-6 py-3.5 font-semibold text-amber-600">Premium Slot Fee</td>
+                                                    <td className="px-6 py-3.5 font-bold text-amber-600 text-right">+₹{selectedRecord.pricingBreakdown.extraCharges}</td>
+                                                </tr>
+                                            )}
+                                            {selectedRecord.pricingBreakdown?.discountAmount > 0 && (
+                                                <tr className="text-xs">
+                                                    <td className="px-6 py-3.5 font-semibold text-emerald-600">Discount Applied</td>
+                                                    <td className="px-6 py-3.5 font-bold text-emerald-600 text-right">-₹{selectedRecord.pricingBreakdown.discountAmount}</td>
+                                                </tr>
+                                            )}
+                                            <tr className="bg-slate-900 text-white">
+                                                <td className="px-6 py-4 text-[10px] font-black uppercase tracking-widest">Total Amount Payable</td>
+                                                <td className="px-6 py-4 font-black text-right">₹{selectedRecord.totalAmount}</td>
+                                            </tr>
                                         </tbody>
                                     </table>
                                 </div>
                             </section>
-
-                            {selectedRecord.specialServices?.length > 0 && (
-                                <section>
-                                    <div className="flex items-center gap-2 mb-4"><Stethoscope size={18} className="text-[#08b36a]" /><h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Special Services</h4></div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {selectedRecord.specialServices.map((svc) => (<span key={svc._id} className="bg-gray-100 px-4 py-2 rounded-xl text-[10px] font-black text-gray-600 uppercase">{svc.serviceName} (+₹{svc.price})</span>))}
-                                    </div>
-                                </section>
-                            )}
                         </div>
 
                         {/* Modal Footer actions */}
@@ -861,6 +928,11 @@ export default function MedicalHistoryPage() {
 function RecordCard({ record, onOpenDetails, onOpenReview }) {
     const isAdmission = record.bookingType === "Admission";
     const primaryPatient = record.patients?.[0];
+    const profileImgUrl = record.doctorId?.profileImage ? (
+        record.doctorId.profileImage.startsWith('http') 
+            ? record.doctorId.profileImage 
+            : `${process.env.NEXT_PUBLIC_BACKEND_URL || ''}/${record.doctorId.profileImage.replace(/^public\//, '')}`
+    ) : null;
     
     return (
         <div className="bg-white rounded-3xl border border-slate-200/70 overflow-hidden hover:shadow-[0_24px_48px_-12px_rgba(148,163,184,0.12)] transition-all duration-500 group flex flex-col justify-between">
@@ -881,11 +953,12 @@ function RecordCard({ record, onOpenDetails, onOpenReview }) {
                     <div className="flex items-start gap-4 mb-6">
                         <div className="relative shrink-0">
                             <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-slate-50 overflow-hidden border border-slate-100 shadow-inner group-hover:scale-[1.03] transition-transform duration-500">
-                                {record.doctorId?.profileImage ? (
+                                {profileImgUrl ? (
                                     <img 
-                                        src={`${process.env.NEXT_PUBLIC_BACKEND_URL}/${record.doctorId.profileImage.replace('public/', '')}`} 
+                                        src={profileImgUrl} 
                                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
                                         alt=""
+                                        onError={(e) => { e.target.style.display = 'none'; }}
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-slate-300 bg-slate-100/60">
@@ -911,6 +984,11 @@ function RecordCard({ record, onOpenDetails, onOpenReview }) {
                                 <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-slate-200/30">
                                     {isAdmission ? (record.wardName || "General Ward") : record.consultationType}
                                 </span>
+                                {record.subscriptionDetails?.isSubscriptionApplied && (
+                                    <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-wider border border-emerald-100 flex items-center gap-1">
+                                        <Gem size={10} /> VIP Free
+                                    </span>
+                                )}
                                 {record.rescheduleCount > 0 && (
                                     <span className="px-2.5 py-1 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-amber-100">
                                         Rescheduled {record.rescheduleCount}x
@@ -995,7 +1073,7 @@ function StatusBadge({ status }) {
     };
     return (
         <span className={`px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 before:content-[''] before:w-1 before:h-1 before:rounded-full ${styles[status] || "bg-slate-50 text-slate-600 border-slate-200 before:bg-slate-400"}`}>
-            {status.replace('-', ' ')}
+            {status?.replace('-', ' ')}
         </span>
     );
 }

@@ -1,12 +1,12 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
     User, MapPin, Phone, Calendar, 
     ClipboardList, Pill, CreditCard, X, 
     Loader2, ChevronRight, Info, Search,
     Activity, ShieldCheck, DollarSign,
     Users, Award, BarChart3, Video, HeartPulse,
-    Clock, PhoneCall, FileText
+    Clock, PhoneCall, FileText, ChevronLeft
 } from 'lucide-react';
 import DoctorAPI from '@/app/services/DoctorAPI';
 import { toast, Toaster } from 'react-hot-toast';
@@ -17,7 +17,7 @@ const PatientHistoryPage = () => {
     // Tab States: 'Medical History' or 'Call Logs'
     const [activeTab, setActiveTab] = useState('Medical History');
 
-    // Medical History States
+    // Medical History States & Pagination
     const [historyList, setHistoryList] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedDetail, setSelectedDetail] = useState(null);
@@ -25,29 +25,38 @@ const PatientHistoryPage = () => {
     const [detailLoading, setDetailLoading] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalHistoryCount, setTotalHistoryCount] = useState(0);
+    const limit = 10;
+
     // Call History Logs States
     const [callHistory, setCallHistory] = useState([]);
     const [callLoading, setCallLoading] = useState(false);
     const [callSearchQuery, setCallSearchQuery] = useState('');
 
-    useEffect(() => {
-        fetchHistory();
-        fetchCallLogs();
-    }, []);
-
-    const fetchHistory = async () => {
+    const fetchHistory = useCallback(async () => {
         try {
             setLoading(true);
-            const res = await DoctorAPI.getPatientHistory();
+            const res = await DoctorAPI.getPatientHistory({
+                page: currentPage,
+                limit: limit
+            });
             if (res && res.success) {
                 setHistoryList(res.data || []);
+                setTotalPages(res.totalPages || 1);
+                setTotalHistoryCount(res.total || res.count || (res.data || []).length);
+            } else if (Array.isArray(res)) {
+                setHistoryList(res);
             }
         } catch (error) {
             console.error("Error fetching patient history:", error);
+            toast.error("Failed to load patient history");
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentPage, limit]);
 
     const fetchCallLogs = async () => {
         try {
@@ -62,6 +71,14 @@ const PatientHistoryPage = () => {
             setCallLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchHistory();
+    }, [fetchHistory]);
+
+    useEffect(() => {
+        fetchCallLogs();
+    }, []);
 
     const fetchDetails = async (id) => {
         try {
@@ -79,27 +96,25 @@ const PatientHistoryPage = () => {
         }
     };
 
-    // Client-side quick filter for Medical History
+    // Client-side search filters
     const filteredHistoryList = historyList.filter(item => 
         item.patientName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.bookingId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.appointmentId?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    // Client-side quick filter for Call Logs
     const filteredCallHistory = callHistory.filter(item =>
         item.patientName?.toLowerCase().includes(callSearchQuery.toLowerCase()) ||
         item.patientPhone?.toLowerCase().includes(callSearchQuery.toLowerCase()) ||
         item.callId?.toLowerCase().includes(callSearchQuery.toLowerCase())
     );
 
-    // Dynamic Initial pendant colors for avatars
     const getAvatarInitials = (name) => {
         if (!name) return "P";
         const parts = name.split(' ');
         return parts.map(p => p[0]).join('').substring(0, 2).toUpperCase();
     };
 
-    // Defensive address cleaner
     const formatAddress = (addr) => {
         if (!addr) return "Not Provided";
         const cleaned = addr.replace(/undefined/g, '').replace(/,\s*,/g, ',').trim();
@@ -110,7 +125,6 @@ const PatientHistoryPage = () => {
         return baseStripped;
     };
 
-    // Helper to format Call duration into readable layout
     const formatCallDuration = (seconds) => {
         if (!seconds || seconds <= 0) return "0 sec";
         const minutes = Math.floor(seconds / 60);
@@ -119,23 +133,41 @@ const PatientHistoryPage = () => {
         return `${minutes} min ${remainingSeconds} sec`;
     };
 
-    // Safely append vital units if not already typed by doctor
     const formatVitalUnit = (val, unit) => {
         if (!val || val === "0" || val === "—") return "—";
         if (typeof val === 'string' && val.toLowerCase().includes(unit.toLowerCase())) return val;
         return `${val} ${unit}`;
     };
 
-    // Concat host domain securely to prevent routing loops
+    const getFullImageUrl = (path) => {
+        if (!path) return null;
+        if (path.startsWith("http://") || path.startsWith("https://")) return path;
+        const cleanBaseUrl = BACKEND_URL.endsWith('/') ? BACKEND_URL.slice(0, -1) : BACKEND_URL;
+        let cleanPath = path.replace(/^public\//, '');
+        cleanPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+        return `${cleanBaseUrl}${cleanPath}`;
+    };
+
     const getFullPdfUrl = (path) => {
         if (!path) return "#";
         if (path.startsWith("http://") || path.startsWith("https://")) return path;
         const cleanBaseUrl = BACKEND_URL.endsWith('/') ? BACKEND_URL.slice(0, -1) : BACKEND_URL;
-        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+        let cleanPath = path.replace(/^public\//, '');
+        cleanPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
         return `${cleanBaseUrl}${cleanPath}`;
     };
 
-    if (loading) {
+    const formatDate = (dateStr) => {
+        if (!dateStr) return "—";
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+        });
+    };
+
+    if (loading && historyList.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[70vh] bg-[#f8fafc]/50">
                 <div className="relative">
@@ -160,7 +192,7 @@ const PatientHistoryPage = () => {
                     <p className="text-sm text-slate-500 font-semibold mt-1">Access past consultations, written medical summary folders, and clinic invoices.</p>
                 </div>
 
-                {/* Left Aligned search bar with explicit Search Button */}
+                {/* Search Bar */}
                 <div className="flex gap-2 w-full lg:max-w-md shrink-0">
                     <div className="relative flex-1">
                         <Search className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
@@ -192,14 +224,6 @@ const PatientHistoryPage = () => {
                             </button>
                         )}
                     </div>
-                    <button 
-                        onClick={() => {
-                            toast.success("Filter lookup successfully completed.");
-                        }}
-                        className="px-6 bg-[#08B36A] hover:bg-green-600 text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-sm shadow-slate-100 flex items-center justify-center gap-1.5 shrink-0"
-                    >
-                        <Search className="w-3.5 h-3.5" /> Search
-                    </button>
                 </div>
             </div>
 
@@ -210,8 +234,8 @@ const PatientHistoryPage = () => {
                         <Users className="w-5 h-5" />
                     </div>
                     <div>
-                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Treated Base</span>
-                        <p className="text-xl font-black text-slate-900 mt-0.5">{historyList.length} Case File{historyList.length !== 1 ? 's' : ''}</p>
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Total Consultations</span>
+                        <p className="text-xl font-black text-slate-900 mt-0.5">{totalHistoryCount || historyList.length} Record{totalHistoryCount !== 1 ? 's' : ''}</p>
                     </div>
                 </div>
                 <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm flex items-center gap-4">
@@ -228,8 +252,8 @@ const PatientHistoryPage = () => {
                         <Award className="w-5 h-5" />
                     </div>
                     <div>
-                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Active duty</span>
-                        <p className="text-xl font-black text-slate-900 mt-0.5 font-sans">On Duty Verification</p>
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Active Status</span>
+                        <p className="text-xl font-black text-slate-900 mt-0.5">Verified Doctor</p>
                     </div>
                 </div>
             </div>
@@ -253,110 +277,143 @@ const PatientHistoryPage = () => {
 
             {/* MEDICAL HISTORY VIEW */}
             {activeTab === 'Medical History' && (
-                historyList.length > 0 ? (
-                    <div className="bg-white border border-slate-100 rounded-[2rem] shadow-sm overflow-hidden animate-in fade-in duration-200">
+                filteredHistoryList.length > 0 ? (
+                    <div className="bg-white border border-slate-100 rounded-[2rem] shadow-sm overflow-hidden flex flex-col animate-in fade-in duration-200">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50/70 border-b border-slate-100">
                                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Patient Details</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Case Identifiers</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Consultation Format</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Registered Coordinates</th>
+                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Booking / ID</th>
+                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Consultation Schedule</th>
+                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Location</th>
+                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Payment</th>
                                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400 text-center">Clinical Folder</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {filteredHistoryList.map((item) => (
-                                        <tr 
-                                            key={item.appointmentId}
-                                            className="hover:bg-slate-50/50 transition-all cursor-pointer group border-l-4 border-l-transparent hover:border-l-[#08B36A]"
-                                            onClick={() => fetchDetails(item.appointmentId)}
-                                        >
-                                            {/* Column 1: Patient Details */}
-                                            <td className="px-8 py-6">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="h-12 w-12 rounded-2xl overflow-hidden shrink-0 border border-slate-100 shadow-sm flex items-center justify-center bg-gradient-to-br from-green-50 to-green-100 text-[#08B36A] font-black text-xs uppercase tracking-tight group-hover:scale-105 transition-all">
-                                                        {item.profileImage ? (
-                                                            <img src={item.profileImage} alt={item.patientName} className="h-full w-full object-cover" />
-                                                        ) : (
-                                                            getAvatarInitials(item.patientName)
+                                    {filteredHistoryList.map((item) => {
+                                        const avatarUrl = getFullImageUrl(item.profileImage);
+                                        return (
+                                            <tr 
+                                                key={item.appointmentId || item._id}
+                                                className="hover:bg-slate-50/50 transition-all cursor-pointer group border-l-4 border-l-transparent hover:border-l-[#08B36A]"
+                                                onClick={() => fetchDetails(item.appointmentId || item._id)}
+                                            >
+                                                {/* Column 1: Patient Details */}
+                                                <td className="px-8 py-6">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="h-12 w-12 rounded-2xl overflow-hidden shrink-0 border border-slate-100 shadow-sm flex items-center justify-center bg-gradient-to-br from-green-50 to-green-100 text-[#08B36A] font-black text-xs uppercase tracking-tight group-hover:scale-105 transition-all">
+                                                            {avatarUrl ? (
+                                                                <img src={avatarUrl} alt={item.patientName} className="h-full w-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+                                                            ) : (
+                                                                getAvatarInitials(item.patientName)
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-black text-sm text-slate-900 uppercase group-hover:text-[#08B36A] transition-colors leading-tight">
+                                                                {item.patientName}
+                                                            </div>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <span className="text-[10px] text-slate-400 font-bold uppercase">
+                                                                    {item.consultationType || "General Care"}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                {/* Column 2: Booking Identifiers */}
+                                                <td className="px-8 py-6">
+                                                    <div className="space-y-1">
+                                                        <p className="text-xs font-black text-slate-800 uppercase tracking-tight">#{item.bookingId || item.appointmentId?.slice(-6) || "N/A"}</p>
+                                                        <p className="text-[10px] text-slate-400 font-mono font-bold">{item.appointmentId}</p>
+                                                    </div>
+                                                </td>
+
+                                                {/* Column 3: Consultation Schedule */}
+                                                <td className="px-8 py-6">
+                                                    <div className="space-y-1">
+                                                        <div className="flex items-center gap-1.5 text-xs font-black text-slate-800">
+                                                            <Calendar size={12} className="text-slate-400" />
+                                                            {formatDate(item.appointmentDate)}
+                                                        </div>
+                                                        {item.appointmentTime && (
+                                                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
+                                                                <Clock size={10} /> {item.appointmentTime}
+                                                            </div>
                                                         )}
                                                     </div>
-                                                    <div>
-                                                        <div className="font-black text-sm text-slate-900 uppercase group-hover:text-[#08B36A] transition-colors leading-tight">
-                                                            {item.patientName}
+                                                </td>
+                                                
+                                                {/* Column 4: Location */}
+                                                <td className="px-8 py-6">
+                                                    <div className="flex items-center text-xs font-bold text-slate-600 max-w-xs">
+                                                        <div className="p-2 bg-slate-50 rounded-xl mr-3 border border-slate-100 shrink-0 group-hover:bg-green-50 group-hover:border-green-100 transition-colors">
+                                                            <MapPin size={13} className="text-slate-400 group-hover:text-[#08B36A] transition-colors" />
                                                         </div>
-                                                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                                                            {item.gender && (
-                                                                <span className="text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-black uppercase tracking-wider">
-                                                                    {item.gender}
+                                                        <span className="truncate">{formatAddress(item.location)}</span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Column 5: Payment & Amount */}
+                                                <td className="px-8 py-6">
+                                                    <div className="space-y-1">
+                                                        <p className="text-sm font-black text-[#08B36A]">₹{item.totalAmount || 0}</p>
+                                                        <div className="flex items-center gap-1.5">
+                                                            {item.paymentMethod === 'COD' ? (
+                                                                <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-amber-50 text-amber-700 border border-amber-200">
+                                                                    COD
                                                                 </span>
+                                                            ) : (
+                                                                <span className="text-[9px] font-bold text-slate-400 uppercase">{item.paymentMethod || "Online"}</span>
                                                             )}
-                                                            {item.age && (
-                                                                <span className="text-[9px] text-slate-400 font-extrabold uppercase">
-                                                                    Age: {item.age} Yrs
-                                                                </span>
-                                                            )}
+                                                            <span className="text-[9px] font-extrabold text-emerald-600 uppercase">({item.paymentStatus || "Paid"})</span>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            </td>
+                                                </td>
 
-                                            {/* Column 2: Case Identifiers */}
-                                            <td className="px-8 py-6">
-                                                <div className="space-y-1">
-                                                    <p className="text-xs font-black text-slate-800 uppercase tracking-tight">ID: #{item.appointmentId || "N/A"}</p>
-                                                    {item.phone && (
-                                                        <p className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1 leading-none">
-                                                            <Phone size={10} className="text-[#08B36A]" /> {item.phone}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </td>
-
-                                            {/* Column 3: Consultation Format */}
-                                            <td className="px-8 py-6">
-                                                <div className="space-y-1.5">
-                                                    <span className={`inline-flex px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${
-                                                        item.mode?.toLowerCase().includes('video') || item.consultationType?.toLowerCase().includes('video')
-                                                            ? 'bg-blue-50 text-blue-600'
-                                                            : 'bg-emerald-50 text-[#08B36A]'
-                                                    }`}>
-                                                        {item.mode || item.consultationType || "General Care"}
-                                                    </span>
-                                                    {item.symptoms && (
-                                                        <p className="text-[10px] text-slate-500 font-medium italic line-clamp-1 max-w-[150px]">
-                                                            "{item.symptoms}"
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            
-                                            {/* Column 4: Registered Coordinates */}
-                                            <td className="px-8 py-6">
-                                                <div className="flex items-center text-xs font-bold text-slate-600 max-w-xs">
-                                                    <div className="p-2 bg-slate-50 rounded-xl mr-3 border border-slate-100 shrink-0 group-hover:bg-green-50 group-hover:border-green-100 transition-colors">
-                                                        <MapPin size={13} className="text-slate-400 group-hover:text-[#08B36A] transition-colors" />
+                                                {/* Column 6: Actions */}
+                                                <td className="px-8 py-6 text-center">
+                                                    <div className="flex justify-center">
+                                                        <button className="inline-flex items-center gap-1.5 px-4 py-2.5 text-[9px] font-black uppercase tracking-widest text-[#08B36A] bg-green-50 border border-green-100/50 hover:border-[#08B36A] rounded-xl shadow-sm transition-all active:scale-95">
+                                                            Open Folder
+                                                            <ChevronRight size={13} />
+                                                        </button>
                                                     </div>
-                                                    <span className="truncate">{formatAddress(item.location)}</span>
-                                                </div>
-                                            </td>
-
-                                            {/* Column 5: Actions */}
-                                            <td className="px-8 py-6 text-center">
-                                                <div className="flex justify-center">
-                                                    <button className="inline-flex items-center gap-1.5 px-4 py-2.5 text-[9px] font-black uppercase tracking-widest text-[#08B36A] bg-green-50 border border-green-100/50 hover:border-[#08B36A] rounded-xl shadow-sm transition-all active:scale-95">
-                                                        Open Summary Folder
-                                                        <ChevronRight size={13} />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Pagination Footer */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-between px-8 py-5 bg-slate-50/50 border-t border-slate-100">
+                                <p className="text-xs text-slate-400 font-bold">
+                                    Page <span className="font-black text-slate-800">{currentPage}</span> of{' '}
+                                    <span className="font-black text-slate-800">{totalPages}</span> ({totalHistoryCount} total)
+                                </p>
+                                <div className="flex gap-2">
+                                    <button
+                                        disabled={currentPage === 1}
+                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                        className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                                    >
+                                        <ChevronLeft size={10} /> Previous
+                                    </button>
+                                    <button
+                                        disabled={currentPage === totalPages}
+                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                        className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                                    >
+                                        Next <ChevronRight size={10} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="text-center py-24 bg-white border border-dashed border-slate-200 rounded-[2.5rem] p-6 max-w-lg mx-auto shadow-sm">
@@ -496,7 +553,7 @@ const PatientHistoryPage = () => {
                             ) : selectedDetail && (
                                 <div className="space-y-8 animate-in fade-in duration-200">
                                     
-                                    {/* 1. Patient Profile Info card (Blood Group completely hidden) */}
+                                    {/* 1. Patient Profile Info card */}
                                     <section className="space-y-3">
                                         <div className="flex items-center gap-2">
                                             <span className="h-1.5 w-1.5 bg-[#08B36A] rounded-full"></span>

@@ -257,14 +257,15 @@ export default function DoctorProfilePage() {
     }));
 
     try {
-      const res = await DoctorAPI.updateSettings({
-        consultationStatus: updatedConsultationStatus
-      });
+      const formData = new FormData();
+      formData.append('consultationStatus', JSON.stringify(updatedConsultationStatus));
+
+      const res = await DoctorAPI.updateProfile(formData);
 
       if (res && res.success) {
         toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} status updated!`);
       } else {
-        throw new Error("Update failed");
+        throw new Error(res?.message || "Update failed");
       }
     } catch (error) {
       console.error("Toggle update error:", error);

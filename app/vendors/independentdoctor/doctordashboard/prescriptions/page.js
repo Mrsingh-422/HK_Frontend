@@ -1,9 +1,10 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   FaRegEye, FaRegEdit, FaShareSquare, FaPhoneAlt, FaCalendarAlt, 
   FaStethoscope, FaCapsules, FaCheckCircle, FaUser, FaArrowLeft, 
-  FaPlus, FaTrash, FaTimes, FaStickyNote, FaSpinner
+  FaPlus, FaTrash, FaTimes, FaStickyNote, FaSpinner, FaChevronLeft,
+  FaChevronRight, FaFilePdf
 } from 'react-icons/fa';
 import DoctorAPI from '@/app/services/DoctorAPI';
 
@@ -14,9 +15,15 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:500
 
 export default function PrescriptionPage() {
   // List View States
-  const [activeTab, setActiveTab] = useState('All');
+  const [activeTab, setActiveTab] = useState('All'); // 'All' | 'Today'
   const [prescriptions, setPrescriptions] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const limit = 10;
 
   // Digital Template Modal States
   const [selectedPrescriptionPayload, setSelectedPrescriptionPayload] = useState(null);
@@ -32,24 +39,34 @@ export default function PrescriptionPage() {
     additionalNotes: ""
   });
 
-  // 1. FETCH ALL PRESCRIPTIONS
-  const fetchPrescriptions = async () => {
+  // 1. FETCH ALL PRESCRIPTIONS WITH PAGINATION & FILTER
+  const fetchPrescriptions = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await DoctorAPI.getAllPrescriptions(activeTab.toLowerCase());
+      const filterQuery = activeTab.toLowerCase(); // 'all' or 'today'
+      const response = await DoctorAPI.getAllPrescriptions({
+        filter: filterQuery,
+        page: currentPage,
+        limit: limit
+      });
+
       if (response && response.success) {
         setPrescriptions(response.data || []);
+        setTotalPages(response.totalPages || 1);
+        setTotalCount(response.total || response.count || (response.data || []).length);
+      } else if (Array.isArray(response)) {
+        setPrescriptions(response);
       }
     } catch (error) {
       console.error("Error fetching prescriptions:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab, currentPage, limit]);
 
   useEffect(() => {
     fetchPrescriptions();
-  }, [activeTab]);
+  }, [fetchPrescriptions]);
 
   // 2. FETCH SPECIFIC DETAILS & OPEN PRINT SUMMARY SHEETS
   const handleViewDetails = async (id) => {
@@ -139,7 +156,8 @@ export default function PrescriptionPage() {
     if (!path) return "#";
     if (path.startsWith("http://") || path.startsWith("https://")) return path;
     const cleanBaseUrl = BACKEND_URL.endsWith('/') ? BACKEND_URL.slice(0, -1) : BACKEND_URL;
-    const cleanPath = path.startsWith('/') ? path : `/${cleanPath}`;
+    let cleanPath = path.replace(/^public\//, '');
+    cleanPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
     return `${cleanBaseUrl}${cleanPath}`;
   };
 
@@ -148,10 +166,13 @@ export default function PrescriptionPage() {
       
       {/* --- HEADER --- */}
       <div className="p-6 md:px-10 flex items-center justify-between bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="flex items-center gap-4">
+        <div>
             <h1 className="text-xl font-black uppercase tracking-tight">
                 Prescription History
             </h1>
+            <p className="text-xs text-gray-400 font-bold tracking-wide mt-0.5">
+                {totalCount} Total Issued Prescriptions
+            </p>
         </div>
 
         <div className="flex items-center gap-4">
@@ -159,9 +180,12 @@ export default function PrescriptionPage() {
                 {['All', 'Today'].map(tab => (
                     <button 
                         key={tab}
-                        onClick={() => setActiveTab(tab)}
+                        onClick={() => {
+                            setActiveTab(tab);
+                            setCurrentPage(1);
+                        }}
                         className={`px-6 py-2 rounded-lg text-xs font-bold transition-all ${
-                            activeTab === tab ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400'
+                            activeTab === tab ? 'bg-white text-gray-800 shadow-sm font-black' : 'text-gray-400 hover:text-gray-700'
                         }`}
                     >
                         {tab}
@@ -175,111 +199,154 @@ export default function PrescriptionPage() {
       <div className="flex-1 p-6 md:p-10 overflow-y-auto">
         
         {loading && (
-            <div className="flex justify-center p-10">
+            <div className="flex justify-center items-center py-20">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5BB584]"></div>
             </div>
         )}
 
         {/* --- VIEW: TABLE LIST --- */}
         {!loading && (
-          <div className="max-w-7xl mx-auto bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-            <table className="w-full text-left">
-                <thead className="bg-gray-50">
-                    <tr className="border-b border-gray-100">
-                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Patient</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Clinical Summary</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Patient Vitals</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Date & Time</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Prescription PDF</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Status</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                    {prescriptions.map((item) => {
-                        const hasVitals = item.vitals && (item.vitals.bp || item.vitals.pulse || item.vitals.temp || item.vitals.spo2);
-                        return (
-                            <tr 
-                                key={item.id} 
-                                onClick={() => {
-                                    if (item.pdfUrl) {
-                                        window.open(getFullPdfUrl(item.pdfUrl), '_blank');
-                                    } else {
-                                        handleViewDetails(item.id);
-                                    }
-                                }}
-                                className="hover:bg-green-50/40 transition-colors group cursor-pointer"
-                            >
-                                {/* Column 1: Patient */}
-                                <td className="px-8 py-6">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 group-hover:bg-[#5BB584] group-hover:text-white transition-colors shrink-0">
-                                            <FaUser size={14}/>
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-sm">{item.patientName}</p>
-                                            <p className="text-[10px] text-gray-400 font-bold uppercase">{item.phone}</p>
-                                        </div>
-                                    </div>
-                                </td>
+          <div className="max-w-7xl mx-auto bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                  <thead className="bg-gray-50">
+                      <tr className="border-b border-gray-100">
+                          <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Patient</th>
+                          <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Clinical Summary</th>
+                          <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Patient Vitals</th>
+                          <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Date & Time</th>
+                          <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Prescription PDF</th>
+                          <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Status</th>
+                      </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                      {prescriptions.map((item) => {
+                          const hasVitals = item.vitals && (item.vitals.bp || item.vitals.pulse || item.vitals.temp || item.vitals.spo2);
+                          return (
+                              <tr 
+                                  key={item.id || item._id} 
+                                  onClick={() => {
+                                      if (item.pdfUrl) {
+                                          window.open(getFullPdfUrl(item.pdfUrl), '_blank');
+                                      } else {
+                                          handleViewDetails(item.id || item._id);
+                                      }
+                                  }}
+                                  className="hover:bg-green-50/40 transition-colors group cursor-pointer"
+                              >
+                                  {/* Column 1: Patient */}
+                                  <td className="px-8 py-6">
+                                      <div className="flex items-center gap-4">
+                                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 group-hover:bg-[#5BB584] group-hover:text-white transition-colors shrink-0">
+                                              <FaUser size={14}/>
+                                          </div>
+                                          <div>
+                                              <p className="font-bold text-sm text-gray-900">{item.patientName}</p>
+                                              <p className="text-[10px] text-gray-400 font-bold uppercase">{item.phone}</p>
+                                          </div>
+                                      </div>
+                                  </td>
 
-                                {/* Column 2: Clinical Summary */}
-                                <td className="px-8 py-6">
-                                    <p className="text-sm font-bold text-gray-600 truncate max-w-[200px]">{item.symptoms || "—"}</p>
-                                </td>
+                                  {/* Column 2: Clinical Summary */}
+                                  <td className="px-8 py-6">
+                                      <p className="text-sm font-bold text-gray-600 truncate max-w-[200px]">{item.symptoms || "—"}</p>
+                                  </td>
 
-                                {/* Column 3: Patient Vitals */}
-                                <td className="px-8 py-6">
-                                    {hasVitals ? (
-                                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-slate-500 font-bold leading-normal">
-                                            {item.vitals.bp && <span>BP: <span className="text-slate-800 font-black">{item.vitals.bp}</span></span>}
-                                            {item.vitals.pulse && <span>Pulse: <span className="text-slate-800 font-black">{item.vitals.pulse} bpm</span></span>}
-                                            {item.vitals.temp && <span>Temp: <span className="text-slate-800 font-black">{item.vitals.temp} °F</span></span>}
-                                            {item.vitals.spo2 && <span>SpO2: <span className="text-slate-800 font-black">{item.vitals.spo2}%</span></span>}
-                                        </div>
-                                    ) : (
-                                        <span className="text-xs text-slate-400 italic font-medium">No Vitals</span>
-                                    )}
-                                </td>
+                                  {/* Column 3: Patient Vitals */}
+                                  <td className="px-8 py-6">
+                                      {hasVitals ? (
+                                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-slate-500 font-bold leading-normal">
+                                              {item.vitals.bp && <span>BP: <span className="text-slate-800 font-black">{item.vitals.bp}</span></span>}
+                                              {item.vitals.pulse && <span>Pulse: <span className="text-slate-800 font-black">{item.vitals.pulse} bpm</span></span>}
+                                              {item.vitals.temp && <span>Temp: <span className="text-slate-800 font-black">{item.vitals.temp} °F</span></span>}
+                                              {item.vitals.spo2 && <span>SpO2: <span className="text-slate-800 font-black">{item.vitals.spo2}%</span></span>}
+                                          </div>
+                                      ) : (
+                                          <span className="text-xs text-slate-400 italic font-medium">No Vitals</span>
+                                      )}
+                                  </td>
 
-                                {/* Column 4: Date & Time */}
-                                <td className="px-8 py-6">
-                                    <span className="text-xs font-bold text-gray-500">{item.date}</span>
-                                </td>
+                                  {/* Column 4: Date & Time */}
+                                  <td className="px-8 py-6">
+                                      <span className="text-xs font-bold text-gray-500">{item.date}</span>
+                                  </td>
 
-                                {/* Column 5: Prescription PDF view link */}
-                                <td className="px-8 py-6">
-                                    {item.pdfUrl ? (
-                                        <a 
-                                            href={getFullPdfUrl(item.pdfUrl)}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            onClick={(e) => e.stopPropagation()} // Prevents launching details modal on file click
-                                            className="inline-flex items-center px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
-                                        >
-                                            View PDF
-                                        </a>
-                                    ) : (
-                                        <span className="text-[10px] bg-slate-50 text-slate-400 px-3 py-1.5 rounded-xl font-bold uppercase border border-slate-100">
-                                            No File
-                                        </span>
-                                    )}
-                                </td>
+                                  {/* Column 5: Prescription PDF view link */}
+                                  <td className="px-8 py-6">
+                                      {item.pdfUrl ? (
+                                          <a 
+                                              href={getFullPdfUrl(item.pdfUrl)}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              onClick={(e) => e.stopPropagation()} 
+                                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                                          >
+                                              <FaFilePdf size={11} />
+                                              View PDF
+                                          </a>
+                                      ) : (
+                                          <span className="text-[10px] bg-slate-50 text-slate-400 px-3 py-1.5 rounded-xl font-bold uppercase border border-slate-100">
+                                              No File
+                                          </span>
+                                      )}
+                                  </td>
 
-                                {/* Column 6: Status (Aligned Right) */}
-                                <td className="px-8 py-6 text-right">
-                                    <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase ${
-                                        item.status === 'Sent' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
-                                    }`}>
-                                        {item.status} <FaCheckCircle size={8}/>
-                                    </span>
-                                </td>
-                            </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
+                                  {/* Column 6: Status & Payment Badges (Aligned Right) */}
+                                  <td className="px-8 py-6 text-right">
+                                      <div className="flex flex-col items-end gap-1">
+                                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase ${
+                                              item.status === 'Sent' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                                          }`}>
+                                              {item.status} <FaCheckCircle size={8}/>
+                                          </span>
+
+                                          {/* Payment & COD Badge if present */}
+                                          {item.paymentMethod && (
+                                              <span className="text-[9px] font-bold text-slate-400 uppercase">
+                                                  {item.paymentMethod === 'COD' ? (
+                                                      <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-md font-black">COD</span>
+                                                  ) : (
+                                                      item.paymentMethod
+                                                  )} {item.paymentStatus && `• ${item.paymentStatus}`}
+                                              </span>
+                                          )}
+                                      </div>
+                                  </td>
+                              </tr>
+                          );
+                      })}
+                  </tbody>
+              </table>
+            </div>
+
             {prescriptions.length === 0 && (
                 <div className="p-20 text-center text-gray-400 font-black uppercase text-xs tracking-widest">No Prescriptions Found</div>
+            )}
+
+            {/* --- PAGINATION PANEL --- */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-between px-8 py-5 bg-gray-50/50 border-t border-gray-100">
+                    <p className="text-xs text-gray-400 font-bold">
+                        Page <span className="font-black text-gray-800">{currentPage}</span> of{' '}
+                        <span className="font-black text-gray-800">{totalPages}</span> ({totalCount} total)
+                    </p>
+                    <div className="flex gap-2">
+                        <button
+                            disabled={currentPage === 1}
+                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                            className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                        >
+                            <FaChevronLeft size={9} /> Previous
+                        </button>
+                        <button
+                            disabled={currentPage === totalPages}
+                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                            className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                        >
+                            Next <FaChevronRight size={9} />
+                        </button>
+                    </div>
+                </div>
             )}
           </div>
         )}

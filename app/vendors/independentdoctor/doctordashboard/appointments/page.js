@@ -1,10 +1,10 @@
 'use client'
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
     FaCalendarAlt, FaHome, FaClock,
     FaVideo, FaHospital, FaCheck, FaTimes, FaUndo, FaSpinner, FaInfoCircle, FaUser,
     FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaWallet, FaStethoscope, FaExclamationTriangle,
-    FaExchangeAlt, FaMoneyBillWave, FaComment, FaPaperPlane
+    FaExchangeAlt, FaMoneyBillWave, FaComment, FaPaperPlane, FaGem, FaFileAlt
 } from 'react-icons/fa'
 import { IoCloseOutline } from "react-icons/io5";
 import DoctorAPI from '@/app/services/DoctorAPI';
@@ -17,25 +17,26 @@ import AddPrescriptionModal from '../videocallappointments/components/AddPrescri
 import DigitalPrescriptionTemplate from '../videocallappointments/components/DigitalPrescriptionTemplate';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239ca3af'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
 
 export default function AppointmentsPage() {
     const [appointments, setAppointments] = useState([]);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [filterStatus, setFilterStatus] = useState(''); // Empty means 'All'
-    const [filterConsultationType, setFilterConsultationType] = useState(''); // Empty means 'All'
-    const [searchQuery, setSearchQuery] = useState(''); // Search query state
-    const [doctorProfile, setDoctorProfile] = useState(null); // Local doctor profile state
+    const [filterStatus, setFilterStatus] = useState(''); // '' means 'All'
+    const [filterConsultationType, setFilterConsultationType] = useState(''); // '' means 'All'
+    const [searchQuery, setSearchQuery] = useState('');
+    const [doctorProfile, setDoctorProfile] = useState(null);
 
-    // Pagination States
+    // Server-side Pagination States
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 15;
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalAppointmentsCount, setTotalAppointmentsCount] = useState(0);
+    const itemsPerPage = 10;
 
     // Modal States
     const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false); // Cancel Modal State
+    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
     const [selectedAppointment, setSelectedAppointment] = useState(null);
 
     const [rescheduleData, setRescheduleData] = useState({ date: '', time: '', reason: '' });
@@ -86,19 +87,16 @@ export default function AppointmentsPage() {
         socketRef.current.emit('join_room', { appointmentId: currentApptId });
     }, [isChatModalOpen, selectedAppointment]);
 
-    useEffect(() => {
-        fetchData();
-        fetchDoctorProfile();
-    }, [filterStatus, filterConsultationType]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
-            const apiFilter = filterStatus === 'Cancelled' ? '' : filterStatus;
 
             const queryParams = {
-                status: apiFilter,
-                consultationType: filterConsultationType || undefined
+                page: currentPage,
+                limit: itemsPerPage,
+                status: filterStatus || undefined,
+                consultationType: filterConsultationType || undefined,
+                search: searchQuery.trim() || undefined
             };
 
             const [statsRes, bookingsRes] = await Promise.all([
@@ -106,17 +104,27 @@ export default function AppointmentsPage() {
                 DoctorAPI.getPatientBookings(queryParams)
             ]);
 
-            if (statsRes.success) setStats(statsRes.data);
-            if (bookingsRes.success) {
-                setAppointments(bookingsRes.data);
-                setCurrentPage(1); 
+            if (statsRes && statsRes.success) setStats(statsRes.data);
+            if (bookingsRes && bookingsRes.success) {
+                setAppointments(bookingsRes.data || []);
+                setTotalPages(bookingsRes.totalPages || 1);
+                setTotalAppointmentsCount(bookingsRes.total || bookingsRes.count || (bookingsRes.data || []).length);
             }
         } catch (error) {
+            console.error("Error fetching patient bookings:", error);
             toast.error("Failed to fetch appointments");
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentPage, filterStatus, filterConsultationType, searchQuery]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    useEffect(() => {
+        fetchDoctorProfile();
+    }, []);
 
     const fetchDoctorProfile = async () => {
         try {
@@ -139,6 +147,14 @@ export default function AppointmentsPage() {
         });
     };
 
+    const getImageUrl = (path) => {
+        if (!path) return null;
+        if (path.startsWith('http')) return path;
+        const cleanPath = path.replace(/^public\//, '');
+        const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+        return `${BASE}/${cleanPath}`;
+    };
+
     const handleAction = async (e, id, action) => {
         e.stopPropagation(); 
         if (action === 'cancel') {
@@ -152,7 +168,7 @@ export default function AppointmentsPage() {
             let res;
             if (action === 'confirm') res = await DoctorAPI.confirmAppointment(id);
 
-            if (res.success) {
+            if (res && res.success) {
                 toast.success(`Appointment confirmed successfully`);
                 fetchData();
             }
@@ -210,7 +226,7 @@ export default function AppointmentsPage() {
                 newTime: rescheduleData.time,
                 reason: rescheduleData.reason
             });
-            if (res.success) {
+            if (res && res.success) {
                 toast.success("Rescheduled successfully");
                 setIsRescheduleModalOpen(false);
                 fetchData();
@@ -231,12 +247,12 @@ export default function AppointmentsPage() {
                 appointmentId: appointment._id,
                 callId: appointment._id, 
                 callType: type,
-                callerName: "Dr. " + (doctorProfile?.name || appointment.doctorId?.name || "Doctor"),
+                callerName: "Dr. " + (doctorProfile?.name || "Doctor"),
                 receiverId: appointment.userId?._id || appointment.userId, 
             };
             const res = await DoctorAPI.initiateVideoCall(payload);
 
-            if (res.success) {
+            if (res && res.success) {
                 toast.success(`Calling patient via ${type}...`);
                 setSelectedAppointment(appointment);
                 setActiveCallId(payload.callId); 
@@ -286,10 +302,8 @@ export default function AppointmentsPage() {
 
     const handleNoShow = async (e, id) => {
         if (e) e.stopPropagation();
-        
-        // Interactive native comment input request
         const reason = window.prompt("Please enter comment details for marking this Consultation as No-Show:");
-        if (reason === null) return; // Action aborted
+        if (reason === null) return;
         if (!reason.trim()) {
             toast.error("Comments are required to log No-Show.");
             return;
@@ -313,7 +327,6 @@ export default function AppointmentsPage() {
         }
     };
 
-    // Starts clinical case flow and normalizes patient metrics
     const handleStartCase = (appt) => {
         const normalizedAppt = {
             ...appt,
@@ -334,7 +347,6 @@ export default function AppointmentsPage() {
             ? `${selectedAppointment.address.houseNo || ''}, ${selectedAppointment.address.sector || ''}, ${selectedAppointment.address.city || ''}, ${selectedAppointment.address.state || ''}`
             : "Clinic Visit";
 
-        // Broad-spectrum fallback resolver for Patient/User ID mapping
         const resolvedUserId = 
             stagedPayload.patientId || 
             stagedPayload.userId || 
@@ -348,10 +360,10 @@ export default function AppointmentsPage() {
             patientId: resolvedUserId,
             userId: resolvedUserId,
             patientInfo: {
-                name: selectedAppointment?.patientName || "N/A",
-                age: selectedAppointment?.patientAge || "N/A",
-                gender: selectedAppointment?.patientGender || "N/A",
-                phone: selectedAppointment?.userId?.phone || "N/A",
+                name: selectedAppointment?.patientName || selectedAppointment?.patients?.[0]?.patientName || "N/A",
+                age: selectedAppointment?.patientAge || selectedAppointment?.patients?.[0]?.patientAge || "N/A",
+                gender: selectedAppointment?.patientGender || selectedAppointment?.patients?.[0]?.gender || "N/A",
+                phone: selectedAppointment?.userId?.phone || selectedAppointment?.address?.phone || "N/A",
                 address: patientAddress
             },
             clinicalDetails: {
@@ -375,7 +387,6 @@ export default function AppointmentsPage() {
             adviceGiven: stagedPayload.adviceGiven || "",
             specialInstructions: stagedPayload.specialInstructions || "",
             nextAppointment: stagedPayload.nextAppointment || "",
-            // Dynamic Vitals payload mapping (Option A & C support)
             vitals: {
                 bp: stagedPayload.bp || "",
                 pulse: stagedPayload.pulse || "",
@@ -412,8 +423,9 @@ export default function AppointmentsPage() {
     const getConsultationIcon = (type) => {
         switch (type) {
             case 'Home Visit': return <FaHome className="text-orange-500" />;
+            case 'Video Consult':
             case 'Online': return <FaVideo className="text-blue-500" />;
-            case 'Clinic Visit': return <FaHospital className="text-emerald-500" />;
+            case 'Clinic Visit':
             default: return <FaHospital className="text-emerald-500" />;
         }
     };
@@ -440,70 +452,6 @@ export default function AppointmentsPage() {
         setIsRescheduleModalOpen(true);
     };
 
-    const getAppointmentBucket = (dateStr) => {
-        if (!dateStr) return 2; 
-        try {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            const target = new Date(dateStr);
-            target.setHours(0, 0, 0, 0);
-
-            if (target.getTime() === today.getTime()) {
-                return 0; 
-            } else if (target.getTime() > today.getTime()) {
-                return 1; 
-            } else {
-                return 2; 
-            }
-        } catch (e) {
-            return 2;
-        }
-    };
-
-    const filteredAppointments = appointments.filter(appt => {
-        let matchesStatus = true;
-        if (filterStatus) {
-            if (filterStatus === 'Cancelled') {
-                matchesStatus = isCancelledStatus(appt.status);
-            } else {
-                matchesStatus = appt.status === filterStatus;
-            }
-        }
-
-        let matchesSearch = true;
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
-            const patientName = (appt.patients?.[0]?.patientName || appt.userId?.name || '').toLowerCase();
-            const bookingId = (appt.bookingId || '').toLowerCase();
-            const phone = (appt.userId?.phone || '').toLowerCase();
-            const email = (appt.userId?.email || '').toLowerCase();
-
-            matchesSearch = patientName.includes(query) || 
-                            bookingId.includes(query) || 
-                            phone.includes(query) || 
-                            email.includes(query);
-        }
-
-        return matchesStatus && matchesSearch;
-    });
-
-    const sortedAppointments = [...filteredAppointments].sort((a, b) => {
-        const bucketA = getAppointmentBucket(a.appointmentDate);
-        const bucketB = getAppointmentBucket(b.appointmentDate);
-
-        if (bucketA !== bucketB) {
-            return bucketA - bucketB; 
-        }
-
-        return new Date(a.appointmentDate) - new Date(b.appointmentDate);
-    });
-
-    const totalPages = Math.ceil(sortedAppointments.length / itemsPerPage);
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentAppointments = sortedAppointments.slice(indexOfFirstItem, indexOfLastItem);
-
     const isOnlineConsultation =
         selectedAppointment?.consultationType?.toLowerCase().includes('online') ||
         selectedAppointment?.consultationType?.toLowerCase().includes('video');
@@ -514,7 +462,6 @@ export default function AppointmentsPage() {
         selectedAppointment?.status === 'No-Show' ||
         (isCancelledStatus(selectedAppointment?.status) && !isCancelledByUserStatus(selectedAppointment?.status));
 
-    // Determine if cancellation details exist
     const hasCancellationInfo = selectedAppointment && (
         selectedAppointment.cancellationDetails?.reason ||
         selectedAppointment.cancelReason ||
@@ -531,16 +478,16 @@ export default function AppointmentsPage() {
                 {/* PAGE HEADER */}
                 <div>
                     <h1 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Patient Bookings</h1>
-                    <p className="text-sm text-gray-500 font-medium">Manage your schedule and consultations</p>
+                    <p className="text-sm text-gray-500 font-medium">Manage your clinical schedule, video sessions & consultations</p>
                 </div>
 
                 {/* STATS CARDS */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {[
-                        { label: 'Total', value: stats?.totalAppointments || 0, color: 'bg-blue-500' },
+                        { label: 'Total Bookings', value: stats?.totalAppointments || totalAppointmentsCount || 0, color: 'bg-blue-500' },
                         { label: 'Pending', value: stats?.pending || 0, color: 'bg-orange-500' },
+                        { label: 'Confirmed', value: stats?.confirmed || 0, color: 'bg-[#08B36A]' },
                         { label: 'Completed', value: stats?.completed || 0, color: 'bg-emerald-500' },
-                     
                     ].map((s, i) => (
                         <div key={i} className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">{s.label}</p>
@@ -550,16 +497,20 @@ export default function AppointmentsPage() {
                     ))}
                 </div>
 
-                {/* TABS & SEARCH CONTROLS ROW (Aligned to Left) */}
-                <div className="flex flex-col xl:flex-row justify-start items-start xl:items-center gap-4">
+                {/* CONTROLS ROW: SEARCH, STATUS TABS & CONSULTATION FILTER */}
+                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                     <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto items-stretch sm:items-center">
                         
+                        {/* Search Input */}
                         <div className="relative flex-grow sm:flex-grow-0">
                             <input
                                 type="text"
-                                placeholder="Search patient name, ID..."
+                                placeholder="Search patient, ID, phone..."
                                 value={searchQuery}
-                                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                                onChange={(e) => { 
+                                    setSearchQuery(e.target.value); 
+                                    setCurrentPage(1); 
+                                }}
                                 className="w-full sm:w-64 bg-white pl-11 pr-5 py-3.5 rounded-2xl shadow-sm border border-gray-100 text-[11px] font-black uppercase tracking-widest text-gray-700 placeholder-gray-400 outline-none focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] transition-all"
                             />
                             <div className="absolute top-1/2 left-4 -translate-y-1/2 pointer-events-none text-gray-400">
@@ -569,20 +520,22 @@ export default function AppointmentsPage() {
                             </div>
                         </div>
 
-                        {/* Restricted Filter Tabs (Section 3 & Custom Requirement) */}
-                        <div className="bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100 flex gap-1 overflow-x-auto">
+                        {/* Filter Status Tabs */}
+                        <div className="bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100 flex gap-1 overflow-x-auto no-scrollbar">
                             {['', 'Pending', 'Confirmed', 'Completed', 'Cancelled', 'No-Show'].map((status) => (
                                 <button
                                     key={status}
                                     onClick={() => { setFilterStatus(status); setCurrentPage(1); }}
-                                    className={`px-5 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${filterStatus === status ? 'bg-[#08B36A] text-white' : 'text-gray-400 hover:bg-gray-50'
-                                        }`}
+                                    className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                                        filterStatus === status ? 'bg-[#08B36A] text-white' : 'text-gray-400 hover:bg-gray-50'
+                                    }`}
                                 >
                                     {status === 'No-Show' ? 'No Show' : (status || 'All')}
                                 </button>
                             ))}
                         </div>
 
+                        {/* Consultation Type Selector */}
                         <div className="relative">
                             <select
                                 value={filterConsultationType}
@@ -590,9 +543,9 @@ export default function AppointmentsPage() {
                                 className="w-full sm:w-auto bg-white px-5 py-3.5 rounded-2xl shadow-sm border border-gray-100 text-[11px] font-black uppercase tracking-widest text-gray-500 hover:text-gray-800 hover:border-gray-200 outline-none focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] transition-all cursor-pointer appearance-none pr-12"
                             >
                                 <option value="">All Types</option>
-                                <option value="video">Video Consult</option>
-                                <option value="clinic">Clinic Visit</option>
-                                <option value="home">Home Visit</option>
+                                <option value="Clinic Visit">Clinic Visit</option>
+                                <option value="Video Consult">Video Consult</option>
+                                <option value="Home Visit">Home Visit</option>
                             </select>
                             <div className="absolute top-1/2 right-4 -translate-y-1/2 pointer-events-none text-gray-400">
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
@@ -607,11 +560,11 @@ export default function AppointmentsPage() {
                 {loading ? (
                     <div className="flex flex-col items-center py-20 bg-white rounded-[3rem] border border-dashed border-gray-200">
                         <FaSpinner className="animate-spin text-[#08B36A] mb-4" size={30} />
-                        <p className="text-gray-400 font-bold uppercase text-xs tracking-widest">Fetching appointments...</p>
+                        <p className="text-gray-400 font-bold uppercase text-xs tracking-widest">Fetching patient bookings...</p>
                     </div>
-                ) : sortedAppointments.length === 0 ? (
+                ) : appointments.length === 0 ? (
                     <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-gray-200">
-                        <p className="text-gray-400 font-bold uppercase text-xs tracking-widest">No appointments found for this selection</p>
+                        <p className="text-gray-400 font-bold uppercase text-xs tracking-widest">No patient bookings found for this selection</p>
                     </div>
                 ) : (
                     <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden flex flex-col">
@@ -627,39 +580,64 @@ export default function AppointmentsPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
-                                    {currentAppointments.map((appt) => {
+                                    {appointments.map((appt) => {
                                         const isOnline = appt.consultationType?.toLowerCase().includes('online') || appt.consultationType?.toLowerCase().includes('video');
+                                        const userAvatar = getImageUrl(appt.userId?.profilePic);
+
                                         return (
                                             <tr
                                                 key={appt._id}
                                                 onClick={() => openViewModal(appt)}
                                                 className="hover:bg-gray-50/50 transition-colors cursor-pointer group"
                                             >
+                                                {/* Patient Details Column */}
                                                 <td className="px-8 py-6">
                                                     <div className="flex items-center gap-4">
-                                                        <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 font-black text-lg uppercase group-hover:bg-green-50 group-hover:text-[#08B36A] transition-all">
-                                                            {appt.patients[0]?.patientName?.charAt(0) || appt.userId?.name?.charAt(0)}
+                                                        <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center overflow-hidden border border-gray-200/60 font-black text-lg text-gray-500 uppercase group-hover:border-[#08B36A] transition-all shrink-0">
+                                                            {userAvatar ? (
+                                                                <img src={userAvatar} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+                                                            ) : (
+                                                                appt.patients?.[0]?.patientName?.charAt(0) || appt.userId?.name?.charAt(0) || "P"
+                                                            )}
                                                         </div>
                                                         <div>
-                                                            <p className="font-black text-gray-900 text-sm uppercase tracking-tight">
-                                                                {appt.patients[0]?.patientName || appt.userId?.name}
-                                                            </p>
-                                                            <div className="flex items-center gap-2 mt-1">
-                                                                <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-black uppercase">{appt.patients[0]?.gender}</span>
-                                                                <span className="text-[10px] text-gray-400 font-bold">Age: {appt.patients[0]?.patientAge}</span>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="font-black text-gray-900 text-sm uppercase tracking-tight truncate max-w-[180px]">
+                                                                    {appt.patients?.[0]?.patientName || appt.userId?.name}
+                                                                </p>
+                                                                {appt.subscriptionDetails?.isSubscriptionApplied && (
+                                                                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-black rounded-md uppercase border border-emerald-200 flex items-center gap-1">
+                                                                        <FaGem size={8} /> VIP
+                                                                    </span>
+                                                                )}
                                                             </div>
-                                                            {/* Dynamic Reschedules and Cancellations limits display on card */}
-                                                            <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                                                <span className="text-[9px] bg-amber-50 text-amber-700 px-2.5 py-1 rounded-md font-bold uppercase tracking-wider">
-                                                                    Reschedules Left: {appt.remainingReschedules ?? "N/A"}
+
+                                                            <div className="flex items-center gap-2 mt-1 text-[10px]">
+                                                                <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-black uppercase">
+                                                                    {appt.patients?.[0]?.gender || "Male"}
                                                                 </span>
-                                                                <span className="text-[9px] bg-red-50 text-red-700 px-2.5 py-1 rounded-md font-bold uppercase tracking-wider">
-                                                                    Cancels Left: {appt.remainingCancellations ?? "N/A"}
+                                                                <span className="text-gray-400 font-bold">
+                                                                    Age: {appt.patients?.[0]?.patientAge || "N/A"}
+                                                                </span>
+                                                                <span className="text-gray-400 font-bold">
+                                                                    ({appt.patients?.[0]?.relation || "Self"})
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Reschedule & Cancellation Remaining Badges */}
+                                                            <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                                                <span className="text-[9px] bg-amber-50 text-amber-700 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                                                                    Reschedules: {appt.remainingReschedules ?? "0"} Left
+                                                                </span>
+                                                                <span className="text-[9px] bg-red-50 text-red-700 px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                                                                    Cancels: {appt.remainingCancellations ?? "0"} Left
                                                                 </span>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </td>
+
+                                                {/* Consultation Column */}
                                                 <td className="px-8 py-6">
                                                     <div className="flex items-center gap-2 mb-1">
                                                         {getConsultationIcon(appt.consultationType)}
@@ -667,6 +645,8 @@ export default function AppointmentsPage() {
                                                     </div>
                                                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">ID: {appt.bookingId}</p>
                                                 </td>
+
+                                                {/* Schedule Column */}
                                                 <td className="px-8 py-6">
                                                     <div className="flex items-center gap-2 text-gray-800 font-black text-sm">
                                                         <FaCalendarAlt className="text-gray-300" size={14} />
@@ -676,15 +656,35 @@ export default function AppointmentsPage() {
                                                         <FaClock size={12} /> {appt.appointmentTime}
                                                     </div>
                                                 </td>
+
+                                                {/* Payment & Status Column with COD Badge */}
                                                 <td className="px-8 py-6">
-                                                    <div className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest mb-1 ${isCancelledStatus(appt.status) ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-400'}`}>
-                                                        {appt.status}
+                                                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                                                        <span className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                            appt.status === 'Confirmed' ? 'bg-emerald-50 text-[#08B36A]' :
+                                                            isCancelledStatus(appt.status) ? 'bg-red-50 text-red-500' :
+                                                            appt.status === 'Completed' ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-500'
+                                                        }`}>
+                                                            {appt.status}
+                                                        </span>
+
+                                                        {/* Prominent COD Label */}
+                                                        {appt.paymentMethod === 'COD' && (
+                                                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                                                                COD
+                                                            </span>
+                                                        )}
                                                     </div>
+
                                                     <div className="flex items-center gap-2">
                                                         <p className="text-sm font-black text-[#08B36A]">₹{appt.totalAmount}</p>
-                                                        <span className="text-[10px] text-gray-400 font-bold uppercase">({appt.paymentStatus})</span>
+                                                        <span className="text-[10px] text-gray-400 font-bold uppercase">
+                                                            ({appt.paymentMethod || "COD"} • {appt.paymentStatus})
+                                                        </span>
                                                     </div>
                                                 </td>
+
+                                                {/* Actions Column */}
                                                 <td className="px-8 py-6">
                                                     <div className="flex justify-end items-center gap-2" onClick={(e) => e.stopPropagation()}>
                                                         {appt.status === 'Pending' ? (
@@ -728,7 +728,6 @@ export default function AppointmentsPage() {
                                                                         >
                                                                             Start Case
                                                                         </button>
-                                                                        {/* Dynamic "No Show" action button displayed inside Start Case flow */}
                                                                         <button
                                                                             disabled={submitting}
                                                                             onClick={(e) => handleNoShow(e, appt._id)}
@@ -740,7 +739,7 @@ export default function AppointmentsPage() {
                                                                     </>
                                                                 )}
 
-                                                                {/* Interactive Communications Toolbar (Voice, Video & Chat) */}
+                                                                {/* Interactive Communications Toolbar */}
                                                                 {isOnline && (
                                                                     <>
                                                                         <button
@@ -763,7 +762,7 @@ export default function AppointmentsPage() {
                                                                             disabled={submitting}
                                                                             onClick={(e) => handleOpenChat(e, appt)}
                                                                             className="p-3 rounded-2xl text-purple-600 bg-purple-50 hover:bg-purple-100 transition-all active:scale-90"
-                                                                            title="Chat coordination"
+                                                                            title="Chat Coordination"
                                                                         >
                                                                             <FaComment size={13} />
                                                                         </button>
@@ -798,23 +797,20 @@ export default function AppointmentsPage() {
                         {totalPages > 1 && (
                             <div className="flex items-center justify-between px-8 py-5 bg-gray-50/50 border-t border-gray-100">
                                 <p className="text-xs text-gray-400 font-bold">
-                                    Showing <span className="font-black text-gray-800">{indexOfFirstItem + 1}</span> to{' '}
-                                    <span className="font-black text-gray-800">
-                                        {Math.min(indexOfLastItem, sortedAppointments.length)}
-                                    </span>{' '}
-                                    of <span className="font-black text-gray-800">{sortedAppointments.length}</span> appointments
+                                    Page <span className="font-black text-gray-800">{currentPage}</span> of{' '}
+                                    <span className="font-black text-gray-800">{totalPages}</span> ({totalAppointmentsCount} total records)
                                 </p>
                                 <div className="flex gap-2">
                                     <button
                                         disabled={currentPage === 1}
-                                        onClick={(e) => { e.stopPropagation(); setCurrentPage(prev => Math.max(prev - 1, 1)); }}
+                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                                         className="px-4 py-2 bg-white border border-gray-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                                     >
                                         Previous
                                     </button>
                                     <button
                                         disabled={currentPage === totalPages}
-                                        onClick={(e) => { e.stopPropagation(); setCurrentPage(prev => Math.min(prev + 1, totalPages)); }}
+                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                                         className="px-4 py-2 bg-white border border-gray-100 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                                     >
                                         Next
@@ -833,12 +829,25 @@ export default function AppointmentsPage() {
                         
                         <div className="p-8 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
                             <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 bg-[#08B36A] rounded-[1.5rem] flex items-center justify-center text-white text-xl font-black">
-                                    {selectedAppointment.patients[0]?.patientName?.charAt(0) || selectedAppointment.userId?.name?.charAt(0)}
+                                <div className="w-14 h-14 bg-[#08B36A] rounded-[1.5rem] flex items-center justify-center text-white text-xl font-black overflow-hidden">
+                                    {getImageUrl(selectedAppointment.userId?.profilePic) ? (
+                                        <img src={getImageUrl(selectedAppointment.userId?.profilePic)} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                        selectedAppointment.patients?.[0]?.patientName?.charAt(0) || selectedAppointment.userId?.name?.charAt(0) || "P"
+                                    )}
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-black text-gray-900 tracking-tight uppercase">{selectedAppointment.patients[0]?.patientName || selectedAppointment.userId?.name}</h2>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Booking ID: {selectedAppointment.bookingId}</p>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-xl font-black text-gray-900 tracking-tight uppercase">
+                                            {selectedAppointment.patients?.[0]?.patientName || selectedAppointment.userId?.name}
+                                        </h2>
+                                        {selectedAppointment.subscriptionDetails?.isSubscriptionApplied && (
+                                            <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-lg uppercase">
+                                                {selectedAppointment.subscriptionDetails.planName || "VIP"}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Booking ID: #{selectedAppointment.bookingId}</p>
                                 </div>
                             </div>
                             <button onClick={() => setIsViewModalOpen(false)} className="w-12 h-12 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-400 hover:text-red-500 transition-all">
@@ -846,20 +855,21 @@ export default function AppointmentsPage() {
                             </button>
                         </div>
 
-                        <div className="p-8 overflow-y-auto space-y-8">
+                        <div className="p-8 overflow-y-auto space-y-8 no-scrollbar">
                             
+                            {/* Summary Cards */}
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="p-4 rounded-[1.5rem] bg-gray-50 border border-gray-100">
                                     <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Status</p>
                                     <p className={`text-xs font-black uppercase ${isCancelledStatus(selectedAppointment.status) ? 'text-red-500' : 'text-[#08B36A]'}`}>{selectedAppointment.status}</p>
                                 </div>
                                 <div className="p-4 rounded-[1.5rem] bg-gray-50 border border-gray-100">
-                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Type</p>
+                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Consultation</p>
                                     <p className="text-xs font-black text-gray-800 uppercase">{selectedAppointment.consultationType}</p>
                                 </div>
                                 <div className="p-4 rounded-[1.5rem] bg-gray-50 border border-gray-100">
                                     <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Payment</p>
-                                    <p className="text-xs font-black text-orange-500 uppercase">{selectedAppointment.paymentStatus}</p>
+                                    <p className="text-xs font-black text-orange-500 uppercase">{selectedAppointment.paymentStatus} ({selectedAppointment.paymentMethod || "COD"})</p>
                                 </div>
                             </div>
 
@@ -870,7 +880,6 @@ export default function AppointmentsPage() {
                                         <FaExclamationTriangle size={10} className="text-red-500" /> Cancellation Details
                                     </h4>
                                     <div className="p-5 bg-red-50/70 border border-red-100 rounded-[2rem] space-y-3 text-xs">
-                                        {/* Conditionally render cancellation reason if provided */}
                                         {(selectedAppointment.cancellationDetails?.reason || selectedAppointment.cancelReason) && (
                                             <div className="flex justify-between border-b border-red-100 pb-2">
                                                 <span className="font-bold text-gray-500">Reason</span>
@@ -879,12 +888,6 @@ export default function AppointmentsPage() {
                                                 </span>
                                             </div>
                                         )}
-                                        <div className="flex justify-between border-b border-red-100 pb-2">
-                                            <span className="font-bold text-gray-500">Cancellation Mode</span>
-                                            <span className={`font-black uppercase ${selectedAppointment.cancellationDetails?.isPermanent ? 'text-red-600' : 'text-blue-600'}`}>
-                                                {selectedAppointment.cancellationDetails?.isPermanent }
-                                            </span>
-                                        </div>
                                         {selectedAppointment.cancellationDetails?.refundAmountCalculated > 0 && (
                                             <div className="flex justify-between border-b border-red-100 pb-2">
                                                 <span className="font-bold text-gray-500">Refund Amount</span>
@@ -901,21 +904,22 @@ export default function AppointmentsPage() {
                                 </div>
                             )}
 
+                            {/* Patient & Reason Section */}
                             <div className="grid md:grid-cols-2 gap-8">
                                 <div className="space-y-4">
                                     <h4 className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest"><FaUser size={10} /> Patient Information</h4>
                                     <div className="space-y-2">
                                         <div className="flex justify-between py-2 border-b border-gray-50">
-                                            <span className="text-xs font-bold text-gray-500">Gender</span>
-                                            <span className="text-xs font-black text-gray-800">{selectedAppointment.patients[0]?.gender || "N/A"}</span>
+                                            <span className="text-xs font-bold text-gray-500">Name</span>
+                                            <span className="text-xs font-black text-gray-800">{selectedAppointment.patients?.[0]?.patientName || selectedAppointment.userId?.name || "N/A"}</span>
                                         </div>
                                         <div className="flex justify-between py-2 border-b border-gray-50">
-                                            <span className="text-xs font-bold text-gray-500">Age</span>
-                                            <span className="text-xs font-black text-gray-800">{selectedAppointment.patients[0]?.patientAge ? `${selectedAppointment.patients[0].patientAge} Years` : "N/A"}</span>
+                                            <span className="text-xs font-bold text-gray-500">Gender / Age</span>
+                                            <span className="text-xs font-black text-gray-800">{selectedAppointment.patients?.[0]?.gender || "Male"} • {selectedAppointment.patients?.[0]?.patientAge} Yrs</span>
                                         </div>
                                         <div className="flex justify-between py-2">
                                             <span className="text-xs font-bold text-gray-500">Relation</span>
-                                            <span className="text-xs font-black text-gray-800 uppercase">{selectedAppointment.patients[0]?.relation || "Self"}</span>
+                                            <span className="text-xs font-black text-gray-800 uppercase">{selectedAppointment.patients?.[0]?.relation || "Self"}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -923,12 +927,13 @@ export default function AppointmentsPage() {
                                     <h4 className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest"><FaStethoscope size={10} /> Reason for Visit</h4>
                                     <div className="p-4 bg-blue-50 rounded-2xl min-h-[80px]">
                                         <p className="text-xs font-bold text-blue-700 italic">
-                                            "{selectedAppointment.patients[0]?.reasonForVisit || "General Consultation Checkup"}"
+                                            "{selectedAppointment.patients?.[0]?.reasonForVisit || "General Consultation Checkup"}"
                                         </p>
                                     </div>
                                 </div>
                             </div>
 
+                            {/* Schedule & Contact Section */}
                             <div className="grid md:grid-cols-2 gap-8">
                                 <div className="space-y-4">
                                     <h4 className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest"><FaClock size={10} /> Schedule Info</h4>
@@ -949,7 +954,7 @@ export default function AppointmentsPage() {
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-3 text-xs font-bold text-gray-700">
                                             <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"><FaPhoneAlt size={12} /></div>
-                                            {selectedAppointment.userId?.phone || "N/A"}
+                                            {selectedAppointment.address?.phone || selectedAppointment.userId?.phone || "N/A"}
                                         </div>
                                         <div className="flex items-center gap-3 text-xs font-bold text-gray-700">
                                             <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"><FaEnvelope size={12} /></div>
@@ -959,38 +964,50 @@ export default function AppointmentsPage() {
                                 </div>
                             </div>
 
-                            {selectedAppointment.consultationType === 'Home Visit' && (
+                            {/* Home Visit Address Details */}
+                            {selectedAppointment.address && (
                                 <div className="space-y-4">
-                                    <h4 className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest"><FaMapMarkerAlt size={10} /> Visit Address</h4>
+                                    <h4 className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest"><FaMapMarkerAlt size={10} /> Address ({selectedAppointment.address.addressType || "Home"})</h4>
                                     <div className="p-5 bg-gray-50 rounded-[2rem] border border-gray-100">
                                         <p className="text-xs font-bold text-gray-800 leading-relaxed uppercase">
-                                            {selectedAppointment.address?.houseNo}, {selectedAppointment.address?.sector},
-                                            {selectedAppointment.address?.landmark && ` ${selectedAppointment.address.landmark},`} {selectedAppointment.address?.city},
-                                            {selectedAppointment.address?.state} - {selectedAppointment.address?.pincode}
+                                            {selectedAppointment.address.houseNo}, {selectedAppointment.address.sector},
+                                            {selectedAppointment.address.landmark && ` Near ${selectedAppointment.address.landmark},`} {selectedAppointment.address.city},
+                                            {selectedAppointment.address.state} - {selectedAppointment.address.pincode}
                                         </p>
                                     </div>
                                 </div>
                             )}
 
+                            {/* Billing Breakdown */}
                             <div className="space-y-4">
                                 <h4 className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest"><FaWallet size={10} /> Bill Breakdown</h4>
                                 <div className="bg-slate-900 rounded-[2rem] p-6 text-white">
                                     <div className="space-y-2 border-b border-slate-800 pb-4 mb-4">
                                         <div className="flex justify-between text-xs font-medium text-slate-400">
                                             <span>Base Consultation Fee</span>
-                                            <span>₹{selectedAppointment.pricingBreakdown?.baseFee || 0}</span>
+                                            <span>₹{selectedAppointment.pricingBreakdown?.baseFee ?? selectedAppointment.totalAmount}</span>
                                         </div>
-                                        <div className="flex justify-between text-xs font-medium text-slate-400">
-                                            <span>Visit/Travel Charges</span>
-                                            <span>+ ₹{selectedAppointment.pricingBreakdown?.visitCharges || 0}</span>
-                                        </div>
-                                        <div className="flex justify-between text-xs font-medium text-[#08B36A]">
-                                            <span>Discount Applied</span>
-                                            <span>- ₹{selectedAppointment.pricingBreakdown?.discountAmount || 0}</span>
-                                        </div>
+                                        {selectedAppointment.pricingBreakdown?.visitCharges > 0 && (
+                                            <div className="flex justify-between text-xs font-medium text-slate-400">
+                                                <span>Visit / Travel Charges</span>
+                                                <span>+ ₹{selectedAppointment.pricingBreakdown.visitCharges}</span>
+                                            </div>
+                                        )}
+                                        {selectedAppointment.pricingBreakdown?.extraCharges > 0 && (
+                                            <div className="flex justify-between text-xs font-medium text-amber-400">
+                                                <span>Premium Slot Fee</span>
+                                                <span>+ ₹{selectedAppointment.pricingBreakdown.extraCharges}</span>
+                                            </div>
+                                        )}
+                                        {selectedAppointment.pricingBreakdown?.discountAmount > 0 && (
+                                            <div className="flex justify-between text-xs font-medium text-[#08B36A]">
+                                                <span>Discount Applied</span>
+                                                <span>- ₹{selectedAppointment.pricingBreakdown.discountAmount}</span>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="flex justify-between items-center">
-                                        <span className="text-xs font-black uppercase tracking-widest text-slate-400">Total Paid</span>
+                                        <span className="text-xs font-black uppercase tracking-widest text-slate-400">Total Payable</span>
                                         <span className="text-2xl font-black text-white">₹{selectedAppointment.totalAmount || 0}</span>
                                     </div>
                                 </div>
@@ -1083,12 +1100,10 @@ export default function AppointmentsPage() {
                 </div>
             )}
 
-            {/* DOCTOR CANCELLATION MODAL (PATCH /doctor/appointments/cancel/:id) */}
+            {/* DOCTOR CANCELLATION MODAL */}
             {isCancelModalOpen && selectedAppointment && (
                 <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[130] p-4 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="bg-white rounded-[3rem] w-full max-w-lg overflow-hidden relative shadow-2xl animate-in zoom-in-95 duration-300 border border-gray-100">
-                        
-                        {/* Header */}
                         <div className="p-8 border-b border-gray-50 bg-red-50/50 flex justify-between items-center">
                             <div>
                                 <h2 className="text-lg font-black text-red-600 uppercase tracking-tight flex items-center gap-2">
@@ -1103,7 +1118,6 @@ export default function AppointmentsPage() {
                             </button>
                         </div>
 
-                        {/* Modal Body */}
                         <div className="p-8 space-y-6">
                             <div>
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">
@@ -1118,13 +1132,11 @@ export default function AppointmentsPage() {
                                 />
                             </div>
 
-                            {/* Option Selector Cards */}
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 block">
                                     Select Cancellation Mode
                                 </label>
 
-                                {/* Option 1: Reschedule-Ready (isPermanent: false) */}
                                 <div 
                                     onClick={() => setCancelData({ ...cancelData, isPermanent: false })}
                                     className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3.5 ${
@@ -1149,7 +1161,6 @@ export default function AppointmentsPage() {
                                     </div>
                                 </div>
 
-                                {/* Option 2: Permanent Cancellation & Refund (isPermanent: true) */}
                                 <div 
                                     onClick={() => setCancelData({ ...cancelData, isPermanent: true })}
                                     className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3.5 ${
@@ -1176,7 +1187,6 @@ export default function AppointmentsPage() {
                             </div>
                         </div>
 
-                        {/* Footer Controls */}
                         <div className="p-8 pt-0 flex gap-3">
                             <button
                                 onClick={() => setIsCancelModalOpen(false)}
@@ -1196,7 +1206,6 @@ export default function AppointmentsPage() {
                                 {submitting ? <FaSpinner className="animate-spin" /> : 'Confirm Cancellation'}
                             </button>
                         </div>
-
                     </div>
                 </div>
             )}
@@ -1205,7 +1214,6 @@ export default function AppointmentsPage() {
             {isRescheduleModalOpen && (
                 <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[120] p-4 backdrop-blur-md">
                     <div className="bg-white rounded-[3rem] w-full max-w-md overflow-hidden relative shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-
                         <div className="p-8 border-b border-gray-50 bg-gray-50/50">
                             <div className="flex justify-between items-center">
                                 <h2 className="text-xl font-black text-gray-900 tracking-tight uppercase">Update Schedule</h2>
@@ -1220,6 +1228,7 @@ export default function AppointmentsPage() {
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">New Appointment Date</label>
                                 <input
                                     type="date"
+                                    min={new Date().toISOString().split('T')[0]}
                                     value={rescheduleData.date}
                                     onChange={(e) => setRescheduleData({ ...rescheduleData, date: e.target.value })}
                                     className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-black text-gray-700 focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] outline-none transition-all"
@@ -1240,7 +1249,7 @@ export default function AppointmentsPage() {
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Reason for Rescheduling</label>
                                 <textarea
                                     rows={3}
-                                    placeholder="e.g., Doctor has an emergency surgery clash"
+                                    placeholder="e.g. Doctor has emergency surgery conflict"
                                     value={rescheduleData.reason || ''}
                                     onChange={(e) => setRescheduleData({ ...rescheduleData, reason: e.target.value })}
                                     className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm text-gray-700 focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] outline-none transition-all resize-none"
@@ -1251,16 +1260,13 @@ export default function AppointmentsPage() {
                                 <div className="flex gap-3">
                                     <FaInfoCircle className="text-orange-500 shrink-0 mt-1" />
                                     <p className="text-xs font-bold text-orange-700 leading-relaxed">
-                                        Rescheduling will send a notification to the patient. They must accept the new time to confirm.
+                                        Rescheduling will update the patient's schedule and send an instant notification.
                                     </p>
                                 </div>
                             </div>
                         </div>
 
                         <div className="p-8 pt-0 flex flex-col gap-3">
-                            <p className="text-xs text-center text-red-500 font-bold uppercase">
-                                Action consumes rescheduling limits if confirmed.
-                            </p>
                             <button
                                 disabled={submitting}
                                 onClick={handleRescheduleSubmit}
@@ -1276,18 +1282,22 @@ export default function AppointmentsPage() {
 
             {/* CHAT MODAL WINDOW */}
             {isChatModalOpen && selectedAppointment && (
-                <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-[250] p-0 md:p-4 backdrop-blur-sm animate-fade-in animate-in fade-in duration-200">
+                <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-[250] p-0 md:p-4 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-white w-full h-full md:h-[650px] md:max-h-[85vh] md:max-w-xl flex flex-col overflow-hidden relative md:rounded-[2.5rem] shadow-2xl">
                         <div className="p-5 border-b border-gray-100 bg-gray-50/70 flex justify-between items-center shrink-0">
                             <div className="flex items-center gap-3">
-                                <div className="w-11 h-11 rounded-2xl bg-[#08B36A] flex items-center justify-center text-white text-md font-black uppercase">
-                                    {selectedAppointment.patients?.[0]?.patientName?.charAt(0) || selectedAppointment.userId?.name?.charAt(0)}
+                                <div className="w-11 h-11 rounded-2xl bg-[#08B36A] flex items-center justify-center text-white text-md font-black uppercase overflow-hidden">
+                                    {getImageUrl(selectedAppointment.userId?.profilePic) ? (
+                                        <img src={getImageUrl(selectedAppointment.userId?.profilePic)} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                        selectedAppointment.patients?.[0]?.patientName?.charAt(0) || selectedAppointment.userId?.name?.charAt(0) || "P"
+                                    )}
                                 </div>
                                 <div>
                                     <h2 className="text-base font-black text-gray-900 tracking-tight uppercase">
                                         {selectedAppointment.patients?.[0]?.patientName || selectedAppointment.userId?.name}
                                     </h2>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Booking ID: {selectedAppointment.bookingId}</p>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Booking ID: #{selectedAppointment.bookingId}</p>
                                 </div>
                             </div>
                             <button onClick={() => setIsChatModalOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm border border-gray-50 text-slate-400 hover:text-red-500 transition-colors">
@@ -1357,7 +1367,7 @@ export default function AppointmentsPage() {
                 onCompleteCase={handleCompleteCase}
             />
 
-            {/* VIDEO CALL MODAL WITH OVERLAY ACTION CONTROLLERS */}
+            {/* VIDEO CALL MODAL */}
             {isVideoModalOpen && (
                 <div className="fixed inset-0 z-[200]">
                     <VideoCallModal
@@ -1371,9 +1381,7 @@ export default function AppointmentsPage() {
                         }}
                     />
                     
-                    {/* Floating Controls Overlay over the Call Interface */}
                     <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[210] flex gap-4 bg-slate-900/90 px-6 py-3.5 rounded-full shadow-2xl border border-slate-700/50 backdrop-blur-md">
-                        {/* Open Live Chat Button */}
                         <button 
                             onClick={(e) => handleOpenChat(e, selectedAppointment)}
                             className="flex items-center justify-center w-12 h-12 bg-purple-600 hover:bg-purple-700 text-white rounded-full transition-all active:scale-90 hover:scale-105 shadow-lg"
@@ -1382,7 +1390,6 @@ export default function AppointmentsPage() {
                             <FaComment size={18} />
                         </button>
                         
-                        {/* Switch Call Type / Redial Button */}
                         <button 
                             onClick={(e) => handleStartCall(selectedAppointment, activeCallType === 'video' ? 'audio' : 'video')}
                             className="flex items-center justify-center w-12 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-all active:scale-90 hover:scale-105 shadow-lg"
