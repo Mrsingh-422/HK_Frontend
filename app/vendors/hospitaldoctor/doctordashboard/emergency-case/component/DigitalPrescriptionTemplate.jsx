@@ -288,9 +288,9 @@ export default function DigitalPrescriptionTemplate({
     const hospitalLogo = getFormattedLogoUrl(header?.hospitalLogo || activePayload?.hospitalLogo);
 
     const leadDoctor = header?.leadDoctor || {};
-    const mainDoctorName = doctorProfile?.name || leadDoctor?.name || activePayload?.mainDoctorName || "";
-    const mainDoctorQualification = doctorProfile?.qualification || leadDoctor?.qualification || activePayload?.mainDoctorQualification || "";
-    const mainDoctorTitle = doctorProfile?.title || leadDoctor?.title || activePayload?.mainDoctorTitle || "";
+    const mainDoctorName = leadDoctor?.name || doctorProfile?.name || activePayload?.mainDoctorName || "";
+    const mainDoctorQualification = leadDoctor?.qualification || doctorProfile?.qualification || activePayload?.mainDoctorQualification || "";
+    const mainDoctorTitle = leadDoctor?.title || doctorProfile?.title || activePayload?.mainDoctorTitle || "";
 
     const mainDoctorSignature =
         doctorProfile?.signatureImage ||
@@ -310,8 +310,9 @@ export default function DigitalPrescriptionTemplate({
 
     const patientName = patientDetails?.name || activePayload?.patientName || "";
     const gender = patientDetails?.gender || activePayload?.gender || "";
-    const age = patientDetails?.age || activePayload?.age || "";
-    const address = patientDetails?.address || activePayload?.address || "";
+    const age = patientDetails?.age !== undefined ? patientDetails.age : activePayload?.age || "";
+    const bloodGroup = patientDetails?.bloodGroup || activePayload?.bloodGroup || clinicalSummary?.bloodGroup || "N/A";
+    const address = patientDetails?.address || activePayload?.address || "N/A";
 
     const chiefComplaints = dischargeForm?.chiefComplaints || patientDetails?.chiefComplaints || clinicalSummary?.chiefComplaint || activePayload?.chiefComplaints || "N/A";
     const diagnosis = dischargeForm?.diagnosis || patientDetails?.diagnosis || clinicalSummary?.diagnosis || activePayload?.diagnosis || "N/A";
@@ -328,19 +329,19 @@ export default function DigitalPrescriptionTemplate({
     const conditionDuringAdmission = dischargeForm?.conditionDuringAdmission || patientDetails?.conditionDuringAdmission || clinicalSummary?.conditionDuringAdmission || activePayload?.conditionDuringAdmission || "N/A";
     const conditionDuringDischarge = dischargeForm?.conditionDuringDischarge || patientDetails?.conditionDuringDischarge || clinicalSummary?.conditionDuringDischarge || activePayload?.conditionDuringDischarge || "N/A";
 
-    const advisedInvestigations = dischargeForm?.advisedInvestigations || followUp?.adviseInvestigation || clinicalSummary?.investigation || activePayload?.investigations || "N/A";
+    const advisedInvestigations = dischargeForm?.advisedInvestigations || followUp?.adviseInvestigation || followUp?.advisedInvestigations || clinicalSummary?.investigation || activePayload?.investigations || "N/A";
     const adviceGiven = dischargeForm?.adviceGiven || followUp?.adviceGiven || clinicalSummary?.dischargeNote || activePayload?.advice || "N/A";
-    const specialInstructions = dischargeForm?.specialInstructions || followUp?.anySpecialInstructionGiven || clinicalSummary?.dischargeNote || activePayload?.specialInstructions || "N/A";
+    const specialInstructions = dischargeForm?.specialInstructions || followUp?.anySpecialInstructionGiven || followUp?.specialInstructions || clinicalSummary?.dischargeNote || activePayload?.specialInstructions || "N/A";
     const nextAppointment = dischargeForm?.nextAppointment || followUp?.nextAppointment || activePayload?.nextAppointment || "";
     const clinicalNotes = dischargeForm?.clinicalNotes || clinicalSummary?.treatmentResult || savedClinicalNotes || "";
 
-    // Vitals resolution (Checks dischargeForm first, then activePayload fallback codes)
+    // Vitals resolution
     const bp = dischargeForm?.bp || activePayload?.vitals?.bp || clinicalSummary?.vitals?.bp || "";
     const pulse = dischargeForm?.pulse || activePayload?.vitals?.pulse || clinicalSummary?.vitals?.pulse || "";
     const temp = dischargeForm?.temp || activePayload?.vitals?.temp || clinicalSummary?.vitals?.temp || "";
     const spo2 = dischargeForm?.spo2 || activePayload?.vitals?.spo2 || clinicalSummary?.vitals?.spo2 || "";
 
-    // Aggregates staged medications and clinical team prescriptions (both round and bedside updates)
+    // Aggregates staged medications and API medications
     const aggregateMedicines = () => {
         const list = [];
         const seen = new Set();
@@ -384,6 +385,7 @@ Hospital       : ${hospitalName}
 Lead Doctor    : ${mainDoctorName}
 Patient Name   : ${patientName}
 Age / Gender   : ${age}, ${gender}
+Blood Group    : ${bloodGroup}
 Document Date  : ${date} ${time}
 Verified       : Authentic Document`;
 
@@ -436,7 +438,6 @@ Verified       : Authentic Document`;
             submitData.append('treatmentResult', String(clinicalNotes || conditionDuringDischarge || "Stable"));
             submitData.append('dischargeNote', String(specialInstructions || adviceGiven || "Follow up as advised."));
             
-            // Add Vitals data structure to Form Submission payload
             if (bp) submitData.append('bp', String(bp));
             if (pulse) submitData.append('pulse', String(pulse));
             if (temp) submitData.append('temp', String(temp));
@@ -640,8 +641,8 @@ Verified       : Authentic Document`;
                                             {collaborativeDoctors && collaborativeDoctors.length > 0 && (
                                                 <div className="mt-1 text-[9px] text-slate-400 font-bold space-y-0.5 uppercase tracking-wide">
                                                     {collaborativeDoctors.map((team, idx) => {
-                                                        const specName = team?.doctorId?.name || team?.name || "";
-                                                        const specDept = team?.doctorId?.speciality || team?.department || "";
+                                                        const specName = team?.name || team?.doctorId?.name || "";
+                                                        const specDept = team?.department || team?.doctorId?.speciality || "";
                                                         if (!specName) return null;
                                                         return (
                                                             <p key={idx}>
@@ -715,6 +716,11 @@ Verified       : Authentic Document`;
                                                 <span className="w-24 font-bold flex-shrink-0 text-slate-800">Age</span>
                                                 <span className="mr-1.5 font-bold">:</span>
                                                 <span className="flex-1 font-medium text-slate-600 truncate border-b border-dashed border-slate-200">{age}</span>
+                                            </div>
+                                            <div className="flex items-end">
+                                                <span className="w-24 font-bold flex-shrink-0 text-slate-800">Blood Group</span>
+                                                <span className="mr-1.5 font-bold">:</span>
+                                                <span className="flex-1 font-semibold text-rose-600 truncate border-b border-dashed border-slate-200">{bloodGroup}</span>
                                             </div>
                                             <div className="flex items-end">
                                                 <span className="w-24 font-bold flex-shrink-0 text-slate-800">Date</span>
@@ -862,8 +868,8 @@ Verified       : Authentic Document`;
                                         </h3>
                                         <div className="space-y-3 text-[10px] text-slate-700 leading-normal">
                                             {collaborativeDoctors.map((team, idx) => {
-                                                const docName = team?.doctorId?.name || team?.name || "Attending Specialist";
-                                                const specDept = team?.doctorId?.speciality || team?.department || "Department Clinical Rounds";
+                                                const docName = team?.name || team?.doctorId?.name || "Attending Specialist";
+                                                const specDept = team?.department || team?.doctorId?.speciality || "Department Clinical Rounds";
                                                 const feedback = team?.specialistFeedback;
                                                 const observationsList = Array.isArray(feedback) ? feedback : (feedback?.observation ? [feedback] : []);
 
@@ -896,7 +902,7 @@ Verified       : Authentic Document`;
                                 <div className="border border-slate-200 rounded-2xl p-4 bg-white mb-6">
                                     <h3 className="text-xs font-bold text-[#08B36A] mb-1 font-sans">Attending Discharge Clinical Notes</h3>
                                     <div className="space-y-3 font-sans text-[10px] text-slate-700 leading-normal min-h-[100px] px-1">
-                                        {clinicalNotes ? (
+                                        {clinicalNotes && clinicalNotes !== 'N/A' ? (
                                             <p className="border-b border-slate-100 pb-1 font-medium">{clinicalNotes}</p>
                                         ) : (
                                             <div className="space-y-4">

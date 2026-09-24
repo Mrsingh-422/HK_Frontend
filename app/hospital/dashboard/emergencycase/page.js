@@ -47,8 +47,9 @@ const EmergencyTable = ({ items, onView }) => (
     <table className="w-full text-left">
       <thead className="bg-emerald-50/50 text-[10px] uppercase font-black text-emerald-800">
         <tr>
-          <th className="p-5">Booking / Ambulance</th>
+          <th className="p-5">Booking / Case Ref</th>
           <th className="p-5">Patient Details</th>
+          <th className="p-5">Assigned Clinician</th>
           <th className="p-5">Ward / Bed & Status</th>
           <th className="p-5 text-center">Action</th>
         </tr>
@@ -56,42 +57,84 @@ const EmergencyTable = ({ items, onView }) => (
       <tbody className="divide-y divide-emerald-50">
         {items.length === 0 ? (
           <tr>
-            <td colSpan="4" className="p-10 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">
+            <td colSpan="5" className="p-10 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">
               No cases found in this category
             </td>
           </tr>
         ) : (
-          items.map((item) => (
-            <tr key={item._id} className="hover:bg-emerald-50/20 transition-all group">
-              <td className="p-5">
-                <p className="text-xs font-black text-emerald-700">#{item.bookingId}</p>
-                <p className="text-[10px] font-bold text-gray-400 uppercase">{item.ambulanceId?.vehicleNumber || 'Private Arrival'}</p>
-              </td>
-              <td className="p-5">
-                <p className="text-sm font-black text-gray-800">{item.patients[0]?.patientName}</p>
-                <p className="text-[10px] text-gray-500">{item.patients[0]?.gender} • {item.patients[0]?.patientAge}y</p>
-              </td>
-              <td className="p-5">
-                <div className="flex flex-col gap-1.5 items-start">
-                  <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-md text-[10px] font-black uppercase">
-                    {item.wardName || 'Unassigned'} - {item.bedNumber || 'Unassigned'}
-                  </span>
-                  <span className={`px-2.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
-                    item.clinicalSummary?.dischargedAt != null || item.status?.toLowerCase() === 'completed' || item.status?.toLowerCase() === 'discharged'
-                      ? 'bg-blue-100 text-blue-700'
-                      : item.wardName || item.bedNumber
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {item.clinicalSummary?.dischargedAt != null ? 'Discharged' : item.status || (item.wardName || item.bedNumber ? 'Admitted' : 'Pending')}
-                  </span>
-                </div>
-              </td>
-              <td className="p-5 text-center">
-                <button onClick={() => onView(item)} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase hover:bg-emerald-700 transition-all">View</button>
-              </td>
-            </tr>
-          ))
+          items.map((item) => {
+            const patient = item.patientDetails || item.patients?.[0] || {};
+            const ambulance = item.ambulanceDetails || item.ambulanceId || {};
+            const bed = item.bedDetails || {};
+            const wardName = bed.wardName || item.wardName;
+            const bedNumber = bed.bedNumber || item.bedNumber;
+            const doctor = item.assignedDoctor || item.doctorId;
+            const statusLower = (item.status || '').toLowerCase();
+            const isDischarged = item.clinicalSummary?.dischargedAt != null || statusLower === 'completed' || statusLower === 'discharged';
+
+            return (
+              <tr key={item._id} className="hover:bg-emerald-50/20 transition-all group">
+                <td className="p-5">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-black text-emerald-700">#{item.bookingId}</p>
+                    {item.serviceType && (
+                      <span className="text-[8px] font-black uppercase bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded border border-rose-100">
+                        {item.serviceType}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5">
+                    {ambulance.vehicleNumber ? `🚑 ${ambulance.vehicleNumber}` : item.caseReference ? `Ref: ${item.caseReference}` : 'Private Arrival'}
+                  </p>
+                </td>
+
+                <td className="p-5">
+                  <p className="text-sm font-black text-gray-800">{patient.patientName || 'Unknown Patient'}</p>
+                  <p className="text-[10px] text-gray-500 font-bold">
+                    {patient.gender || 'N/A'} • {patient.age || patient.patientAge || 'N/A'}y
+                    {patient.bloodGroup && ` • (${patient.bloodGroup})`}
+                  </p>
+                </td>
+
+                <td className="p-5">
+                  {doctor?.name ? (
+                    <div>
+                      <p className="text-xs font-extrabold text-slate-800">{doctor.name.startsWith('Dr.') ? doctor.name : `Dr. ${doctor.name}`}</p>
+                      <p className="text-[9px] font-bold text-emerald-600 uppercase">{doctor.speciality || 'Attending Physician'}</p>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-gray-400 italic">Unassigned</span>
+                  )}
+                </td>
+
+                <td className="p-5">
+                  <div className="flex flex-col gap-1.5 items-start">
+                    <span className="bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase">
+                      {wardName || 'Unassigned Ward'} {bedNumber ? `• Bed ${bedNumber}` : ''}
+                    </span>
+                    <span className={`px-2.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                      isDischarged
+                        ? 'bg-blue-100 text-blue-700'
+                        : statusLower === 'in-progress' || wardName || bedNumber
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {isDischarged ? 'Discharged' : item.status || (wardName || bedNumber ? 'Admitted' : 'Pending')}
+                    </span>
+                  </div>
+                </td>
+
+                <td className="p-5 text-center">
+                  <button 
+                    onClick={() => onView(item)} 
+                    className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase hover:bg-emerald-700 transition-all shadow-sm"
+                  >
+                    View
+                  </button>
+                </td>
+              </tr>
+            );
+          })
         )}
       </tbody>
     </table>
@@ -232,7 +275,7 @@ const EmergencyManagement = () => {
     isLoadingData: false 
   });
 
-  // Occupancy Map Specific State (Initialized safely with timezone-accurate local today's date)
+  // Occupancy Map Specific State
   const [wards, setWards] = useState([]);
   const [selectedWard, setSelectedWard] = useState('');
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -260,21 +303,21 @@ const EmergencyManagement = () => {
   const fetchEmergencies = async () => {
     setLoading(true);
     const res = await HospitalAPI.getEmergencyCases();
-    if (res?.success) setData(res.data);
+    if (res?.success) setData(res.data || []);
     setLoading(false);
   };
 
   const fetchReferrals = async () => {
     setLoading(true);
     const res = await HospitalAPI.getReferralBookings('all');
-    if (res?.success) setData(res.data);
+    if (res?.success) setData(res.data || []);
     setLoading(false);
   };
 
   const fetchWards = async () => {
     const res = await HospitalAPI.getWardsList();
     if (res?.success) {
-        setWards(res.data);
+        setWards(res.data || []);
         if(!selectedWard && res.data.length > 0) setSelectedWard(res.data[0]._id);
     }
   };
@@ -282,7 +325,7 @@ const EmergencyManagement = () => {
   const fetchOccupancy = async () => {
     setLoading(true);
     const res = await HospitalAPI.getDailyOccupancy(selectedWard, selectedDate);
-    if (res?.success) setData(res.data);
+    if (res?.success) setData(res.data || []);
     setLoading(false);
   };
 
@@ -290,15 +333,16 @@ const EmergencyManagement = () => {
   const pendingCases = useMemo(() => {
     if (activeTab !== 'active') return [];
     return data.filter(item => {
-      // Rule: If dischargedAt is set, it cannot be pending
       if (item.clinicalSummary?.dischargedAt != null) return false;
 
       const statusLower = (item.status || '').toLowerCase();
       if (statusLower === 'completed' || statusLower === 'discharged') return false;
-      if (statusLower === 'assigned' || statusLower === 'admitted') return false;
+      if (statusLower === 'assigned' || statusLower === 'admitted' || statusLower === 'in-progress') return false;
       
-      // If no explicit status, fallback: if it doesn't have a wardName or bedNumber, it is pending
-      if (item.wardName || item.bedNumber) return false;
+      const hasBed = item.bedDetails?.bedNumber || item.bedNumber || item.bedId;
+      const hasDoc = item.assignedDoctor?._id || item.doctorId;
+      if (hasBed || hasDoc) return false;
+
       return true;
     });
   }, [data, activeTab]);
@@ -306,22 +350,21 @@ const EmergencyManagement = () => {
   const assignedCases = useMemo(() => {
     if (activeTab !== 'active') return [];
     return data.filter(item => {
-      // Rule: If dischargedAt is set, it cannot be active/assigned
       if (item.clinicalSummary?.dischargedAt != null) return false;
 
       const statusLower = (item.status || '').toLowerCase();
       if (statusLower === 'completed' || statusLower === 'discharged') return false;
-      if (statusLower === 'assigned' || statusLower === 'admitted') return true;
+      if (statusLower === 'assigned' || statusLower === 'admitted' || statusLower === 'in-progress') return true;
       
-      // Fallback: If it has an assigned ward or bed, classify as assigned
-      return !!(item.wardName || item.bedNumber);
+      const hasBed = item.bedDetails?.bedNumber || item.bedNumber || item.bedId;
+      const hasDoc = item.assignedDoctor?._id || item.doctorId;
+      return !!(hasBed || hasDoc);
     });
   }, [data, activeTab]);
 
   const completedCases = useMemo(() => {
     if (activeTab !== 'active') return [];
     return data.filter(item => {
-      // Rule: If dischargedAt is not null, it is completed
       if (item.clinicalSummary?.dischargedAt != null) return true;
 
       const statusLower = (item.status || '').toLowerCase();
@@ -374,7 +417,7 @@ const EmergencyManagement = () => {
     try {
       const response = await HospitalAPI.getWardsList(); 
       if (response?.success) {
-        setBedAssignState(prev => ({ ...prev, wards: response.data, isLoadingData: false }));
+        setBedAssignState(prev => ({ ...prev, wards: response.data || [], isLoadingData: false }));
       } else {
         alert(response?.message || 'Could not fetch wards.');
         setActiveAction(null);
@@ -390,11 +433,10 @@ const EmergencyManagement = () => {
     setBedAssignState(prev => ({ ...prev, isLoadingData: true }));
     setFlowData(prev => ({ ...prev, selectedWard: ward }));
     try {
-      // Fetch dynamic date-wise occupancy to determine bed slot eligibility
       const targetQueryDate = flowData.startDate || selectedDate;
       const response = await HospitalAPI.getDailyOccupancy(ward._id, targetQueryDate); 
       if (response?.success) {
-        setBedAssignState(prev => ({ ...prev, beds: response.data, isLoadingData: false }));
+        setBedAssignState(prev => ({ ...prev, beds: response.data || [], isLoadingData: false }));
       } else {
         alert(response?.message || 'Could not fetch beds.');
         setBedAssignState(prev => ({ ...prev, isLoadingData: false })); 
@@ -412,7 +454,6 @@ const EmergencyManagement = () => {
   const handleBedSelectionNext = async () => {
     if (!flowData.selectedBed) return alert("Please select an available bed slot to continue.");
     
-    // Proceed to Step 3: Select Doctor
     setIsProcessing(true);
     try {
       const response = await HospitalAPI.getHospitalDoctors();
@@ -436,7 +477,7 @@ const EmergencyManagement = () => {
     setIsProcessing(true);
     
     try {
-      // 1. Allot Bed (POST: /hospital/panel/ward/admit-patient)
+      // 1. Allot Bed
       const bedPayload = { 
         appointmentId: selectedCase._id, 
         bedId: flowData.selectedBed._id,
@@ -446,12 +487,12 @@ const EmergencyManagement = () => {
       const bedRes = await HospitalAPI.admitPatientToBed(bedPayload);
       
       if (!bedRes?.success) {
-        alert("Admit Bed Failed: " + bedRes.message);
+        alert("Admit Bed Failed: " + (bedRes?.message || 'Error admitting to bed'));
         setIsProcessing(false);
         return;
       }
 
-      // 2. Assign Attending Doctor (POST: /hospital/panel/admissions/assign-doctor)
+      // 2. Assign Attending Doctor
       const docPayload = { 
         appointmentId: selectedCase._id, 
         doctorId: selectedDoctorId 
@@ -462,9 +503,9 @@ const EmergencyManagement = () => {
         alert(`Admission Finalized Successfully! Bed ${flowData.selectedBed.bedNumber} has been allocated.`);
         setActiveAction(null);
         setSelectedCase(null); 
-        fetchEmergencies(); // Refresh candidates list
+        fetchEmergencies();
       } else {
-        alert("Physician Assignment Failed: " + docRes.message);
+        alert("Physician Assignment Failed: " + (docRes?.message || 'Error assigning doctor'));
       }
 
     } catch (error) {
@@ -545,7 +586,7 @@ const EmergencyManagement = () => {
                 ))}
               </div>
 
-              {/* RENDER EMERGENCY TABLE WITH PAGINATED SUB-TAB ITEMS */}
+              {/* RENDER EMERGENCY TABLE */}
               <EmergencyTable 
                 items={paginatedActiveItems} 
                 onView={(c) => { setSelectedCase(c); setActiveAction(null); }} 
@@ -564,7 +605,6 @@ const EmergencyManagement = () => {
             <div className="space-y-4">
               <ReferralTable items={paginatedReferrals} />
               
-              {/* REFERRALS PAGINATION */}
               <PaginationControls 
                 currentPage={currentPage}
                 totalPages={referralsTotalPages}

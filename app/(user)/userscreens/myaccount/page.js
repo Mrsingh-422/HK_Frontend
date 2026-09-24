@@ -5,7 +5,7 @@ import {
     FaUser, FaEnvelope, FaPhoneAlt, FaCamera, FaEdit,
     FaCheck, FaTimes, FaSpinner, FaMapMarkerAlt, FaGlobeAmericas,
     FaBirthdayCake, FaVenusMars, FaWeightHanging, FaRulerVertical,
-    FaCity, FaUserFriends, FaCheckCircle
+    FaCity, FaUserFriends, FaCheckCircle, FaTint
 } from "react-icons/fa";
 
 import ViewMembers from "./components/ViewMembers";
@@ -109,57 +109,54 @@ function MyAccount() {
     }, []);
 
     // ------------------ UPDATE PROFILE ------------------
-    // 2. Updated Save Handler
     const handleSaveProfile = async () => {
         setIsSaving(true);
         try {
-            // A. Get location names
+            // Get location names
             const selectedCountry = countries.find(c => c.id == tempProfile.country);
             const selectedState = states.find(s => s.id == tempProfile.state);
             const selectedCity = cities.find(c => c.id == tempProfile.city);
 
-            // B. CLEAN THE DATA (Remove MongoDB internals that cause 500 errors)
-            // We only send the fields the user can actually change
-            const profileToSave = {
-                name: tempProfile.name,
-                fatherName: tempProfile.fatherName,
-                email: tempProfile.email,
-                phone: tempProfile.phone,
-                countryCode: tempProfile.countryCode,
-                dob: tempProfile.dob,
-                gender: tempProfile.gender,
-                weight: tempProfile.weight,
-                height: tempProfile.height,
-                country: selectedCountry?.name || tempProfile.country,
-                state: selectedState?.name || tempProfile.state,
-                city: selectedCity?.name || tempProfile.city,
-            };
+            // Format DOB to YYYY-MM-DD
+            const formattedDob = tempProfile.dob ? tempProfile.dob.split("T")[0] : "";
 
-            // C. DECIDE SEND METHOD (FormData is safer for images)
-            let payload;
+            // Build FormData payload
+            const formData = new FormData();
+            if (tempProfile.name) formData.append("name", tempProfile.name);
+            if (tempProfile.bloodGroup) formData.append("bloodGroup", tempProfile.bloodGroup);
+            if (tempProfile.gender) formData.append("gender", tempProfile.gender);
+            if (formattedDob) formData.append("dob", formattedDob);
+            if (tempProfile.weight) formData.append("weight", tempProfile.weight);
+            if (tempProfile.height) formData.append("height", tempProfile.height);
 
-            // If there's a new image file, use FormData to avoid "500 Payload Too Large"
+            // Additional profile fields
+            if (tempProfile.fatherName) formData.append("fatherName", tempProfile.fatherName);
+            if (tempProfile.email) formData.append("email", tempProfile.email);
+            if (tempProfile.phone) formData.append("phone", tempProfile.phone);
+            if (tempProfile.countryCode) formData.append("countryCode", tempProfile.countryCode);
+
+            const countryVal = selectedCountry?.name || tempProfile.country;
+            const stateVal = selectedState?.name || tempProfile.state;
+            const cityVal = selectedCity?.name || tempProfile.city;
+
+            if (countryVal) formData.append("country", countryVal);
+            if (stateVal) formData.append("state", stateVal);
+            if (cityVal) formData.append("city", cityVal);
+
+            // Append profile picture file if selected
             if (imageFile) {
-                payload = new FormData();
-                Object.keys(profileToSave).forEach(key => payload.append(key, profileToSave[key]));
-                payload.append("profilePic", imageFile);
-            } else {
-                // If no new image, send as clean JSON
-                payload = profileToSave;
+                formData.append("profilePic", imageFile);
             }
 
-            // D. Call API
-            await UserAPI.updateProfile(payload);
-            fetchUserData();
-
-
+            // Call API
+            await UserAPI.updateProfile(formData);
+            await fetchUserData();
 
             CostoumPopup("Profile Updated Successfully", "success", 3000);
             setIsEditingProfile(false);
-            // window.location.reload();
+            setImageFile(null);
         } catch (error) {
             console.error("Save failed:", error.response?.data || error.message);
-            // Alert the specific error from the server if available
             alert(error.response?.data?.message || "Failed to update profile (Server Error 500).");
         } finally {
             setIsSaving(false);
@@ -256,6 +253,28 @@ function MyAccount() {
                                 )}
                             </div>
 
+                            {/* BLOOD GROUP */}
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="text-[#08b36a]"><FaTint /></span> Blood Group
+                                </label>
+                                {isEditingProfile ? (
+                                    <select name="bloodGroup" value={tempProfile.bloodGroup || ""} onChange={handleInputChange} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold focus:outline-[#08b36a]">
+                                        <option value="">Select Blood Group</option>
+                                        <option value="A+">A+</option>
+                                        <option value="A-">A-</option>
+                                        <option value="B+">B+</option>
+                                        <option value="B-">B-</option>
+                                        <option value="AB+">AB+</option>
+                                        <option value="AB-">AB-</option>
+                                        <option value="O+">O+</option>
+                                        <option value="O-">O-</option>
+                                    </select>
+                                ) : (
+                                    <p className="text-gray-800 font-bold text-sm truncate">{userData.bloodGroup || "—"}</p>
+                                )}
+                            </div>
+
                             {/* FATHER NAME */}
                             <div className="space-y-1">
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
@@ -319,7 +338,7 @@ function MyAccount() {
                                                 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
                                                 return `${day} ${months[parseInt(month, 10) - 1]} ${year}`;
                                             } catch (e) {
-                                                return userData.dob.split("T")[0]; // Fallback to raw YYYY-MM-DD if parser fails
+                                                return userData.dob.split("T")[0];
                                             }
                                         })() : "—"}
                                     </p>
@@ -333,6 +352,7 @@ function MyAccount() {
                                 </label>
                                 {isEditingProfile ? (
                                     <select name="gender" value={tempProfile.gender || ""} onChange={handleInputChange} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold focus:outline-[#08b36a]">
+                                        <option value="">Select Gender</option>
                                         <option value="Male">Male</option>
                                         <option value="Female">Female</option>
                                         <option value="Other">Other</option>
@@ -348,7 +368,7 @@ function MyAccount() {
                                     <span className="text-[#08b36a]"><FaWeightHanging /></span> Weight
                                 </label>
                                 {isEditingProfile ? (
-                                    <input name="weight" type="text" placeholder="61 kg" value={tempProfile.weight || ""} onChange={handleInputChange} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold focus:outline-[#08b36a]" />
+                                    <input name="weight" type="text" placeholder="72 kg" value={tempProfile.weight || ""} onChange={handleInputChange} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold focus:outline-[#08b36a]" />
                                 ) : (
                                     <p className="text-gray-800 font-bold text-sm truncate">{userData.weight || "—"}</p>
                                 )}
@@ -360,7 +380,7 @@ function MyAccount() {
                                     <span className="text-[#08b36a]"><FaRulerVertical /></span> Height
                                 </label>
                                 {isEditingProfile ? (
-                                    <input name="height" type="text" placeholder="5'9" value={tempProfile.height || ""} onChange={handleInputChange} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold focus:outline-[#08b36a]" />
+                                    <input name="height" type="text" placeholder="5'10" value={tempProfile.height || ""} onChange={handleInputChange} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold focus:outline-[#08b36a]" />
                                 ) : (
                                     <p className="text-gray-800 font-bold text-sm truncate">{userData.height || "—"}</p>
                                 )}
@@ -416,7 +436,7 @@ function MyAccount() {
                                     <button onClick={handleSaveProfile} disabled={isSaving} className="flex-1 bg-[#08b36a] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#256f47]">
                                         {isSaving ? <FaSpinner className="animate-spin" /> : <FaCheck />} Save Changes
                                     </button>
-                                    <button onClick={() => { setIsEditingProfile(false); setTempProfile(userData); }} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200">
+                                    <button onClick={() => { setIsEditingProfile(false); setTempProfile(userData); setImageFile(null); }} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200">
                                         <FaTimes /> Discard
                                     </button>
                                 </div>

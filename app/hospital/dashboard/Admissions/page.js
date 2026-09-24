@@ -8,16 +8,38 @@ import { SpinnerIcon } from './components/InfoSection';
 
 const getStatusColor = (status) => {
   const statusLower = (status || '').toLowerCase();
-  if (statusLower === 'confirmed' || statusLower === 'in-progress' || statusLower === 'active') {
+  if (statusLower === 'confirmed' || statusLower === 'in-progress' || statusLower === 'active' || statusLower === 'stable') {
     return 'bg-emerald-50 text-emerald-700 border-emerald-200';
   }
-  if (statusLower === 'hospital-pending') {
+  if (statusLower === 'hospital-pending' || statusLower === 'recovering') {
     return 'bg-amber-50 text-amber-700 border-amber-200';
   }
-  if (statusLower.startsWith('cancelled') || statusLower.startsWith('rejected')) {
+  if (statusLower.startsWith('cancelled') || statusLower.startsWith('rejected') || statusLower === 'critical') {
     return 'bg-rose-50 text-rose-700 border-rose-200';
   }
   return 'bg-slate-50 text-slate-700 border-slate-200';
+};
+
+const getEventBadgeStyle = (eventType) => {
+  switch (eventType) {
+    case 'BEDSIDE_FEEDBACK':
+      return { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: '🩺' };
+    case 'MEDICATION_ORDERED':
+      return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: '💊' };
+    case 'CLINICAL_ROUND':
+      return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: '📋' };
+    default:
+      return { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', icon: '⏱️' };
+  }
+};
+
+const getFormattedImageUrl = (path) => {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5002';
+  const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${cleanBaseUrl}${cleanPath}`;
 };
 
 const ManageAdmissionsPage = () => {
@@ -30,11 +52,12 @@ const ManageAdmissionsPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
-  // Tracked Cases State
+  // Tracked Cases State & Search
   const [trackedCases, setTrackedCases] = useState([]);
   const [trackedPage, setTrackedPage] = useState(1);
   const [trackedTotalPages, setTrackedTotalPages] = useState(1);
   const [trackedTotalRecords, setTrackedTotalRecords] = useState(0);
+  const [trackedSearch, setTrackedSearch] = useState('');
   const [loadingTracked, setLoadingTracked] = useState(false);
 
   // Tracked Cases Details State
@@ -75,10 +98,10 @@ const ManageAdmissionsPage = () => {
     fetchTrackedCasesCountOnly();
   }, []);
 
-  // Fetch when tab changes or tracked page changes
+  // Fetch when tab changes or tracked page/search changes
   useEffect(() => {
     if (activeSubTab === 'tracked') {
-      fetchTrackedCases(trackedPage);
+      fetchTrackedCases(trackedPage, trackedSearch);
     } else {
       setCurrentPage(1);
     }
@@ -89,7 +112,7 @@ const ManageAdmissionsPage = () => {
     try {
       const response = await HospitalAPI.getAdmissions();
       if (response?.success) {
-        setAdmissions(response.data);
+        setAdmissions(response.data || []);
       }
     } catch (error) {
       console.error("Error fetching admissions:", error);
@@ -98,7 +121,6 @@ const ManageAdmissionsPage = () => {
     }
   };
 
-  // Populate total count badge for Tracked Cases initially
   const fetchTrackedCasesCountOnly = async () => {
     try {
       const response = await HospitalAPI.getTrackedCases(1);
@@ -110,10 +132,10 @@ const ManageAdmissionsPage = () => {
     }
   };
 
-  const fetchTrackedCases = async (page) => {
+  const fetchTrackedCases = async (page = 1, search = '') => {
     setLoadingTracked(true);
     try {
-      const response = await HospitalAPI.getTrackedCases(page);
+      const response = await HospitalAPI.getTrackedCases(page, search);
       if (response?.success) {
         setTrackedCases(response.data || []);
         setTrackedTotalPages(response.totalPages || 1);
@@ -124,6 +146,12 @@ const ManageAdmissionsPage = () => {
     } finally {
       setLoadingTracked(false);
     }
+  };
+
+  const handleTrackedSearchSubmit = (e) => {
+    e.preventDefault();
+    setTrackedPage(1);
+    fetchTrackedCases(1, trackedSearch);
   };
 
   const fetchSingleTrackedDetails = async (id) => {
@@ -145,16 +173,20 @@ const ManageAdmissionsPage = () => {
     }
   };
 
-  // Doctor Memoized Helpers
+  // Doctor Memoized Helpers supporting assignedDoctor & doctorId
   const currentDocId = useMemo(() => {
-    if (!selectedAdmission?.doctorId) return null;
-    return selectedAdmission.doctorId._id || selectedAdmission.doctorId;
+    if (!selectedAdmission) return null;
+    const doc = selectedAdmission.assignedDoctor || selectedAdmission.doctorId;
+    if (!doc) return null;
+    return doc._id || doc;
   }, [selectedAdmission]);
 
   const currentDocName = useMemo(() => {
-    if (!selectedAdmission?.doctorId) return 'Unassigned';
-    if (selectedAdmission.doctorId.name) return selectedAdmission.doctorId.name;
-    const found = doctorList.find(d => d._id === selectedAdmission.doctorId);
+    if (!selectedAdmission) return 'Unassigned';
+    const doc = selectedAdmission.assignedDoctor || selectedAdmission.doctorId;
+    if (!doc) return 'Unassigned';
+    if (doc.name) return doc.name;
+    const found = doctorList.find(d => d._id === (doc._id || doc));
     return found ? found.name : 'Assigned Doctor';
   }, [selectedAdmission, doctorList]);
 
@@ -189,7 +221,7 @@ const ManageAdmissionsPage = () => {
     return [];
   }, [activeSubTab, pendingAdmissions, activeAdmissions, cancelledAdmissions]);
 
-  // Pagination Logic (Standard admissions client-side pagination)
+  // Pagination Logic
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   
@@ -503,116 +535,254 @@ const ManageAdmissionsPage = () => {
       {/* CONDITIONAL RENDERING OF CONTENT */}
       {activeSubTab === 'tracked' ? (
         // --- TRACKED CASES LAYOUT ---
-        loadingTracked ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-4">
-            <SpinnerIcon className="w-10 h-10 text-[#08B36A] animate-spin" />
-            <p className="text-sm text-gray-500 font-bold">Retrieving Tracked Cases...</p>
-          </div>
-        ) : trackedCases.length === 0 ? (
-          <div className="text-center bg-white p-16 rounded-3xl shadow-sm border-2 border-dashed border-gray-200">
-            <div className="w-20 h-20 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center text-4xl mb-4 mx-auto">📋</div>
-            <p className="text-gray-700 text-lg font-black">No Tracked Cases Found</p>
-          </div>
-        ) : (
-          <>
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 text-[10px] uppercase tracking-[0.15em] font-black">
-                      <th className="px-5 py-4">Booking ID</th>
-                      <th className="px-5 py-4">Patient Profile</th>
-                      <th className="px-5 py-4">Current Status</th>
-                      <th className="px-5 py-4 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {trackedCases.map((item) => {
-                      // Safe extraction of patient name and age to handle varied structure from the API payload
-                      const fallbackName = item.patientProfile?.name || 
-                                           item.patientName || 
-                                           item.patients?.[0]?.patientName || 
-                                           item.name || 
-                                           'Unknown';
-                      const fallbackAge = item.patientProfile?.age || 
-                                          item.patientAge || 
-                                          item.patients?.[0]?.patientAge || 
-                                          item.age || 
-                                          'N/A';
-
-                      return (
-                        <tr 
-                          key={item.appointmentId || item._id} 
-                          className="hover:bg-slate-50 transition-colors duration-200 cursor-pointer"
-                          onClick={() => fetchSingleTrackedDetails(item.appointmentId || item._id)}
-                        >
-                          <td className="px-5 py-4">
-                            <span className="text-[11px] font-extrabold text-gray-600 bg-gray-50 px-2.5 py-1 rounded border border-gray-200">
-                              #{item.bookingId || 'N/A'}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4">
-                            <div>
-                              <p className="text-xs font-extrabold text-gray-900">{fallbackName}</p>
-                              <p className="text-[10px] font-bold text-gray-400 mt-0.5">
-                                Age: {fallbackAge}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="px-5 py-4">
-                            <span className={`text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${getStatusColor(item.status)}`}>
-                              {item.status || 'In-Progress'}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 text-center" onClick={(e) => e.stopPropagation()}>
-                            <button 
-                              onClick={() => fetchSingleTrackedDetails(item.appointmentId || item._id)}
-                              className="bg-[#08B36A] hover:bg-[#079E5E] text-white text-[10px] font-black px-4 py-2 rounded-lg transition-all"
-                            >
-                              View Super Details
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* SERVER PAGINATION FOR TRACKED CASES */}
-            <div className="mt-6 flex flex-col sm:flex-row justify-between items-center bg-white px-5 py-4 rounded-xl border border-gray-100 shadow-sm gap-4">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                Showing page <span className="text-[#08B36A]">{trackedPage}</span> of <span className="text-[#08B36A]">{trackedTotalPages}</span> pages
-              </p>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setTrackedPage(prev => Math.max(1, prev - 1))} 
-                  disabled={trackedPage === 1}
-                  className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-lg hover:bg-[#08B36A] hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 transition-all text-gray-600"
+        <div className="space-y-4">
+          
+          {/* SEARCH & FILTERS FOR TRACKED CASES */}
+          <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <form onSubmit={handleTrackedSearchSubmit} className="flex items-center gap-2 w-full sm:w-auto">
+              <input
+                type="text"
+                placeholder="Search by Booking ID or Patient Name..."
+                value={trackedSearch}
+                onChange={(e) => setTrackedSearch(e.target.value)}
+                className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#08B36A] w-full sm:w-80"
+              />
+              <button
+                type="submit"
+                className="bg-[#08B36A] hover:bg-[#079E5E] text-white text-xs font-black px-4 py-2 rounded-xl transition-all shrink-0"
+              >
+                Search
+              </button>
+              {trackedSearch && (
+                <button
+                  type="button"
+                  onClick={() => { setTrackedSearch(''); fetchTrackedCases(1, ''); }}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-black px-3 py-2 rounded-xl transition-all"
                 >
-                  Prev
+                  Clear
                 </button>
-                {[...Array(trackedTotalPages)].map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setTrackedPage(i + 1)}
-                    className={`w-9 h-9 text-[10px] font-black rounded-lg border transition-all ${trackedPage === i + 1 ? 'bg-[#08B36A] text-white border-[#08B36A]' : 'bg-white text-gray-600 border-gray-100 hover:border-[#08B36A]'}`}
+              )}
+            </form>
+
+            <div className="text-xs font-bold text-gray-500">
+              Total Tracked Cases: <span className="text-[#08B36A] font-black">{trackedTotalRecords}</span>
+            </div>
+          </div>
+
+          {loadingTracked ? (
+            <div className="flex flex-col items-center justify-center h-64 gap-4">
+              <SpinnerIcon className="w-10 h-10 text-[#08B36A] animate-spin" />
+              <p className="text-sm text-gray-500 font-bold">Retrieving Tracked Cases...</p>
+            </div>
+          ) : trackedCases.length === 0 ? (
+            <div className="text-center bg-white p-16 rounded-3xl shadow-sm border-2 border-dashed border-gray-200">
+              <div className="w-20 h-20 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center text-4xl mb-4 mx-auto">📋</div>
+              <p className="text-gray-700 text-lg font-black">No Tracked Cases Found</p>
+            </div>
+          ) : (
+            <>
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse whitespace-nowrap">
+                    <thead>
+                      <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 text-[10px] uppercase tracking-[0.15em] font-black">
+                        <th className="px-5 py-4">Booking ID / Triage</th>
+                        <th className="px-5 py-4">Patient Profile</th>
+                        <th className="px-5 py-4">Assigned Ward & Bed</th>
+                        <th className="px-5 py-4">Attending Doctor</th>
+                        <th className="px-5 py-4">Billing & Amount</th>
+                        <th className="px-5 py-4">Status</th>
+                        <th className="px-5 py-4 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {trackedCases.map((item) => {
+                        const patient = item.patientDetails || item.patientProfile || item.patients?.[0] || {};
+                        const fallbackName = patient.patientName || patient.name || item.patientName || 'Unknown Patient';
+                        const fallbackAge = patient.age !== undefined ? patient.age : (patient.patientAge || 'N/A');
+                        const fallbackGender = patient.gender || '';
+                        const bloodGroup = patient.bloodGroup;
+                        const reason = patient.reasonForVisit;
+
+                        const bed = item.bedDetails || {};
+                        const doctor = item.assignedDoctor || item.doctorId || null;
+                        const billing = item.billing || {};
+                        const totalAmt = billing.totalAmount !== undefined ? billing.totalAmount : (item.totalAmount || 0);
+                        const paymentStat = billing.paymentStatus || item.paymentStatus || 'Pending';
+                        const paymentMeth = billing.paymentMethod || item.paymentMethod;
+
+                        return (
+                          <tr 
+                            key={item._id || item.appointmentId} 
+                            className="hover:bg-slate-50 transition-colors duration-200 cursor-pointer"
+                            onClick={() => fetchSingleTrackedDetails(item._id || item.appointmentId)}
+                          >
+                            {/* Booking ID & Triage */}
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] font-extrabold text-gray-800 bg-gray-50 px-2.5 py-1 rounded border border-gray-200">
+                                  #{item.bookingId || item.caseDetails?.bookingId || 'N/A'}
+                                </span>
+                                {item.triageLevel && (
+                                  <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                                    item.triageLevel === 'Emergency' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-slate-100 text-slate-600 border-slate-200'
+                                  }`}>
+                                    {item.triageLevel}
+                                  </span>
+                                )}
+                              </div>
+                              {item.stayDuration && (
+                                <p className="text-[9px] font-bold text-gray-400 mt-1">
+                                  Stay: {item.stayDuration} Day{item.stayDuration > 1 ? 's' : ''}
+                                </p>
+                              )}
+                            </td>
+
+                            {/* Patient Profile */}
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-3">
+                                {patient.profilePic ? (
+                                  <img 
+                                    src={getFormattedImageUrl(patient.profilePic)} 
+                                    alt={fallbackName} 
+                                    className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-lg bg-[#08B36A]/10 text-[#08B36A] flex items-center justify-center font-black text-xs border border-[#08B36A]/20 shrink-0">
+                                    {fallbackName.charAt(0) || '?'}
+                                  </div>
+                                )}
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="text-xs font-extrabold text-gray-900 leading-none">{fallbackName}</p>
+                                    {bloodGroup && (
+                                      <span className="text-[8px] font-black text-rose-600 bg-rose-50 px-1 py-0.2 rounded border border-rose-100">
+                                        {bloodGroup}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] font-bold text-gray-400 mt-1">
+                                    {fallbackGender} {fallbackAge !== 'N/A' ? `• ${fallbackAge}y` : ''} {patient.relation ? `(${patient.relation})` : ''}
+                                  </p>
+                                  {reason && (
+                                    <p className="text-[9px] font-semibold text-slate-500 truncate max-w-[150px] mt-0.5" title={reason}>
+                                      "{reason}"
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Assigned Ward & Bed */}
+                            <td className="px-5 py-4">
+                              <div className="flex flex-col items-start gap-1">
+                                <span className="bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase">
+                                  {bed.wardName || 'Unassigned Ward'}
+                                </span>
+                                <span className="text-xs font-black text-emerald-700">
+                                  Bed: {bed.bedNumber || 'Unassigned'}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Attending Doctor */}
+                            <td className="px-5 py-4">
+                              {doctor?.name ? (
+                                <div className="flex items-center gap-2">
+                                  {doctor.profileImage && (
+                                    <img 
+                                      src={getFormattedImageUrl(doctor.profileImage)} 
+                                      alt={doctor.name} 
+                                      className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
+                                    />
+                                  )}
+                                  <div>
+                                    <p className="text-xs font-bold text-gray-800">
+                                      {doctor.name.startsWith('Dr.') ? doctor.name : `Dr. ${doctor.name}`}
+                                    </p>
+                                    <p className="text-[9px] font-bold text-emerald-600 uppercase">
+                                      {doctor.speciality || 'Attending Physician'}
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-gray-400 italic">Unassigned</span>
+                              )}
+                            </td>
+
+                            {/* Billing & Amount */}
+                            <td className="px-5 py-4">
+                              <p className="text-xs font-extrabold text-gray-800">₹{totalAmt}</p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className={`text-[9px] font-black uppercase ${paymentStat === 'Paid' ? 'text-[#08B36A]' : 'text-amber-600'}`}>
+                                  {paymentStat}
+                                </span>
+                                {paymentMeth && (
+                                  <span className="text-[8px] font-bold text-gray-400 uppercase">
+                                    • {paymentMeth}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Status */}
+                            <td className="px-5 py-4">
+                              <span className={`text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${getStatusColor(item.status || item.caseDetails?.status)}`}>
+                                {item.status || item.caseDetails?.status || 'In-Progress'}
+                              </span>
+                            </td>
+
+                            {/* Action */}
+                            <td className="px-5 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                              <button 
+                                onClick={() => fetchSingleTrackedDetails(item._id || item.appointmentId)}
+                                className="bg-[#08B36A] hover:bg-[#079E5E] text-white text-[10px] font-black px-4 py-2 rounded-lg transition-all shadow-sm"
+                              >
+                                View Super Details
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* SERVER PAGINATION FOR TRACKED CASES */}
+              <div className="mt-6 flex flex-col sm:flex-row justify-between items-center bg-white px-5 py-4 rounded-xl border border-gray-100 shadow-sm gap-4">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  Showing page <span className="text-[#08B36A]">{trackedPage}</span> of <span className="text-[#08B36A]">{trackedTotalPages}</span> pages
+                </p>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setTrackedPage(prev => Math.max(1, prev - 1))} 
+                    disabled={trackedPage === 1}
+                    className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-lg hover:bg-[#08B36A] hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 transition-all text-gray-600"
                   >
-                    {i + 1}
+                    Prev
                   </button>
-                ))}
-                <button 
-                  onClick={() => setTrackedPage(prev => Math.min(trackedTotalPages, prev + 1))} 
-                  disabled={trackedPage === trackedTotalPages}
-                  className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-lg hover:bg-[#08B36A] hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 transition-all text-gray-600"
-                >
-                  Next
-                </button>
+                  {[...Array(trackedTotalPages)].map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setTrackedPage(i + 1)}
+                      className={`w-9 h-9 text-[10px] font-black rounded-lg border transition-all ${trackedPage === i + 1 ? 'bg-[#08B36A] text-white border-[#08B36A]' : 'bg-white text-gray-600 border-gray-100 hover:border-[#08B36A]'}`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  <button 
+                    onClick={() => setTrackedPage(prev => Math.min(trackedTotalPages, prev + 1))} 
+                    disabled={trackedPage === trackedTotalPages}
+                    className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-lg hover:bg-[#08B36A] hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 transition-all text-gray-600"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
-            </div>
-          </>
-        )
+            </>
+          )}
+        </div>
       ) : (
         // --- STANDARD ADMISSIONS LAYOUT ---
         loading ? (
@@ -642,7 +812,16 @@ const ManageAdmissionsPage = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {currentItems.map((adm) => {
-                      const patient = adm.patients?.[0] || {};
+                      const patient = adm.patientDetails || adm.patients?.[0] || {};
+                      const patientName = patient.patientName || patient.name || 'Unknown';
+                      const patientAge = patient.age !== undefined ? patient.age : patient.patientAge;
+                      const patientGender = patient.gender || '';
+                      
+                      const doctor = adm.assignedDoctor || adm.doctorId || null;
+
+                      const totalAmt = adm.billing?.totalAmount !== undefined ? adm.billing.totalAmount : adm.totalAmount || 0;
+                      const paymentStat = adm.billing?.paymentStatus || adm.paymentStatus || 'Pending';
+
                       const isEmergency = adm.triageLevel === 'Emergency';
                       const isPending = (adm.status || '').toLowerCase() === 'hospital-pending';
                       const cancelReason = adm.cancellationDetails?.reason || adm.cancellationReason || adm.rejectReason || adm.rescheduleReason;
@@ -662,32 +841,32 @@ const ManageAdmissionsPage = () => {
                           <td className="px-5 py-3.5">
                             <div className="flex items-center gap-3">
                               <div className="w-8 h-8 rounded-lg bg-[#08B36A]/10 text-[#08B36A] flex items-center justify-center font-black text-xs border border-[#08B36A]/20 shrink-0">
-                                {patient.patientName?.charAt(0) || '?'}
+                                {patientName.charAt(0) || '?'}
                               </div>
                               <div>
                                 <div className="flex items-center gap-1.5">
-                                  <p className="text-xs font-extrabold text-gray-900 leading-none">{patient.patientName || 'Unknown'}</p>
+                                  <p className="text-xs font-extrabold text-gray-900 leading-none">{patientName}</p>
                                   {isEmergency && <span className="text-red-500 text-[9px] font-black bg-red-50 px-1.5 py-0.5 rounded border border-red-100 uppercase tracking-wider">Emergency</span>}
                                 </div>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mt-1">
-                                  {patient.gender} &bull; {patient.patientAge}y
+                                  {patientGender} {patientAge !== undefined ? `• ${patientAge}y` : ''}
                                 </p>
                               </div>
                             </div>
                           </td>
 
                           <td className="px-5 py-3.5">
-                            {adm.doctorId?.name ? (
-                              <p className="text-xs font-bold text-gray-700">Dr. {adm.doctorId.name}</p>
+                            {doctor?.name ? (
+                              <p className="text-xs font-bold text-gray-700">Dr. {doctor.name}</p>
                             ) : (
                               <span className="text-[11px] text-gray-400 italic">Unassigned</span>
                             )}
                           </td>
 
                           <td className="px-5 py-3.5">
-                            <p className="text-xs font-extrabold text-gray-800">₹{adm.totalAmount}</p>
-                            <p className={`text-[9px] font-black uppercase mt-0.5 ${adm.paymentStatus === 'Paid' ? 'text-[#08B36A]' : 'text-amber-600'}`}>
-                              {adm.paymentStatus}
+                            <p className="text-xs font-extrabold text-gray-800">₹{totalAmt}</p>
+                            <p className={`text-[9px] font-black uppercase mt-0.5 ${paymentStat === 'Paid' ? 'text-[#08B36A]' : 'text-amber-600'}`}>
+                              {paymentStat}
                             </p>
                           </td>
 
@@ -815,210 +994,291 @@ const ManageAdmissionsPage = () => {
 
       {/* UNIFIED "SUPER DETAILS" CASE FILE MODAL */}
       {selectedTrackedId && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 md:p-6 animate-fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-gray-100">
             
             {/* Modal Header */}
-            <div className="bg-gray-950 text-white px-6 py-4 flex justify-between items-center shrink-0">
-              <div>
-                <p className="text-[10px] font-black text-[#08B36A] uppercase tracking-wider leading-none">Unified "Super Details" Case File</p>
-                <h3 className="text-lg font-extrabold mt-1">
-                  Booking ID: {trackedDetails?.caseDetails?.bookingId || 'N/A'}
-                </h3>
+            <div className="bg-gradient-to-r from-slate-900 via-gray-900 to-slate-900 text-white px-6 py-5 flex justify-between items-center shrink-0 border-b border-gray-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#08B36A]/20 border border-[#08B36A]/40 flex items-center justify-center text-xl">
+                  📁
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[10px] font-black text-[#08B36A] uppercase tracking-widest leading-none">
+                      Hospital Case Record
+                    </p>
+                    {trackedDetails?.caseDetails?.status && (
+                      <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${getStatusColor(trackedDetails.caseDetails.status)}`}>
+                        {trackedDetails.caseDetails.status}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-base md:text-lg font-black tracking-tight mt-1 text-slate-100">
+                    Case #{trackedDetails?.caseDetails?.bookingId || 'N/A'}
+                  </h3>
+                </div>
               </div>
               <button 
                 onClick={() => setSelectedTrackedId(null)}
-                className="bg-white/10 hover:bg-white/20 text-white rounded-full p-2 text-xs transition-all font-bold"
+                className="bg-white/10 hover:bg-white/20 text-white rounded-full p-2.5 text-xs transition-all font-bold focus:outline-none"
               >
-                ✕ Close
+                ✕
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-6">
+            <div className="p-4 md:p-6 overflow-y-auto space-y-6 bg-slate-50/60">
               {loadingTrackedDetails ? (
-                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <div className="flex flex-col items-center justify-center py-20 gap-3">
                   <SpinnerIcon className="w-10 h-10 text-[#08B36A] animate-spin" />
-                  <p className="text-sm font-bold text-gray-500">Retrieving Unified Logs...</p>
+                  <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Loading Live Case Timeline...</p>
                 </div>
               ) : trackedDetails ? (
                 (() => {
-                  // Fallbacks for Details views
-                  const profileName = trackedDetails.caseDetails?.patientProfile?.name || 
-                                      trackedDetails.caseDetails?.patientName || 
-                                      trackedDetails.caseDetails?.patients?.[0]?.patientName || 
-                                      'Unknown';
-                  const profileAge = trackedDetails.caseDetails?.patientProfile?.age || 
-                                     trackedDetails.caseDetails?.patientAge || 
-                                     trackedDetails.caseDetails?.patients?.[0]?.patientAge || 
-                                     'N/A';
+                  const caseDetails = trackedDetails.caseDetails || {};
+                  const patient = caseDetails.patientProfile || caseDetails.patientDetails || {};
+                  const bed = caseDetails.bedDetails || {};
+                  const timeline = trackedDetails.treatmentTimeline || [];
 
                   return (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                       
-                      {/* Left Column: Patient Profile, Status, Vitals */}
-                      <div className="space-y-6 lg:col-span-1">
-                        {/* Basic Info */}
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3">Case Status</h4>
-                          <p className="text-sm font-extrabold text-slate-800">
-                            {profileName}
-                          </p>
-                          <p className="text-xs font-bold text-slate-500 mt-0.5">
-                            Age: {profileAge} years
-                          </p>
-                          <div className="mt-3">
-                            <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md border ${getStatusColor(trackedDetails.caseDetails?.status)}`}>
-                              {trackedDetails.caseDetails?.status || 'In-Progress'}
+                      {/* Left Column: Patient Profile & Bed Allocation Info (4 cols) */}
+                      <div className="lg:col-span-4 space-y-5">
+                        
+                        {/* Patient Profile Card */}
+                        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">Patient Demographics</h4>
+                            <span className="text-xs font-black bg-rose-50 text-rose-600 px-2 py-0.5 rounded border border-rose-100">
+                              {patient.bloodGroup ? `Blood: ${patient.bloodGroup}` : 'Blood: N/A'}
                             </span>
                           </div>
-                        </div>
 
-                        {/* Vitals Panel */}
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3">Recorded Patient Vitals</h4>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-rose-50/50 p-2.5 rounded-lg border border-rose-100 text-center">
-                              <p className="text-[10px] font-bold text-rose-500 uppercase">Blood Pressure</p>
-                              <p className="text-sm font-extrabold text-rose-700 mt-1">
-                                {trackedDetails.prescriptionDetails?.vitals?.bp || 'N/A'}
+                          <div className="space-y-3.5">
+                            <div className="flex items-center gap-3">
+                              {patient.profilePic && (
+                                <img 
+                                  src={getFormattedImageUrl(patient.profilePic)} 
+                                  alt="Avatar" 
+                                  className="w-12 h-12 rounded-xl object-cover border border-slate-200"
+                                />
+                              )}
+                              <div>
+                                <p className="text-base font-black text-slate-800">
+                                  {patient.patientName || patient.name || 'Unknown Patient'}
+                                </p>
+                                <p className="text-xs font-bold text-slate-500 mt-0.5">
+                                  {patient.age ? `${patient.age} yrs` : ''} {patient.gender ? `• ${patient.gender}` : ''} {patient.relation ? `(${patient.relation})` : ''}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Reason for visit */}
+                            <div className="bg-amber-50/80 border border-amber-200/80 p-3 rounded-xl">
+                              <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Reason For Admission</p>
+                              <p className="text-xs font-extrabold text-amber-900 mt-1">
+                                {patient.reasonForVisit || 'Not specified'}
                               </p>
                             </div>
-                            <div className="bg-amber-50/50 p-2.5 rounded-lg border border-amber-100 text-center">
-                              <p className="text-[10px] font-bold text-amber-600 uppercase">Pulse Rate</p>
-                              <p className="text-sm font-extrabold text-amber-700 mt-1">
-                                {trackedDetails.prescriptionDetails?.vitals?.pulse || 'N/A'}
-                              </p>
-                            </div>
-                            <div className="bg-sky-50/50 p-2.5 rounded-lg border border-sky-100 text-center">
-                              <p className="text-[10px] font-bold text-sky-500 uppercase">Body Temp</p>
-                              <p className="text-sm font-extrabold text-sky-700 mt-1">
-                                {trackedDetails.prescriptionDetails?.vitals?.temp || 'N/A'}
-                              </p>
-                            </div>
-                            <div className="bg-emerald-50/50 p-2.5 rounded-lg border border-emerald-100 text-center">
-                              <p className="text-[10px] font-bold text-emerald-600 uppercase">SpO2 Level</p>
-                              <p className="text-sm font-extrabold text-emerald-700 mt-1">
-                                {trackedDetails.prescriptionDetails?.vitals?.spo2 || 'N/A'}
-                              </p>
+
+                            {/* Contact & Account details */}
+                            <div className="grid grid-cols-2 gap-2 text-left pt-1">
+                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                <p className="text-[9px] font-bold text-slate-400 uppercase">Contact Phone</p>
+                                <p className="text-xs font-extrabold text-slate-700 mt-0.5">{patient.phone || 'N/A'}</p>
+                              </div>
+                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                <p className="text-[9px] font-bold text-slate-400 uppercase">Account Holder</p>
+                                <p className="text-xs font-extrabold text-slate-700 mt-0.5 truncate" title={patient.accountHolderName}>
+                                  {patient.accountHolderName || 'N/A'}
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </div>
 
-                        {/* Prescription Document */}
-                        {trackedDetails.prescriptionDetails?.pdfUrl && (
-                          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
-                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2">Prescription Form</h4>
-                            <a 
-                              href={trackedDetails.prescriptionDetails.pdfUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 bg-[#08B36A] hover:bg-[#079E5E] text-white text-xs font-black py-2 px-4 rounded-lg transition-all shadow-sm w-full justify-center"
-                            >
-                              📄 Open PDF File
-                            </a>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Middle Column: Treatment Timeline */}
-                      <div className="space-y-4 lg:col-span-1">
-                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm h-full">
-                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-4">Treatment Timeline</h4>
-                          
-                          {trackedDetails.treatmentTimeline?.length === 0 ? (
-                            <p className="text-xs text-gray-400 italic">No timeline milestones logged yet.</p>
-                          ) : (
-                            <div className="relative border-l border-gray-200 ml-2 space-y-6">
-                              {trackedDetails.treatmentTimeline?.map((item, index) => (
-                                <div key={index} className="mb-4 ml-6 relative">
-                                  <span className="absolute -left-[31px] top-1 bg-[#08B36A] text-white w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-black ring-4 ring-white">
-                                    {index + 1}
-                                  </span>
-                                  <p className="text-xs font-extrabold text-gray-800 leading-tight">{item.name}</p>
-                                  <p className="text-[10px] font-bold text-[#08B36A] mt-0.5">{item.role}</p>
-                                  <div className="mt-1 text-[10px] text-gray-400 font-medium space-y-0.5">
-                                    <p>Joined: {new Date(item.joinedAt).toLocaleString()}</p>
-                                    <p className="font-extrabold text-gray-600">Active Duration: {item.duration}</p>
-                                  </div>
-                                </div>
-                              ))}
+                        {/* Bed Allocation Card */}
+                        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-3 mb-4">
+                            Bed & Ward Allocation
+                          </h4>
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
+                              <div>
+                                <p className="text-[10px] font-bold text-emerald-600 uppercase">Assigned Bed</p>
+                                <p className="text-sm font-black text-emerald-900">{bed.bedNumber || 'Unassigned'}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[10px] font-bold text-emerald-600 uppercase">Daily Rate</p>
+                                <p className="text-sm font-black text-emerald-900">₹{bed.pricePerDay ? `${bed.pricePerDay}/day` : '0'}</p>
+                              </div>
                             </div>
-                          )}
+
+                            <div className="grid grid-cols-2 gap-2 text-left">
+                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                <p className="text-[9px] font-bold text-slate-400 uppercase">Ward Name</p>
+                                <p className="text-xs font-extrabold text-slate-700 mt-0.5">{bed.wardId?.name || bed.wardName || 'General Ward'}</p>
+                              </div>
+                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                <p className="text-[9px] font-bold text-slate-400 uppercase">Ward Type</p>
+                                <p className="text-xs font-extrabold text-slate-700 mt-0.5">{bed.wardId?.type || bed.wardType || 'Standard'}</p>
+                              </div>
+                            </div>
+                          </div>
                         </div>
+
+                        {/* Appointment Internal Reference */}
+                        <div className="bg-slate-100/70 p-3 rounded-xl border border-slate-200 text-[11px] text-slate-500 font-medium">
+                          <p className="font-bold text-slate-600">Appointment ID:</p>
+                          <p className="font-mono text-[10px] text-slate-400 truncate select-all">{caseDetails.appointmentId || caseDetails._id}</p>
+                        </div>
+
                       </div>
 
-                      {/* Right Column: Care Logs & Recommendations */}
-                      <div className="space-y-4 lg:col-span-1">
-                        {/* Bedside Care Logs */}
-                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3">Bedside Care Logs</h4>
-                          {trackedDetails.bedsideCareLogs?.length === 0 ? (
-                            <p className="text-xs text-gray-400 italic">No specialist observations found.</p>
+                      {/* Right Column: Full Treatment Timeline & Clinical Logs (8 cols) */}
+                      <div className="lg:col-span-8 space-y-4">
+                        <div className="bg-white rounded-2xl p-5 md:p-6 border border-slate-200/80 shadow-sm">
+                          <div className="flex items-center justify-between mb-6 pb-3 border-b border-slate-100">
+                            <div>
+                              <h4 className="text-sm font-black uppercase tracking-wider text-slate-800">
+                                Treatment & Clinical Timeline
+                              </h4>
+                              <p className="text-[11px] font-medium text-slate-400 mt-0.5">Chronological record of specialist notes, rounds, and medications</p>
+                            </div>
+                            <span className="bg-[#08B36A]/10 text-[#08B36A] font-black text-xs px-3 py-1 rounded-full border border-[#08B36A]/20">
+                              {timeline.length} Milestone{timeline.length === 1 ? '' : 's'}
+                            </span>
+                          </div>
+
+                          {timeline.length === 0 ? (
+                            <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                              <p className="text-slate-400 text-xs font-bold">No timeline logs recorded for this patient yet.</p>
+                            </div>
                           ) : (
-                            <div className="space-y-4">
-                              {trackedDetails.bedsideCareLogs?.map((log, idx) => (
-                                <div key={idx} className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
-                                  <div className="flex justify-between items-start">
-                                    <div>
-                                      <p className="text-xs font-extrabold text-slate-800">{log.specialist?.name}</p>
-                                      <p className="text-[10px] font-bold text-slate-500">{log.specialist?.speciality}</p>
-                                    </div>
-                                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[8px] font-black uppercase px-2 py-0.5 rounded">
-                                      {log.specialist?.status || 'Completed'}
-                                    </span>
-                                  </div>
+                            <div className="relative border-l-2 border-slate-200 ml-4 md:ml-6 space-y-8 py-2">
+                              {timeline.map((event, index) => {
+                                const badge = getEventBadgeStyle(event.eventType);
+                                const eventTime = event.timestamp ? new Date(event.timestamp).toLocaleString(undefined, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                }) : 'Time not logged';
 
-                                  {/* Observations */}
-                                  {log.clinicalObservations?.map((obs, oIdx) => (
-                                    <div key={oIdx} className="text-[11px] bg-white p-2 rounded border border-slate-100">
-                                      <p className="text-slate-500 font-bold">Observation:</p>
-                                      <p className="text-slate-800 font-medium italic">"{obs.observation}"</p>
-                                      <div className="flex justify-between items-center text-[9px] text-gray-400 mt-1 font-semibold">
-                                        <span>Cond: {obs.patientCondition}</span>
-                                        <span>{new Date(obs.submittedAt).toLocaleDateString()}</span>
-                                      </div>
+                                return (
+                                  <div key={index} className="relative pl-6 md:pl-8 group">
+                                    {/* Timeline Marker Dot */}
+                                    <div className="absolute -left-[17px] top-1 w-8 h-8 rounded-full bg-white border-2 border-slate-300 group-hover:border-[#08B36A] shadow-sm flex items-center justify-center text-sm transition-all">
+                                      {badge.icon}
                                     </div>
-                                  ))}
 
-                                  {/* Discharge recommendations */}
-                                  {log.dischargeHomeRecommendations?.length > 0 && (
-                                    <div className="space-y-1">
-                                      <p className="text-[9px] font-black text-rose-600 uppercase tracking-wide">Discharge Med Recommendations</p>
-                                      {log.dischargeHomeRecommendations.map((rec, rIdx) => (
-                                        <div key={rIdx} className="bg-rose-50/50 p-2 rounded text-[10px] text-rose-900 border border-rose-100/60 font-medium">
-                                          <p className="font-extrabold">{rec.name} ({rec.dosage})</p>
-                                          <p className="text-[9px] text-rose-700">Freq: {rec.frequency}</p>
+                                    {/* Event Card */}
+                                    <div className="bg-slate-50/80 group-hover:bg-slate-50 transition-colors p-4 md:p-5 rounded-2xl border border-slate-200/90 space-y-3.5 shadow-sm">
+                                      
+                                      {/* Header: Category & Timestamp */}
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md border ${badge.bg} ${badge.text} ${badge.border}`}>
+                                            {event.category || event.eventType}
+                                          </span>
+                                          {event.patientCondition && (
+                                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${getStatusColor(event.patientCondition)}`}>
+                                              Condition: {event.patientCondition}
+                                            </span>
+                                          )}
                                         </div>
-                                      ))}
+                                        <span className="text-[11px] font-bold text-slate-400">
+                                          🕒 {eventTime}
+                                        </span>
+                                      </div>
+
+                                      {/* Doctor Card */}
+                                      {event.doctor && (
+                                        <div className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200/60">
+                                          <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 font-black text-xs">
+                                            👨‍⚕️
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-black text-slate-800 leading-tight">{event.doctor.name}</p>
+                                            <p className="text-[10px] font-bold text-slate-400">
+                                              {event.doctor.speciality} {event.doctor.role ? `• ${event.doctor.role}` : ''}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Clinical Observation */}
+                                      {event.observation && (
+                                        <div className="bg-white p-3.5 rounded-xl border border-slate-200/70">
+                                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Clinical Observation</p>
+                                          <p className="text-xs font-semibold text-slate-700 italic leading-relaxed">
+                                            "{event.observation}"
+                                          </p>
+                                        </div>
+                                      )}
+
+                                      {/* Medication Order Box */}
+                                      {event.medication && (
+                                        <div className="bg-blue-50/60 border border-blue-200/80 p-3.5 rounded-xl space-y-2">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-base">💊</span>
+                                              <p className="text-xs font-black text-blue-900">{event.medication.name}</p>
+                                            </div>
+                                            {event.medication.status && (
+                                              <span className="text-[9px] font-black uppercase bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                                                {event.medication.status}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                                            <p className="text-blue-800 font-medium">
+                                              <span className="font-bold text-blue-950">Dosage:</span> {event.medication.dosage || 'N/A'}
+                                            </p>
+                                            <p className="text-blue-800 font-medium">
+                                              <span className="font-bold text-blue-950">Frequency:</span> {event.medication.frequency || 'N/A'}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Vitals Snapshot */}
+                                      {event.vitals && (
+                                        <div className="pt-1">
+                                          <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-2">Recorded Vitals at check</p>
+                                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                            <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
+                                              <p className="text-[8px] font-bold text-slate-400 uppercase">BP</p>
+                                              <p className="text-xs font-black text-slate-800 mt-0.5">{event.vitals.bp || '—'}</p>
+                                            </div>
+                                            <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
+                                              <p className="text-[8px] font-bold text-slate-400 uppercase">Pulse</p>
+                                              <p className="text-xs font-black text-slate-800 mt-0.5">{event.vitals.pulse ? `${event.vitals.pulse} bpm` : '—'}</p>
+                                            </div>
+                                            <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
+                                              <p className="text-[8px] font-bold text-slate-400 uppercase">Temp</p>
+                                              <p className="text-xs font-black text-slate-800 mt-0.5">{event.vitals.temp ? `${event.vitals.temp}°F` : '—'}</p>
+                                            </div>
+                                            <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
+                                              <p className="text-[8px] font-bold text-slate-400 uppercase">SpO2</p>
+                                              <p className="text-xs font-black text-emerald-600 mt-0.5">{event.vitals.spo2 ? `${event.vitals.spo2}%` : '—'}</p>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+
                                     </div>
-                                  )}
-                                </div>
-                              ))}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
-
-                        {/* Primary Doctor Round Logs */}
-                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3">Primary Round Logs</h4>
-                          {trackedDetails.primaryDoctorRoundLogs?.length === 0 ? (
-                            <p className="text-xs text-gray-400 italic">No primary round entries registered.</p>
-                          ) : (
-                            <div className="space-y-3">
-                              {trackedDetails.primaryDoctorRoundLogs?.map((round, rIdx) => (
-                                <div key={rIdx} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                                  <p className="text-xs text-slate-800 font-medium italic">"{round.note || 'No notes'}"</p>
-                                  <p className="text-[9px] text-slate-400 mt-1 text-right font-bold">
-                                    {new Date(round.loggedAt).toLocaleString()}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
                       </div>
+
                     </div>
                   );
                 })()
@@ -1029,11 +1289,11 @@ const ManageAdmissionsPage = () => {
               )}
             </div>
 
-            {/* Footer */}
-            <div className="bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end shrink-0">
+            {/* Modal Footer */}
+            <div className="bg-white border-t border-gray-200 px-6 py-4 flex justify-end shrink-0">
               <button 
                 onClick={() => setSelectedTrackedId(null)}
-                className="bg-gray-800 hover:bg-gray-900 text-white text-xs font-black px-5 py-2.5 rounded-xl transition-all"
+                className="bg-slate-900 hover:bg-black text-white text-xs font-black px-6 py-2.5 rounded-xl transition-all shadow-md"
               >
                 Close Case File
               </button>

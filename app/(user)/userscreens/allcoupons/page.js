@@ -32,8 +32,12 @@ export default function CouponsPage() {
       try {
         setLoading(true);
         const res = await UserAPI.getAllCoupons();
-        if (res.success) {
+        if (res?.success && res?.data) {
           setCoupons(res.data);
+        } else if (res?.data) {
+          setCoupons(res.data);
+        } else if (res && typeof res === 'object') {
+          setCoupons(res);
         }
       } catch (error) {
         console.error("Error fetching coupons:", error);
@@ -45,7 +49,7 @@ export default function CouponsPage() {
     fetchCoupons();
   }, []);
 
-  // Filter keys that actually contain array items from the API
+  // Extract all category keys that are arrays from the API response
   const categoryKeys = useMemo(() => {
     if (!coupons) return [];
     return Object.keys(coupons).filter(key => Array.isArray(coupons[key]));
@@ -71,13 +75,16 @@ export default function CouponsPage() {
   }, [coupons, activeTab]);
 
   const handleCopyCode = (code) => {
+    if (!code) return;
     navigator.clipboard.writeText(code);
     toast.success(`Coupon code ${code} copied!`);
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString('en-US', {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    return date.toLocaleDateString('en-US', {
       day: 'numeric',
       month: 'short',
       year: 'numeric'
@@ -130,7 +137,7 @@ export default function CouponsPage() {
               All Categories
             </button>
             {categoryKeys.map((category) => {
-              const config = categoryConfig[category] || { icon: <FaTicketAlt />, color: 'from-slate-500 to-slate-600' };
+              const config = categoryConfig[category] || { icon: <FaTicketAlt />, color: 'from-slate-500 to-slate-600', textColor: 'text-slate-600' };
               const isSelected = activeTab === category;
               const count = coupons?.[category]?.length || 0;
               return (
@@ -169,11 +176,13 @@ export default function CouponsPage() {
         ) : (
           /* --- COUPON TICKETS GRID --- */
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredCoupons.map((coupon) => {
+            {filteredCoupons.map((coupon, index) => {
               const config = categoryConfig[coupon.category] || { icon: <FaTicketAlt />, color: 'from-slate-500 to-slate-600', border: 'border-slate-100', bgColor: 'bg-slate-50/70', textColor: 'text-slate-600' };
+              const expiryFormatted = formatDate(coupon.expiryDate);
+
               return (
                 <div
-                  key={coupon._id}
+                  key={coupon._id || `${coupon.couponName}-${index}`}
                   className="bg-white rounded-3xl border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:shadow-[0_20px_50px_rgba(20,184,166,0.08)] hover:border-emerald-100 transition-all duration-300 flex overflow-hidden h-44"
                 >
                   {/* Left Side: Percentage Block */}
@@ -214,15 +223,17 @@ export default function CouponsPage() {
                       </h3>
 
                       {/* Max discount tag */}
-                      <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
-                        Max savings up to <span className="font-bold text-slate-600">₹{coupon.maxDiscount}</span> per request.
-                      </p>
+                      {coupon.maxDiscount !== undefined && (
+                        <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
+                          Max savings up to <span className="font-bold text-slate-600">₹{coupon.maxDiscount}</span> per request.
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-1 gap-2">
                       <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold uppercase">
                         <FaCalendarAlt size={10} className="text-slate-300" />
-                        <span>Expires {formatDate(coupon.expiryDate)}</span>
+                        <span>{expiryFormatted ? `Expires ${expiryFormatted}` : 'Active Offer'}</span>
                       </div>
 
                       {/* Interactive Copy Code Badge */}

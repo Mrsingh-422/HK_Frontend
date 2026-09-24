@@ -18,11 +18,12 @@ export default function EnhancedBedDashboard() {
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [endDate, setEndDate] = useState(new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0]);
 
+    // Inclusive calculation (e.g., 24th to 27th = 4 Days)
     const totalDays = useMemo(() => {
         const start = new Date(startDate);
         const end = new Date(endDate);
         const diffTime = end - start;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
         return diffDays > 0 ? diffDays : 1;
     }, [startDate, endDate]);
 
@@ -108,7 +109,7 @@ export default function EnhancedBedDashboard() {
                         <div className="mb-2 lg:mb-0">
                             <h1 className="text-xl md:text-2xl font-black text-slate-800">Available Beds</h1>
                             <p className="text-slate-500 text-xs md:text-sm font-medium">
-                                Showing availability for <span className="text-blue-600 font-black">{totalDays} Nights</span>
+                                Showing availability for <span className="text-blue-600 font-black">{totalDays} Days</span>
                             </p>
                         </div>
 
@@ -174,13 +175,13 @@ export default function EnhancedBedDashboard() {
                                 <h3 className="text-xl md:text-3xl font-black text-slate-800 mb-1 leading-none">{bed.bedNumber}</h3>
                                 <div className="flex items-center text-slate-500 font-bold text-xs md:text-sm">
                                     <FaRupeeSign className="text-[10px] md:text-xs" /> {bed.pricePerDay} 
-                                    <span className="text-[9px] md:text-[10px] ml-1 opacity-60 font-medium">/ night</span>
+                                    <span className="text-[9px] md:text-[10px] ml-1 opacity-60 font-medium">/ day</span>
                                 </div>
 
                                 {selectedBed?._id === bed._id && (
                                     <div className="absolute top-0 right-0 bg-blue-600 text-white p-1 rounded-bl-lg">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                         </svg>
                                     </div>
                                 )}

@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
     FaUsers, FaPlus, FaTrashAlt, FaUser, FaTimes, FaCheck,
     FaPhone, FaEdit, FaCamera, FaSpinner, FaCalendarAlt,
-    FaArrowsAltV, FaWeight, FaShieldAlt, FaIdCard
+    FaArrowsAltV, FaWeight, FaShieldAlt, FaIdCard, FaTint
 } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import UserAPI from '@/app/services/UserAPI';
@@ -24,6 +24,7 @@ function ViewMembers() {
         memberName: "",
         relation: "Spouse",
         dob: "",
+        bloodGroup: "",
         phone: "",
         gender: "Male",
         height: "",
@@ -69,10 +70,12 @@ function ViewMembers() {
     const openModal = (member = null) => {
         if (member) {
             setEditingId(member._id);
+            const formattedDob = member.dob ? member.dob.split("T")[0] : "";
             setFormData({
                 memberName: member.memberName || "",
                 relation: member.relation || "Spouse",
-                dob: member.dob || "",
+                dob: formattedDob,
+                bloodGroup: member.bloodGroup || "",
                 phone: member.phone || "",
                 gender: member.gender || "Male",
                 height: member.height || "",
@@ -97,28 +100,24 @@ function ViewMembers() {
         setIsSubmitting(true);
 
         try {
-            // Constructing FormData exactly as per Postman screenshot
             const data = new FormData();
             data.append('memberName', formData.memberName);
             data.append('relation', formData.relation);
-            data.append('dob', formData.dob);
+            if (formData.dob) data.append('dob', formData.dob.split("T")[0]);
+            if (formData.bloodGroup) data.append('bloodGroup', formData.bloodGroup);
             data.append('phone', formData.phone);
             data.append('gender', formData.gender);
-            data.append('height', formData.height);
-            data.append('weight', formData.weight);
-            data.append('insuranceNo', formData.insuranceNo);
-            data.append('insuranceId', formData.insuranceId);
-            data.append('hasInsurance', String(formData.hasInsurance)); // "true" or "false"
+            if (formData.height) data.append('height', formData.height);
+            if (formData.weight) data.append('weight', formData.weight);
+            if (formData.insuranceNo) data.append('insuranceNo', formData.insuranceNo);
+            if (formData.insuranceId) data.append('insuranceId', formData.insuranceId);
+            data.append('hasInsurance', String(formData.hasInsurance));
 
-            // FIXED: Only append profilePic if a new file was actually picked
-            // This prevents sending an empty object/string that causes "Cast to string failed"
             if (selectedFile instanceof File) {
                 data.append('profilePic', selectedFile);
-                console.log("Appending new file to FormData:", selectedFile);
             }
 
             if (editingId) {
-                // Per your screenshot, itemId is sent in the body during editing
                 data.append('itemId', editingId);
                 await UserAPI.editFamilyMember(editingId, data);
                 toast.success("Member updated successfully");
@@ -181,7 +180,7 @@ function ViewMembers() {
                             <div className="w-14 h-14 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
                                 {member.profilePic ? (
                                     <img
-                                        src={member.profilePic.startsWith('blob') || member.profilePic.startsWith('http') ? member.profilePic : `${process.env.NEXT_PUBLIC_BACKEND_URL}${member.profilePic}`}
+                                        src={member.profilePic.startsWith('blob') || member.profilePic.startsWith('http') || member.profilePic.startsWith('data:') ? member.profilePic : `${process.env.NEXT_PUBLIC_BACKEND_URL}${member.profilePic}`}
                                         className="w-full h-full object-cover"
                                         alt=""
                                     />
@@ -191,8 +190,13 @@ function ViewMembers() {
                             </div>
                             <div>
                                 <h3 className="font-bold text-gray-900 text-base line-clamp-1">{member.memberName}</h3>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap mt-1">
                                     <span className="text-[10px] font-black uppercase text-[#08b36a] bg-green-50 px-2 py-0.5 border border-green-100 rounded">{member.relation}</span>
+                                    {member.bloodGroup && (
+                                        <span className="text-[10px] font-black uppercase text-red-600 bg-red-50 px-2 py-0.5 border border-red-100 rounded flex items-center gap-1">
+                                            <FaTint size={8} /> {member.bloodGroup}
+                                        </span>
+                                    )}
                                     {member.hasInsurance && <FaShieldAlt className="text-blue-500" size={12} />}
                                 </div>
                             </div>
@@ -201,7 +205,7 @@ function ViewMembers() {
                         <div className="grid grid-cols-2 gap-2 mb-4">
                             <div className="bg-gray-50 border border-gray-100 p-2 rounded-xl text-left">
                                 <p className="text-[9px] text-gray-400 font-bold uppercase">DOB</p>
-                                <p className="text-xs font-bold text-gray-700">{member.dob || "N/A"}</p>
+                                <p className="text-xs font-bold text-gray-700">{member.dob ? member.dob.split("T")[0] : "N/A"}</p>
                             </div>
                             <div className="bg-gray-50 border border-gray-100 p-2 rounded-xl text-left">
                                 <p className="text-[9px] text-gray-400 font-bold uppercase">Gender</p>
@@ -233,6 +237,7 @@ function ViewMembers() {
                                             <img
                                                 src={previewUrl.startsWith('blob') || previewUrl.startsWith('data:') || previewUrl.startsWith('http') ? previewUrl : `${process.env.NEXT_PUBLIC_BACKEND_URL}${previewUrl}`}
                                                 className="w-full h-full object-cover"
+                                                alt="Preview"
                                             />
                                         ) : (
                                             <FaCamera className="text-gray-400" size={24} />
@@ -246,16 +251,49 @@ function ViewMembers() {
                                 <p className="text-[10px] text-gray-400 font-bold uppercase mt-2">Member Photo</p>
                             </div>
 
-                            <InputField label="Full Name" icon={<FaUser size={12} />} placeholder="Enter Name" value={formData.memberName} onChange={(val) => setFormData({ ...formData, memberName: val })} />
+                            <InputField label="Full Name" icon={<FaUser size={12} />} placeholder="Enter Name" value={formData.memberName} onChange={(val) => setFormData({ ...formData, memberName: val })} required />
 
                             <div className="grid grid-cols-2 gap-4 text-left">
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-bold text-gray-500 uppercase px-1">Relation</label>
                                     <select className="w-full p-3 border border-gray-300 rounded-xl text-sm font-semibold outline-none focus:border-[#08b36a]" value={formData.relation} onChange={(e) => setFormData({ ...formData, relation: e.target.value })}>
-                                        <option>Spouse</option><option>Child</option><option>Parent</option><option>Sibling</option><option>Girlfriend</option><option>Brother</option><option>Other</option>
+                                        <option>Spouse</option>
+                                        <option>Mother</option>
+                                        <option>Father</option>
+                                        <option>Child</option>
+                                        <option>Parent</option>
+                                        <option>Sibling</option>
+                                        <option>Brother</option>
+                                        <option>Sister</option>
+                                        <option>Girlfriend</option>
+                                        <option>Other</option>
                                     </select>
                                 </div>
-                                <InputField label="DOB" icon={<FaCalendarAlt size={12} />} placeholder="DD-MM-YYYY" value={formData.dob} onChange={(val) => setFormData({ ...formData, dob: val })} />
+                                <InputField label="DOB" icon={<FaCalendarAlt size={12} />} type="date" placeholder="YYYY-MM-DD" value={formData.dob} onChange={(val) => setFormData({ ...formData, dob: val })} />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 text-left">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase px-1 flex items-center gap-1">
+                                        <span className="text-[#08b36a]"><FaTint size={12} /></span> Blood Group
+                                    </label>
+                                    <select
+                                        className="w-full p-3 border border-gray-300 rounded-xl text-sm font-semibold outline-none focus:border-[#08b36a]"
+                                        value={formData.bloodGroup}
+                                        onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
+                                    >
+                                        <option value="">Select Blood Group</option>
+                                        <option value="A+">A+</option>
+                                        <option value="A-">A-</option>
+                                        <option value="B+">B+</option>
+                                        <option value="B-">B-</option>
+                                        <option value="AB+">AB+</option>
+                                        <option value="AB-">AB-</option>
+                                        <option value="O+">O+</option>
+                                        <option value="O-">O-</option>
+                                    </select>
+                                </div>
+                                <InputField label="Phone" icon={<FaPhone size={12} />} placeholder="9876543210" value={formData.phone} onChange={(val) => setFormData({ ...formData, phone: val })} />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4 text-left">
@@ -297,16 +335,13 @@ function ViewMembers() {
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-2 gap-4 text-left">
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-gray-500 uppercase px-1">Gender</label>
-                                    <div className="flex p-1 bg-gray-100 border border-gray-300 rounded-xl">
-                                        {["Male", "Female"].map(g => (
-                                            <button key={g} type="button" onClick={() => setFormData({ ...formData, gender: g })} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${formData.gender === g ? "bg-white text-[#08b36a] shadow-sm" : "text-gray-400"}`}>{g}</button>
-                                        ))}
-                                    </div>
+                            <div className="space-y-1 text-left">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase px-1">Gender</label>
+                                <div className="flex p-1 bg-gray-100 border border-gray-300 rounded-xl">
+                                    {["Male", "Female"].map(g => (
+                                        <button key={g} type="button" onClick={() => setFormData({ ...formData, gender: g })} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${formData.gender === g ? "bg-white text-[#08b36a] shadow-sm" : "text-gray-400"}`}>{g}</button>
+                                    ))}
                                 </div>
-                                <InputField label="Phone" icon={<FaPhone size={12} />} placeholder="Phone" value={formData.phone} onChange={(val) => setFormData({ ...formData, phone: val })} />
                             </div>
 
                             <button disabled={isSubmitting} type="submit" className="w-full py-4 bg-[#08b36a] text-white font-bold rounded-2xl hover:bg-[#256f47] flex items-center justify-center gap-2 transition-all disabled:opacity-70 mt-2">
@@ -321,13 +356,13 @@ function ViewMembers() {
     );
 }
 
-const InputField = ({ label, icon, value, onChange, placeholder, type = "text" }) => (
+const InputField = ({ label, icon, value, onChange, placeholder, type = "text", required = false }) => (
     <div className="space-y-1 text-left">
         <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1.5 px-1 tracking-wider">
             <span className="text-[#08b36a]">{icon}</span> {label}
         </label>
         <input
-            required
+            required={required}
             type={type}
             placeholder={placeholder}
             value={value}

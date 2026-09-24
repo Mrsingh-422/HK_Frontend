@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { FaTimes, FaBan, FaTimesCircle } from 'react-icons/fa';
+import { FaTimes, FaBan, FaTimesCircle, FaUser, FaBed, FaMoneyBillWave, FaShieldAlt, FaUserMd, FaCalendarAlt, FaProcedures } from 'react-icons/fa';
 import { InfoSection, InfoItem, SpinnerIcon } from './InfoSection';
 
 // Pre-configured drop locations with surcharges
@@ -45,21 +45,21 @@ const AdmissionDetailsModal = ({
   activeAction,
   setActiveAction,
   // Physician props
-  doctorList,
+  doctorList = [],
   selectedDoctorId,
   setSelectedDoctorId,
   currentDocName,
   reassignReason,
   setReassignReason,
-  availableReplacementDoctors,
+  availableReplacementDoctors = [],
   handleAssignDoctor,
   handleReassignDoctor,
   startAssignDoctorFlow,
   startReassignDoctorFlow,
   // Ambulance props
-  ambulanceFlow,
+  ambulanceFlow = { step: 1 },
   setAmbulanceFlow,
-  driverList,
+  driverList = [],
   handleSelectAmbulance,
   handleSelectDropLocation,
   handleDispatchAmbulance,
@@ -74,13 +74,22 @@ const AdmissionDetailsModal = ({
 }) => {
   if (!admission) return null;
 
+  // Normalized Field Accessors supporting both new API response structure and fallbacks
+  const patient = admission.patientDetails || {};
+  const bed = admission.bedDetails || admission.bedId || {};
+  const billing = admission.billing || admission.pricingBreakdown || {};
+  const insurance = admission.insurance || admission.insuranceDetails || {};
+  const bookedBy = admission.bookedBy || admission.userId || {};
+  const assignedDoctor = admission.assignedDoctor || admission.doctorId || null;
   const clinical = admission.clinicalSummary || {};
-  const pricing = admission.pricingBreakdown || {};
-  const insurance = admission.insuranceDetails || {};
 
   const isCancelled = (admission.status || '').toLowerCase().startsWith('cancelled') || 
                       (admission.status || '').toLowerCase().startsWith('rejected');
   const cancelReason = admission.cancellationDetails?.reason || admission.cancellationReason || admission.rejectReason || admission.rescheduleReason;
+
+  const bedNumber = bed.bedNumber || (typeof bed === 'string' ? bed : null);
+  const paymentStatus = billing.paymentStatus || admission.paymentStatus || 'Pending';
+  const totalAmount = billing.totalAmount || billing.subtotal || admission.totalAmount || 0;
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-3 md:p-6 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
@@ -95,7 +104,10 @@ const AdmissionDetailsModal = ({
                 <span className="bg-red-500 text-white text-[9px] font-black px-2 py-0.5 rounded border border-red-600 uppercase tracking-widest ml-2">Emergency</span>
               )}
             </h2>
-            <p className="text-slate-400 font-bold text-xs uppercase tracking-wide mt-0.5">Booking ID: <span className="text-[#08B36A]">#{admission.bookingId}</span></p>
+            <p className="text-slate-400 font-bold text-xs uppercase tracking-wide mt-0.5">
+              Booking ID: <span className="text-[#08B36A]">#{admission.bookingId}</span>
+              <span className="ml-3 text-slate-500">Type: <span className="text-slate-300">{admission.bookingType || 'Admission'}</span></span>
+            </p>
           </div>
           <button 
             onClick={onClose} 
@@ -108,7 +120,7 @@ const AdmissionDetailsModal = ({
         {/* Modal Main Body */}
         <div className="p-6 overflow-y-auto flex-grow grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-50/50">
            
-           {/* LEFT COLUMN: UNIFIED SINGLE DOSSIER VIEW (ALL INFO DISPLAYED SIMULTANEOUSLY) */}
+           {/* LEFT COLUMN: UNIFIED SINGLE DOSSIER VIEW */}
            <div className="lg:col-span-7 space-y-5 overflow-y-auto max-h-[72vh] pr-2 scrollbar-thin">
               
               {/* Header Status Banner */}
@@ -119,118 +131,104 @@ const AdmissionDetailsModal = ({
                 </div>
                 <div className="flex-1 p-3 rounded-xl bg-[#08B36A]/10 text-[#08B36A] border border-[#08B36A]/20 flex flex-col items-center justify-center text-center">
                    <span className="text-[8px] font-bold uppercase tracking-wider opacity-75">Bed Assigned</span>
-                   {admission.bedId?.bedNumber ? (
-                      <span className="text-xs font-black mt-0.5">Bed {admission.bedId.bedNumber}</span>
+                   {bedNumber ? (
+                      <span className="text-xs font-black mt-0.5">Bed {bedNumber}</span>
                    ) : (
                       <span className="text-xs font-black mt-0.5 text-slate-400 italic">Unassigned</span>
                    )}
                 </div>
                 <div className="flex-1 p-3 rounded-xl bg-indigo-50/60 text-indigo-700 border border-indigo-100 flex flex-col items-center justify-center text-center">
-                   <span className="text-[8px] font-bold uppercase tracking-wider opacity-75">Triage Level</span>
-                   <span className="text-xs font-black mt-0.5">{admission.triageLevel || 'Standard'}</span>
+                   <span className="text-[8px] font-bold uppercase tracking-wider opacity-75">Bed Category</span>
+                   <span className="text-xs font-black mt-0.5">{admission.bedBookingType || bed.wardType || 'Standard'}</span>
                 </div>
               </div>
 
-              {/* 1. Clinical Summary & Diagnoses */}
-              <InfoSection title="🩺 Clinical Details & Diagnoses">
-                <div className="col-span-full bg-slate-50/70 p-3.5 border border-slate-100 rounded-xl space-y-1">
-                   <span className="text-[9px] text-slate-400 font-extrabold uppercase">Dynamic Diagnosis</span>
-                   <p className="text-xs font-black text-[#08B36A]">{clinical.diagnosis || "Diagnosis pending clinical evaluation."}</p>
-                </div>
-                <InfoItem label="Date of Surgery" value={displayDate(clinical.dateOfSurgery)} />
-                <InfoItem label="Blood Group" value={clinical.bloodGroup || "N/A"} />
-                <div className="col-span-full bg-slate-50/70 p-3 border border-slate-100 rounded-xl space-y-1">
-                   <span className="text-[9px] text-slate-400 font-extrabold uppercase">Lab Investigations Notes</span>
-                   <p className="text-xs font-bold text-slate-700">{clinical.investigation || "Pending live investigations."}</p>
-                </div>
-                <div className="col-span-1 bg-amber-50/40 p-3 border border-amber-100 rounded-xl">
-                   <span className="text-[8px] font-black text-amber-800 uppercase block mb-1">During Admission</span>
-                   <p className="text-xs font-bold text-slate-700">{clinical.conditionDuringAdmission || "N/A"}</p>
-                </div>
-                <div className="col-span-1 bg-emerald-50/40 p-3 border border-emerald-100 rounded-xl">
-                   <span className="text-[8px] font-black text-emerald-800 uppercase block mb-1">During Discharge</span>
-                   <p className="text-xs font-bold text-slate-700">{clinical.conditionDuringDischarge || "N/A"}</p>
-                </div>
+              {/* 1. Patient Details */}
+              <InfoSection title="👤 Patient Details">
+                <InfoItem label="Patient Name" value={patient.patientName || "N/A"} />
+                <InfoItem label="Age" value={patient.age ? `${patient.age} Years` : "N/A"} />
+                <InfoItem label="Gender" value={patient.gender || "N/A"} />
+                <InfoItem label="Relation with User" value={patient.relation || "Self / Primary"} />
+                <InfoItem label="Blood Group" value={patient.bloodGroup || clinical.bloodGroup || "N/A"} />
+                <InfoItem label="Reason for Visit" value={patient.reasonForVisit || admission.bookingReason || "Hospital Admission"} />
+
+                {clinical.diagnosis && (
+                  <div className="col-span-full bg-slate-50/70 p-3.5 border border-slate-100 rounded-xl space-y-1 mt-1">
+                    <span className="text-[9px] text-slate-400 font-extrabold uppercase">Dynamic Diagnosis</span>
+                    <p className="text-xs font-black text-[#08B36A]">{clinical.diagnosis}</p>
+                  </div>
+                )}
               </InfoSection>
 
-              {/* 2. Location & Stay Schedule */}
-              <InfoSection title="📅 Location & Stay Schedule">
-                 <InfoItem label="Admission Date" value={displayDate(admission.startDate || admission.appointmentDate)} />
-                 <InfoItem label="Discharge Date" value={displayDate(admission.endDate)} />
-                 <InfoItem label="Ward Room" value={admission.wardName || "N/A"} />
-                 <InfoItem label="Allotted Bed Number" value={admission.bedId?.bedNumber || "N/A"} />
+              {/* 2. Bed & Ward Details */}
+              <InfoSection title="🛏️ Bed & Ward Accommodation">
+                 <InfoItem label="Allotted Bed" value={bedNumber ? `Bed ${bedNumber}` : "Unassigned"} />
+                 <InfoItem label="Bed Status" value={bed.status || "Reserved"} />
+                 <InfoItem label="Ward Name" value={bed.wardName || admission.wardName || "N/A"} />
+                 <InfoItem label="Ward Type" value={bed.wardType || "N/A"} />
+                 <InfoItem label="Rate Per Day" value={bed.pricePerDay ? `₹${bed.pricePerDay}` : "N/A"} />
                  <InfoItem label="Stay Duration" value={`${admission.stayDuration || 0} Days`} />
-                 <InfoItem label="Booking Category" value={admission.bedBookingType || "N/A"} />
-
-                 {admission.address && (
-                    <div className="col-span-full bg-slate-50/80 p-3.5 border border-slate-200/60 rounded-xl space-y-2 mt-1">
-                       <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block border-b pb-1">📍 Registered Residence Address</span>
-                       <div className="grid grid-cols-2 gap-2 text-xs">
-                          <p><span className="text-slate-400 text-[10px]">Recipient:</span> <strong className="text-slate-800">{admission.address.name}</strong></p>
-                          <p><span className="text-slate-400 text-[10px]">Phone:</span> <strong className="text-slate-800">{admission.address.phone}</strong></p>
-                          <p className="col-span-2"><span className="text-slate-400 text-[10px]">Address:</span> <strong className="text-slate-800">{admission.address.houseNo}, {admission.address.sector}, {admission.address.city}, {admission.address.state} - {admission.address.pincode}</strong></p>
-                       </div>
-                    </div>
-                 )}
+                 <InfoItem label="Admission Date" value={displayDate(admission.startDate)} />
+                 <InfoItem label="Discharge Date" value={displayDate(admission.endDate)} />
               </InfoSection>
 
-              {/* 3. Financial Ledger & Insurance Details */}
+              {/* 3. Financial Ledger & Billing */}
               <InfoSection title="💰 Financial Ledger & Billing">
-                 <InfoItem label="Base Stay Fee" value={`₹${pricing.baseFee || 0}`} />
-                 <InfoItem label="Original Base Fee" value={`₹${pricing.originalBaseFee || 0}`} />
-                 <InfoItem label="Consultant Visits" value={`₹${pricing.visitCharges || 0}`} />
-                 <InfoItem label="Extra / Misc Charges" value={`₹${pricing.extraCharges || 0}`} />
-                 <InfoItem label="Late / No-Show Fee" value={`₹${pricing.noShowFeeApplied || 0}`} />
-                 <InfoItem label="Cancellation Fee" value={`₹${pricing.cancellationFeeApplied || 0}`} />
+                 <InfoItem label="Base Fee" value={`₹${billing.baseFee || billing.originalBaseFee || 0}`} />
+                 <InfoItem label="Payment Method" value={billing.paymentMethod || "Online"} />
+                 <InfoItem label="Transaction ID" value={billing.transactionId || "N/A"} />
+                 <InfoItem label="Created Timestamp" value={displayDate(admission.createdAt)} />
+
+                 {billing.visitCharges !== undefined && billing.visitCharges > 0 && (
+                   <InfoItem label="Consultant Visits" value={`₹${billing.visitCharges}`} />
+                 )}
+                 {billing.extraCharges !== undefined && billing.extraCharges > 0 && (
+                   <InfoItem label="Extra Charges" value={`₹${billing.extraCharges}`} />
+                 )}
+                 {billing.discountAmount !== undefined && billing.discountAmount > 0 && (
+                   <div className="col-span-full bg-rose-50/50 p-3 rounded-xl border border-rose-100 flex justify-between text-xs font-bold text-rose-700">
+                      <span>Discount Applied:</span>
+                      <span>- ₹{billing.discountAmount}</span>
+                   </div>
+                 )}
                  
-                 <div className="col-span-full bg-rose-50/50 p-3 rounded-xl border border-rose-100 flex justify-between text-xs font-bold text-rose-700">
-                    <span>Discount Applied:</span>
-                    <span>- ₹{pricing.discountAmount || 0}</span>
-                 </div>
-                 
-                 <div className="col-span-full bg-[#08B36A]/5 p-3.5 rounded-xl border border-[#08B36A]/20 flex justify-between items-center text-xs">
+                 <div className="col-span-full bg-[#08B36A]/5 p-3.5 rounded-xl border border-[#08B36A]/20 flex justify-between items-center text-xs mt-1">
                     <div>
-                       <span className="font-black text-slate-700 uppercase block">Subtotal Amount</span>
-                       <span className={`text-[9px] font-black uppercase ${admission.paymentStatus === 'Paid' ? 'text-[#08B36A]' : 'text-amber-600'}`}>
-                          Payment Status: {admission.paymentStatus}
+                       <span className="font-black text-slate-700 uppercase block">Total Amount</span>
+                       <span className={`text-[9px] font-black uppercase ${paymentStatus === 'Paid' ? 'text-[#08B36A]' : 'text-amber-600'}`}>
+                          Payment Status: {paymentStatus}
                        </span>
                     </div>
-                    <span className="text-lg font-black text-[#08B36A]">₹{pricing.subtotal || admission.totalAmount || 0}</span>
+                    <span className="text-lg font-black text-[#08B36A]">₹{totalAmount}</span>
                  </div>
 
-                 {insurance.hasInsurance && (
-                    <div className="col-span-full bg-blue-50/50 p-3.5 border border-blue-100 rounded-xl space-y-1 mt-1">
-                       <span className="text-[9px] text-blue-700 font-black uppercase tracking-wider block">🛡️ Insurance Coverage Details</span>
-                       <div className="grid grid-cols-2 gap-2 text-xs">
-                          <p><span className="text-slate-400 text-[10px]">Provider:</span> <strong className="text-slate-800">{insurance.companyName}</strong></p>
-                          <p><span className="text-slate-400 text-[10px]">Policy No:</span> <strong className="text-slate-800">{insurance.insuranceNumber}</strong></p>
-                       </div>
+                 {/* Insurance Block */}
+                 <div className="col-span-full bg-blue-50/50 p-3.5 border border-blue-100 rounded-xl space-y-1 mt-2">
+                    <span className="text-[9px] text-blue-700 font-black uppercase tracking-wider block">🛡️ Insurance Coverage Details</span>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                       <p><span className="text-slate-400 text-[10px]">Has Insurance:</span> <strong className="text-slate-800">{insurance.hasInsurance ? "Yes" : "No"}</strong></p>
+                       <p><span className="text-slate-400 text-[10px]">Company Name:</span> <strong className="text-slate-800">{insurance.companyName || "N/A"}</strong></p>
+                       <p><span className="text-slate-400 text-[10px]">Approval Status:</span> <strong className="text-slate-800">{insurance.approvalStatus || "N/A"}</strong></p>
+                       {insurance.insuranceNumber && (
+                         <p><span className="text-slate-400 text-[10px]">Policy No:</span> <strong className="text-slate-800">{insurance.insuranceNumber}</strong></p>
+                       )}
                     </div>
-                 )}
+                 </div>
               </InfoSection>
 
-              {/* 4. Physician & Care Team */}
-              <InfoSection title="🧑‍⚕️ Clinical Care Team">
-                 <InfoItem label="Primary Assigned Doctor" value={admission.doctorId?.name ? `Dr. ${admission.doctorId.name}` : "Unassigned"} />
-                 <InfoItem label="Physician Speciality" value={admission.doctorId?.speciality || "N/A"} />
-                 <InfoItem label="Qualifications" value={admission.doctorId?.qualification || "N/A"} />
+              {/* 4. Assigned Care Doctor */}
+              <InfoSection title="🧑‍⚕️ Assigned Care Doctor">
+                 <InfoItem label="Primary Doctor" value={assignedDoctor?.name ? `Dr. ${assignedDoctor.name}` : "Unassigned"} />
+                 <InfoItem label="Speciality" value={assignedDoctor?.speciality || "N/A"} />
+                 <InfoItem label="Qualifications" value={assignedDoctor?.qualification || "N/A"} />
               </InfoSection>
 
-              {/* 5. Patient Account & Audit Metrics */}
-              <InfoSection title="👤 Patient Dossier & Audit">
-                 <InfoItem label="Account Name" value={admission.userId?.name} />
-                 <InfoItem label="Phone Line" value={admission.userId?.phone} />
-                 <InfoItem label="Email Contact" value={admission.userId?.email} />
-                 <InfoItem label="Registered Gender" value={admission.userId?.gender || "N/A"} />
-                 <InfoItem label="Reschedule Count" value={`${admission.rescheduleCount || 0} Times`} />
-                 <InfoItem label="Cancellation Count" value={`${admission.cancellationCount || 0} Times`} />
-                 
-                 {admission.bookingReason && (
-                    <div className="col-span-full bg-slate-50 p-3 rounded-xl border border-slate-100">
-                       <span className="text-[9px] text-slate-400 font-extrabold uppercase">Admission Booking Context</span>
-                       <p className="text-xs font-semibold text-slate-700 italic mt-0.5">"{admission.bookingReason}"</p>
-                    </div>
-                 )}
+              {/* 5. Booked By (Account Holder) */}
+              <InfoSection title="📱 Booked By (Account Holder)">
+                 <InfoItem label="Account Name" value={bookedBy.name || "N/A"} />
+                 <InfoItem label="Phone Line" value={bookedBy.phone || "N/A"} />
+                 <InfoItem label="Email Contact" value={bookedBy.email || "N/A"} />
+                 <InfoItem label="User ID" value={bookedBy.userId || bookedBy._id || "N/A"} />
               </InfoSection>
 
            </div>
@@ -262,7 +260,7 @@ const AdmissionDetailsModal = ({
 
                     <div className="grid grid-cols-1 gap-3 my-auto py-2">
                        {/* Physician Assignment */}
-                       {(!admission.doctorId || admission.status === 'Hospital-Pending') ? (
+                       {(!assignedDoctor || admission.status === 'Hospital-Pending') ? (
                           <button onClick={startAssignDoctorFlow} className="p-4 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-100 flex items-center gap-4 transition-all hover:scale-[1.01] text-left shadow-sm">
                              <span className="text-xl bg-white p-2 rounded-lg shadow-sm">👨‍⚕️</span>
                              <div>
@@ -290,7 +288,7 @@ const AdmissionDetailsModal = ({
                        </button>
 
                        {/* Bed Transfer */}
-                       {admission.bedId && (
+                       {(bed._id || admission.bedId) && (
                           <button onClick={startBedTransferFlow} className="p-4 bg-emerald-50/60 hover:bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 flex items-center gap-4 transition-all hover:scale-[1.01] text-left shadow-sm">
                              <span className="text-xl bg-white p-2 rounded-lg shadow-sm">🔄🛏️</span>
                              <div>
@@ -316,7 +314,7 @@ const AdmissionDetailsModal = ({
                  </div>
               ) : activeAction === 'doctor' ? (
                  /* FORM ACTION: ASSIGN DOCTOR */
-                 <div className="space-y-5 flex-grow flex flex-col justify-between">
+                 <div className="space-y-5 flex-grow flex-col justify-between flex">
                     <div>
                        <div className="flex items-center justify-between border-b pb-3">
                           <h3 className="text-xs font-black text-slate-800 uppercase tracking-tight">Physician Directory</h3>
@@ -368,7 +366,7 @@ const AdmissionDetailsModal = ({
                        <div className="mt-3 space-y-3">
                           <div className="bg-amber-50 border border-amber-100 p-3 rounded-xl flex items-center justify-between text-xs font-bold text-amber-800">
                              <span>Present Doctor:</span>
-                             <span className="font-black">Dr. {currentDocName}</span>
+                             <span className="font-black">Dr. {currentDocName || assignedDoctor?.name || 'Assigned Doctor'}</span>
                           </div>
 
                           <div>

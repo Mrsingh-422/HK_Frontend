@@ -3,12 +3,15 @@
 import React, { useState, useMemo } from 'react';
 import HospitalAPI from '@/app/services/HospitalAPI';
 import { 
-  FaUser, FaFileMedical, FaClock, FaAmbulance, FaCreditCard, FaDollarSign 
+  FaUser, FaFileMedical, FaClock, FaAmbulance, FaCreditCard, FaDollarSign, FaBed, FaUserMd 
 } from 'react-icons/fa';
 
 const CaseDetailModal = ({ caseData, onClose, onStartAllocation }) => {
-  const patient = caseData.patients?.[0] || {};
-  const ambulance = caseData.ambulanceId || {};
+  // Graceful multi-schema fallback mappings
+  const patient = caseData.patientDetails || caseData.patients?.[0] || {};
+  const ambulance = caseData.ambulanceDetails || caseData.ambulanceId || {};
+  const bed = caseData.bedDetails || (typeof caseData.bedId === 'object' ? caseData.bedId : null) || {};
+  const doctor = caseData.assignedDoctor || (typeof caseData.doctorId === 'object' ? caseData.doctorId : null) || {};
   const billing = caseData.pricingBreakdown || {};
   const clinical = caseData.clinicalSummary || {};
   const user = caseData.userId || {};
@@ -75,7 +78,7 @@ const CaseDetailModal = ({ caseData, onClose, onStartAllocation }) => {
       if (response?.success) {
         alert('Doctor reassigned successfully!');
         setShowReassign(false);
-        onClose(); // Close the modal to trigger fresh data update on parent
+        onClose();
       } else {
         alert('Error: ' + response.message);
       }
@@ -88,24 +91,30 @@ const CaseDetailModal = ({ caseData, onClose, onStartAllocation }) => {
 
   // Safe Extraction of Active Doctor ID
   const currentDocId = useMemo(() => {
+    if (caseData?.assignedDoctor?._id) return caseData.assignedDoctor._id;
     if (!caseData?.doctorId) return null;
     return caseData.doctorId._id || caseData.doctorId;
   }, [caseData]);
 
   // Safe Extraction of Active Doctor Name
   const currentDocName = useMemo(() => {
-    if (!caseData?.doctorId) return 'Unassigned';
-    if (caseData.doctorId.name) return caseData.doctorId.name;
-    // Local look up in state in case doctorId is returned as raw ID string
-    const found = doctorList.find(d => d._id === caseData.doctorId);
-    return found ? found.name : 'Assigned Doctor';
+    if (caseData?.assignedDoctor?.name) return caseData.assignedDoctor.name;
+    if (caseData?.doctorId?.name) return caseData.doctorId.name;
+    if (caseData?.doctorId) {
+      const found = doctorList.find(d => d._id === caseData.doctorId);
+      if (found) return found.name;
+    }
+    return 'Assigned Doctor';
   }, [caseData, doctorList]);
 
-  // Roster exclusions mapping - the active doctor correctly returns to the pool after handover
+  // Roster exclusions mapping
   const availableReplacementDoctors = useMemo(() => {
     if (!currentDocId) return doctorList;
     return doctorList.filter((doc) => doc._id !== currentDocId);
   }, [doctorList, currentDocId]);
+
+  const hasAssignedBed = !!(bed.bedNumber || caseData.bedNumber || caseData.bedId);
+  const hasAssignedDoctor = !!(currentDocId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fadeIn">
@@ -116,9 +125,16 @@ const CaseDetailModal = ({ caseData, onClose, onStartAllocation }) => {
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Emergency Case Profile</h2>
-              <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500 text-white animate-pulse">
-                {caseData.triageLevel}
-              </span>
+              {caseData.triageLevel && (
+                <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500 text-white animate-pulse">
+                  {caseData.triageLevel}
+                </span>
+              )}
+              {caseData.serviceType && (
+                <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500 text-white">
+                  {caseData.serviceType}
+                </span>
+              )}
             </div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
               Case Ref: <span className="text-emerald-600">#{caseData.bookingId}</span>
@@ -142,15 +158,17 @@ const CaseDetailModal = ({ caseData, onClose, onStartAllocation }) => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="p-4 rounded-2xl bg-emerald-50/30 border border-emerald-100/50">
               <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Status State</p>
-              <span className="text-sm font-black text-slate-800 uppercase tracking-wider">{caseData.status}</span>
+              <span className="text-sm font-black text-slate-800 uppercase tracking-wider">{caseData.status || 'Active'}</span>
             </div>
             <div className="p-4 rounded-2xl bg-emerald-50/30 border border-emerald-100/50">
               <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Allocation Class</p>
-              <span className="text-sm font-black text-slate-800 uppercase tracking-wider">{caseData.bedBookingType || 'N/A'}</span>
+              <span className="text-sm font-black text-slate-800 uppercase tracking-wider">{caseData.bedBookingType || caseData.serviceType || 'Emergency Ward'}</span>
             </div>
             <div className="p-4 rounded-2xl bg-emerald-50/30 border border-emerald-100/50">
-              <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Stay Duration</p>
-              <span className="text-sm font-black text-slate-800">{caseData.stayDuration || 0} Days</span>
+              <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Start / Duration</p>
+              <span className="text-sm font-black text-slate-800">
+                {caseData.startDate ? displayFormattedDate(caseData.startDate) : `${caseData.stayDuration || 1} Days`}
+              </span>
             </div>
           </div>
 
@@ -160,28 +178,75 @@ const CaseDetailModal = ({ caseData, onClose, onStartAllocation }) => {
               
               {/* Patient Information */}
               <div className="p-5 rounded-3xl bg-slate-50 border border-slate-100 space-y-4">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><FaUser className="text-slate-400" /> Patient Directory</p>
-                <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs font-semibold text-slate-600">
-                  <div>
-                    <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Patient Name</span>
-                    <span className="text-slate-800 font-extrabold">{patient.patientName || 'N/A'}</span>
-                  </div>
-                  <div>
-                    <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Age & Gender</span>
-                    <span className="text-slate-800 font-extrabold">{patient.patientAge || 'N/A'} Years / {patient.gender || 'N/A'}</span>
-                  </div>
-                  <div>
-                    <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Relation Status</span>
-                    <span className="text-slate-800 font-extrabold uppercase">{patient.relation || 'N/A'}</span>
-                  </div>
-                  <div>
-                    <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Reason for Visit</span>
-                    <span className="text-slate-800 font-extrabold block truncate max-w-[150px]" title={patient.reasonForVisit}>"{patient.reasonForVisit || 'N/A'}"</span>
+                <div className="flex justify-between items-center">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <FaUser className="text-slate-400" /> Patient Directory
+                  </p>
+                  {patient.bloodGroup && (
+                    <span className="bg-rose-100 text-rose-700 text-[10px] font-black px-2 py-0.5 rounded">
+                      Blood Group: {patient.bloodGroup}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-start gap-4">
+                  {patient.profilePic && (
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden bg-slate-200 border border-slate-200 shrink-0">
+                      <img 
+                        src={getFormattedImageUrl(patient.profilePic)} 
+                        alt="Patient avatar" 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs font-semibold text-slate-600 flex-grow">
+                    <div>
+                      <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Patient Name</span>
+                      <span className="text-slate-800 font-extrabold">{patient.patientName || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Age & Gender</span>
+                      <span className="text-slate-800 font-extrabold">{patient.age || patient.patientAge || 'N/A'} Years / {patient.gender || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Relation</span>
+                      <span className="text-slate-800 font-extrabold uppercase">{patient.relation || 'Self'}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Reason for Visit</span>
+                      <span className="text-slate-800 font-extrabold block truncate max-w-[200px]" title={patient.reasonForVisit}>
+                        "{patient.reasonForVisit || 'N/A'}"
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Account Profile Details */}
+              {/* Bed Allocation Card */}
+              {(bed.bedNumber || caseData.wardName || caseData.bedNumber) && (
+                <div className="p-5 rounded-3xl bg-emerald-50/40 border border-emerald-100 space-y-3">
+                  <p className="text-[10px] font-black text-emerald-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <FaBed className="text-emerald-600" /> Bed & Ward Assignment
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                    <div className="bg-white p-3 rounded-2xl border border-emerald-100">
+                      <span className="text-[8px] font-black text-slate-400 uppercase block">Bed Number</span>
+                      <span className="text-sm font-black text-emerald-700">{bed.bedNumber || caseData.bedNumber || 'N/A'}</span>
+                    </div>
+                    <div className="bg-white p-3 rounded-2xl border border-emerald-100">
+                      <span className="text-[8px] font-black text-slate-400 uppercase block">Ward Name</span>
+                      <span className="text-xs font-black text-slate-800 truncate block">{bed.wardName || caseData.wardName || 'General Ward'}</span>
+                    </div>
+                    <div className="bg-white p-3 rounded-2xl border border-emerald-100">
+                      <span className="text-[8px] font-black text-slate-400 uppercase block">Bed Status</span>
+                      <span className="text-xs font-black text-rose-600 uppercase">{bed.status || 'Occupied'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Account Profile Details (if registered user) */}
               {caseData.userId && (
                 <div className="p-5 rounded-3xl bg-slate-50 border border-slate-100 space-y-3">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><FaUser className="text-slate-400" /> Account Registration Details</p>
@@ -201,7 +266,6 @@ const CaseDetailModal = ({ caseData, onClose, onStartAllocation }) => {
                       <div>Account Phone: <span className="text-slate-900 font-black">{user.phone}</span></div>
                       <div>Account Gender: <span className="text-slate-900 font-black uppercase">{user.gender || 'N/A'}</span></div>
                       <div>Account Age: <span className="text-slate-900 font-black">{user.age || 'N/A'} Years</span></div>
-                      <div className="text-[8px] text-slate-400 uppercase tracking-wider mt-1 col-span-2">Database ID: {user._id}</div>
                     </div>
                   </div>
                 </div>
@@ -277,48 +341,38 @@ const CaseDetailModal = ({ caseData, onClose, onStartAllocation }) => {
                 </div>
               )}
 
-              {/* Clinical Summary Fields */}
-              <div className="p-5 rounded-3xl bg-white border border-slate-100 shadow-sm space-y-4">
-                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-wider flex items-center gap-1.5"><FaFileMedical /> System Medical Chart Summary</p>
-                <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-xs text-slate-700">
-                  <div className="space-y-3">
-                    <div>
-                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Chief Complaint</span>
-                      <p className="font-bold text-slate-800">{clinical.chiefComplaint || 'N/A'}</p>
+              {/* Clinical Summary Fields (if present) */}
+              {(clinical.chiefComplaint || clinical.diagnosis || clinical.treatmentResult || clinical.admissionNote) && (
+                <div className="p-5 rounded-3xl bg-white border border-slate-100 shadow-sm space-y-4">
+                  <p className="text-[10px] font-black text-emerald-600 uppercase tracking-wider flex items-center gap-1.5"><FaFileMedical /> System Medical Chart Summary</p>
+                  <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-xs text-slate-700">
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Chief Complaint</span>
+                        <p className="font-bold text-slate-800">{clinical.chiefComplaint || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Triage Priority</span>
+                        <p className="font-bold text-slate-800">{clinical.triagePriority || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Diagnosis Record</span>
+                        <p className="font-bold text-slate-800">{clinical.diagnosis || 'N/A'}</p>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Triage Priority</span>
-                      <p className="font-bold text-slate-800">{clinical.triagePriority || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Diagnosis Record</span>
-                      <p className="font-bold text-slate-800">{clinical.diagnosis || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Blood Group</span>
-                      <p className="font-bold text-slate-800 uppercase">{clinical.bloodGroup || 'N/A'}</p>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Investigation Logs</span>
-                      <p className="font-bold text-slate-800">{clinical.investigation || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Treatment Results</span>
-                      <p className="font-bold text-slate-800">{clinical.treatmentResult || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Admission Notes</span>
-                      <p className="font-bold text-slate-800">{clinical.admissionNote || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Discharge Summary</span>
-                      <p className="font-bold text-slate-800">{clinical.dischargeNote || 'N/A'}</p>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Treatment Results</span>
+                        <p className="font-bold text-slate-800">{clinical.treatmentResult || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Admission Notes</span>
+                        <p className="font-bold text-slate-800">{clinical.admissionNote || 'N/A'}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
 
             </div>
 
@@ -326,7 +380,7 @@ const CaseDetailModal = ({ caseData, onClose, onStartAllocation }) => {
             <div className="lg:col-span-5 space-y-6">
               
               {/* Begin Sequential Allocation Process */}
-              {(!caseData.doctorId || !caseData.bedId) && (
+              {(!hasAssignedDoctor || !hasAssignedBed) && (
                 <div className="p-5 rounded-3xl bg-slate-50 border border-slate-100 shadow-sm space-y-3">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Clinical Admission Operations</p>
                   <button 
@@ -339,14 +393,33 @@ const CaseDetailModal = ({ caseData, onClose, onStartAllocation }) => {
               )}
 
               {/* Doctor Reassignment block when clinician is already assigned */}
-              {caseData.doctorId && caseData.status !== 'Discharged' && (
+              {hasAssignedDoctor && caseData.status !== 'Discharged' && (
                 <div className="p-5 rounded-3xl bg-white border border-slate-150 shadow-sm space-y-4">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Clinical Care Assignment</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <FaUserMd className="text-emerald-600" /> Clinical Care Assignment
+                  </p>
                   <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                     <div>
-                       <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Assigned Clinician</span>
-                       <p className="text-xs font-black text-slate-850">Dr. {currentDocName}</p>
-                       <p className="text-[9px] font-bold text-[#08B36A] uppercase tracking-wider mt-0.5">{caseData.doctorId.speciality || 'General Medicine'}</p>
+                     <div className="flex items-center gap-3">
+                       {(doctor.profileImage || caseData.assignedDoctor?.profileImage) ? (
+                         <img 
+                           src={getFormattedImageUrl(doctor.profileImage || caseData.assignedDoctor.profileImage)} 
+                           alt="Doctor" 
+                           className="w-10 h-10 rounded-xl object-cover border border-slate-200"
+                         />
+                       ) : (
+                         <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-sm border border-emerald-100">
+                           👨‍⚕️
+                         </div>
+                       )}
+                       <div>
+                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Assigned Clinician</span>
+                         <p className="text-xs font-black text-slate-850">
+                           {currentDocName.startsWith('Dr.') ? currentDocName : `Dr. ${currentDocName}`}
+                         </p>
+                         <p className="text-[9px] font-bold text-[#08B36A] uppercase tracking-wider mt-0.5">
+                           {doctor.speciality || caseData.assignedDoctor?.speciality || 'General Medicine'}
+                         </p>
+                       </div>
                      </div>
                      {!showReassign && (
                        <button 
@@ -362,7 +435,6 @@ const CaseDetailModal = ({ caseData, onClose, onStartAllocation }) => {
                   {showReassign && (
                     <div className="mt-4 pt-4 border-t border-slate-100 space-y-4 animate-fadeIn">
                       
-                      {/* Explicit Present Doctor Banner */}
                       <div className="bg-amber-50 border border-amber-100 p-3 rounded-xl flex items-center justify-between text-xs font-bold text-amber-800">
                          <span>Present Doctor:</span>
                          <span className="font-black">Dr. {currentDocName}</span>
@@ -460,7 +532,7 @@ const CaseDetailModal = ({ caseData, onClose, onStartAllocation }) => {
               )}
 
               {/* Logistics & Ambulance Allocation */}
-              {caseData.ambulanceId && (
+              {(ambulance.name || ambulance.vehicleNumber || caseData.ambulanceDetails) && (
                 <div className="p-5 rounded-3xl bg-blue-50/50 border border-blue-100 space-y-4">
                   <p className="text-[10px] font-black text-blue-500 uppercase tracking-wider flex items-center gap-1.5"><FaAmbulance /> Allocated Dispatcher Fleet</p>
                   <div className="space-y-3 text-xs text-slate-600 font-semibold">
@@ -479,49 +551,59 @@ const CaseDetailModal = ({ caseData, onClose, onStartAllocation }) => {
                     <span className="text-slate-400">Creation Date</span>
                     <span>{displayFormattedDate(caseData.createdAt)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Allocation Date</span>
-                    <span>{displayFormattedDate(caseData.startDate)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Last System Sync</span>
-                    <span>{displayFormattedDate(caseData.updatedAt)}</span>
-                  </div>
+                  {caseData.startDate && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Allocation / Start Date</span>
+                      <span>{displayFormattedDate(caseData.startDate)}</span>
+                    </div>
+                  )}
+                  {caseData.updatedAt && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Last System Sync</span>
+                      <span>{displayFormattedDate(caseData.updatedAt)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Price summary Breakdown */}
-              <div className="p-5 rounded-[2rem] bg-gray-900 text-white space-y-4">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><FaCreditCard /> Financial Summary</p>
-                
-                <div className="space-y-2 text-xs font-semibold text-slate-300 border-b border-slate-800 pb-3">
-                  <div className="flex justify-between">
-                    <span>Base Booking Surcharges</span>
-                    <span>₹{billing.baseFee || 0}</span>
+              {/* Price summary Breakdown (if financial data exists) */}
+              {(caseData.totalAmount || billing.subtotal) && (
+                <div className="p-5 rounded-[2rem] bg-gray-900 text-white space-y-4">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><FaCreditCard /> Financial Summary</p>
+                  
+                  <div className="space-y-2 text-xs font-semibold text-slate-300 border-b border-slate-800 pb-3">
+                    {billing.baseFee != null && (
+                      <div className="flex justify-between">
+                        <span>Base Booking Surcharges</span>
+                        <span>₹{billing.baseFee || 0}</span>
+                      </div>
+                    )}
+                    {billing.subtotal != null && (
+                      <div className="flex justify-between">
+                        <span>Subtotal Charges</span>
+                        <span>₹{billing.subtotal || 0}</span>
+                      </div>
+                    )}
+                    {billing.visitCharges != null && (
+                      <div className="flex justify-between">
+                        <span>Ambulance/Visit Fees</span>
+                        <span>₹{billing.visitCharges || 0}</span>
+                      </div>
+                    )}
+                    {billing.discountAmount != null && (
+                      <div className="flex justify-between text-rose-400">
+                        <span>Special Discount Offset</span>
+                        <span>- ₹{billing.discountAmount || 0}</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span>Subtotal Charges</span>
-                    <span>₹{billing.subtotal || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Ambulance/Visit Fees</span>
-                    <span>₹{billing.visitCharges || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Clinical Extra Charges</span>
-                    <span>₹{billing.extraCharges || 0}</span>
-                  </div>
-                  <div className="flex justify-between text-rose-400">
-                    <span>Special Discount Offset</span>
-                    <span>- ₹{billing.discountAmount || 0}</span>
-                  </div>
-                </div>
 
-                <div className="flex justify-between items-center pt-1">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Grand Total</span>
-                  <span className="text-2xl font-black text-[#08B36A]">₹{caseData.totalAmount || 0}</span>
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Grand Total</span>
+                    <span className="text-2xl font-black text-[#08B36A]">₹{caseData.totalAmount || 0}</span>
+                  </div>
                 </div>
-              </div>
+              )}
 
             </div>
           </div>

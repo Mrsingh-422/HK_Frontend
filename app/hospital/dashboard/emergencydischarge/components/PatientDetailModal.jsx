@@ -67,18 +67,19 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
   const rawPatient = data?.patient ? data.patient : (data?.patients ? data : (data || {}));
   const prescription = data?.prescription || null;
 
-  // Primary Patient attributes
-  const mainPatient = rawPatient.patients?.[0] || {};
-  const patientName = mainPatient.patientName || rawPatient.userId?.name || "Unknown Patient";
-  const patientAge = mainPatient.patientAge || "N/A";
+  // Primary Patient attributes supporting patientDetails and patients[0]
+  const mainPatient = rawPatient.patientDetails || rawPatient.patients?.[0] || {};
+  const patientName = mainPatient.patientName || mainPatient.name || rawPatient.userId?.name || "Unknown Patient";
+  const patientAge = mainPatient.age !== undefined ? mainPatient.age : (mainPatient.patientAge || "N/A");
   const patientGender = mainPatient.gender || rawPatient.userId?.gender || "N/A";
   const relation = mainPatient.relation || "Self";
   const reasonForVisit = mainPatient.reasonForVisit || "N/A";
+  const profilePic = mainPatient.profilePic || rawPatient.userId?.profilePic;
 
   // Nested structures from payload
   const userId = rawPatient.userId || {};
-  const doctor = rawPatient.doctorId || {};
-  const bed = rawPatient.bedId || {};
+  const doctor = rawPatient.assignedDoctor || rawPatient.doctorId || {};
+  const bed = rawPatient.bedDetails || rawPatient.bedId || {};
   const ward = bed.wardId || {};
   const clinical = rawPatient.clinicalSummary || {};
   const pricing = rawPatient.pricingBreakdown || {};
@@ -89,7 +90,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
   const billingBreakdown = rawPatient.billingBreakdown || {};
   const treatmentTeamTimeline = rawPatient.treatmentTeamTimeline || [];
 
-  const bloodGroup = clinical.bloodGroup || "N/A";
+  const bloodGroup = mainPatient.bloodGroup || clinical.bloodGroup || "N/A";
 
   // File downloads
   const dischargePdfUrl = clinicalFiles.dischargeSummaryPdf || clinical.dischargeSummaryPdf;
@@ -159,11 +160,11 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
             <h3 class="card-title">Patient Profile</h3>
             <strong style="font-size: 14px; color: #0f172a;">${patientName}</strong>
             <p style="margin: 4px 0 0 0; font-size: 11px; color: #475569;">Age: ${patientAge} Yrs | Gender: ${patientGender} | Relation: ${relation}</p>
-            <p style="margin: 6px 0 0 0; font-size: 11px; color: #64748b;"><strong>Chief Complaint:</strong> ${clinical.chiefComplaint || reasonForVisit}</p>
+            <p style="margin: 6px 0 0 0; font-size: 11px; color: #64748b;"><strong>Chief Complaint / Reason:</strong> ${clinical.chiefComplaint || reasonForVisit}</p>
           </div>
           <div class="card">
             <h3 class="card-title">Lead Medical Professional</h3>
-            <strong style="font-size: 14px; color: #0f172a;">Dr. ${doctor.name || 'N/A'}</strong>
+            <strong style="font-size: 14px; color: #0f172a;">${doctor.name ? (doctor.name.startsWith('Dr.') ? doctor.name : `Dr. ${doctor.name}`) : 'N/A'}</strong>
             <p style="margin: 4px 0 0 0; font-size: 11px; color: #475569;">${doctor.speciality || 'General Medicine'} | ${doctor.qualification || ''}</p>
           </div>
         </div>
@@ -179,10 +180,10 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
           </thead>
           <tbody>
             <tr>
-              <td><strong>${rawPatient.wardName || ward.name || 'N/A'}</strong> (${ward.type || 'N/A'})</td>
-              <td>Bed ${rawPatient.bedNumber || bed.bedNumber || 'N/A'} (${rawPatient.bedBookingType || 'N/A'})</td>
-              <td>${formatDate(rawPatient.startDate)} to ${formatDate(rawPatient.endDate)}</td>
-              <td><strong>${rawPatient.stayDuration || 0} Days</strong></td>
+              <td><strong>${bed.wardName || rawPatient.wardName || ward.name || 'N/A'}</strong></td>
+              <td>Bed ${bed.bedNumber || rawPatient.bedNumber || 'N/A'}</td>
+              <td>${formatDate(rawPatient.startDate)} to ${formatDate(rawPatient.endDate || rawPatient.dischargedAt)}</td>
+              <td><strong>${billingBreakdown.baseStayDays || rawPatient.stayDuration || 0} Days</strong></td>
             </tr>
           </tbody>
         </table>
@@ -192,15 +193,13 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
             <h3 class="card-title">Diagnostics & Surgical Records</h3>
             <p style="margin: 4px 0; font-size: 11px;"><strong>Diagnosis:</strong> ${clinical.diagnosis || 'Pending'}</p>
             <p style="margin: 4px 0; font-size: 11px;"><strong>Investigations:</strong> ${clinical.investigation || 'Pending'}</p>
-            <p style="margin: 4px 0; font-size: 11px;"><strong>Date of Surgery:</strong> ${clinical.dateOfSurgery ? formatDate(clinical.dateOfSurgery) : 'None'}</p>
             <p style="margin: 4px 0; font-size: 11px;"><strong>Blood Group:</strong> ${bloodGroup} | <strong>Priority:</strong> ${clinical.triagePriority || rawPatient.triageLevel || 'N/A'}</p>
           </div>
           <div class="card">
             <h3 class="card-title">Admission & Discharge Conditions</h3>
             <p style="margin: 4px 0; font-size: 11px;"><strong>At Admission:</strong> ${clinical.conditionDuringAdmission || 'N/A'}</p>
             <p style="margin: 4px 0; font-size: 11px;"><strong>At Discharge:</strong> ${clinical.conditionDuringDischarge || 'N/A'}</p>
-            <p style="margin: 4px 0; font-size: 11px;"><strong>Treatment Outcome:</strong> ${clinical.treatmentResult || 'N/A'}</p>
-            <p style="margin: 4px 0; font-size: 11px;"><strong>Discharged Timestamp:</strong> ${formatDateTime(clinical.dischargedAt)}</p>
+            <p style="margin: 4px 0; font-size: 11px;"><strong>Discharged Timestamp:</strong> ${formatDateTime(rawPatient.dischargedAt || clinical.dischargedAt)}</p>
           </div>
         </div>
 
@@ -208,28 +207,18 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
           <div class="card">
             <h3 class="card-title">Billing Ledger (INR)</h3>
             <div style="font-size: 11px; color: #475569;">
-              <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span>Base Room Fee:</span> <span>₹${pricing.baseFee || 0}</span></div>
-              <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span>Consultation Visits:</span> <span>₹${pricing.visitCharges || 0}</span></div>
-              <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span>Extra Charges:</span> <span>₹${pricing.extraCharges || 0}</span></div>
-              <div style="display: flex; justify-content: space-between; margin-bottom: 3px; color: #ef4444;"><span>Discounts Applied:</span> <span>-₹${pricing.discountAmount || 0}</span></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span>Base Stay Charge:</span> <span>₹${billingBreakdown.baseStayCharge || pricing.baseFee || 0}</span></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span>Paid On Booking:</span> <span>₹${billingBreakdown.paidOnBooking || 0}</span></div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 3px; color: #ef4444;"><span>Remaining Balance:</span> <span>₹${billingBreakdown.remainingBalance || 0}</span></div>
               <div style="display: flex; justify-content: space-between; margin-top: 5px; padding-top: 5px; border-top: 1px solid #e2e8f0; font-weight: bold; color: #08B36A; font-size: 13px;">
-                <span>Total Charge Amount:</span> <span>₹${rawPatient.totalAmount || 0}</span>
+                <span>Current Total:</span> <span>₹${billingBreakdown.currentBillAmount || rawPatient.totalAmount || 0}</span>
               </div>
-            </div>
-            <div style="margin-top: 10px; font-size: 10px; color: #64748b;">
-              <strong>Payment Status:</strong> ${rawPatient.paymentStatus || 'Pending'}<br/>
-              <strong>Payment Gateway Id:</strong> ${payment.razorpayPaymentId || 'N/A'}
             </div>
           </div>
           <div class="card">
             <h3 class="card-title">Special Services Applied</h3>
             ${specialServicesHtml}
           </div>
-        </div>
-
-        <div class="card" style="margin-bottom: 20px;">
-          <h3 class="card-title">Treatment Audit Logs</h3>
-          ${treatmentLogsHtml}
         </div>
 
         <script>
@@ -247,7 +236,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-3 md:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-3 md:p-4 overflow-y-auto font-sans">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={onClose}></div>
       
       <div className="relative bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
@@ -259,7 +248,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
               <h2 className="text-xl font-black text-slate-900 tracking-tight">Clinical Case File</h2>
               {rawPatient.bookingId && (
                 <span className="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest">
-                  {rawPatient.bookingId}
+                  #{rawPatient.bookingId}
                 </span>
               )}
               {rawPatient.triageLevel && (
@@ -331,23 +320,35 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
               
               {/* Profile Card Banner */}
               <div className="flex flex-col md:flex-row gap-6 items-start md:items-center bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                <div className="w-16 h-16 rounded-xl bg-white shadow-sm flex items-center justify-center text-2xl font-black text-[#08B36A] border border-slate-200">
-                  {patientName.charAt(0)}
-                </div>
+                {profilePic ? (
+                  <img 
+                    src={getFullUrl(profilePic)} 
+                    alt={patientName} 
+                    className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shrink-0" 
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-2xl bg-white shadow-sm flex items-center justify-center text-2xl font-black text-[#08B36A] border border-slate-200 shrink-0">
+                    {patientName.charAt(0) || '?'}
+                  </div>
+                )}
                 <div className="flex-grow">
                   <h3 className="text-lg font-black text-slate-900 leading-tight">{patientName}</h3>
                   <div className="flex flex-wrap gap-3 text-xs font-semibold text-slate-400 mt-1">
                     <span>{patientAge} Years &bull; {patientGender} ({relation})</span>
-                    <span>&bull;</span>
-                    <span className="text-rose-500 flex items-center gap-1 font-bold">
-                      <FaTint size={10} /> Blood: {bloodGroup}
-                    </span>
+                    {bloodGroup !== 'N/A' && (
+                      <>
+                        <span>&bull;</span>
+                        <span className="text-rose-500 flex items-center gap-1 font-bold">
+                          <FaTint size={10} /> Blood: {bloodGroup}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="text-right">
                   <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Ward Location</span>
                   <div className="flex items-center gap-1.5 text-slate-800 font-black bg-white px-3 py-1.5 rounded-lg shadow-sm border border-slate-150 text-xs">
-                    <FaProcedures className="text-[#08B36A]" /> {rawPatient.wardName || ward.name || "N/A"} (Bed: {rawPatient.bedNumber || bed.bedNumber || "N/A"})
+                    <FaProcedures className="text-[#08B36A]" /> {bed.wardName || rawPatient.wardName || ward.name || "N/A"} (Bed: {bed.bedNumber || rawPatient.bedNumber || "N/A"})
                   </div>
                 </div>
               </div>
@@ -359,10 +360,10 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                   {/* Case Complaint & Diagnosis summaries */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 bg-slate-50/50 border border-slate-150 rounded-2xl space-y-3 text-xs">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">Chief complaint indicators</h4>
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1">Reason & Admission Context</h4>
                       <div>
-                        <p className="font-bold text-slate-400 uppercase text-[9px]">Chief Complaint:</p>
-                        <p className="font-semibold text-slate-700 mt-0.5">{clinical.chiefComplaint || reasonForVisit || "N/A"}</p>
+                        <p className="font-bold text-slate-400 uppercase text-[9px]">Reason for Visit:</p>
+                        <p className="font-semibold text-slate-700 mt-0.5">{reasonForVisit || clinical.chiefComplaint || "N/A"}</p>
                       </div>
                       <div>
                         <p className="font-bold text-slate-400 uppercase text-[9px]">Admission Details / Note:</p>
@@ -373,7 +374,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                     <div className="p-4 bg-slate-50/50 border border-slate-150 rounded-2xl space-y-3 text-xs">
                       <h4 className="text-[10px] font-black text-[#08B36A] uppercase tracking-wider border-b border-[#08B36A]/10 pb-1">Diagnosis & Outcome Summary</h4>
                       <div>
-                        <p className="font-bold text-slate-400 uppercase text-[9px]">Final Clinical Diagnosis:</p>
+                        <p className="font-bold text-slate-400 uppercase text-[9px]">Clinical Diagnosis:</p>
                         <p className="font-bold text-[#08B36A] mt-0.5">{clinical.diagnosis || "Diagnosis pending clinical validation."}</p>
                       </div>
                       <div>
@@ -386,16 +387,16 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                   {/* Operational Timeline and Discharge details */}
                   <div className="p-4 bg-slate-50 rounded-2xl border border-slate-150 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                     <div>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Date of Surgery</span>
-                      <strong className="text-slate-800 font-extrabold block mt-0.5">{clinical.dateOfSurgery ? formatDate(clinical.dateOfSurgery) : "No surgery registered"}</strong>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Admission Start</span>
+                      <strong className="text-slate-800 font-extrabold block mt-0.5">{formatDate(rawPatient.startDate)}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Discharged Date</span>
+                      <strong className="text-slate-800 font-extrabold block mt-0.5">{formatDate(rawPatient.dischargedAt || rawPatient.endDate)}</strong>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold uppercase block">Triage Priority</span>
                       <strong className="text-rose-600 font-extrabold block mt-0.5">{clinical.triagePriority || rawPatient.triageLevel || "N/A"}</strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Discharged Date</span>
-                      <strong className="text-slate-800 font-extrabold block mt-0.5">{clinical.dischargedAt ? formatDate(clinical.dischargedAt) : "N/A"}</strong>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold uppercase block">Outcome Result</span>
@@ -457,7 +458,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                           rel="noreferrer"
                           className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition border border-slate-700"
                         >
-                          <FaDownload /> Discharge Card Link
+                          <FaDownload /> Discharge Prescription Card
                         </a>
                       )}
                     </div>
@@ -496,7 +497,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
               {activeTab === 'billing' && (
                 <div className="space-y-6 animate-in fade-in duration-150">
                   
-                  {/* Unified Stay Breakdown Card */}
+                  {/* Unified Stay Breakdown Card from billingBreakdown */}
                   {billingBreakdown && Object.keys(billingBreakdown).length > 0 && (
                     <div className="p-5 bg-emerald-50/40 border border-emerald-100 rounded-2xl text-xs space-y-3">
                       <h4 className="text-xs font-black text-[#08B36A] uppercase tracking-wider border-b border-emerald-200 pb-2 flex items-center gap-1.5">
@@ -516,9 +517,30 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                           <strong className="text-slate-800 text-sm font-black">₹{billingBreakdown.baseStayCharge || 0}</strong>
                         </div>
                         <div>
+                          <span className="text-slate-400 font-bold block uppercase text-[9px]">Paid On Booking:</span>
+                          <strong className="text-emerald-700 text-sm font-black">
+                            ₹{billingBreakdown.paidOnBooking || 0}
+                          </strong>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-2 border-t border-emerald-100">
+                        <div>
                           <span className="text-slate-400 font-bold block uppercase text-[9px]">Overstay Allocation:</span>
-                          <strong className="text-rose-600 text-sm font-black">
+                          <strong className="text-rose-600 font-black">
                             {billingBreakdown.overstayDays || 0} Days (₹{billingBreakdown.overstayCharge || 0})
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-bold block uppercase text-[9px]">Remaining Balance:</span>
+                          <strong className="text-rose-600 text-sm font-black">
+                            ₹{billingBreakdown.remainingBalance || 0}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-bold block uppercase text-[9px]">Current Bill Total:</span>
+                          <strong className="text-[#08B36A] text-base font-black">
+                            ₹{billingBreakdown.currentBillAmount || billingBreakdown.estimatedTotal || 0}
                           </strong>
                         </div>
                       </div>
@@ -531,7 +553,7 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                       <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2">Itemized Ledger (INR)</h4>
                       <div className="flex justify-between">
                         <span className="text-slate-500 font-semibold">Base Bed Allocation Charge:</span>
-                        <span className="font-extrabold text-slate-800">₹{pricing.baseFee || 0}</span>
+                        <span className="font-extrabold text-slate-800">₹{billingBreakdown.baseStayCharge || pricing.baseFee || 0}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-500 font-semibold">Doctor Visit / Consultation:</span>
@@ -545,21 +567,9 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                         <span>Discounts / Deductions:</span>
                         <span>-₹{pricing.discountAmount || 0}</span>
                       </div>
-                      {pricing.cancellationFeeApplied > 0 && (
-                        <div className="flex justify-between text-slate-500">
-                          <span>Cancellation Applied:</span>
-                          <span className="font-bold text-slate-800">₹{pricing.cancellationFeeApplied}</span>
-                        </div>
-                      )}
-                      {pricing.noShowFeeApplied > 0 && (
-                        <div className="flex justify-between text-slate-500">
-                          <span>No Show Penalty:</span>
-                          <span className="font-bold text-slate-800">₹{pricing.noShowFeeApplied}</span>
-                        </div>
-                      )}
                       <div className="border-t border-slate-200 pt-3 flex justify-between font-black text-slate-900 text-sm">
                         <span>Total Invoice Value:</span>
-                        <span className="text-[#08B36A] text-base">₹{rawPatient.totalAmount || 0}</span>
+                        <span className="text-[#08B36A] text-base">₹{billingBreakdown.currentBillAmount || rawPatient.totalAmount || 0}</span>
                       </div>
                     </div>
 
@@ -568,73 +578,29 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                       <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2">Gateway Transactions</h4>
                       <div className="flex justify-between">
                         <span className="text-slate-500 font-semibold">Payment Status:</span>
-                        <span className={`font-black uppercase ${rawPatient.paymentStatus === 'Paid' ? 'text-green-600' : 'text-amber-500'}`}>
-                          {rawPatient.paymentStatus || 'Pending'}
+                        <span className={`font-black uppercase ${rawPatient.paymentStatus === 'Paid' || billingBreakdown.remainingBalance === 0 ? 'text-green-600' : 'text-amber-500'}`}>
+                          {rawPatient.paymentStatus || 'Discharge-Pending'}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-500 font-semibold">Transaction ID:</span>
-                        <span className="font-bold text-slate-800 font-mono">{rawPatient.transactionId || 'N/A'}</span>
+                        <span className="font-bold text-slate-800 font-mono">{rawPatient.transactionId || rawPatient.bookingId || 'N/A'}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-500 font-semibold">Payment Method:</span>
-                        <span className="font-bold text-slate-800">{payment.method || 'Online'}</span>
+                        <span className="text-slate-500 font-semibold">Deposit Paid On Booking:</span>
+                        <span className="font-bold text-emerald-700 font-mono">₹{billingBreakdown.paidOnBooking || 0}</span>
                       </div>
-                      {payment.bank && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-500 font-semibold">Bank Partner:</span>
-                          <span className="font-bold text-slate-800 uppercase">{payment.bank}</span>
-                        </div>
-                      )}
-                      {payment.wallet && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-500 font-semibold">Paid via Wallet:</span>
-                          <span className="font-bold text-slate-800 uppercase">{payment.wallet}</span>
-                        </div>
-                      )}
-                      {payment.vpa && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-500 font-semibold">UPI VPA Address:</span>
-                          <span className="font-bold text-slate-800 font-mono">{payment.vpa}</span>
-                        </div>
-                      )}
-                      {payment.paidAt && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-500 font-semibold">Paid Timestamp:</span>
-                          <span className="font-bold text-slate-800">{formatDateTime(payment.paidAt)}</span>
-                        </div>
-                      )}
-                      {payment.razorpayOrderId && (
-                        <div className="pt-2 border-t border-slate-200 space-y-1 font-mono text-[10px] text-slate-400">
-                          <p>Razorpay Order ID: <span className="text-slate-700 font-bold">{payment.razorpayOrderId}</span></p>
-                          <p>Razorpay Payment ID: <span className="text-slate-700 font-bold">{payment.razorpayPaymentId || 'N/A'}</span></p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Insurance Details */}
-                  <div className="p-5 bg-sky-50/60 border border-sky-200 rounded-2xl flex items-start gap-4 text-xs">
-                    <div className="p-3 bg-sky-600 text-white rounded-xl text-sm">
-                      <FaShieldAlt />
-                    </div>
-                    <div>
-                      <h4 className="font-black text-sky-900 uppercase tracking-wider mb-1">Insurance Verification File</h4>
-                      {insurance.hasInsurance ? (
-                        <div className="space-y-1">
-                          <p className="font-bold text-slate-800">Company Name: {insurance.companyName}</p>
-                          <p className="text-slate-600">Insurance Number: <span className="font-mono font-bold text-slate-900">{insurance.insuranceNumber}</span> ({insurance.insuranceType})</p>
-                        </div>
-                      ) : (
-                        <p className="text-sky-700 font-medium italic">No private or government health insurance coverage claimed.</p>
-                      )}
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 font-semibold">Pending Departure Balance:</span>
+                        <span className="font-black text-rose-600 font-mono">₹{billingBreakdown.remainingBalance || 0}</span>
+                      </div>
                     </div>
                   </div>
 
                   {/* Special Services */}
-                  <div className="border border-slate-200 rounded-2xl p-4">
-                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-3 border-b border-slate-100 pb-2">Extra Services Billed</h4>
-                    {rawPatient.specialServices && rawPatient.specialServices.length > 0 ? (
+                  {rawPatient.specialServices && rawPatient.specialServices.length > 0 && (
+                    <div className="border border-slate-200 rounded-2xl p-4">
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-3 border-b border-slate-100 pb-2">Extra Services Billed</h4>
                       <div className="space-y-2">
                         {rawPatient.specialServices.map((srv) => (
                           <div key={srv._id} className="flex justify-between text-xs p-2.5 bg-slate-50 rounded-xl">
@@ -643,10 +609,8 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                           </div>
                         ))}
                       </div>
-                    ) : (
-                      <p className="text-xs text-slate-400 italic">No custom services/procedures billed to this patient.</p>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                 </div>
               )}
@@ -662,9 +626,13 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                     </div>
                     <div className="text-xs">
                       <span className="text-[9px] font-black uppercase text-[#08B36A]">Primary Duty Physician</span>
-                      <h4 className="font-black text-slate-900 text-sm">Dr. {doctor.name || 'Lead Consultant'}</h4>
+                      <h4 className="font-black text-slate-900 text-sm">
+                        {doctor.name ? (doctor.name.startsWith('Dr.') ? doctor.name : `Dr. ${doctor.name}`) : 'Lead Consultant'}
+                      </h4>
                       <p className="text-slate-600 font-bold">{doctor.speciality || 'General Medicine'}</p>
-                      <p className="text-slate-400 mt-0.5">Qualifications: {doctor.qualification || 'N/A'}</p>
+                      {doctor.qualification && (
+                        <p className="text-slate-400 mt-0.5">Qualifications: {doctor.qualification}</p>
+                      )}
                     </div>
                   </div>
 
@@ -684,9 +652,6 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                               <p className="font-extrabold text-slate-800">Dr. {team.name}</p>
                               <p className="text-[10px] text-[#08B36A] font-black uppercase tracking-wide">{team.role || 'Physician'}</p>
                               <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{team.speciality} &bull; {team.qualification}</p>
-                              <p className="text-[9px] text-slate-400 mt-1.5 font-bold">
-                                Stay: {formatDate(team.joinedAt)} &rarr; {formatDate(team.dischargedAt)}
-                              </p>
                             </div>
                           </div>
                         ))}
@@ -695,9 +660,9 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                   )}
 
                   {/* Bedside Care team status */}
-                  <div>
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Bedside Specialist Shifts</h4>
-                    {rawPatient.bedsideCareTeam && rawPatient.bedsideCareTeam.length > 0 ? (
+                  {rawPatient.bedsideCareTeam && rawPatient.bedsideCareTeam.length > 0 && (
+                    <div>
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 ml-1">Bedside Specialist Shifts</h4>
                       <div className="space-y-2">
                         {rawPatient.bedsideCareTeam.map((doc, idx) => {
                           const docObj = typeof doc.doctorId === 'object' ? doc.doctorId : { name: "Specialist Consultant", speciality: "Attending" };
@@ -717,39 +682,8 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                           );
                         })}
                       </div>
-                    ) : (
-                      <p className="text-[11px] text-slate-400 italic pl-1">No bedside care team transfers initiated.</p>
-                    )}
-                  </div>
-
-                  {/* Treatment history audit trails */}
-                  <div className="border border-slate-200 rounded-2xl p-5 space-y-4">
-                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center gap-2">
-                      <FaHistory className="text-[#08B36A]" /> Comprehensive Treatment Log History ({rawPatient.treatmentHistory?.length || 0})
-                    </h4>
-                    {rawPatient.treatmentHistory && rawPatient.treatmentHistory.length > 0 ? (
-                      <div className="space-y-4">
-                        {rawPatient.treatmentHistory.map((log) => (
-                          <div key={log._id} className="relative pl-6 border-l-2 border-[#08B36A]/40 text-xs">
-                            <div className="absolute -left-[5.5px] top-1 w-2.5 h-2.5 rounded-full bg-[#08B36A]"></div>
-                            <div className="flex justify-between font-bold text-slate-900 mb-0.5">
-                              <span>{log.action}</span>
-                              <span className="text-[10px] text-slate-400 font-medium">{formatDateTime(log.timestamp)}</span>
-                            </div>
-                            <p className="text-slate-600 font-medium leading-relaxed">{log.notes || 'No description notes.'}</p>
-                            {log.fromDoctorId && typeof log.fromDoctorId === 'object' && (
-                              <div className="flex items-center gap-2 mt-2 bg-slate-50 p-2 rounded-lg border border-slate-100 w-fit">
-                                <FaUserMd className="text-[#08B36A]" size={11} />
-                                <span className="text-[10px] text-slate-500 font-bold">Logged by: Dr. {log.fromDoctorId.name} ({log.fromDoctorId.speciality})</span>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-400 italic">No timeline audit steps recorded for this patient.</p>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                 </div>
               )}
@@ -760,8 +694,8 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                   
                   {/* Account profile */}
                   <div className="p-5 border border-slate-200 rounded-2xl flex items-center gap-4 text-xs">
-                    {userId.profilePic ? (
-                      <img src={getFullUrl(userId.profilePic)} alt="profile" className="w-14 h-14 rounded-full object-cover border shrink-0" />
+                    {profilePic ? (
+                      <img src={getFullUrl(profilePic)} alt="profile" className="w-14 h-14 rounded-full object-cover border shrink-0" />
                     ) : (
                       <div className="w-14 h-14 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-xl shrink-0">
                         <FaUser />
@@ -769,29 +703,10 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                     )}
                     <div className="space-y-1">
                       <span className="text-[9px] font-black text-[#08B36A] uppercase block">Dossier Registered Account</span>
-                      <h4 className="font-extrabold text-slate-900 text-sm">{userId.name || 'Anonymous User'}</h4>
-                      <p className="text-slate-600 flex items-center gap-1.5"><FaPhone /> {userId.phone}</p>
-                      <p className="text-slate-600 flex items-center gap-1.5"><FaEnvelope /> {userId.email}</p>
+                      <h4 className="font-extrabold text-slate-900 text-sm">{patientName}</h4>
+                      {userId.phone && <p className="text-slate-600 flex items-center gap-1.5"><FaPhone /> {userId.phone}</p>}
+                      {userId.email && <p className="text-slate-600 flex items-center gap-1.5"><FaEnvelope /> {userId.email}</p>}
                     </div>
-                  </div>
-
-                  {/* Registered case patients */}
-                  <div className="border border-slate-200 rounded-2xl p-4 space-y-3">
-                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">All Case Patient Details</h4>
-                    {rawPatient.patients && rawPatient.patients.length > 0 ? (
-                      rawPatient.patients.map((p) => (
-                        <div key={p._id} className="p-4 bg-slate-50 rounded-xl border border-slate-150 text-xs flex justify-between">
-                          <div>
-                            <strong className="text-slate-900 block text-sm">{p.patientName}</strong>
-                            <p className="text-slate-500 mt-0.5">Relation: {p.relation} &bull; Age: {p.patientAge} &bull; Gender: {p.gender}</p>
-                            <p className="text-slate-600 font-semibold mt-1">Visit Reason: {p.reasonForVisit}</p>
-                          </div>
-                          {p.isMainUser && <span className="bg-[#08B36A]/10 text-[#08B36A] px-2.5 py-0.5 rounded h-fit font-bold">Main Account</span>}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-xs text-slate-400 italic">No secondary patients registered.</p>
-                    )}
                   </div>
 
                   {/* Booking Metadata Metrics */}
@@ -801,73 +716,18 @@ const PatientDetailModal = ({ appointmentId, patientData, onClose }) => {
                       <strong className="text-slate-800 text-xs block mt-0.5">{rawPatient.bookingType || "Admission"}</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 font-bold block uppercase text-[9px]">Booking Category</span>
-                      <strong className="text-[#08B36A] text-xs block mt-0.5 uppercase tracking-wide">{rawPatient.bedBookingType || "N/A"}</strong>
+                      <span className="text-slate-400 font-bold block uppercase text-[9px]">Booking ID</span>
+                      <strong className="text-[#08B36A] text-xs block mt-0.5 uppercase tracking-wide">#{rawPatient.bookingId}</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 font-bold block uppercase text-[9px]">Reschedules</span>
-                      <strong className="text-slate-800 text-xs block mt-0.5">{rawPatient.rescheduleCount || 0} Times</strong>
+                      <span className="text-slate-400 font-bold block uppercase text-[9px]">Stay Duration</span>
+                      <strong className="text-slate-800 text-xs block mt-0.5">{billingBreakdown.baseStayDays || rawPatient.stayDuration || 0} Days</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 font-bold block uppercase text-[9px]">Cancellations</span>
-                      <strong className="text-slate-800 text-xs block mt-0.5">{rawPatient.cancellationCount || 0} Times</strong>
+                      <span className="text-slate-400 font-bold block uppercase text-[9px]">Status</span>
+                      <strong className="text-amber-600 text-xs block mt-0.5 uppercase">{rawPatient.status || "Discharge-Pending"}</strong>
                     </div>
                   </div>
-
-                  {/* Reschedule / Reason text */}
-                  {(rawPatient.bookingReason || rawPatient.rescheduleReason) && (
-                    <div className="p-4 bg-amber-50/50 border border-amber-200/60 rounded-xl text-xs space-y-2">
-                      {rawPatient.bookingReason && (
-                        <div>
-                          <span className="text-[9px] text-amber-800 font-black uppercase">Admission Booking Goal:</span>
-                          <p className="font-semibold text-slate-700">{rawPatient.bookingReason}</p>
-                        </div>
-                      )}
-                      {rawPatient.rescheduleReason && (
-                        <div>
-                          <span className="text-[9px] text-amber-800 font-black uppercase">Reschedule Context:</span>
-                          <p className="font-semibold text-slate-700">{rawPatient.rescheduleReason}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Ambulance Transport Details */}
-                  {rawPatient.ambulanceId && (
-                    <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-3 text-xs">
-                      <div className="p-3 bg-rose-600 text-white rounded-xl">
-                        <FaAmbulance size={18} />
-                      </div>
-                      <div>
-                        <strong className="text-rose-900 block font-black">Emergency Ambulance Transit Logged</strong>
-                        <p className="text-rose-700 mt-0.5">Asset Registration ID: <span className="font-mono font-bold text-slate-900">{rawPatient.ambulanceId}</span></p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Address Details */}
-                  {rawPatient.address && (
-                    <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl flex items-center gap-3 text-xs">
-                      <FaMapMarkerAlt className="text-slate-400 animate-pulse" size={16} />
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400">Address Category</span>
-                        <p className="font-extrabold text-slate-800">{rawPatient.address.addressType || 'Home Address'}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Cancellation Audit Logs */}
-                  {cancellation && cancellation.cancelledAt && (
-                    <div className="p-4 bg-rose-50/50 border border-rose-200/60 rounded-2xl text-xs space-y-1.5">
-                      <h4 className="font-black text-rose-900 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                        <FaTimesCircle className="text-rose-500" /> Cancelled Case Settlement details
-                      </h4>
-                      <p className="text-slate-700 font-semibold">Cancelled Date: {formatDateTime(cancellation.cancelledAt)}</p>
-                      <p className="text-slate-700 font-semibold">Penalty Incurred: <span className="text-rose-600 font-black">₹{cancellation.penaltyApplied}</span></p>
-                      <p className="text-slate-700 font-semibold">Calculated Refund: <span className="text-[#08B36A] font-black">₹{cancellation.refundAmountCalculated}</span></p>
-                      <p className="text-slate-600 italic">"Reason: {cancellation.reason || 'No cancellation explanation supplied.'}"</p>
-                    </div>
-                  )}
 
                 </div>
               )}
