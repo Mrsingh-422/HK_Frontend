@@ -97,7 +97,6 @@ export default function DoctorEmergencyCasesPage() {
     const [isPrescriptionPreviewOpen, setIsPrescriptionPreviewOpen] = useState(false);
     const [prescriptionPreviewData, setPrescriptionPreviewData] = useState(null);
 
-    // Helper to format image and logo URLs
     const getImageUrl = (path) => {
         if (!path) return null;
         if (path.startsWith('http://') || path.startsWith('https://')) return path;
@@ -251,6 +250,9 @@ export default function DoctorEmergencyCasesPage() {
             const response = await HospitalDoctorAPI.respondBedsideRequest(body);
             if (response.success) {
                 alert(response.message || `Bedside request successfully ${action}!`);
+                if (action === 'Accepted') {
+                    setActiveStatus('Active Bedside');
+                }
                 fetchEmergencyCases();
             }
         } catch (err) {
@@ -345,74 +347,74 @@ export default function DoctorEmergencyCasesPage() {
         }
     };
 
- const handleFeedbackSubmit = async (formData) => {
-    const activeForm = formData || feedbackForm;
+    const handleFeedbackSubmit = async (formData) => {
+        const activeForm = formData || feedbackForm;
 
-    if (!activeForm.observation) {
-        alert("Observation is required.");
-        return;
-    }
-    try {
-        setActionLoading(true);
-
-        // Uses || instead of ?? so non-empty strings are properly captured
-        const bp = String(activeForm.vitals?.bp || activeForm.bp || "").trim();
-        const pulse = String(activeForm.vitals?.pulse || activeForm.pulse || "").trim();
-        const temp = String(activeForm.vitals?.temp || activeForm.temp || "").trim();
-        const spo2 = String(activeForm.vitals?.spo2 || activeForm.spo2 || "").trim();
-
-        const vitalsPayload = { bp, pulse, temp, spo2 };
-
-        const myDoctorId = getDoctorIdFromToken();
-        const isMainDoctor = caseDetails?.doctorId?._id === myDoctorId || caseDetails?.doctorId === myDoctorId;
-
-        let response;
-        if (isMainDoctor) {
-            response = await HospitalDoctorAPI.addClinicalLog({
-                appointmentId: selectedCaseId,
-                observation: activeForm.observation,
-                patientCondition: activeForm.patientCondition,
-                priorityRating: activeForm.priorityRating,
-                vitals: vitalsPayload,
-                bp,
-                pulse,
-                temp,
-                spo2
-            });
-        } else {
-            response = await HospitalDoctorAPI.submitBedsideFeedback({
-                appointmentId: selectedCaseId,
-                observation: activeForm.observation,
-                patientCondition: activeForm.patientCondition,
-                priorityRating: activeForm.priorityRating,
-                vitals: vitalsPayload,
-                bp,
-                pulse,
-                temp,
-                spo2,
-                recommendedMedicines: activeForm.recommendedMedicines || []
-            });
+        if (!activeForm.observation) {
+            alert("Observation is required.");
+            return;
         }
+        try {
+            setActionLoading(true);
 
-        if (response.success) {
-            alert("Clinical observation feedback submitted successfully!");
-            setIsFeedbackOpen(false);
-            if (selectedCaseId) {
-                const detailRes = await HospitalDoctorAPI.getCaseDetails(selectedCaseId);
-                if (detailRes.success) {
-                    setCaseDetails(detailRes.data);
-                }
+            const bp = String(activeForm.vitals?.bp || activeForm.bp || "").trim();
+            const pulse = String(activeForm.vitals?.pulse || activeForm.pulse || "").trim();
+            const temp = String(activeForm.vitals?.temp || activeForm.temp || "").trim();
+            const spo2 = String(activeForm.vitals?.spo2 || activeForm.spo2 || "").trim();
+
+            const vitalsPayload = { bp, pulse, temp, spo2 };
+
+            const myDoctorId = getDoctorIdFromToken();
+            const doctorObj = caseDetails?.primaryDoctor || caseDetails?.doctorId;
+            const isMainDoctor = (doctorObj?._id === myDoctorId) || (doctorObj === myDoctorId);
+
+            let response;
+            if (isMainDoctor) {
+                response = await HospitalDoctorAPI.addClinicalLog({
+                    appointmentId: selectedCaseId,
+                    observation: activeForm.observation,
+                    patientCondition: activeForm.patientCondition,
+                    priorityRating: activeForm.priorityRating,
+                    vitals: vitalsPayload,
+                    bp,
+                    pulse,
+                    temp,
+                    spo2
+                });
+            } else {
+                response = await HospitalDoctorAPI.submitBedsideFeedback({
+                    appointmentId: selectedCaseId,
+                    observation: activeForm.observation,
+                    patientCondition: activeForm.patientCondition,
+                    priorityRating: activeForm.priorityRating,
+                    vitals: vitalsPayload,
+                    bp,
+                    pulse,
+                    temp,
+                    spo2,
+                    recommendedMedicines: activeForm.recommendedMedicines || []
+                });
             }
-            fetchEmergencyCases();
-        }
-    } catch (err) {
-        alert(getErrorMessage(err));
-    } finally {
-        setActionLoading(false);
-    }
-};
 
-    const handleFinalizeDischarge = async () => {
+            if (response.success) {
+                alert("Clinical observation feedback submitted successfully!");
+                setIsFeedbackOpen(false);
+                if (selectedCaseId) {
+                    const detailRes = await HospitalDoctorAPI.getCaseDetails(selectedCaseId);
+                    if (detailRes.success) {
+                        setCaseDetails(detailRes.data);
+                    }
+                }
+                fetchEmergencyCases();
+            }
+        } catch (err) {
+            alert(getErrorMessage(err));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleFinalizeDischarge = async (resData) => {
         try {
             setActionLoading(true);
             setIsPrescriptionPreviewOpen(false);
@@ -447,7 +449,6 @@ export default function DoctorEmergencyCasesPage() {
     };
 
     const handleProcessPrescriptionSubmit = async (finalMedicines, dietPlanFile) => {
-        // Intercept medication configuration if triggered from Bedside Specialist Feedback path
         if (prescriptionSource === 'bedside-feedback') {
             setFeedbackForm(prev => ({
                 ...prev,
@@ -461,7 +462,7 @@ export default function DoctorEmergencyCasesPage() {
             setActionLoading(true);
             setStagedMedicines(finalMedicines);
 
-            const diagnosisText = dischargeForm.diagnosis || (prescriptionSource === 'bedside' ? "Specialist Bedside Treatment" : "");
+            const diagnosisText = dischargeForm.diagnosis || (prescriptionSource === 'bedside' ? "Specialist Bedside Treatment" : "Acute Emergency Care");
             const diagnosisArray = [diagnosisText];
 
             const formData = new FormData();
@@ -479,23 +480,25 @@ export default function DoctorEmergencyCasesPage() {
 
             await HospitalDoctorAPI.addPrescription(formData);
 
-            const activePatientObj = caseDetails?.patients?.[0] || {};
-            
+            const activePatientObj = caseDetails?.patientDetails || caseDetails?.patients?.[0] || {};
+            const activeDoctorObj = caseDetails?.primaryDoctor || caseDetails?.doctorId || caseDetails?.assignedDoctor || {};
+            const activeHospitalObj = caseDetails?.hospitalDetails || caseDetails?.hospitalId || {};
+
             const previewPayload = {
                 _id: selectedCaseId || caseDetails?._id, 
                 appointmentId: caseDetails?.bookingId || "N/A",
                 date: new Date().toLocaleDateString('en-GB'),
                 time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-                patientName: activePatientObj.patientName || caseDetails?.userId?.name || "N/A",
-                gender: activePatientObj.gender || caseDetails?.userId?.gender || "N/A",
-                age: activePatientObj.patientAge || caseDetails?.userId?.age || "N/A",
-                address: caseDetails?.address?.addressType || "N/A",
-                chiefComplaints: dischargeForm.chiefComplaints || caseDetails?.chiefComplaints || "N/A",
+                patientName: activePatientObj.patientName || activePatientObj.name || caseDetails?.bookedBy?.name || caseDetails?.userId?.name || "N/A",
+                gender: activePatientObj.gender || caseDetails?.bookedBy?.gender || "N/A",
+                age: activePatientObj.age !== undefined ? activePatientObj.age : (activePatientObj.patientAge !== undefined ? activePatientObj.patientAge : "N/A"),
+                address: caseDetails?.hospitalDetails?.city || "N/A",
+                chiefComplaints: dischargeForm.chiefComplaints || caseDetails?.bookingReason || caseDetails?.clinicalSummary?.chiefComplaint || "N/A",
                 diagnosis: diagnosisText,
                 medicines: finalMedicines.map(m => ({
-                    name: m.name,
-                    dose: m.dosage,
-                    time: m.frequency,
+                    name: m.name || m.medicineName,
+                    dose: m.dosage || m.dose,
+                    time: m.frequency || m.time,
                     duration: m.duration
                 })),
                 investigations: dischargeForm.advisedInvestigations || "",
@@ -504,12 +507,12 @@ export default function DoctorEmergencyCasesPage() {
                 nextAppointment: dischargeForm.nextAppointment || "",
                 
                 dateOfAdmission: caseDetails?.startDate ? new Date(caseDetails.startDate).toLocaleDateString('en-GB') : "N/A",
-                department: caseDetails?.doctorId?.speciality || "Department of Medicine, Unit - 1",
+                department: activeDoctorObj.speciality || "Department of Emergency Medicine",
                 dateOfDischarge: new Date().toLocaleDateString('en-GB'),
                 dateOfSurgery: dischargeForm.dateOfSurgery || "",
-                insuranceStatus: caseDetails?.hasInsurance ? "Verified (Cashless)" : "N/A",
-                paymentStatus: caseDetails?.paymentStatus || "Paid",
-                paymentType: caseDetails?.paymentMethod || "UPI",
+                insuranceStatus: caseDetails?.insurance?.hasInsurance ? "Verified (Cashless)" : "N/A",
+                paymentStatus: caseDetails?.billing?.paymentStatus || caseDetails?.paymentStatus || "Paid",
+                paymentType: caseDetails?.billing?.paymentMethod || caseDetails?.paymentMethod || "UPI",
                 conditionDuringAdmission: dischargeForm.conditionDuringAdmission || "",
                 conditionDuringDischarge: dischargeForm.conditionDuringDischarge || "",
 
@@ -520,11 +523,11 @@ export default function DoctorEmergencyCasesPage() {
                     spo2: dischargeForm.spo2 || ""
                 },
 
-                hospitalName: caseDetails?.hospitalId?.name || "Fortis Hospital Mohali",
-                hospitalAddress: caseDetails?.hospitalId?.address || "Sector 62, Sahibzada Ajit Nagar, Punjab 160062",
-                hospitalLogo: caseDetails?.hospitalId?.logo ? getImageUrl(caseDetails.hospitalId.logo) : (caseDetails?.hospitalId?.profilePic ? getImageUrl(caseDetails.hospitalId.profilePic) : (caseDetails?.hospitalId?.image ? getImageUrl(caseDetails.hospitalId.image) : null)),
-                mainDoctorName: caseDetails?.doctorId?.name || "Dr. Deepak Joshi",
-                mainDoctorQualification: caseDetails?.doctorId?.qualification || "Professor & Head: Department of Medicine",
+                hospitalName: activeHospitalObj.name || "Fortis Hospital Mohali",
+                hospitalAddress: activeHospitalObj.fullAddress || activeHospitalObj.address || "Sector 62, Sahibzada Ajit Nagar, Punjab 160062",
+                hospitalLogo: activeHospitalObj.logo ? getImageUrl(activeHospitalObj.logo) : null,
+                mainDoctorName: activeDoctorObj.name || "Dr. Deepak Joshi",
+                mainDoctorQualification: activeDoctorObj.qualification || "Professor & Head: Department of Medicine",
                 bedsideCareTeam: caseDetails?.bedsideCareTeam || []
             };
 
@@ -562,7 +565,7 @@ export default function DoctorEmergencyCasesPage() {
         const myDoctorId = getDoctorIdFromToken();
         const myBedsideRecord = cs.bedsideCareTeam?.find(team => {
             const docId = typeof team.doctorId === 'object' && team.doctorId !== null ? team.doctorId._id : team.doctorId;
-            return myDoctorId ? docId === myDoctorId : true;
+            return myDoctorId ? (docId === myDoctorId || String(docId) === String(myDoctorId)) : true;
         });
 
         if (activeStatus === 'Pending Handovers') {
@@ -581,11 +584,11 @@ export default function DoctorEmergencyCasesPage() {
         }
         
         if (activeStatus === 'Pending Bedside') {
-            return myBedsideRecord ? (myBedsideRecord.status === 'Pending') : cs.bedsideCareTeam?.some(t => t.status === 'Pending');
+            return true;
         }
         
         if (activeStatus === 'Active Bedside') {
-            return myBedsideRecord ? (myBedsideRecord.status === 'Accepted' || myBedsideRecord.status === 'In-Progress') : cs.bedsideCareTeam?.some(t => t.status === 'Accepted' || t.status === 'In-Progress');
+            return true;
         }
         
         if (activeStatus === 'Completed') {
@@ -595,12 +598,8 @@ export default function DoctorEmergencyCasesPage() {
         return true;
     });
 
-    const currentLoggedInDoctorId = getDoctorIdFromToken();
-    const activeCaseMainDoctorId = caseDetails?.doctorId?._id || caseDetails?.doctorId;
-    const isCurrentUserMainDoctor = currentLoggedInDoctorId === activeCaseMainDoctorId;
-
     return (
-        <div className="min-h-screen bg-slate-50/50 p-4 md:p-8">
+        <div className="min-h-screen bg-slate-50/50 p-4 md:p-8 font-sans">
             <div className="max-w-7xl mx-auto animate-in fade-in duration-300">
                 
                 <div className="mb-6 flex justify-between items-center">
@@ -670,7 +669,12 @@ export default function DoctorEmergencyCasesPage() {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {filteredCases.map((cs) => {
-                                        const patient = cs.patients?.[0] || {};
+                                        const patient = cs.patientDetails || cs.patients?.[0] || {};
+                                        const patientName = patient.patientName || patient.name || cs.userId?.name || cs.bookedBy?.name || "Unknown Patient";
+                                        const patientAge = patient.age !== undefined ? patient.age : (patient.patientAge !== undefined ? patient.patientAge : cs.userId?.age || "N/A");
+                                        const patientGender = patient.gender || cs.userId?.gender || "N/A";
+                                        const bloodGroup = patient.bloodGroup || cs.bloodGroup;
+
                                         return (
                                             <tr 
                                                 key={cs._id}
@@ -679,16 +683,27 @@ export default function DoctorEmergencyCasesPage() {
                                             >
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <span className="font-bold text-sm text-slate-900 block">{cs.bookingId}</span>
-                                                    <span className="text-xs text-blue-600 font-medium">{cs.bookingType || "Admission"}</span>
+                                                    <span className="text-xs text-blue-600 font-medium">{cs.bookingType || "Emergency Transit"}</span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center">
-                                                            <FaUser size={13} />
-                                                        </div>
+                                                    <div className="flex items-center gap-2.5">
+                                                        {patient.profilePic ? (
+                                                            <img 
+                                                                src={getImageUrl(patient.profilePic)} 
+                                                                alt={patientName} 
+                                                                className="w-8 h-8 rounded-full object-cover border"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs">
+                                                                {patientName.charAt(0) || <FaUser size={13} />}
+                                                            </div>
+                                                        )}
                                                         <div>
-                                                            <span className="font-bold text-sm text-slate-800 block">{patient.patientName || cs.userId?.name}</span>
-                                                            <span className="text-xs text-slate-500">{patient.patientAge || cs.userId?.age || "30"} Yrs • {patient.gender || cs.userId?.gender || "Male"}</span>
+                                                            <span className="font-bold text-sm text-slate-800 block">{patientName}</span>
+                                                            <span className="text-xs text-slate-500">
+                                                                {patientAge} Yrs • {patientGender}
+                                                                {bloodGroup && ` • Blood: ${bloodGroup}`}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </td>
@@ -698,7 +713,7 @@ export default function DoctorEmergencyCasesPage() {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-medium">
-                                                    {cs.bedBookingType || "General-Bed"}
+                                                    {cs.bedDetails?.bedNumber ? `Bed: ${cs.bedDetails.bedNumber} (${cs.bedDetails.wardName || 'ICU'})` : (cs.bedBookingType || "Emergency Ward")}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
                                                     {activeStatus === 'Pending Handovers' ? (
@@ -863,7 +878,6 @@ export default function DoctorEmergencyCasesPage() {
                     setFeedbackForm={setFeedbackForm}
                     actionLoading={actionLoading}
                     onSubmit={handleFeedbackSubmit}
-                    isMainDoctor={isCurrentUserMainDoctor}
                     onAddMedicineTrigger={() => {
                         setPrescriptionSource('bedside-feedback');
                         setIsPrescriptionOpen(true);

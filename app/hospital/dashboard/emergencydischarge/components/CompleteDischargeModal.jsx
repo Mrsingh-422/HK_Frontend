@@ -201,9 +201,10 @@ const CompleteDischargeModal = ({
       if (includeDoctor) staffArray.push("Doctor");
       if (includeNurse) staffArray.push("Nurse");
 
-      const rawName = patient.patients?.[0]?.patientName || patient.userId?.name || "Patient";
-      const rawAge = Number(patient.patients?.[0]?.patientAge || patient.userId?.age || 30);
-      const rawGender = patient.patients?.[0]?.gender || patient.userId?.gender || "Male";
+      const patientObj = patient.patientDetails || patient.patients?.[0] || {};
+      const rawName = patientObj.patientName || patientObj.name || patient.userId?.name || patient.bookedBy?.name || "Patient";
+      const rawAge = Number(patientObj.age !== undefined ? patientObj.age : (patientObj.patientAge || patient.userId?.age || 30));
+      const rawGender = patientObj.gender || patient.userId?.gender || "Male";
 
       const payload = {
         appointmentId: patient._id,
@@ -298,29 +299,34 @@ const CompleteDischargeModal = ({
     setBillingItems(billingItems.filter((_, idx) => idx !== index));
   };
 
-  // NATIVE ALIGNMENT WITH DYNAMIC RESPONSE PAYLOAD CODES
-  const baseFee = patient.billingBreakdown?.baseStayCharge || patient.pricingBreakdown?.baseFee || 0;
-  const visitCharges = patient.pricingBreakdown?.visitCharges || 0;
-  const overstayCharge = patient.billingBreakdown?.overstayCharge || patient.pricingBreakdown?.extraCharges || 0;
-  const discountAmount = patient.pricingBreakdown?.discountAmount || 0;
+  // Extraction aligned with dynamic API response models
+  const billing = patient.billingBreakdown || {};
+  const baseFee = Number(billing.accumulatedBaseFee !== undefined ? billing.accumulatedBaseFee : (billing.baseStayCharge !== undefined ? billing.baseStayCharge : (patient.pricingBreakdown?.baseFee || 0)));
+  const visitCharges = Number(patient.pricingBreakdown?.visitCharges || 0);
+  const overstayCharge = Number(billing.overstayCharge !== undefined ? billing.overstayCharge : (patient.pricingBreakdown?.extraCharges || 0));
+  const extraFacilities = Number(billing.extraFacilitiesFee || 0);
+  const discountAmount = Number(billing.discountDeductions !== undefined ? billing.discountDeductions : (patient.pricingBreakdown?.discountAmount || 0));
   
-  const cancellationFee = patient.pricingBreakdown?.cancellationFeeApplied || 0;
-  const noShowFee = patient.pricingBreakdown?.noShowFeeApplied || 0;
+  const cancellationFee = Number(patient.pricingBreakdown?.cancellationFeeApplied || 0);
+  const noShowFee = Number(patient.pricingBreakdown?.noShowFeeApplied || 0);
   const totalPenalties = cancellationFee + noShowFee;
 
-  // Extraction of Pre-paid booking advance
+  // Extraction of Pre-paid booking deposit
   const advancePaid = Number(
-    patient.billingBreakdown?.paidOnBooking ||
-    patient.amountPaid || 
-    patient.bookingAmount || 
-    patient.advancePaid || 
-    patient.paymentDetails?.amount ||
-    patient.pricingBreakdown?.advancePaid || 
-    0
+    billing.depositPaidOnBooking !== undefined ? billing.depositPaidOnBooking : (
+      billing.paidOnBooking !== undefined ? billing.paidOnBooking : (
+        patient.amountPaid || 
+        patient.bookingAmount || 
+        patient.advancePaid || 
+        patient.paymentDetails?.amount ||
+        patient.pricingBreakdown?.advancePaid || 
+        0
+      )
+    )
   );
 
-  const calculatedServiceCost = billingItems.reduce((sum, item) => sum + item.price, 0);
-  const totalCalculatedCost = baseFee + visitCharges + overstayCharge + calculatedServiceCost + totalPenalties - discountAmount;
+  const calculatedServiceCost = billingItems.reduce((sum, item) => sum + Number(item.price || 0), 0);
+  const totalCalculatedCost = baseFee + visitCharges + overstayCharge + extraFacilities + calculatedServiceCost + totalPenalties - discountAmount;
   
   // Remaining Outstandings Due
   const outstandingBalance = Math.max(0, totalCalculatedCost - advancePaid);
@@ -344,7 +350,9 @@ const CompleteDischargeModal = ({
     onClose();
   };
 
-  const patientName = patient.patients?.[0]?.patientName || patient.userId?.name || "Unknown Patient";
+  const patientObj = patient.patientDetails || patient.patients?.[0] || {};
+  const patientName = patientObj.patientName || patientObj.name || patient.userId?.name || patient.bookedBy?.name || "Patient";
+  const bedDetails = patient.bedDetails || (typeof patient.bedId === 'object' ? patient.bedId : {}) || {};
 
   return (
     <>
@@ -363,7 +371,7 @@ const CompleteDischargeModal = ({
               <button 
                 type="button"
                 onClick={onClose} 
-                className="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 hover:text-red-500 rounded-2xl transition-all"
+                className="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 hover:text-red-500 rounded-2xl transition-all cursor-pointer"
               >
                 <FaTimes size={16} />
               </button>
@@ -377,16 +385,16 @@ const CompleteDischargeModal = ({
                 <div className="grid grid-cols-2 gap-y-2 text-xs">
                   
                   <div className="text-slate-500 font-semibold">
-                    Admission Stay Charge {patient.billingBreakdown?.baseStayDays ? `(${patient.billingBreakdown.baseStayDays} Days)` : ''}:
+                    Admission Stay Charge {billing.baseStayDuration ? `(${billing.baseStayDuration})` : (billing.actualStayDays ? `(${billing.actualStayDays} Days)` : '')}:
                   </div>
                   <div className="text-right text-slate-800 font-bold">₹{baseFee.toFixed(2)}</div>
                   
-                  {patient.bedId && (
+                  {(bedDetails.bedNumber || patient.bedNumber) && (
                     <>
                       <div className="text-slate-500 font-semibold flex items-center gap-1">
-                        <FaBed className="text-[#08B36A]" /> Bed rate ({patient.bedNumber || patient.bedId.bedNumber}):
+                        <FaBed className="text-[#08B36A]" /> Bed rate ({bedDetails.bedNumber || patient.bedNumber}):
                       </div>
-                      <div className="text-right text-slate-800 font-bold">₹{(patient.bedId.pricePerDay || 0).toFixed(2)} / day</div>
+                      <div className="text-right text-slate-800 font-bold">₹{(bedDetails.pricePerDay || billing.stayUnitCharge || 0).toFixed(2)} / day</div>
                     </>
                   )}
 
@@ -400,9 +408,16 @@ const CompleteDischargeModal = ({
                   {overstayCharge > 0 && (
                     <>
                       <div className="text-slate-500 font-semibold">
-                        Overstay Charge {patient.billingBreakdown?.overstayDays ? `(${patient.billingBreakdown.overstayDays} Days)` : ''}:
+                        Overstay Charge {billing.overstayDays ? `(${billing.overstayDays} Days)` : ''}:
                       </div>
                       <div className="text-right text-rose-600 font-bold">₹{overstayCharge.toFixed(2)}</div>
+                    </>
+                  )}
+
+                  {extraFacilities > 0 && (
+                    <>
+                      <div className="text-slate-500 font-semibold">Extra Facilities Fee:</div>
+                      <div className="text-right text-slate-800 font-bold">₹{extraFacilities.toFixed(2)}</div>
                     </>
                   )}
 
@@ -433,7 +448,7 @@ const CompleteDischargeModal = ({
                     <button
                       type="button"
                       onClick={handleOpenAmbulanceWizard}
-                      className="px-3 py-1.5 bg-[#08B36A] hover:bg-[#068c51] text-white text-[10px] font-black rounded-lg uppercase tracking-wider transition-all"
+                      className="px-3 py-1.5 bg-[#08B36A] hover:bg-[#068c51] text-white text-[10px] font-black rounded-lg uppercase tracking-wider transition-all cursor-pointer"
                     >
                       Book Transport
                     </button>
@@ -441,7 +456,7 @@ const CompleteDischargeModal = ({
                     <button
                       type="button"
                       onClick={handleCancelAmbulanceAddon}
-                      className="px-3 py-1.5 bg-rose-50 border border-rose-100 hover:bg-rose-600 hover:text-white text-rose-600 text-[10px] font-black rounded-lg uppercase tracking-wider transition-all"
+                      className="px-3 py-1.5 bg-rose-50 border border-rose-100 hover:bg-rose-600 hover:text-white text-rose-600 text-[10px] font-black rounded-lg uppercase tracking-wider transition-all cursor-pointer"
                     >
                       Cancel Drop-off
                     </button>
@@ -500,7 +515,7 @@ const CompleteDischargeModal = ({
                           <button 
                             type="button" 
                             onClick={() => handleRemoveItem(idx)}
-                            className="text-slate-300 hover:text-rose-600 transition"
+                            className="text-slate-300 hover:text-rose-600 transition cursor-pointer"
                           >
                             <FaTrashAlt size={11} />
                           </button>
@@ -535,7 +550,7 @@ const CompleteDischargeModal = ({
                   />
                   <button 
                     onClick={handleAddItem}
-                    className="col-span-2 bg-[#08B36A] hover:bg-[#079d5c] text-white rounded-xl flex items-center justify-center transition shadow-sm"
+                    className="col-span-2 bg-[#08B36A] hover:bg-[#079d5c] text-white rounded-xl flex items-center justify-center transition shadow-sm cursor-pointer"
                   >
                     <FaPlus size={12} />
                   </button>
@@ -560,7 +575,9 @@ const CompleteDischargeModal = ({
                   </div>
                   <div>
                     <span className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Remaining Balance</span>
-                    <span className="text-sm font-black text-amber-700">₹{outstandingBalance.toFixed(2)}</span>
+                    <span className={`text-sm font-black ${outstandingBalance > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
+                      ₹{outstandingBalance.toFixed(2)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -574,7 +591,7 @@ const CompleteDischargeModal = ({
               <button 
                 type="button"
                 onClick={handlePreSubmit}
-                className="w-full bg-[#08B36A] hover:bg-[#069e5d] text-white py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.98]"
+                className="w-full bg-[#08B36A] hover:bg-[#069e5d] text-white py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.98] cursor-pointer"
               >
                 <FaCheckCircle /> CONFIRM DISCHARGE & SETTLE
               </button>
@@ -594,7 +611,7 @@ const CompleteDischargeModal = ({
               <h3 className="text-lg font-black text-slate-900 flex items-center gap-2 uppercase tracking-wide">
                 <FaAmbulance className="text-[#08B36A]" /> Dispatch Configuration
               </h3>
-              <button onClick={() => setShowAmbulanceWizard(false)} className="text-slate-400 hover:text-red-500">
+              <button onClick={() => setShowAmbulanceWizard(false)} className="text-slate-400 hover:text-red-500 cursor-pointer">
                 <FaTimes size={16} />
               </button>
             </div>
@@ -610,7 +627,7 @@ const CompleteDischargeModal = ({
                     <button
                       type="button"
                       onClick={handleChooseHomeTransfer}
-                      className="p-5 border border-slate-200 hover:border-[#08B36A] bg-slate-50/50 hover:bg-[#08B36A]/5 rounded-2xl transition flex flex-col items-center justify-center text-center gap-3 group"
+                      className="p-5 border border-slate-200 hover:border-[#08B36A] bg-slate-50/50 hover:bg-[#08B36A]/5 rounded-2xl transition flex flex-col items-center justify-center text-center gap-3 group cursor-pointer"
                     >
                       <div className="w-12 h-12 rounded-2xl bg-[#08B36A]/10 text-[#08B36A] flex items-center justify-center text-xl">
                         <FaHome />
@@ -624,7 +641,7 @@ const CompleteDischargeModal = ({
                     <button
                       type="button"
                       onClick={handleChooseHospitalReferral}
-                      className="p-5 border border-slate-200 hover:border-indigo-600 bg-slate-50/50 hover:bg-indigo-50/20 rounded-2xl transition flex flex-col items-center justify-center text-center gap-3 group"
+                      className="p-5 border border-slate-200 hover:border-indigo-600 bg-slate-50/50 hover:bg-indigo-50/20 rounded-2xl transition flex flex-col items-center justify-center text-center gap-3 group cursor-pointer"
                     >
                       <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl">
                         <FaHospitalAlt />
@@ -644,7 +661,7 @@ const CompleteDischargeModal = ({
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Available Ambulance</label>
-                    <button onClick={() => setWizardStep('choice')} className="text-[10px] font-black text-[#08B36A] uppercase">&larr; Back</button>
+                    <button onClick={() => setWizardStep('choice')} className="text-[10px] font-black text-[#08B36A] uppercase cursor-pointer">&larr; Back</button>
                   </div>
                   {loadingAmbs ? (
                     <div className="flex flex-col items-center py-8 gap-2">
@@ -675,7 +692,7 @@ const CompleteDischargeModal = ({
                 <div className="space-y-3 animate-in fade-in">
                   <div className="flex justify-between items-center border-b pb-1">
                     <span className="text-xs font-bold text-slate-600">Unit Selected: {selectedAmb.name}</span>
-                    <button onClick={() => setWizardStep('home-select')} className="text-[10px] font-black text-slate-400 uppercase">&larr; Back</button>
+                    <button onClick={() => setWizardStep('home-select')} className="text-[10px] font-black text-slate-400 uppercase cursor-pointer">&larr; Back</button>
                   </div>
 
                   <div>
@@ -716,7 +733,7 @@ const CompleteDischargeModal = ({
                     type="button"
                     onClick={handleCalculateHomeFare}
                     disabled={loadingFare || !homeAddress.trim()}
-                    className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400 text-white py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                    className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400 text-white py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
                   >
                     {loadingFare ? "Calculating Distance..." : "Fetch Route Fare Summary"}
                   </button>
@@ -749,7 +766,7 @@ const CompleteDischargeModal = ({
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Destination Referral Facility</label>
-                    <button onClick={() => setWizardStep('choice')} className="text-[10px] font-black text-[#08B36A] uppercase">&larr; Back</button>
+                    <button onClick={() => setWizardStep('choice')} className="text-[10px] font-black text-[#08B36A] uppercase cursor-pointer">&larr; Back</button>
                   </div>
                   
                   <input
@@ -790,7 +807,7 @@ const CompleteDischargeModal = ({
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Shifting Transport Vehicle</label>
-                    <button onClick={() => setWizardStep('ref-hospitals')} className="text-[10px] font-black text-slate-400 uppercase">&larr; Back</button>
+                    <button onClick={() => setWizardStep('ref-hospitals')} className="text-[10px] font-black text-slate-400 uppercase cursor-pointer">&larr; Back</button>
                   </div>
 
                   {loadingAmbs ? (
@@ -825,7 +842,7 @@ const CompleteDischargeModal = ({
                       <span className="block text-[9px] font-black uppercase text-slate-400">Hospital Destination</span>
                       <span className="text-xs font-black text-slate-800">{selectedHospital.name}</span>
                     </div>
-                    <button onClick={() => setWizardStep('ref-ambulances')} className="text-[10px] font-black text-slate-400 uppercase">&larr; Back</button>
+                    <button onClick={() => setWizardStep('ref-ambulances')} className="text-[10px] font-black text-slate-400 uppercase cursor-pointer">&larr; Back</button>
                   </div>
 
                   {/* Scheduled Date/Time Input */}
@@ -872,7 +889,7 @@ const CompleteDischargeModal = ({
                           type="checkbox"
                           checked={includeDoctor}
                           onChange={(e) => setIncludeDoctor(e.target.checked)}
-                          className="w-4 h-4 rounded text-indigo-600 border-slate-200 focus:ring-0"
+                          className="w-4 h-4 rounded text-indigo-600 border-slate-200 focus:ring-0 cursor-pointer"
                         />
                         <span>Lead Physician (Doctor)</span>
                       </label>
@@ -881,7 +898,7 @@ const CompleteDischargeModal = ({
                           type="checkbox"
                           checked={includeNurse}
                           onChange={(e) => setIncludeNurse(e.target.checked)}
-                          className="w-4 h-4 rounded text-indigo-600 border-slate-200 focus:ring-0"
+                          className="w-4 h-4 rounded text-indigo-600 border-slate-200 focus:ring-0 cursor-pointer"
                         />
                         <span>Paramedic / Nurse</span>
                       </label>
@@ -900,7 +917,7 @@ const CompleteDischargeModal = ({
                   type="button"
                   onClick={handleConfirmAndDispatchHome}
                   disabled={isProcessingTransport}
-                  className="w-full bg-[#08B36A] hover:bg-[#068c51] text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-[#08B36A] hover:bg-[#068c51] text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isProcessingTransport ? <FaSpinner className="animate-spin" /> : <FaCheckCircle />}
                   Confirm Home Drop-off
@@ -912,7 +929,7 @@ const CompleteDischargeModal = ({
                   type="button"
                   onClick={handleConfirmReferralBooking}
                   disabled={isProcessingTransport || !referralReason.trim()}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm"
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
                 >
                   {isProcessingTransport ? <FaSpinner className="animate-spin" /> : <FaCheckCircle />}
                   Confirm Clinical Shift Booking
@@ -941,14 +958,14 @@ const CompleteDischargeModal = ({
               <button
                 type="button"
                 onClick={() => setShowConfirmDialog(false)}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl text-xs font-bold transition"
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleFinalConfirm}
-                className="flex-1 bg-[#08B36A] hover:bg-[#069e5d] text-white py-3 rounded-xl text-xs font-bold transition shadow-sm"
+                className="flex-1 bg-[#08B36A] hover:bg-[#069e5d] text-white py-3 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
               >
                 Confirm
               </button>

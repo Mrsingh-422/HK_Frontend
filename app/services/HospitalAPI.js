@@ -586,6 +586,14 @@ const HospitalAPI = {
       message: "Admission details not found.",
     };
   },
+  getAdmissionDetailsById: async (id) => {
+  try {
+    const response = await hospitalVendorApi.get(`/hospital/panel/admissions/details/${id}`);
+    return response.data;
+  } catch (error) {
+    return Promise.reject(error.response?.data?.message || "Failed to fetch admission dossier details");
+  }
+},
   finalizeDischarge: async (data) => {
     const response = await hospitalVendorApi.post(
       "/hospital/panel/discharge/finalize",

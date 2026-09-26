@@ -8,10 +8,10 @@ import {
   FaAmbulance, FaUser, FaChevronLeft, FaChevronRight, FaFilePdf,
   FaShieldAlt, FaStethoscope, FaBed, FaDownload, FaCheckCircle,
   FaClock, FaPhone, FaEnvelope, FaFileInvoiceDollar, FaSyringe, FaExternalLinkAlt,
-  FaTimesCircle
+  FaTimesCircle, FaSearch
 } from 'react-icons/fa';
 
-// Fallback set directly to your active IP backend
+// Fallback set directly to your active backend URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 export default function HospitalHistory() {
@@ -19,6 +19,7 @@ export default function HospitalHistory() {
   const [historyList, setHistoryList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Pagination Configuration
   const [currentPage, setCurrentPage] = useState(1);
@@ -35,24 +36,27 @@ export default function HospitalHistory() {
   const getImageUrl = (path) => {
     if (!path) return null;
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    return `${API_BASE_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
+    const base = API_BASE_URL ? API_BASE_URL.replace(/\/$/, '') : '';
+    const cleanPath = path.replace(/^\//, '').replace(/^public\//, '');
+    return base ? `${base}/${cleanPath}` : `/${cleanPath}`;
   };
 
   // Helper to dynamically calculate stay duration from dates
-  const calculateStayDays = (startDate, endDate) => {
+  const calculateStayDays = (startDate, endDate, explicitDuration) => {
+    if (explicitDuration !== undefined && explicitDuration !== null) {
+      return explicitDuration;
+    }
     if (!startDate) return 0;
     const start = new Date(startDate);
     const end = endDate ? new Date(endDate) : new Date();
     
-    // Difference in milliseconds
     const diffTime = Math.abs(end - start);
-    // Convert to days and round up to count partial days as 1 full day
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays || 1; // Return at least 1 day for any registered admission
+    return diffDays || 1;
   };
 
-  // Fetch History List
-  const fetchHistory = useCallback(async (tab, page) => {
+  // Fetch History List with search and pagination
+  const fetchHistory = useCallback(async (tab, page, search = '') => {
     setLoading(true);
     setError(null);
     try {
@@ -61,9 +65,11 @@ export default function HospitalHistory() {
         page: page,
         limit: itemsPerPage
       };
+      if (search.trim()) {
+        params.search = search.trim();
+      }
       
       const res = await HospitalAPI.getHospitalHistory(params);
-      console.log("History API response loaded:", res);
       
       if (res && res.success) {
         setHistoryList(res.data || []);
@@ -79,16 +85,22 @@ export default function HospitalHistory() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [itemsPerPage]);
 
   // Re-fetch when the active tab or page changes
   useEffect(() => {
-    fetchHistory(activeTab, currentPage);
+    fetchHistory(activeTab, currentPage, searchTerm);
   }, [activeTab, currentPage, fetchHistory]);
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     setCurrentPage(1);
+  };
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    setCurrentPage(1);
+    fetchHistory(activeTab, 1, searchTerm);
   };
 
   const openDetailsModal = (record) => {
@@ -135,21 +147,36 @@ export default function HospitalHistory() {
       return;
     }
 
-    // Dynamic Client-Side Document Assembler (Fallback if no PDF exists yet)
+    // Dynamic Client-Side Document Assembler
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const modalUser = record.userId && typeof record.userId === 'object' ? record.userId : {};
-    const modalDoctor = record.doctorId && typeof record.doctorId === 'object' ? record.doctorId : null;
-    const breakdown = record.pricingBreakdown || {};
-    const insurance = record.insuranceDetails || {};
-    const payment = record.paymentDetails || {};
+    const patient = record.patientDetails || record.patients?.[0] || record.userId || {};
+    const patientName = patient.patientName || patient.name || 'N/A';
+    const patientAge = patient.age !== undefined ? patient.age : (patient.patientAge || 'N/A');
+    const patientGender = patient.gender || 'N/A';
+    const patientRelation = patient.relation || 'Self';
+    const bloodGroup = patient.bloodGroup || clinical.bloodGroup || 'N/A';
+    const reasonForVisit = patient.reasonForVisit || clinical.chiefComplaint || 'N/A';
 
+    const doctor = record.assignedDoctor || (typeof record.doctorId === 'object' ? record.doctorId : null);
+    const bed = record.bedDetails || (typeof record.bedId === 'object' ? record.bedId : null) || {};
+    const wardName = bed.wardName || bed.wardId?.name || record.wardName || 'N/A';
+    const bedNumber = bed.bedNumber || record.bedNumber || 'N/A';
+
+    const billing = record.billing || {};
+    const breakdown = record.pricingBreakdown || {};
+    const totalAmount = billing.totalAmount !== undefined ? billing.totalAmount : (record.totalAmount || 0);
+    const paymentStatus = billing.paymentStatus || record.paymentStatus || 'Paid';
+    const paymentMethod = billing.paymentMethod || record.paymentDetails?.method || 'Online';
+    const txnId = billing.transactionId || record.transactionId || 'N/A';
+
+    const insurance = record.insuranceDetails || {};
     const dietPlanPdfUrl = clinicalFiles.dietPlanPdf;
     const dischargeCardUrl = clinicalFiles.dischargeCardUrl;
     const reportsList = clinicalFiles.clinicalReports || clinical.uploadedReports || [];
 
-    const calculatedStay = calculateStayDays(record.startDate || record.appointmentDate, record.endDate);
+    const calculatedStay = calculateStayDays(record.startDate || record.appointmentDate, record.endDate, record.stayDuration);
 
     const specialServicesHtml = record.specialServices && record.specialServices.length > 0 
       ? record.specialServices.map(s => `
@@ -170,14 +197,6 @@ export default function HospitalHistory() {
         `).join('')
       : '<p style="font-style: italic; color: #94a3b8; margin: 0; font-size: 12px;">No treatment logs available.</p>';
 
-    const reportsHtml = reportsList && reportsList.length > 0
-      ? reportsList.map((r, i) => `
-          <div style="font-size: 11px; margin-bottom: 4px; color: #475569;">
-            📄 Report #${i + 1}: <span style="font-family: monospace; font-size: 10px; word-break: break-all;">${r}</span>
-          </div>
-        `).join('')
-      : '<p style="font-style: italic; color: #94a3b8; margin: 0; font-size: 11px;">No diagnostic reports uploaded.</p>';
-
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -194,14 +213,10 @@ export default function HospitalHistory() {
           .info-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
           .info-table td, .info-table th { padding: 10px; border: 1px solid #e2e8f0; font-size: 12px; }
           .info-table th { background: #f8fafc; text-align: left; font-size: 10px; text-transform: uppercase; color: #64748b; }
-          .section-title { font-size: 11px; font-weight: bold; color: #08B36A; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
           .amount { font-size: 16px; color: #08B36A; font-weight: 900; }
           .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
           .badge-green { background: #dcfce7; color: #166534; }
-          .badge-red { background: #ffe4e6; color: #9f1239; }
-          @media print {
-            body { padding: 0; }
-          }
+          @media print { body { padding: 0; } }
         </style>
       </head>
       <body>
@@ -209,11 +224,11 @@ export default function HospitalHistory() {
           <div>
             <h1 class="title">HOSPITAL CASE DOSSIER</h1>
             <div class="sub">
-              Booking ID: ${record.bookingId || 'N/A'} | Transaction ID: ${record.transactionId || 'N/A'} | Type: ${record.bookingType || 'Admission'}
+              Booking ID: ${record.bookingId || 'N/A'} | Transaction ID: ${txnId} | Status: ${record.status || 'Completed'}
             </div>
           </div>
           <div style="text-align: right; font-size: 11px; color: #64748b; font-weight: bold;">
-            Triage: ${record.triageLevel || 'Standard'}<br/>
+            Admission: ${formatDate(record.startDate)}<br/>
             Printed On: ${new Date().toLocaleDateString('en-GB')}
           </div>
         </div>
@@ -221,23 +236,20 @@ export default function HospitalHistory() {
         <div class="grid">
           <div class="card">
             <h3 class="card-title">Patient Profile</h3>
-            <strong style="font-size: 15px; color: #0f172a;">${record.patients?.[0]?.patientName || modalUser.name || 'N/A'}</strong>
+            <strong style="font-size: 15px; color: #0f172a;">${patientName}</strong>
             <p style="margin: 4px 0 0 0; font-size: 12px; color: #475569;">
-              Age: ${record.patients?.[0]?.patientAge || 'N/A'} Yrs | Gender: ${record.patients?.[0]?.gender || 'N/A'} | Relation: ${record.patients?.[0]?.relation || 'Self'}
+              Age: ${patientAge} Yrs | Gender: ${patientGender} | Relation: ${patientRelation} | Blood: ${bloodGroup}
             </p>
-            <p style="margin: 8px 0 0 0; font-size: 11px; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
-              <strong>Booked By:</strong> ${modalUser.name || 'N/A'} (${modalUser.phone || 'N/A'}) - ${modalUser.email || ''}
+            <p style="margin: 8px 0 0 0; font-size: 11px; color: #64748b;">
+              <strong>Reason / Complaint:</strong> ${reasonForVisit}
             </p>
-            ${record.ambulanceId ? `<p style="margin: 4px 0 0 0; font-size: 11px; color: #dc2626; font-weight: bold;">🚑 Emergency Ambulance Drop-off Registered</p>` : ''}
           </div>
           <div class="card">
             <h3 class="card-title">Attending Physician</h3>
-            ${modalDoctor ? `
-              <strong style="font-size: 15px; color: #0f172a;">${modalDoctor.name}</strong>
-              <p style="margin: 4px 0 0 0; font-size: 12px; color: #475569;">${modalDoctor.speciality || 'General Medicine'}</p>
-              <p style="margin: 8px 0 0 0; font-size: 11px; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
-                Credentials: ${modalDoctor.qualification || 'N/A'}
-              </p>
+            ${doctor ? `
+              <strong style="font-size: 15px; color: #0f172a;">${doctor.name ? (doctor.name.startsWith('Dr.') ? doctor.name : `Dr. ${doctor.name}`) : 'N/A'}</strong>
+              <p style="margin: 4px 0 0 0; font-size: 12px; color: #475569;">${doctor.speciality || 'General Medicine'}</p>
+              <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748b;">Qualifications: ${doctor.qualification || 'N/A'}</p>
             ` : '<p style="color: #64748b; font-style: italic; font-size: 12px; margin: 0;">No clinical doctor assigned.</p>'}
           </div>
         </div>
@@ -246,103 +258,41 @@ export default function HospitalHistory() {
           <thead>
             <tr>
               <th>Ward & Bed Unit</th>
-              <th>Bed Type & Rate</th>
               <th>Stay Timeline</th>
               <th>Duration</th>
+              <th>Final Bill Total</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td><strong>${record.wardName || record.bedId?.wardId?.name || 'N/A'}</strong></td>
-              <td>Bed ${record.bedNumber || record.bedId?.bedNumber || 'N/A'} (${record.bedBookingType || 'Standard'}) @ ₹${record.bedId?.pricePerDay || 0}/day</td>
-              <td>${formatDate(record.startDate || record.appointmentDate)} to ${formatDate(record.endDate)}</td>
+              <td><strong>${wardName}</strong> - Bed ${bedNumber}</td>
+              <td>${formatDate(record.startDate)} to ${formatDate(record.endDate)}</td>
               <td><strong>${calculatedStay} Days</strong></td>
+              <td><strong class="amount">₹${totalAmount}</strong> (${paymentStatus} - ${paymentMethod})</td>
             </tr>
           </tbody>
         </table>
 
         <div class="grid">
           <div class="card">
-            <h3 class="card-title">Clinical & Surgical Diagnostics</h3>
-            <div style="font-size: 12px; margin-bottom: 8px;"><strong>Chief Complaint:</strong> ${clinical.chiefComplaint || 'N/A'}</div>
-            <div style="font-size: 12px; margin-bottom: 8px;"><strong>Diagnosis:</strong> ${clinical.diagnosis || 'N/A'}</div>
-            <div style="font-size: 12px; margin-bottom: 8px;"><strong>Investigations:</strong> ${clinical.investigation || 'N/A'}</div>
-            <div style="font-size: 12px; margin-bottom: 8px;"><strong>Blood Group:</strong> ${clinical.bloodGroup || 'N/A'} | <strong>Triage Priority:</strong> ${clinical.triagePriority || record.triageLevel || 'Normal'}</div>
-            ${clinical.dateOfSurgery ? `<div style="font-size: 12px; margin-bottom: 8px; color: #0284c7; font-weight: bold;">Date of Surgery: ${formatDate(clinical.dateOfSurgery)}</div>` : ''}
+            <h3 class="card-title">Clinical Diagnostics & Files</h3>
+            <div style="font-size: 12px; margin-bottom: 6px;"><strong>Chief Complaint:</strong> ${clinical.chiefComplaint || reasonForVisit}</div>
+            <div style="font-size: 12px; margin-bottom: 6px;"><strong>Diagnosis:</strong> ${clinical.diagnosis || 'N/A'}</div>
+            <div style="font-size: 12px; margin-bottom: 6px;"><strong>Discharge Summary PDF:</strong> ${clinicalFiles.dischargeSummaryPdf || 'Generated'}</div>
           </div>
           <div class="card">
-            <h3 class="card-title">Patient Condition & Notes</h3>
-            <div style="font-size: 12px; margin-bottom: 8px;"><strong>Condition at Admission:</strong> ${clinical.conditionDuringAdmission || 'N/A'}</div>
-            <div style="font-size: 12px; margin-bottom: 8px;"><strong>Condition at Discharge:</strong> ${clinical.conditionDuringDischarge || 'N/A'}</div>
-            <div style="font-size: 12px; margin-bottom: 8px;"><strong>Treatment Outcome:</strong> ${clinical.treatmentResult || 'N/A'}</div>
-            <div style="font-size: 12px; margin-bottom: 8px;"><strong>Discharge Date/Time:</strong> ${formatDateTime(clinical.dischargedAt || record.endDate)}</div>
-          </div>
-        </div>
-
-        <div class="grid">
-          <div class="card">
-            <h3 class="card-title">Clinical Notes & Discharge Summary</h3>
-            <div style="font-size: 12px; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
-              <strong>Admission Note:</strong>
-              <p style="margin: 4px 0 0 0; color: #475569; font-style: italic;">${clinical.admissionNote || 'No special admission notes recorded.'}</p>
-            </div>
+            <h3 class="card-title">Billing & Settlement</h3>
             <div style="font-size: 12px;">
-              <strong>Discharge Summary Note:</strong>
-              <p style="margin: 4px 0 0 0; color: #475569; font-weight: bold;">${clinical.dischargeNote || 'No discharge notes provided.'}</p>
-            </div>
-          </div>
-          <div class="card">
-            <h3 class="card-title">Official Clinical Documents</h3>
-            <div style="font-size: 12px; margin-bottom: 10px;">
-              <strong>Generated Summary Files:</strong>
-              <div style="margin-top: 4px; color: #475569;">
-                <div>• Discharge Summary PDF: ${dischargePdfUrl ? `<span style="font-family: monospace; font-size: 11px;">${dischargePdfUrl}</span>` : 'Not Attached'}</div>
-                <div>• Diet Plan PDF: ${dietPlanPdfUrl ? `<span style="font-family: monospace; font-size: 11px;">${dietPlanPdfUrl}</span>` : 'Not Attached'}</div>
-                <div>• Discharge Card: ${dischargeCardUrl ? `<span style="font-family: monospace; font-size: 11px;">${dischargeCardUrl}</span>` : 'Not Attached'}</div>
-              </div>
-            </div>
-            <div style="font-size: 12px;">
-              <strong>Diagnostic Lab Reports:</strong>
-              <div style="margin-top: 4px;">${reportsHtml}</div>
+              <div><strong>Settled Amount:</strong> ₹${totalAmount}</div>
+              <div><strong>Payment Method:</strong> ${paymentMethod}</div>
+              <div><strong>Transaction Reference:</strong> ${txnId}</div>
             </div>
           </div>
         </div>
 
-        <div class="grid">
-          <div class="card">
-            <h3 class="card-title">Treatment Audit History</h3>
-            ${treatmentHistoryHtml}
-          </div>
-          <div class="card">
-            <h3 class="card-title">Billing & Payment Summary</h3>
-            <div style="font-size: 12px; space-y: 4px;">
-              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Base Bed Fee:</span> <span>₹${breakdown.baseFee || 0}</span></div>
-              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Doctor Visit Charges:</span> <span>₹${breakdown.visitCharges || 0}</span></div>
-              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span>Extra Charges:</span> <span>₹${breakdown.extraCharges || 0}</span></div>
-              <div style="display: flex; justify-content: space-between; margin-bottom: 4px; color: #dc2626;"><span>Discount Applied:</span> <span>-₹${breakdown.discountAmount || 0}</span></div>
-              <div style="border-top: 1px solid #e2e8f0; padding-top: 6px; margin-top: 6px; display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;">
-                <span>Total Amount:</span>
-                <span class="amount">₹${record.totalAmount || 0}</span>
-              </div>
-              <div style="margin-top: 8px; font-size: 11px; color: #64748b;">
-                <strong>Payment Status:</strong> <span class="badge ${record.paymentStatus === 'Paid' ? 'badge-green' : 'badge-red'}">${record.paymentStatus || 'Pending'}</span><br/>
-                <strong>Payment Method:</strong> ${payment.method || 'N/A'}<br/>
-                ${payment.razorpayPaymentId ? `<strong>Payment ID:</strong> ${payment.razorpayPaymentId}` : ''}
-              </div>
-            </div>
-            
-            ${insurance.hasInsurance ? `
-              <div style="margin-top: 12px; padding-top: 8px; border-top: 1px dashed #cbd5e1; font-size: 11px;">
-                <strong style="color: #0284c7;">🛡️ Insurance Information:</strong><br/>
-                Company: ${insurance.companyName || 'N/A'} | Policy #: ${insurance.insuranceNumber || 'N/A'} (${insurance.insuranceType || 'Health'})
-              </div>
-            ` : ''}
-          </div>
-        </div>
-
-        <div style="margin-top: 20px;" class="card">
-          <h3 class="card-title">Special Services Rendered</h3>
-          ${specialServicesHtml}
+        <div style="margin-top: 15px;" class="card">
+          <h3 class="card-title">Treatment History</h3>
+          ${treatmentHistoryHtml}
         </div>
 
         <script>
@@ -381,28 +331,59 @@ export default function HospitalHistory() {
         </div>
       </div>
 
-      {/* Dynamic Tab Switcher */}
-      <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm mb-6 max-w-md">
-        <button
-          onClick={() => handleTabChange('emergency')}
-          className={`flex-1 py-3 px-4 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'emergency' 
-              ? 'bg-[#08B36A] text-white shadow-md shadow-[#08B36A]/20 scale-102' 
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          {"\uD83D\uDE91"} Emergency Cases
-        </button>
-        <button
-          onClick={() => handleTabChange('admission')}
-          className={`flex-1 py-3 px-4 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'admission' 
-              ? 'bg-[#08B36A] text-white shadow-md shadow-[#08B36A]/20 scale-102' 
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          🏨 Direct Admissions
-        </button>
+      {/* Tab Switcher & Search Bar Bar */}
+      <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-6">
+        <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm max-w-md">
+          <button
+            onClick={() => handleTabChange('emergency')}
+            className={`flex-1 py-3 px-4 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'emergency' 
+                ? 'bg-[#08B36A] text-white shadow-md shadow-[#08B36A]/20' 
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            {"\uD83D\uDE91"} Emergency Cases
+          </button>
+          <button
+            onClick={() => handleTabChange('admission')}
+            className={`flex-1 py-3 px-4 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'admission' 
+                ? 'bg-[#08B36A] text-white shadow-md shadow-[#08B36A]/20' 
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            🏨 Direct Admissions
+          </button>
+        </div>
+
+        {/* Search Form */}
+        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
+          <div className="relative w-full md:w-80">
+            <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by Booking ID or Patient Name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-[#08B36A] outline-none shadow-sm transition"
+            />
+          </div>
+          <button
+            type="submit"
+            className="bg-[#08B36A] hover:bg-[#079d5c] text-white font-black text-xs px-5 py-3 rounded-2xl shadow-sm transition shrink-0"
+          >
+            Search
+          </button>
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => { setSearchTerm(''); fetchHistory(activeTab, 1, ''); }}
+              className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs px-3.5 py-3 rounded-2xl transition shrink-0"
+            >
+              Clear
+            </button>
+          )}
+        </form>
       </div>
 
       {/* Main Content View */}
@@ -415,7 +396,7 @@ export default function HospitalHistory() {
         <div className="p-8 bg-rose-50 border border-rose-200 rounded-3xl text-center">
           <p className="text-rose-700 font-bold text-sm mb-3">{error}</p>
           <button
-            onClick={() => fetchHistory(activeTab, currentPage)}
+            onClick={() => fetchHistory(activeTab, currentPage, searchTerm)}
             className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase transition shadow-sm"
           >
             Retry Fetching Logs
@@ -428,7 +409,7 @@ export default function HospitalHistory() {
       ) : (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse whitespace-nowrap">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
                   <th className="p-4 pl-6">Booking Dossier</th>
@@ -443,14 +424,30 @@ export default function HospitalHistory() {
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
                 {historyList.map((item) => {
-                  const mainPatient = item.patients?.[0] || {};
-                  const doctor = item.doctorId && typeof item.doctorId === 'object' ? item.doctorId : null;
-                  const bed = item.bedId && typeof item.bedId === 'object' ? item.bedId : null;
-                  const wardName = item.wardName || bed?.wardId?.name || 'N/A';
-                  const bedNumber = item.bedNumber || bed?.bedNumber || 'N/A';
-                  const isAmbulanceDropOff = !!item.ambulanceId;
+                  const patient = item.patientDetails || item.patients?.[0] || item.userId || {};
+                  const patientName = patient.patientName || patient.name || 'N/A';
+                  const patientAge = patient.age !== undefined ? patient.age : (patient.patientAge || 'N/A');
+                  const patientGender = patient.gender || 'N/A';
+                  const bloodGroup = patient.bloodGroup || item.clinicalSummary?.bloodGroup;
+                  const profilePic = patient.profilePic || item.userId?.profilePic;
+                  const reason = patient.reasonForVisit || item.clinicalSummary?.chiefComplaint;
+
+                  const doctor = item.assignedDoctor || (typeof item.doctorId === 'object' ? item.doctorId : null);
                   const docImage = doctor?.profileImage ? getImageUrl(doctor.profileImage) : null;
-                  const computedStayDays = calculateStayDays(item.startDate || item.appointmentDate, item.endDate);
+                  const docName = doctor?.name ? (doctor.name.startsWith('Dr.') ? doctor.name : `Dr. ${doctor.name}`) : null;
+
+                  const bed = item.bedDetails || (typeof item.bedId === 'object' ? item.bedId : null) || {};
+                  const wardName = bed.wardName || bed.wardId?.name || item.wardName || 'N/A';
+                  const bedNumber = bed.bedNumber || item.bedNumber || 'N/A';
+
+                  const billing = item.billing || {};
+                  const totalAmt = billing.totalAmount !== undefined ? billing.totalAmount : (item.totalAmount || 0);
+                  const payStatus = billing.paymentStatus || item.paymentStatus || 'Paid';
+                  const payMethod = billing.paymentMethod || item.paymentDetails?.method || 'Online';
+                  const txnId = billing.transactionId || item.transactionId;
+
+                  const isAmbulanceDropOff = !!item.ambulanceId;
+                  const computedStayDays = calculateStayDays(item.startDate || item.appointmentDate, item.endDate, item.stayDuration);
 
                   return (
                     <tr key={item._id} className="hover:bg-slate-50/80 transition-colors duration-150">
@@ -458,9 +455,11 @@ export default function HospitalHistory() {
                       {/* Booking ID & Type */}
                       <td className="p-4 pl-6">
                         <span className="font-black text-slate-900 block text-xs">#{item.bookingId || 'N/A'}</span>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase block mt-0.5">
-                          TXN: {item.transactionId || 'N/A'}
-                        </span>
+                        {txnId && (
+                          <span className="text-[10px] text-slate-400 font-bold font-mono block mt-0.5 truncate max-w-[140px]" title={txnId}>
+                            TXN: {txnId}
+                          </span>
+                        )}
                         <div className="flex items-center gap-1.5 mt-1.5">
                           <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider border ${
                             isAmbulanceDropOff 
@@ -479,15 +478,37 @@ export default function HospitalHistory() {
 
                       {/* Patient Details */}
                       <td className="p-4">
-                        <p className="font-extrabold text-slate-900 text-xs">
-                          {mainPatient.patientName || item.userId?.name || 'N/A'}
-                        </p>
-                        <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-                          {mainPatient.patientAge ? `${mainPatient.patientAge} Yrs` : 'N/A'} • {mainPatient.gender || 'N/A'}
-                        </p>
-                        <p className="text-[10px] text-slate-400 font-medium mt-0.5 truncate max-w-[150px]">
-                          Booked by: {item.userId?.name || 'N/A'}
-                        </p>
+                        <div className="flex items-center gap-3">
+                          {profilePic ? (
+                            <img 
+                              src={getImageUrl(profilePic)} 
+                              alt={patientName} 
+                              className="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0" 
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-xl bg-[#08B36A]/10 text-[#08B36A] flex items-center justify-center font-black text-xs border border-[#08B36A]/20 shrink-0">
+                              {patientName.charAt(0) || '?'}
+                            </div>
+                          )}
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-extrabold text-slate-900 text-xs leading-none">{patientName}</p>
+                              {bloodGroup && (
+                                <span className="text-[8px] font-black text-rose-600 bg-rose-50 px-1 py-0.2 rounded border border-rose-100">
+                                  {bloodGroup}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-semibold mt-1">
+                              {patientAge !== 'N/A' ? `${patientAge} Yrs` : ''} • {patientGender} {patient.relation ? `(${patient.relation})` : ''}
+                            </p>
+                            {reason && (
+                              <p className="text-[10px] text-slate-400 font-medium truncate max-w-[160px] mt-0.5" title={reason}>
+                                "{reason}"
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </td>
 
                       {/* Doctor details */}
@@ -495,15 +516,15 @@ export default function HospitalHistory() {
                         {doctor ? (
                           <div className="flex items-center gap-2.5">
                             {docImage ? (
-                              <img src={docImage} alt={doctor.name} className="w-8 h-8 rounded-full object-cover border border-slate-200" />
+                              <img src={docImage} alt={docName} className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0" />
                             ) : (
-                              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-bold">
+                              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-bold shrink-0">
                                 <FaUserMd />
                               </div>
                             )}
                             <div>
-                              <p className="font-bold text-slate-900 text-xs">{doctor.name}</p>
-                              <p className="text-[10px] text-slate-400 font-medium">
+                              <p className="font-bold text-slate-900 text-xs">{docName}</p>
+                              <p className="text-[10px] text-[#08B36A] font-extrabold uppercase">
                                 {doctor.speciality || 'General Medicine'}
                               </p>
                             </div>
@@ -519,8 +540,8 @@ export default function HospitalHistory() {
                           <p className="font-bold text-slate-800 text-xs flex items-center gap-1">
                             <FaProcedures className="text-[#08B36A]" size={11} /> {wardName}
                           </p>
-                          <p className="text-[10px] text-[#08B36A] font-extrabold uppercase">
-                            Bed: {bedNumber} ({item.bedBookingType || 'Standard'})
+                          <p className="text-[10px] text-slate-500 font-extrabold uppercase">
+                            Bed: {bedNumber}
                           </p>
                         </div>
                       </td>
@@ -534,18 +555,21 @@ export default function HospitalHistory() {
                           <span className="text-slate-400 text-[9px] font-bold uppercase">Out:</span> {formatDate(item.endDate)}
                         </p>
                         <span className="inline-block mt-1 text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                          Stay: {computedStayDays} Days
+                          Stay: {computedStayDays} Day{computedStayDays > 1 ? 's' : ''}
                         </span>
                       </td>
 
                       {/* Amount Details */}
                       <td className="p-4 text-right font-black text-slate-900 text-xs">
-                        ₹{item.totalAmount?.toLocaleString('en-IN') || '0'}
-                        <div className="mt-0.5">
+                        ₹{Number(totalAmt).toLocaleString('en-IN')}
+                        <div className="mt-0.5 flex items-center justify-end gap-1">
                           <span className={`inline-block text-[9px] font-black px-1.5 py-0.5 rounded uppercase ${
-                            item.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                            payStatus === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                           }`}>
-                            {item.paymentStatus || 'Pending'}
+                            {payStatus}
+                          </span>
+                          <span className="text-[9px] font-semibold text-slate-400">
+                            • {payMethod}
                           </span>
                         </div>
                       </td>
@@ -598,28 +622,45 @@ export default function HospitalHistory() {
         </div>
       )}
 
-      {/* Details & Clinical Summary Modal - Redesigned with Brand Green Palette (#08B36A) */}
+      {/* Details & Clinical Summary Modal */}
       {isModalOpen && selectedRecord && (() => {
+        const patient = selectedRecord.patientDetails || selectedRecord.patients?.[0] || selectedRecord.userId || {};
+        const patientName = patient.patientName || patient.name || 'N/A';
+        const patientAge = patient.age !== undefined ? patient.age : (patient.patientAge || 'N/A');
+        const patientGender = patient.gender || 'N/A';
+        const patientRelation = patient.relation || 'Self';
+        const patientBlood = patient.bloodGroup || selectedRecord.clinicalSummary?.bloodGroup;
+        const patientReason = patient.reasonForVisit || selectedRecord.clinicalSummary?.chiefComplaint;
+        const patientAvatar = patient.profilePic ? getImageUrl(patient.profilePic) : (selectedRecord.userId?.profilePic ? getImageUrl(selectedRecord.userId.profilePic) : null);
+
         const modalUser = selectedRecord.userId && typeof selectedRecord.userId === 'object' ? selectedRecord.userId : {};
-        const modalDoctor = selectedRecord.doctorId && typeof selectedRecord.doctorId === 'object' ? selectedRecord.doctorId : null;
+        const modalDoctor = selectedRecord.assignedDoctor || (typeof selectedRecord.doctorId === 'object' ? selectedRecord.doctorId : null);
+        const docAvatar = modalDoctor?.profileImage ? getImageUrl(modalDoctor.profileImage) : null;
+        
+        const bed = selectedRecord.bedDetails || (typeof selectedRecord.bedId === 'object' ? selectedRecord.bedId : null) || {};
+        const wardName = bed.wardName || bed.wardId?.name || selectedRecord.wardName || 'N/A';
+        const bedNumber = bed.bedNumber || selectedRecord.bedNumber || 'N/A';
+
         const clinical = selectedRecord.clinicalSummary || {};
         const clinicalFiles = selectedRecord.clinicalFiles || {};
+        const billing = selectedRecord.billing || {};
         const breakdown = selectedRecord.pricingBreakdown || {};
+        const totalAmount = billing.totalAmount !== undefined ? billing.totalAmount : (selectedRecord.totalAmount || 0);
+        const paymentStatus = billing.paymentStatus || selectedRecord.paymentStatus || 'Paid';
+        const paymentMethod = billing.paymentMethod || selectedRecord.paymentDetails?.method || 'Online';
+        const txnId = billing.transactionId || selectedRecord.transactionId || selectedRecord.paymentDetails?.razorpayPaymentId;
+
         const insurance = selectedRecord.insuranceDetails || {};
         const payment = selectedRecord.paymentDetails || {};
 
-        const userAvatar = modalUser.profilePic ? getImageUrl(modalUser.profilePic) : null;
-        const docAvatar = modalDoctor?.profileImage ? getImageUrl(modalDoctor.profileImage) : null;
-
-        // Extract PDF discharge links safely
         const dischargePdfUrl = clinicalFiles.dischargeSummaryPdf || clinical.dischargeSummaryPdf;
         const dietPlanPdfUrl = clinicalFiles.dietPlanPdf;
         const dischargeCardUrl = clinicalFiles.dischargeCardUrl;
 
-        const computedModalStay = calculateStayDays(selectedRecord.startDate || selectedRecord.appointmentDate, selectedRecord.endDate);
+        const computedModalStay = calculateStayDays(selectedRecord.startDate || selectedRecord.appointmentDate, selectedRecord.endDate, selectedRecord.stayDuration);
 
         return (
-          <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 md:p-6 overflow-y-auto">
+          <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 md:p-6 overflow-y-auto font-sans">
             <div className="bg-white rounded-[2rem] max-w-5xl w-full shadow-2xl overflow-hidden border border-slate-200 flex flex-col my-auto max-h-[92vh] animate-in zoom-in-95 duration-200">
               
               {/* Modal Top Header */}
@@ -636,9 +677,13 @@ export default function HospitalHistory() {
                       </span>
                     </div>
                     <p className="text-slate-400 font-bold text-xs mt-0.5 flex items-center gap-2">
-                      <span>TXN: {selectedRecord.transactionId || 'N/A'}</span>
-                      <span>•</span>
-                      <span className="text-amber-600 font-extrabold uppercase">Triage: {selectedRecord.triageLevel || 'Standard'}</span>
+                      <span>Status: {selectedRecord.status || 'Completed'}</span>
+                      {txnId && (
+                        <>
+                          <span>•</span>
+                          <span className="font-mono">TXN: {txnId}</span>
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -688,7 +733,7 @@ export default function HospitalHistory() {
                       : 'border-transparent text-slate-400 hover:text-slate-600'
                   }`}
                 >
-                  <FaFileInvoiceDollar /> Billing & Insurance
+                  <FaFileInvoiceDollar /> Billing & Settlement
                 </button>
                 <button
                   onClick={() => setModalTab('patient')}
@@ -698,21 +743,21 @@ export default function HospitalHistory() {
                       : 'border-transparent text-slate-400 hover:text-slate-600'
                   }`}
                 >
-                  <FaUser /> Patient & Booking User
+                  <FaUser /> Patient Profile
                 </button>
               </div>
 
               {/* Modal Scrollable Body */}
               <div className="p-6 overflow-y-auto space-y-6 flex-grow min-h-0 bg-white">
                 
-                {/* Stay & Ward Banner (Always visible at top of modal) */}
+                {/* Stay & Ward Banner */}
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                   <div>
                     <span className="text-[10px] font-black uppercase text-slate-400 block">Ward & Bed</span>
                     <strong className="text-slate-900 font-black text-sm block mt-0.5">
-                      {selectedRecord.wardName || selectedRecord.bedId?.wardId?.name || 'N/A'} - {selectedRecord.bedNumber || selectedRecord.bedId?.bedNumber || 'N/A'}
+                      {wardName} - Bed {bedNumber}
                     </strong>
-                    <span className="text-[10px] text-[#08B36A] font-bold">Type: {selectedRecord.bedBookingType || 'Standard'}</span>
+                    <span className="text-[10px] text-[#08B36A] font-bold">Allocated Unit</span>
                   </div>
                   <div>
                     <span className="text-[10px] font-black uppercase text-slate-400 block">Admitted On</span>
@@ -731,9 +776,6 @@ export default function HospitalHistory() {
                     <strong className="text-slate-900 font-black text-sm block mt-0.5">
                       {computedModalStay} Days
                     </strong>
-                    {selectedRecord.bedId?.pricePerDay && (
-                      <span className="text-[10px] text-slate-500 font-medium">₹{selectedRecord.bedId.pricePerDay}/day</span>
-                    )}
                   </div>
                 </div>
 
@@ -741,7 +783,7 @@ export default function HospitalHistory() {
                 {modalTab === 'clinical' && (
                   <div className="space-y-6 animate-in fade-in duration-150">
                     
-                    {/* Embedded PDF Discharge Summary Document directly inside the viewport */}
+                    {/* Embedded PDF Discharge Summary Document */}
                     {dischargePdfUrl && (
                       <div className="border border-slate-200 rounded-[1.5rem] overflow-hidden shadow-sm">
                         <div className="bg-slate-50 px-5 py-3.5 text-xs font-black text-slate-800 border-b border-slate-100 flex items-center justify-between">
@@ -771,85 +813,22 @@ export default function HospitalHistory() {
                     {/* Diagnostic Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                        <span className="text-[10px] font-black text-[#08B36A] uppercase tracking-wider block">Chief Complaint</span>
+                        <span className="text-[10px] font-black text-[#08B36A] uppercase tracking-wider block">Reason For Admission</span>
                         <p className="text-slate-800 font-bold text-xs mt-1">
-                          {clinical.chiefComplaint || 'No chief complaint registered.'}
+                          {patientReason || clinical.chiefComplaint || 'No chief complaint registered.'}
                         </p>
                       </div>
                       <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
                         <span className="text-[10px] font-black text-[#08B36A] uppercase tracking-wider block">Clinical Diagnosis</span>
                         <p className="text-slate-900 font-extrabold text-xs mt-1">
-                          {clinical.diagnosis || 'Pending clinical diagnosis.'}
+                          {clinical.diagnosis || 'Post-discharge case records verified.'}
                         </p>
                       </div>
                       <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                        <span className="text-[10px] font-black text-[#08B36A] uppercase tracking-wider block">Investigations Done</span>
+                        <span className="text-[10px] font-black text-[#08B36A] uppercase tracking-wider block">Blood Group & Priority</span>
                         <p className="text-slate-800 font-bold text-xs mt-1">
-                          {clinical.investigation || 'No diagnostic investigations noted.'}
+                          Blood: {patientBlood || 'N/A'} • Triage: {clinical.triagePriority || selectedRecord.triageLevel || 'Normal'}
                         </p>
-                      </div>
-                    </div>
-
-                    {/* Surgical & Medical Details */}
-                    <div className="border border-slate-200 rounded-2xl p-5 bg-white">
-                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
-                        <FaStethoscope className="text-[#08B36A]" /> Diagnostics & Surgical Indicators
-                      </h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                        <div>
-                          <span className="text-[10px] text-slate-400 font-bold uppercase block">Blood Group</span>
-                          <span className="font-extrabold text-slate-800">{clinical.bloodGroup || 'N/A'}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 font-bold uppercase block">Triage Priority</span>
-                          <span className="font-extrabold text-amber-600">{clinical.triagePriority || selectedRecord.triageLevel || 'Normal'}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 font-bold uppercase block">Date of Surgery</span>
-                          <span className="font-extrabold text-slate-800">
-                            {clinical.dateOfSurgery ? formatDate(clinical.dateOfSurgery) : 'No Surgery Recorded'}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-400 font-bold uppercase block">Discharged Timestamp</span>
-                          <span className="font-extrabold text-slate-800">
-                            {clinical.dischargedAt ? formatDateTime(clinical.dischargedAt) : 'N/A'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Patient Condition Breakdown */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="p-4 bg-amber-50/50 border border-amber-200 rounded-2xl">
-                        <h5 className="text-[11px] font-black text-amber-800 uppercase tracking-wider mb-1">
-                          Condition During Admission
-                        </h5>
-                        <p className="text-xs text-slate-700 font-semibold">
-                          {clinical.conditionDuringAdmission || 'No special condition noted at admission time.'}
-                        </p>
-                        {clinical.admissionNote && (
-                          <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-amber-200/60">
-                            <strong>Note:</strong> {clinical.admissionNote}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-2xl">
-                        <h5 className="text-[11px] font-black text-emerald-800 uppercase tracking-wider mb-1">
-                          Condition During Discharge & Outcome
-                        </h5>
-                        <p className="text-xs text-slate-700 font-semibold">
-                          {clinical.conditionDuringDischarge || 'Stable at discharge.'}
-                        </p>
-                        <p className="text-[11px] text-emerald-700 font-bold mt-1">
-                          Result: {clinical.treatmentResult || 'Treatment Completed'}
-                        </p>
-                        {clinical.dischargeNote && (
-                          <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-emerald-200/60">
-                            <strong>Discharge Note:</strong> {clinical.dischargeNote}
-                          </p>
-                        )}
                       </div>
                     </div>
 
@@ -890,7 +869,7 @@ export default function HospitalHistory() {
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition border border-slate-700"
                           >
-                            <FaDownload /> Discharge Card
+                            <FaDownload /> Discharge Prescription Card
                           </a>
                         )}
                       </div>
@@ -913,10 +892,14 @@ export default function HospitalHistory() {
                         </div>
                       )}
                       <div>
-                        <span className="text-[10px] font-black uppercase tracking-wider text-[#08B36A]">Primary Duty Doctor</span>
-                        <h3 className="text-base font-black text-slate-900">{modalDoctor?.name || 'Unassigned Doctor'}</h3>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-[#08B36A]">Attending Physician</span>
+                        <h3 className="text-base font-black text-slate-900">
+                          {modalDoctor?.name ? (modalDoctor.name.startsWith('Dr.') ? modalDoctor.name : `Dr. ${modalDoctor.name}`) : 'Unassigned Doctor'}
+                        </h3>
                         <p className="text-xs text-slate-600 font-semibold">{modalDoctor?.speciality || 'General Practitioner'}</p>
-                        <p className="text-[11px] text-slate-400 font-medium mt-0.5">Qualifications: {modalDoctor?.qualification || 'N/A'}</p>
+                        {modalDoctor?.qualification && (
+                          <p className="text-[11px] text-slate-400 font-medium mt-0.5">Qualifications: {modalDoctor.qualification}</p>
+                        )}
                       </div>
                     </div>
 
@@ -942,10 +925,6 @@ export default function HospitalHistory() {
                                   <span className="text-[10px] text-slate-500">{member.role || 'Physician'} • {member.speciality} ({member.qualification})</span>
                                 </div>
                               </div>
-                              <div className="text-right text-[10px] text-slate-400 font-medium">
-                                <div>Joined: {formatDate(member.joinedAt)}</div>
-                                {member.dischargedAt && <div>Ended: {formatDate(member.dischargedAt)}</div>}
-                              </div>
                             </div>
                           ))}
                         </div>
@@ -953,11 +932,11 @@ export default function HospitalHistory() {
                     )}
 
                     {/* Treatment Audit History */}
-                    <div className="border border-slate-200 rounded-2xl p-5">
-                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
-                        <FaClock className="text-[#08B36A]" /> Clinical Activity & Discharge Audit History
-                      </h4>
-                      {selectedRecord.treatmentHistory && selectedRecord.treatmentHistory.length > 0 ? (
+                    {selectedRecord.treatmentHistory && selectedRecord.treatmentHistory.length > 0 && (
+                      <div className="border border-slate-200 rounded-2xl p-5">
+                        <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+                          <FaClock className="text-[#08B36A]" /> Clinical Activity & Discharge Audit History
+                        </h4>
                         <div className="space-y-4">
                           {selectedRecord.treatmentHistory.map((th) => (
                             <div key={th._id} className="relative pl-6 border-l-2 border-[#08B36A]">
@@ -967,58 +946,39 @@ export default function HospitalHistory() {
                                 <span className="text-[10px] text-slate-400 font-bold">{formatDateTime(th.timestamp)}</span>
                               </div>
                               <p className="text-xs text-slate-600 font-medium mt-1">{th.notes || 'No description provided.'}</p>
-                              {th.fromDoctorId && typeof th.fromDoctorId === 'object' && (
-                                <p className="text-[10px] text-slate-400 font-bold mt-1">
-                                  Logged by: Dr. {th.fromDoctorId.name} ({th.fromDoctorId.speciality})
-                                </p>
-                              )}
                             </div>
                           ))}
                         </div>
-                      ) : (
-                        <p className="text-xs text-slate-400 italic">No activity logs found for this case.</p>
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                   </div>
                 )}
 
-                {/* TAB 3: BILLING & INSURANCE */}
+                {/* TAB 3: BILLING & SETTLEMENT */}
                 {modalTab === 'billing' && (
                   <div className="space-y-6 animate-in fade-in duration-150">
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       
-                      {/* Financial Breakdown Ledger */}
+                      {/* Financial Settlement Ledger */}
                       <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 text-xs">
                         <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2">
-                          Pricing Breakdown
+                          Settlement Ledger
                         </h4>
                         <div className="flex justify-between text-slate-600 font-medium">
-                          <span>Base Room / Bed Fee:</span>
-                          <span className="font-bold text-slate-800">₹{breakdown.baseFee || 0}</span>
+                          <span>Base Admission Charges:</span>
+                          <span className="font-bold text-slate-800">₹{breakdown.baseFee || totalAmount}</span>
                         </div>
-                        <div className="flex justify-between text-slate-600 font-medium">
-                          <span>Doctor Consultation & Visits:</span>
-                          <span className="font-bold text-slate-800">₹{breakdown.visitCharges || 0}</span>
-                        </div>
-                        <div className="flex justify-between text-slate-600 font-medium">
-                          <span>Extra Health Services:</span>
-                          <span className="font-bold text-slate-800">₹{breakdown.extraCharges || 0}</span>
-                        </div>
-                        {breakdown.cancellationFeeApplied > 0 && (
+                        {breakdown.visitCharges > 0 && (
                           <div className="flex justify-between text-slate-600 font-medium">
-                            <span>Cancellation Penalty:</span>
-                            <span className="font-bold text-slate-800">₹{breakdown.cancellationFeeApplied}</span>
+                            <span>Doctor Consultation Charges:</span>
+                            <span className="font-bold text-slate-800">₹{breakdown.visitCharges}</span>
                           </div>
                         )}
-                        <div className="flex justify-between text-rose-600 font-semibold">
-                          <span>Discount Applied:</span>
-                          <span>-₹{breakdown.discountAmount || 0}</span>
-                        </div>
                         <div className="border-t border-slate-200 pt-3 flex justify-between font-black text-slate-900 text-sm">
-                          <span>Final Total Invoice Sum:</span>
-                          <span className="text-[#08B36A] text-base">₹{selectedRecord.totalAmount || 0}</span>
+                          <span>Settled Grand Total:</span>
+                          <span className="text-[#08B36A] text-base">₹{Number(totalAmount).toLocaleString('en-IN')}</span>
                         </div>
                       </div>
 
@@ -1029,146 +989,70 @@ export default function HospitalHistory() {
                         </h4>
                         <div className="flex justify-between text-slate-600">
                           <span className="font-medium">Payment Status:</span>
-                          <span className={`font-black px-2 py-0.5 rounded text-[10px] uppercase ${
-                            selectedRecord.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-700'
-                          }`}>
-                            {selectedRecord.paymentStatus || 'Pending'}
+                          <span className="font-black px-2 py-0.5 rounded text-[10px] uppercase bg-emerald-100 text-emerald-800">
+                            {paymentStatus}
                           </span>
                         </div>
                         <div className="flex justify-between text-slate-600">
                           <span className="font-medium">Payment Method:</span>
-                          <span className="font-bold text-slate-800">{payment.method || 'Direct Hospital Payment'}</span>
+                          <span className="font-bold text-slate-800">{paymentMethod}</span>
                         </div>
-                        <div className="flex justify-between text-slate-600">
-                          <span className="font-medium">Currency:</span>
-                          <span className="font-bold text-slate-800">{payment.currency || 'INR'}</span>
-                        </div>
-                        {payment.paidAt && (
+                        {txnId && (
                           <div className="flex justify-between text-slate-600">
-                            <span className="font-medium">Paid At:</span>
-                            <span className="font-bold text-slate-800">{formatDateTime(payment.paidAt)}</span>
-                          </div>
-                        )}
-                        {payment.razorpayPaymentId && (
-                          <div className="pt-2 border-t border-slate-200 text-[11px] text-slate-500">
-                            <strong>Razorpay Payment ID:</strong> <span className="font-mono text-slate-800">{payment.razorpayPaymentId}</span>
+                            <span className="font-medium">Transaction ID:</span>
+                            <span className="font-mono font-bold text-slate-800">{txnId}</span>
                           </div>
                         )}
                       </div>
 
-                    </div>
-
-                    {/* Insurance Card */}
-                    <div className="p-5 bg-sky-50/60 border border-sky-200 rounded-2xl flex items-start gap-4">
-                      <div className="p-3 bg-sky-500 text-white rounded-xl text-lg">
-                        <FaShieldAlt />
-                      </div>
-                      <div className="text-xs space-y-1">
-                        <h4 className="font-black text-sky-900 uppercase tracking-wider text-xs">Insurance Claim Details</h4>
-                        {insurance.hasInsurance ? (
-                          <>
-                            <p className="text-slate-800 font-bold">
-                              Provider: {insurance.companyName || 'Registered Medical Insurance'}
-                            </p>
-                            <p className="text-slate-600">
-                              Policy/Insurance Number: <span className="font-mono font-bold text-slate-900">{insurance.insuranceNumber || 'N/A'}</span> ({insurance.insuranceType || 'Health Policy'})
-                            </p>
-                          </>
-                        ) : (
-                          <p className="text-sky-700 italic font-medium">No health insurance coverage registered for this booking.</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Special Services Breakdown */}
-                    <div className="border border-slate-200 rounded-2xl p-5">
-                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-3 border-b border-slate-100 pb-2">
-                        Registered Special Services
-                      </h4>
-                      {selectedRecord.specialServices && selectedRecord.specialServices.length > 0 ? (
-                        <div className="space-y-2">
-                          {selectedRecord.specialServices.map((srv) => (
-                            <div key={srv._id} className="flex justify-between items-center text-xs p-2.5 bg-slate-50 rounded-xl">
-                              <span className="font-bold text-slate-800 flex items-center gap-2">
-                                <FaSyringe className="text-[#08B36A]" /> {srv.serviceName}
-                              </span>
-                              <span className="font-black text-slate-900">₹{srv.price}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-slate-400 italic">No extra special services billed for this admission.</p>
-                      )}
                     </div>
 
                   </div>
                 )}
 
-                {/* TAB 4: PATIENT & USER DETAILS */}
+                {/* TAB 4: PATIENT PROFILE */}
                 {modalTab === 'patient' && (
                   <div className="space-y-6 animate-in fade-in duration-150">
                     
-                    {/* Primary Patient */}
+                    {/* Patient Information Card */}
                     <div className="border border-slate-200 rounded-2xl p-5 bg-slate-50">
-                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-200 pb-2">
-                        Registered Patients List
-                      </h4>
-                      <div className="space-y-3">
-                        {selectedRecord.patients && selectedRecord.patients.length > 0 ? (
-                          selectedRecord.patients.map((p) => (
-                            <div key={p._id} className="p-4 bg-white rounded-xl border border-slate-200 flex justify-between items-center text-xs">
-                              <div>
-                                <strong className="text-sm font-extrabold text-slate-900 block">{p.patientName}</strong>
-                                <span className="text-slate-500 font-medium">
-                                  Age: {p.patientAge} Yrs • Gender: {p.gender} • Relation: {p.relation || 'Self'}
-                                </span>
-                                {p.reasonForVisit && (
-                                  <p className="text-slate-600 font-semibold mt-1">Reason: {p.reasonForVisit}</p>
-                                )}
-                              </div>
-                              {p.isMainUser && (
-                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">
-                                  Account Holder
-                                </span>
-                              )}
-                            </div>
-                          ))
+                      <div className="flex items-start gap-4">
+                        {patientAvatar ? (
+                          <img src={patientAvatar} alt={patientName} className="w-16 h-16 rounded-2xl object-cover border shrink-0" />
                         ) : (
-                          <p className="text-xs text-slate-400 italic">No specific patient information attached.</p>
+                          <div className="w-16 h-16 rounded-2xl bg-white text-[#08B36A] border border-slate-200 flex items-center justify-center font-bold text-2xl shrink-0">
+                            {patientName.charAt(0) || '?'}
+                          </div>
                         )}
+                        <div className="flex-grow space-y-1 text-xs">
+                          <span className="text-[10px] font-black uppercase text-[#08B36A]">Patient Information</span>
+                          <h4 className="font-black text-slate-900 text-base">{patientName}</h4>
+                          <p className="text-slate-600 font-semibold">
+                            Age: {patientAge} Yrs • Gender: {patientGender} • Relation: {patientRelation}
+                          </p>
+                          {patientBlood && (
+                            <p className="text-rose-600 font-bold">Blood Group: {patientBlood}</p>
+                          )}
+                          {patientReason && (
+                            <p className="text-slate-700 font-medium mt-1">
+                              <strong>Reason for Visit:</strong> {patientReason}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    {/* Booked By User */}
-                    <div className="p-5 border border-slate-200 rounded-2xl flex items-center gap-4">
-                      {userAvatar ? (
-                        <img src={userAvatar} alt={modalUser.name} className="w-14 h-14 rounded-full object-cover border" />
-                      ) : (
-                        <div className="w-14 h-14 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-xl">
+                    {/* Booked By User Details */}
+                    {modalUser.name && (
+                      <div className="p-5 border border-slate-200 rounded-2xl flex items-center gap-4 text-xs">
+                        <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-lg shrink-0">
                           <FaUser />
                         </div>
-                      )}
-                      <div className="text-xs space-y-0.5">
-                        <span className="text-[10px] font-black uppercase text-slate-400">Booking Account Holder</span>
-                        <h4 className="font-extrabold text-slate-900 text-sm">{modalUser.name || 'Anonymous User'}</h4>
-                        <p className="text-slate-600 flex items-center gap-2">
-                          <FaPhone className="text-slate-400" size={10} /> {modalUser.phone || 'N/A'}
-                        </p>
-                        <p className="text-slate-600 flex items-center gap-2">
-                          <FaEnvelope className="text-slate-400" size={10} /> {modalUser.email || 'N/A'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Emergency Ambulance Details */}
-                    {selectedRecord.ambulanceId && (
-                      <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-xs">
-                        <div className="p-2.5 bg-rose-600 text-white rounded-xl">
-                          <FaAmbulance size={18} />
-                        </div>
-                        <div>
-                          <strong className="text-rose-900 font-extrabold block">Emergency Ambulance Transport Triggered</strong>
-                          <p className="text-rose-700">Ambulance Record ID: {selectedRecord.ambulanceId}</p>
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] font-black uppercase text-slate-400">Account Registration</span>
+                          <h4 className="font-extrabold text-slate-900 text-sm">{modalUser.name}</h4>
+                          {modalUser.phone && <p className="text-slate-600 flex items-center gap-2"><FaPhone className="text-slate-400" size={10} /> {modalUser.phone}</p>}
+                          {modalUser.email && <p className="text-slate-600 flex items-center gap-2"><FaEnvelope className="text-slate-400" size={10} /> {modalUser.email}</p>}
                         </div>
                       </div>
                     )}
