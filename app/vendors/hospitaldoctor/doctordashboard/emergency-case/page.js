@@ -2,7 +2,7 @@
 import HospitalDoctorAPI from '@/app/services/HospitalDoctorAPI';
 import React, { useState, useEffect } from 'react';
 import { 
-    FaUser, FaHeartbeat, FaSpinner, FaExclamationTriangle
+    FaUser, FaHeartbeat, FaSpinner, FaExclamationTriangle, FaCheck, FaTimes, FaAmbulance, FaUserMd
 } from 'react-icons/fa';
 
 import CaseDetailsModal from './component/CaseDetailsModal';
@@ -41,11 +41,22 @@ export default function DoctorEmergencyCasesPage() {
     const [error, setError] = useState(null);
     const [associationError, setAssociationError] = useState(null); 
 
+    // Primary Module and Sub-tab States
+    const [mainTab, setMainTab] = useState('emergency'); // 'emergency' | 'bedside'
     const [activeStatus, setActiveStatus] = useState('Pending Handovers'); 
 
     const [selectedCaseId, setSelectedCaseId] = useState(null);
     const [caseDetails, setCaseDetails] = useState(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+    // Collaborative/Specialist Medications Pool
+    const [collaborativeMeds, setCollaborativeMeds] = useState([]);
+
+    // Attending Doctor Round-State Handlers
+    const [activeMainRoundCaseId, setActiveMainRoundCaseId] = useState(null);
+
+    // Stay Medications Action Loading State
+    const [medicationActionLoading, setMedicationActionLoading] = useState(false);
 
     const [isAssignDoctorOpen, setIsAssignDoctorOpen] = useState(false);
     const [assignStep, setAssignStep] = useState(1); 
@@ -57,12 +68,13 @@ export default function DoctorEmergencyCasesPage() {
     const [assignCondition, setAssignCondition] = useState('');
     const [assignPriority, setAssignPriority] = useState('Routine');
 
-    const [prescriptionSource, setPrescriptionSource] = useState('discharge'); 
+    const [prescriptionSource, setPrescriptionSource] = useState('discharge'); // 'discharge' | 'stay' | 'bedside-feedback'
 
     const [isDischargeOpen, setIsDischargeOpen] = useState(false);
     const [clinicalReports, setClinicalReports] = useState([]);
     const [stagedMedicines, setStagedMedicines] = useState([]);
     const [dischargeForm, setDischargeForm] = useState({
+        appointmentId: '',
         chiefComplaints: '',
         diagnosis: '',
         advisedInvestigations: '',
@@ -113,6 +125,7 @@ export default function DoctorEmergencyCasesPage() {
         return err.toString();
     };
 
+    // Standard tab mapping for HospitalDoctorAPI.getCases
     const fetchEmergencyCases = async () => {
         try {
             setLoading(true);
@@ -131,10 +144,12 @@ export default function DoctorEmergencyCasesPage() {
                 tabParam = 'pending-bedside';
             } else if (activeStatus === 'Active Bedside') {
                 tabParam = 'bedside';
+            } else if (activeStatus === 'Transferred Out') {
+                tabParam = 'transferred-out';
             }
             
             const response = await HospitalDoctorAPI.getCases(tabParam);
-            if (response.success) {
+            if (response && response.success) {
                 setCases(response.data || []);
             }
         } catch (err) {
@@ -175,7 +190,7 @@ export default function DoctorEmergencyCasesPage() {
 
     useEffect(() => {
         fetchEmergencyCases();
-    }, [activeStatus]);
+    }, [activeStatus, mainTab]);
 
     useEffect(() => {
         fetchColleaguesAndMedicines();
@@ -201,6 +216,15 @@ export default function DoctorEmergencyCasesPage() {
             const response = await HospitalDoctorAPI.getCaseDetails(caseId);
             if (response.success) {
                 setCaseDetails(response.data);
+            }
+
+            try {
+                const poolRes = await HospitalDoctorAPI.getBedsideMedications(caseId);
+                if (poolRes && poolRes.success) {
+                    setCollaborativeMeds(poolRes.data || []);
+                }
+            } catch (err) {
+                console.warn("Collaborative medications notice:", err);
             }
         } catch (err) {
             alert(getErrorMessage(err));
@@ -280,6 +304,50 @@ export default function DoctorEmergencyCasesPage() {
             alert(getErrorMessage(err));
         } finally {
             setActionLoading(false);
+        }
+    };
+
+    const handleStartMainDoctorRound = (caseId) => {
+        setActiveMainRoundCaseId(caseId);
+        alert("Attending physician ward round started. You can now log observations.");
+    };
+
+    const handleAddStayMedicationTrigger = () => {
+        setPrescriptionSource('stay');
+        setIsPrescriptionOpen(true);
+    };
+
+    // Bedside specialist triggers recommendation for in-patient stay medications only
+    const handleAddBedsideMedicineTrigger = () => {
+        setPrescriptionSource('bedside-feedback');
+        setIsPrescriptionOpen(true);
+    };
+
+    const handleStopActiveMedication = async (appointmentId, medicationRecordId) => {
+        try {
+            setMedicationActionLoading(true);
+            const payload = {
+                appointmentId,
+                medicationRecordId
+            };
+            const response = await HospitalDoctorAPI.stopActiveMedication(payload);
+            if (response.success) {
+                alert(response.message || "In-patient medication discontinued successfully.");
+                if (appointmentId === selectedCaseId) {
+                    const detailRes = await HospitalDoctorAPI.getCaseDetails(appointmentId);
+                    if (detailRes.success) {
+                        setCaseDetails(detailRes.data);
+                    }
+                }
+                fetchEmergencyCases();
+                return true;
+            }
+            return false;
+        } catch (err) {
+            alert(getErrorMessage(err));
+            return false;
+        } finally {
+            setMedicationActionLoading(false);
         }
     };
 
@@ -369,7 +437,7 @@ export default function DoctorEmergencyCasesPage() {
             const isMainDoctor = (doctorObj?._id === myDoctorId) || (doctorObj === myDoctorId);
 
             let response;
-            if (isMainDoctor) {
+            if (isMainDoctor && mainTab === 'emergency') {
                 response = await HospitalDoctorAPI.addClinicalLog({
                     appointmentId: selectedCaseId,
                     observation: activeForm.observation,
@@ -392,7 +460,14 @@ export default function DoctorEmergencyCasesPage() {
                     pulse,
                     temp,
                     spo2,
-                    recommendedMedicines: activeForm.recommendedMedicines || []
+                    recommendedMedicines: (activeForm.recommendedMedicines || []).map(m => ({
+                        name: m.name || m.medicineName,
+                        dosage: m.dosage || m.dose || "1 Tab",
+                        frequency: m.frequency || m.time || "Once Daily",
+                        duration: m.duration || "5 Days",
+                        instructions: m.instructions || "",
+                        type: "Active-Stay"
+                    }))
                 });
             }
 
@@ -404,7 +479,75 @@ export default function DoctorEmergencyCasesPage() {
                     if (detailRes.success) {
                         setCaseDetails(detailRes.data);
                     }
+                    const poolRes = await HospitalDoctorAPI.getBedsideMedications(selectedCaseId);
+                    if (poolRes && poolRes.success) {
+                        setCollaborativeMeds(poolRes.data || []);
+                    }
                 }
+                fetchEmergencyCases();
+            }
+        } catch (err) {
+            alert(getErrorMessage(err));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleDischargeSubmitDirect = async () => {
+        try {
+            setActionLoading(true);
+
+            const activeTargetId = selectedCaseId || caseDetails?._id || dischargeForm.appointmentId;
+
+            const formData = new FormData();
+            formData.append('appointmentId', String(activeTargetId));
+            formData.append('diagnosis', dischargeForm.diagnosis || "Acute Emergency Care");
+            formData.append('investigation', dischargeForm.advisedInvestigations || "CBC, LFT, KFT normal. Vitals stable.");
+            formData.append('treatmentResult', dischargeForm.clinicalNotes || "Patient recovered and vitals stabilized.");
+            formData.append('dischargeNote', dischargeForm.specialInstructions || "Avoid oily food and take rest for 3 days.");
+
+            if (dischargeForm.dateOfSurgery && dischargeForm.dateOfSurgery !== 'N/A' && dischargeForm.dateOfSurgery !== 'undefined') {
+                formData.append('dateOfSurgery', String(dischargeForm.dateOfSurgery).trim());
+            } else {
+                formData.append('dateOfSurgery', '');
+            }
+
+            formData.append('conditionDuringAdmission', dischargeForm.conditionDuringAdmission || "Stable");
+            formData.append('conditionDuringDischarge', dischargeForm.conditionDuringDischarge || "Recovered & Clinically Stable");
+
+            const vitalsPayload = {
+                bp: dischargeForm.bp || "120/80",
+                pulse: dischargeForm.pulse || "74",
+                temp: dischargeForm.temp || "98.6",
+                spo2: dischargeForm.spo2 || "99"
+            };
+            formData.append('vitals', JSON.stringify(vitalsPayload));
+
+            clinicalReports.forEach((file) => {
+                if (file && (file instanceof File || file instanceof Blob)) {
+                    formData.append('clinicalReports', file);
+                }
+            });
+
+            const response = await HospitalDoctorAPI.submitDischargeSummary(formData);
+            if (response && (response.success || response._id || response.data)) {
+                const resData = response.data || response;
+                const refundAmount = resData?.refundDueToUser || 0;
+                const pendingBalance = resData?.pendingDepartureBalance || 0;
+
+                if (refundAmount > 0) {
+                    alert(`🟢 Discharge Complete: ₹${refundAmount} has been initiated for refund to patient's payment method.`);
+                } else if (pendingBalance > 0) {
+                    alert(`🔴 Discharge Complete: Please collect ₹${pendingBalance} at hospital cash counter.`);
+                } else {
+                    alert("🟢 " + (response.message || "Discharge summary, clinical files, and final PDF summary recorded successfully."));
+                }
+
+                setIsDischargeOpen(false);
+                setIsDetailsOpen(false);
+                setClinicalReports([]);
+                setStagedMedicines([]);
+                setActiveStatus('Discharged');
                 fetchEmergencyCases();
             }
         } catch (err) {
@@ -431,13 +574,16 @@ export default function DoctorEmergencyCasesPage() {
         }
     };
 
-    const handleFinalizeBedsideShift = async () => {
+    // Direct shift completion for bedside specialist without discharge flow
+    const handleFinalizeBedsideShift = async (caseId) => {
+        const targetId = caseId || selectedCaseId;
+        if (!targetId) return;
+
         try {
             setActionLoading(true);
-            const response = await HospitalDoctorAPI.completeBedsideShift({ appointmentId: selectedCaseId });
-            if (response.success) {
+            const response = await HospitalDoctorAPI.completeBedsideShift({ appointmentId: targetId });
+            if (response && (response.success || response.message)) {
                 alert("Specialist bedside shift completed successfully.");
-                setIsPrescriptionPreviewOpen(false);
                 setIsDetailsOpen(false);
                 fetchEmergencyCases();
             }
@@ -448,25 +594,65 @@ export default function DoctorEmergencyCasesPage() {
         }
     };
 
+    // Unified Prescription / Stay Medications Handler
     const handleProcessPrescriptionSubmit = async (finalMedicines, dietPlanFile) => {
-        if (prescriptionSource === 'bedside-feedback') {
-            setFeedbackForm(prev => ({
-                ...prev,
-                recommendedMedicines: finalMedicines
-            }));
-            setIsPrescriptionOpen(false);
-            return;
-        }
-
         try {
             setActionLoading(true);
+            const genuineMongoId = selectedCaseId || caseDetails?._id;
+
+            // 1. In-Patient Stay Medication addition (Calls addActiveMedication directly without PDF)
+            if (prescriptionSource === 'stay') {
+                for (const med of finalMedicines) {
+                    await HospitalDoctorAPI.addActiveMedication({
+                        appointmentId: genuineMongoId,
+                        medicineName: med.name || med.medicineName,
+                        dosage: med.dosage || med.dose || "1 Tab",
+                        frequency: med.frequency || med.time || "Once Daily",
+                        instructions: med.instructions || ""
+                    });
+                }
+                alert("In-patient stay medication(s) added successfully to chart.");
+                
+                if (genuineMongoId) {
+                    const detailRes = await HospitalDoctorAPI.getCaseDetails(genuineMongoId);
+                    if (detailRes.success) {
+                        setCaseDetails(detailRes.data);
+                    }
+                }
+                fetchEmergencyCases();
+                setIsPrescriptionOpen(false);
+                return;
+            }
+
+            // 2. Bedside Feedback Recommended Medicines
+            if (prescriptionSource === 'bedside-feedback') {
+                setFeedbackForm(prev => ({
+                    ...prev,
+                    recommendedMedicines: [
+                        ...(prev.recommendedMedicines || []),
+                        ...finalMedicines.map(m => ({
+                            name: m.name || m.medicineName,
+                            dosage: m.dosage || m.dose || "1 Tab",
+                            frequency: m.frequency || m.time || "Once Daily",
+                            duration: m.duration || "5 Days",
+                            instructions: m.instructions || "",
+                            type: "Active-Stay"
+                        }))
+                    ]
+                }));
+                setIsPrescriptionOpen(false);
+                setIsFeedbackOpen(true);
+                return;
+            }
+
+            // 3. Discharge Prescription Flow (Main Doctor Only)
             setStagedMedicines(finalMedicines);
 
-            const diagnosisText = dischargeForm.diagnosis || (prescriptionSource === 'bedside' ? "Specialist Bedside Treatment" : "Acute Emergency Care");
+            const diagnosisText = dischargeForm.diagnosis || "Acute Emergency Care";
             const diagnosisArray = [diagnosisText];
 
             const formData = new FormData();
-            formData.append('appointmentId', selectedCaseId);
+            formData.append('appointmentId', genuineMongoId);
             formData.append('diagnosis', JSON.stringify(diagnosisArray));
             formData.append('medicines', JSON.stringify(finalMedicines));
             formData.append('advice', dischargeForm.adviceGiven || "");
@@ -485,8 +671,9 @@ export default function DoctorEmergencyCasesPage() {
             const activeHospitalObj = caseDetails?.hospitalDetails || caseDetails?.hospitalId || {};
 
             const previewPayload = {
-                _id: selectedCaseId || caseDetails?._id, 
-                appointmentId: caseDetails?.bookingId || "N/A",
+                _id: genuineMongoId, 
+                appointmentId: genuineMongoId,
+                bookingId: caseDetails?.bookingId || "N/A",
                 date: new Date().toLocaleDateString('en-GB'),
                 time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
                 patientName: activePatientObj.patientName || activePatientObj.name || caseDetails?.bookedBy?.name || caseDetails?.userId?.name || "N/A",
@@ -557,46 +744,21 @@ export default function DoctorEmergencyCasesPage() {
     const onDutyColleagues = colleagues.filter(doc => doc.dutyStatus === 'On Duty');
     const offDutyColleagues = colleagues.filter(doc => doc.dutyStatus !== 'On Duty');
 
-    const filteredCases = cases.filter(cs => {
-        if (cs.ambulanceId === null || cs.ambulanceId === undefined || cs.ambulanceId === '') {
-            return false;
-        }
+    // Strict Emergency category filter when on Emergency Desk
+    const displayedCases = cases.filter(cs => {
+        if (!cs) return false;
 
-        const myDoctorId = getDoctorIdFromToken();
-        const myBedsideRecord = cs.bedsideCareTeam?.find(team => {
-            const docId = typeof team.doctorId === 'object' && team.doctorId !== null ? team.doctorId._id : team.doctorId;
-            return myDoctorId ? (docId === myDoctorId || String(docId) === String(myDoctorId)) : true;
-        });
-
-        if (activeStatus === 'Pending Handovers') {
-            return !!cs.pendingDoctorId || cs.status === 'Hospital-Pending' || cs.status === 'Pending';
-        }
-        
-        if (activeStatus === 'In-Progress') {
-            return !cs.pendingDoctorId && 
-                   cs.status !== 'Hospital-Pending' && 
-                   cs.status !== 'Pending' && 
-                   (cs.status === 'In-Progress' || cs.status === 'Confirmed' || cs.status === 'Active');
-        }
-        
-        if (activeStatus === 'Discharged') {
-            return cs.status === 'Discharge-Pending' || cs.status === 'Discharged';
-        }
-        
-        if (activeStatus === 'Pending Bedside') {
-            return true;
-        }
-        
-        if (activeStatus === 'Active Bedside') {
-            return true;
-        }
-        
-        if (activeStatus === 'Completed') {
-            return cs.status === 'Completed' || myBedsideRecord?.status === 'Completed' || cs.bedsideCareTeam?.some(t => t.status === 'Completed');
+        if (mainTab === 'emergency') {
+            const category = cs.caseCategory || cs.bookingType || (cs.ambulanceId ? "Emergency" : "Admission");
+            if (category.toLowerCase() !== 'emergency') {
+                return false;
+            }
         }
 
         return true;
     });
+
+    const activeMongoId = selectedCaseId || caseDetails?._id;
 
     return (
         <div className="min-h-screen bg-slate-50/50 p-4 md:p-8 font-sans">
@@ -604,8 +766,8 @@ export default function DoctorEmergencyCasesPage() {
                 
                 <div className="mb-6 flex justify-between items-center">
                     <div>
-                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Assigned Emergency Cases</h1>
-                        <p className="text-slate-500 mt-1 text-sm">Real-time emergency triage queue and medical handovers</p>
+                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Emergency Operations Portal</h1>
+                        <p className="text-slate-500 mt-1 text-sm">Real-time emergency triage queue, trauma care, and bedside consultations</p>
                     </div>
                 </div>
 
@@ -621,20 +783,82 @@ export default function DoctorEmergencyCasesPage() {
                     </div>
                 )}
 
+                {/* 🌟 Primary Module Navigation (Emergency Desk vs Bedside Consults) 🌟 */}
+                <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6 max-w-md border border-slate-200">
+                    <button
+                        onClick={() => {
+                            setMainTab('emergency');
+                            setActiveStatus('In-Progress');
+                        }}
+                        className={`flex-1 py-3 px-4 font-extrabold text-xs sm:text-sm tracking-wide rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${
+                            mainTab === 'emergency'
+                            ? 'bg-white text-slate-900 shadow-md border-b-0'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <FaAmbulance size={14} className={mainTab === 'emergency' ? 'text-rose-500' : ''} />
+                        Emergency Desk
+                    </button>
+                    <button
+                        onClick={() => {
+                            setMainTab('bedside');
+                            setActiveStatus('Active Bedside');
+                        }}
+                        className={`flex-1 py-3 px-4 font-extrabold text-xs sm:text-sm tracking-wide rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${
+                            mainTab === 'bedside'
+                            ? 'bg-white text-slate-900 shadow-md border-b-0'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <FaUserMd size={14} className={mainTab === 'bedside' ? 'text-indigo-500' : ''} />
+                        Bedside Consults
+                    </button>
+                </div>
+
+                {/* 🌟 Sub-tabs corresponding to current Primary Module 🌟 */}
                 <div className="mb-6 flex flex-wrap gap-2 border-b border-slate-200 pb-px">
-                    {['Pending Handovers', 'In-Progress', 'Discharged', 'Pending Bedside', 'Active Bedside', 'Completed'].map((status) => (
-                        <button
-                            key={status}
-                            onClick={() => setActiveStatus(status)}
-                            className={`px-5 py-3 font-bold text-xs sm:text-sm tracking-wide transition-all border-b-2 -mb-px ${
-                                activeStatus === status 
-                                ? 'border-emerald-500 text-emerald-600 bg-emerald-50/10' 
-                                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-                            }`}
-                        >
-                            {status}
-                        </button>
-                    ))}
+                    {mainTab === 'emergency' ? (
+                        <>
+                            {[
+                                { status: 'Pending Handovers', label: 'Incoming Handovers' },
+                                { status: 'In-Progress', label: 'Active Emergency' },
+                                { status: 'Transferred Out', label: 'Transferred Out' },
+                                { status: 'Discharged', label: 'Discharged / Archived' }
+                            ].map((sub) => (
+                                <button
+                                    key={sub.status}
+                                    onClick={() => setActiveStatus(sub.status)}
+                                    className={`px-5 py-3 font-bold text-xs sm:text-sm tracking-wide transition-all border-b-2 -mb-px ${
+                                        activeStatus === sub.status 
+                                        ? 'border-rose-500 text-rose-600 bg-rose-50/10' 
+                                        : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                                    }`}
+                                >
+                                    {sub.label}
+                                </button>
+                            ))}
+                        </>
+                    ) : (
+                        <>
+                            {[
+                                { status: 'Pending Bedside', label: 'Pending Consult Requests' },
+                                { status: 'Active Bedside', label: 'Active Consultations' },
+                                { status: 'Completed', label: 'Completed Consults' }
+                            ].map((sub) => (
+                                <button
+                                    key={sub.status}
+                                    onClick={() => setActiveStatus(sub.status)}
+                                    className={`px-5 py-3 font-bold text-xs sm:text-sm tracking-wide transition-all border-b-2 -mb-px ${
+                                        activeStatus === sub.status 
+                                        ? 'border-indigo-500 text-indigo-600 bg-indigo-50/10' 
+                                        : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                                    }`}
+                                >
+                                    {sub.label}
+                                </button>
+                            ))}
+                        </>
+                    )}
                 </div>
 
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -649,7 +873,7 @@ export default function DoctorEmergencyCasesPage() {
                             <p className="text-slate-700 font-bold max-w-md">{error}</p>
                             <p className="text-slate-400 text-xs mt-1">Confirm that your doctor token is correct and your clinic profile is linked.</p>
                         </div>
-                    ) : filteredCases.length === 0 ? (
+                    ) : displayedCases.length === 0 ? (
                         <div className="text-center py-16 px-4 animate-in fade-in duration-350">
                             <FaHeartbeat className="mx-auto text-slate-300 text-5xl mb-3" />
                             <h3 className="text-base font-bold text-slate-700">No {activeStatus} Emergency Cases Found</h3>
@@ -663,17 +887,22 @@ export default function DoctorEmergencyCasesPage() {
                                         <th className="px-6 py-4 font-semibold">Booking ID</th>
                                         <th className="px-6 py-4 font-semibold">Patient Details</th>
                                         <th className="px-6 py-4 font-semibold">Triage Level</th>
-                                        <th className="px-6 py-4 font-semibold">Location Type</th>
+                                        <th className="px-6 py-4 font-semibold">Location / Ward Unit</th>
                                         <th className="px-6 py-4 font-semibold text-center">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {filteredCases.map((cs) => {
+                                    {displayedCases.map((cs) => {
                                         const patient = cs.patientDetails || cs.patients?.[0] || {};
                                         const patientName = patient.patientName || patient.name || cs.userId?.name || cs.bookedBy?.name || "Unknown Patient";
                                         const patientAge = patient.age !== undefined ? patient.age : (patient.patientAge !== undefined ? patient.patientAge : cs.userId?.age || "N/A");
                                         const patientGender = patient.gender || cs.userId?.gender || "N/A";
                                         const bloodGroup = patient.bloodGroup || cs.bloodGroup;
+                                        const reason = patient.reasonForVisit || cs.bookingReason;
+
+                                        const bedNumber = cs.bedDetails?.bedNumber || cs.bedNumber;
+                                        const wardName = cs.bedDetails?.wardName || cs.bedDetails?.ward?.name || cs.wardName;
+                                        const pricePerDay = cs.bedDetails?.pricePerDay;
 
                                         return (
                                             <tr 
@@ -683,7 +912,7 @@ export default function DoctorEmergencyCasesPage() {
                                             >
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <span className="font-bold text-sm text-slate-900 block">{cs.bookingId}</span>
-                                                    <span className="text-xs text-blue-600 font-medium">{cs.bookingType || "Emergency Transit"}</span>
+                                                    <span className="text-xs text-rose-600 font-bold uppercase tracking-wider">{cs.bookingType || "Emergency Transit"}</span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-2.5">
@@ -704,6 +933,11 @@ export default function DoctorEmergencyCasesPage() {
                                                                 {patientAge} Yrs • {patientGender}
                                                                 {bloodGroup && ` • Blood: ${bloodGroup}`}
                                                             </span>
+                                                            {reason && (
+                                                                <p className="text-[10px] text-slate-400 font-medium mt-0.5 truncate max-w-[180px]" title={reason}>
+                                                                    "{reason}"
+                                                                </p>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </td>
@@ -713,7 +947,14 @@ export default function DoctorEmergencyCasesPage() {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-medium">
-                                                    {cs.bedDetails?.bedNumber ? `Bed: ${cs.bedDetails.bedNumber} (${cs.bedDetails.wardName || 'ICU'})` : (cs.bedBookingType || "Emergency Ward")}
+                                                    <div>
+                                                        <span className="text-slate-800 font-bold block">
+                                                            {bedNumber ? `Bed: ${bedNumber}` : (cs.bedBookingType || "Emergency Ward")}
+                                                        </span>
+                                                        <span className="text-xs text-slate-500">
+                                                            {wardName || "Emergency Trauma Unit"} {pricePerDay ? `• ₹${pricePerDay}/Day` : ''}
+                                                        </span>
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
                                                     {activeStatus === 'Pending Handovers' ? (
@@ -721,14 +962,14 @@ export default function DoctorEmergencyCasesPage() {
                                                             <button 
                                                                 onClick={() => handleAcceptTransfer(cs._id)}
                                                                 disabled={actionLoading}
-                                                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
                                                             >
                                                                 Accept
                                                             </button>
                                                              <button 
                                                                 onClick={() => handleRejectTransfer(cs._id)}
                                                                 disabled={actionLoading}
-                                                                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                                                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
                                                             >
                                                                 Reject
                                                             </button> 
@@ -738,9 +979,9 @@ export default function DoctorEmergencyCasesPage() {
                                                             <button 
                                                                 onClick={() => handleRespondBedside(cs._id, 'Accepted')}
                                                                 disabled={actionLoading}
-                                                                className="px-3 py-1.5 bg-[#08B36A] hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                                                className="px-3.5 py-1.5 bg-[#08B36A] hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1 shadow-sm cursor-pointer"
                                                             >
-                                                                Accept Bedside
+                                                                <FaCheck size={10} /> Accept Bedside
                                                             </button>
                                                              <button 
                                                                 onClick={() => {
@@ -748,15 +989,15 @@ export default function DoctorEmergencyCasesPage() {
                                                                     handleRespondBedside(cs._id, 'Rejected', reason);
                                                                 }}
                                                                 disabled={actionLoading}
-                                                                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                                                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1 shadow-sm cursor-pointer"
                                                             >
-                                                                Decline
+                                                                <FaTimes size={10} /> Decline
                                                             </button> 
                                                         </div>
                                                     ) : (
                                                         <button 
                                                             onClick={() => handleCaseClick(cs._id)}
-                                                            className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all"
+                                                            className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all cursor-pointer"
                                                         >
                                                             View
                                                         </button>
@@ -775,12 +1016,14 @@ export default function DoctorEmergencyCasesPage() {
                     isOpen={isDetailsOpen}
                     onClose={handleCloseDetails}
                     caseDetails={caseDetails}
+                    onSelfAssign={null}
                     onAddDoctorClick={() => {
                         resetAssignmentStates();
                         setIsAssignDoctorOpen(true);
                     }}
                     onDischargeClick={() => {
                         setDischargeForm({
+                            appointmentId: caseDetails?._id,
                             chiefComplaints: '',
                             diagnosis: '',
                             advisedInvestigations: '',
@@ -818,10 +1061,14 @@ export default function DoctorEmergencyCasesPage() {
                         setIsFeedbackOpen(true);
                     }}
                     onStartBedsideShift={handleStartBedsideShift}
-                    onCompleteBedsideShift={(caseId) => {
-                        setPrescriptionSource('bedside'); 
-                        setIsPrescriptionOpen(true);
-                    }}
+                    onCompleteBedsideShift={handleFinalizeBedsideShift}
+                    onAddBedsideMedicineTrigger={handleAddBedsideMedicineTrigger}
+                    isMainDoctorRoundActive={activeMainRoundCaseId === caseDetails?._id}
+                    onStartMainDoctorRound={handleStartMainDoctorRound}
+                    onAddStayMedicationTrigger={handleAddStayMedicationTrigger}
+                    onStopActiveMedication={handleStopActiveMedication}
+                    medicationActionLoading={medicationActionLoading}
+                    collaborativeMeds={collaborativeMeds}
                 />
 
                 <AssignDoctorModal 
@@ -859,6 +1106,7 @@ export default function DoctorEmergencyCasesPage() {
                     clinicalReports={clinicalReports}
                     setClinicalReports={setClinicalReports}
                     addedMedicinesCount={stagedMedicines.length}
+                    onDirectSubmit={handleDischargeSubmitDirect}
                 />
 
                 <PrescriptionModal 
@@ -868,7 +1116,7 @@ export default function DoctorEmergencyCasesPage() {
                     actionLoading={actionLoading}
                     onSubmit={handleProcessPrescriptionSubmit}
                     prescriptionSource={prescriptionSource}
-                    collaborativeMeds={caseDetails?.collaborativeMeds || []}
+                    collaborativeMeds={collaborativeMeds}
                 />
 
                 <BedsideFeedbackModal 
@@ -878,6 +1126,7 @@ export default function DoctorEmergencyCasesPage() {
                     setFeedbackForm={setFeedbackForm}
                     actionLoading={actionLoading}
                     onSubmit={handleFeedbackSubmit}
+                    isMainDoctor={true}
                     onAddMedicineTrigger={() => {
                         setPrescriptionSource('bedside-feedback');
                         setIsPrescriptionOpen(true);
@@ -888,11 +1137,13 @@ export default function DoctorEmergencyCasesPage() {
                     isOpen={isPrescriptionPreviewOpen}
                     onClose={() => setIsPrescriptionPreviewOpen(false)}
                     data={prescriptionPreviewData}
+                    appointmentId={activeMongoId}
                     isDischargeFlow={prescriptionSource === 'discharge'}
                     onCompleteDischarge={handleFinalizeDischarge}
-                    isBedsideFlow={prescriptionSource === 'bedside'}
-                    onCompleteBedside={handleFinalizeBedsideShift}
-                    dischargeForm={dischargeForm}
+                    dischargeForm={{
+                        ...dischargeForm,
+                        appointmentId: activeMongoId
+                    }}
                     medicines={stagedMedicines}
                     clinicalReports={clinicalReports}
                 />

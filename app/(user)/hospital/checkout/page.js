@@ -7,7 +7,8 @@ import {
     FaShieldAlt, FaCheck, FaTimes, FaTag, FaReceipt,
     FaUser, FaPhone, FaCalendarDay, FaVenusMars, FaCreditCard,
     FaMapMarkerAlt, FaGlobe, FaPlus, FaUpload, FaUserMd, FaStethoscope,
-    FaSpinner, FaGem, FaMoneyBillWave, FaLock, FaCheckCircle
+    FaSpinner, FaGem, FaMoneyBillWave, FaLock, FaCheckCircle,
+    FaRegCalendarAlt, FaBed, FaWallet
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import UserAPI from "@/app/services/UserAPI";
@@ -130,6 +131,19 @@ export default function HospitalCheckoutPage() {
         return Math.abs(ageDate.getUTCFullYear() - 1970) || 25;
     };
 
+    const formatDisplayDate = (dateStr) => {
+        if (!dateStr) return "N/A";
+        try {
+            return new Date(dateStr).toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+            });
+        } catch (e) {
+            return dateStr;
+        }
+    };
+
     // 3. Fetch Server-Side Summary (POST /user/hospital/checkout-summary)
     const fetchSummary = useCallback(async (codeToApply = appliedCouponCode) => {
         if (!booking?.hospitalId || !booking?.bedId) return;
@@ -235,7 +249,7 @@ export default function HospitalCheckoutPage() {
                 discount,
                 subtotal: subtotal + servicesTotal,
                 totalPayable,
-                stayDuration: serverPricing.stayDuration ?? 1,
+                stayDuration: serverPricing.stayDuration ?? booking?.totalDays ?? 1,
                 isCodAvailable: !!serverPricing.isCodAvailable,
                 isSubscriptionApplied: !!serverPricing.subscriptionDetails?.isSubscriptionApplied,
                 planName: serverPricing.subscriptionDetails?.planName || "",
@@ -251,7 +265,7 @@ export default function HospitalCheckoutPage() {
             discount: 0,
             subtotal: fallbackBase + servicesTotal,
             totalPayable: fallbackBase + servicesTotal,
-            stayDuration: 1,
+            stayDuration: booking?.totalDays ?? 1,
             isCodAvailable: true,
             isSubscriptionApplied: false,
             planName: "",
@@ -297,7 +311,7 @@ export default function HospitalCheckoutPage() {
         }
     };
 
-    // 5. Final Hospital Admission Booking Handler (Endpoint 2.2 + 7.0 Payment Verify)
+    // 5. Final Hospital Admission Booking Handler
     const handlePayment = async () => {
         if (!patientDetails.fullName || !patientDetails.phoneNumber) {
             CostoumPopup("Please fill in required patient name and contact number", "warning", 3000);
@@ -352,7 +366,11 @@ export default function HospitalCheckoutPage() {
             // --- CASE A: Direct Confirmation for COD or Free Booking ---
             if (isZeroTotal || finalPaymentMethod === "COD" || res.data?.paymentStatus === "Paid") {
                 sessionStorage.removeItem("activeBooking");
-                setBookingSuccessData(res.data || { bookingId: res.bookingId || "HKH-CONFIRMED" });
+                setBookingSuccessData(res.data || { 
+                    bookingId: res.bookingId || "HKH-CONFIRMED",
+                    status: "Confirmed",
+                    paymentStatus: finalPaymentMethod === "COD" ? "Pending at Desk" : "Paid"
+                });
                 setIsSubmitting(false);
                 return;
             }
@@ -397,7 +415,11 @@ export default function HospitalCheckoutPage() {
 
                         if (verificationRes?.success) {
                             sessionStorage.removeItem("activeBooking");
-                            setBookingSuccessData(verificationRes.data || { bookingId: bookingId || "HKH-CONFIRMED" });
+                            setBookingSuccessData(verificationRes.data || { 
+                                bookingId: bookingId || "HKH-CONFIRMED",
+                                status: "Confirmed",
+                                paymentStatus: "Paid"
+                            });
                         } else {
                             CostoumPopup(verificationRes?.message || "Payment verification failed", "error", 4000);
                         }
@@ -432,7 +454,7 @@ export default function HospitalCheckoutPage() {
             {/* HEADER */}
             <div className="bg-white border-b border-slate-200 sticky top-0 z-40">
                 <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
-                    <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-600 font-bold text-xs uppercase tracking-widest hover:text-emerald-600">
+                    <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-600 font-bold text-xs uppercase tracking-widest hover:text-emerald-600 cursor-pointer">
                         <FaArrowLeft /> Back
                     </button>
                     <h1 className="text-sm md:text-base font-black text-slate-900 tracking-tight uppercase">Hospital Admission Checkout</h1>
@@ -587,7 +609,7 @@ export default function HospitalCheckoutPage() {
                                     <button
                                         type="button"
                                         onClick={() => setPaymentMethod("Online")}
-                                        className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between
+                                        className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer
                                             ${paymentMethod === "Online" ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'bg-white border-slate-200'}`}
                                     >
                                         <div className="flex items-center gap-3">
@@ -606,7 +628,7 @@ export default function HospitalCheckoutPage() {
                                         type="button"
                                         disabled={!totals.isCodAvailable}
                                         onClick={() => setPaymentMethod("COD")}
-                                        className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between relative
+                                        className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between relative cursor-pointer
                                             ${!totals.isCodAvailable ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : ''}
                                             ${paymentMethod === "COD" ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'bg-white border-slate-200'}`}
                                     >
@@ -650,7 +672,7 @@ export default function HospitalCheckoutPage() {
                                 <button
                                     disabled={isValidatingCoupon || (!couponCode && !appliedCouponCode)}
                                     onClick={() => appliedCouponCode ? removeCoupon() : handleApplyCoupon()}
-                                    className={`px-4 rounded-xl text-[10px] font-black uppercase transition-all
+                                    className={`px-4 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer
                                         ${appliedCouponCode ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
                                 >
                                     {isValidatingCoupon ? <FaSpinner className="animate-spin" /> : appliedCouponCode ? 'Remove' : 'Apply'}
@@ -694,7 +716,7 @@ export default function HospitalCheckoutPage() {
                             <button
                                 onClick={handlePayment}
                                 disabled={isSubmitting || isFetchingSummary}
-                                className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2
+                                className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer
                                     ${(!isSubmitting && !isFetchingSummary)
                                         ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 active:scale-95'
                                         : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
@@ -715,36 +737,121 @@ export default function HospitalCheckoutPage() {
                 </div>
             </main>
 
-            {/* CONFIRMATION SUCCESS MODAL */}
+            {/* CONFIRMATION SUCCESS MODAL - FULL DETAILS */}
             {bookingSuccessData && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-[2rem] p-8 max-w-md w-full border border-slate-100 shadow-2xl text-center space-y-5">
-                        <div className="mx-auto w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
-                            <FaCheckCircle className="w-9 h-9" />
-                        </div>
-                        <div className="space-y-1">
-                            <h3 className="text-2xl font-black text-slate-900">Admission Confirmed!</h3>
-                            <p className="text-xs font-semibold text-slate-500">Your hospital bed admission request is confirmed.</p>
-                        </div>
-                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-left space-y-2 text-xs">
-                            <div className="flex justify-between">
-                                <span className="text-slate-400 font-medium">Booking ID:</span>
-                                <span className="font-bold text-slate-800">{bookingSuccessData.bookingId || "HKH-xxxx"}</span>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 max-w-lg w-full border border-slate-150 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+                        
+                        {/* Header Badge */}
+                        <div className="flex flex-col items-center text-center space-y-2 pb-2">
+                            <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm border border-emerald-100">
+                                <FaCheckCircle className="w-9 h-9" />
                             </div>
-                            <div className="flex justify-between">
-                                <span className="text-slate-400 font-medium">Status:</span>
-                                <span className="font-black text-emerald-600 uppercase">{bookingSuccessData.status || "Confirmed"}</span>
-                            </div>
+                            <h3 className="text-2xl font-black text-slate-900 tracking-tight">Admission Confirmed!</h3>
+                            <p className="text-xs font-semibold text-slate-400">
+                                Your hospital accommodation has been successfully scheduled.
+                            </p>
+                            <span className="inline-block bg-slate-900 text-[#08B36A] px-3.5 py-1 rounded-xl text-xs font-black uppercase tracking-wider font-mono">
+                                #{bookingSuccessData.bookingId || "HKH-CONFIRMED"}
+                            </span>
                         </div>
-                        <button
-                            onClick={() => {
-                                setBookingSuccessData(null);
-                                router.push('/userscreens/hospitalappointment');
-                            }}
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20"
-                        >
-                            View Admissions
-                        </button>
+
+                        {/* Scrollable Information Body */}
+                        <div className="space-y-4 overflow-y-auto py-3 text-xs pr-1">
+                            
+                            {/* Patient Info Card */}
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block flex items-center gap-1.5">
+                                    <FaUser className="text-[#08B36A]" /> Patient Profile
+                                </span>
+                                <div className="grid grid-cols-2 gap-y-1.5 text-xs">
+                                    <div className="text-slate-500 font-semibold">Full Name:</div>
+                                    <div className="text-right font-black text-slate-800">{patientDetails.fullName || "Patient"}</div>
+
+                                    <div className="text-slate-500 font-semibold">Contact Phone:</div>
+                                    <div className="text-right font-bold text-slate-800">{patientDetails.phoneNumber || "N/A"}</div>
+
+                                    <div className="text-slate-500 font-semibold">Gender & Age:</div>
+                                    <div className="text-right font-bold text-slate-800">
+                                        {patientDetails.gender} &bull; {calculateAge(patientDetails.dob)} Yrs
+                                    </div>
+
+                                    <div className="text-slate-500 font-semibold">Insurance:</div>
+                                    <div className="text-right font-bold text-emerald-600 uppercase">
+                                        {patientDetails.haveInsurance === "Yes" ? `Covered (${patientDetails.companyName || "Verified"})` : "Self-Pay"}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Hospital & Ward Accommodation Card */}
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block flex items-center gap-1.5">
+                                    <FaHospital className="text-blue-500" /> Accommodation Info
+                                </span>
+                                <div className="grid grid-cols-2 gap-y-1.5 text-xs">
+                                    <div className="text-slate-500 font-semibold">Hospital Facility:</div>
+                                    <div className="text-right font-black text-slate-800">{booking.hospitalName}</div>
+
+                                    <div className="text-slate-500 font-semibold">Ward & Room:</div>
+                                    <div className="text-right font-bold text-slate-800">{booking.wardName}</div>
+
+                                    <div className="text-slate-500 font-semibold">Bed Allocation:</div>
+                                    <div className="text-right font-black text-emerald-600">Bed #{booking.bedNumber}</div>
+
+                                    <div className="text-slate-500 font-semibold">Stay Duration:</div>
+                                    <div className="text-right font-bold text-slate-800">{totals.stayDuration} Days</div>
+
+                                    <div className="text-slate-500 font-semibold">Schedule Period:</div>
+                                    <div className="text-right font-bold text-slate-700 text-[11px]">
+                                        {formatDisplayDate(booking.startDate)} &rarr; {formatDisplayDate(booking.endDate)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Billing & Settlement Card */}
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block flex items-center gap-1.5">
+                                    <FaReceipt className="text-emerald-500" /> Payment & Billing
+                                </span>
+                                <div className="grid grid-cols-2 gap-y-1.5 text-xs">
+                                    <div className="text-slate-500 font-semibold">Payment Method:</div>
+                                    <div className="text-right font-black text-slate-800">
+                                        {totals.totalPayable === 0 ? "Free Admission" : (paymentMethod === "COD" ? "Pay at Hospital Desk" : "Online (Razorpay)")}
+                                    </div>
+
+                                    <div className="text-slate-500 font-semibold">Payment Status:</div>
+                                    <div className={`text-right font-black uppercase ${paymentMethod === "COD" && totals.totalPayable > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                                        {paymentMethod === "COD" && totals.totalPayable > 0 ? "Pending at Desk" : "Paid & Verified"}
+                                    </div>
+
+                                    {totals.discount > 0 && (
+                                        <>
+                                            <div className="text-slate-500 font-semibold text-emerald-600">Coupon Discount:</div>
+                                            <div className="text-right font-bold text-emerald-600">-₹{totals.discount}</div>
+                                        </>
+                                    )}
+
+                                    <div className="text-slate-900 font-black text-sm pt-2 border-t border-slate-200">Total Amount:</div>
+                                    <div className="text-right font-black text-[#08B36A] text-base pt-2 border-t border-slate-200">
+                                        ₹{totals.totalPayable.toFixed(2)}
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        {/* Modal Action Buttons */}
+                        <div className="pt-3 border-t border-slate-100 flex gap-3 shrink-0">
+                            <button
+                                onClick={() => {
+                                    setBookingSuccessData(null);
+                                    router.push('/userscreens/hospitalappointment');
+                                }}
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                            >
+                                <FaCheckCircle size={12} /> View My Admissions
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

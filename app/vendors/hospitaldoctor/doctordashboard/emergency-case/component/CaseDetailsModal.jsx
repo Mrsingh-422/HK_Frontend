@@ -5,7 +5,7 @@ import {
     FaHeartbeat, FaTimes, FaSpinner, FaStethoscope, FaUser, FaBed, FaPhoneAlt, 
     FaHospital, FaUserPlus, FaFileSignature, FaDollarSign, FaCalendarAlt, 
     FaTags, FaHome, FaInfoCircle, FaClipboardList, FaClock, FaUserMd, FaPlus, FaTrash,
-    FaShieldAlt, FaFilePdf, FaDownload, FaPills, FaHandHoldingHeart
+    FaShieldAlt, FaFilePdf, FaDownload, FaPills, FaHandHoldingHeart, FaCheck, FaThermometerHalf, FaTint
 } from 'react-icons/fa';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://192.168.1.7:5002';
@@ -42,6 +42,7 @@ export default function CaseDetailsModal({
     onFeedbackClick,
     onStartBedsideShift,
     onCompleteBedsideShift,
+    onAddBedsideMedicineTrigger,
     isMainDoctorRoundActive,
     onStartMainDoctorRound,
     onAddStayMedicationTrigger,
@@ -105,7 +106,7 @@ export default function CaseDetailsModal({
     const bedNumber = bed?.bedNumber || caseDetails?.bedNumber || "Not Allotted";
     const bedPrice = bed?.pricePerDay || 0;
 
-    const doctorObj = caseDetails?.primaryDoctor || (typeof caseDetails?.doctorId === 'object' ? caseDetails.doctorId : null);
+    const doctorObj = caseDetails?.primaryDoctor || caseDetails?.assignedDoctor || (typeof caseDetails?.doctorId === 'object' ? caseDetails.doctorId : null);
     const doctorName = doctorObj?.name ? (doctorObj.name.startsWith('Dr.') ? doctorObj.name : `Dr. ${doctorObj.name}`) : "Attending Specialist";
     const doctorSpec = doctorObj?.speciality || "General Medicine";
     const doctorQual = doctorObj?.qualification || "";
@@ -119,7 +120,14 @@ export default function CaseDetailsModal({
     const isPendingHandover = !!caseDetails?.pendingDoctorId;
 
     const currentDoctorId = getDoctorIdFromToken();
-    const isMainDoctor = (doctorObj?._id === currentDoctorId) || (caseDetails?.doctorId === currentDoctorId);
+    const docRawId = doctorObj?._id || doctorObj?.id || caseDetails?.doctorId || caseDetails?.assignedDoctor?._id || caseDetails?.assignedDoctor;
+
+    // Attending Main Doctor identification
+    const isMainDoctor = (currentDoctorId && docRawId && String(docRawId) === String(currentDoctorId)) || 
+                         (!caseDetails?.bedsideCareTeam?.some(t => {
+                             const teamDocId = typeof t.doctorId === 'object' && t.doctorId !== null ? t.doctorId._id : t.doctorId;
+                             return currentDoctorId && String(teamDocId) === String(currentDoctorId);
+                         }) && (activeStatus === 'In-Progress' || activeStatus === 'active'));
 
     // Bedside team record matching
     const myBedsideRecord = caseDetails?.bedsideCareTeam?.find(team => {
@@ -164,11 +172,11 @@ export default function CaseDetailsModal({
                                 </span>
                             </div>
                             <span className="text-xs font-bold text-slate-400 block mt-0.5">
-                                Type: {caseDetails?.bookingType || "Admission"} • Triage: {caseDetails?.triageLevel || "Routine"}
+                                Type: {caseDetails?.bookingType || caseDetails?.caseCategory || "Admission"} • Triage: {caseDetails?.triageLevel || "Routine"}
                             </span>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2.5 bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-full transition-colors">
+                    <button onClick={onClose} className="p-2.5 bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-full transition-colors cursor-pointer">
                         <FaTimes size={16} />
                     </button>
                 </div>
@@ -285,96 +293,170 @@ export default function CaseDetailsModal({
                                 </div>
                             )}
 
-                            {/* 🌟 COLLABORATIVE SPECIALIST MEDICATIONS POOL (Both Primary & Bedside Team) 🌟 */}
+                            {/* 🌟 BEDSIDE SPECIALIST CARE TEAM WITH PROMINENT LOGGED VITALS 🌟 */}
+                            {caseDetails.bedsideCareTeam && caseDetails.bedsideCareTeam.length > 0 && (
+                                <div className="bg-white p-6 rounded-2xl border border-indigo-100 shadow-sm space-y-4">
+                                    <div className="flex items-center justify-between border-b border-indigo-50 pb-3">
+                                        <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center gap-2">
+                                            <FaUserMd className="text-indigo-600" /> Bedside Specialist Care Team & Clinical Observations ({caseDetails.bedsideCareTeam.length})
+                                        </h4>
+                                        <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                            Specialist Feedback & Vitals
+                                        </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-4">
+                                        {caseDetails.bedsideCareTeam.map((team, idx) => {
+                                            const doc = typeof team.doctorId === 'object' && team.doctorId !== null ? team.doctorId : { name: "Specialist ID: " + team.doctorId };
+                                            const feedback = team.specialistFeedback;
+                                            const feedbackList = Array.isArray(feedback) ? feedback : (feedback ? [feedback] : []);
+
+                                            return (
+                                                <div key={idx} className="p-5 bg-slate-50/80 border border-slate-200/70 rounded-2xl space-y-3">
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm shrink-0">
+                                                                👨‍⚕️
+                                                            </div>
+                                                            <div>
+                                                                <span className="font-bold text-sm text-slate-900 block">{doc.name || "Specialist"}</span>
+                                                                <span className="text-xs text-indigo-600 font-bold">{doc.speciality || "Consultant Specialist"}</span>
+                                                            </div>
+                                                        </div>
+                                                        <span className={`px-2.5 py-1 text-xs font-black rounded-full border ${
+                                                            team.status === 'Accepted'
+                                                            ? 'bg-blue-50 text-blue-700 border-blue-100'
+                                                            : team.status === 'In-Progress'
+                                                            ? 'bg-amber-50 text-amber-700 border-amber-100 animate-pulse'
+                                                            : team.status === 'Completed'
+                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                                            : 'bg-slate-100 text-slate-700 border-slate-200'
+                                                        }`}>
+                                                            {team.status}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="text-xs text-slate-600 bg-white p-3 rounded-xl border border-slate-100">
+                                                        <p><strong>Consultation Reason:</strong> {team.requestReason || "Specialist clinical opinion requested."}</p>
+                                                        {team.patientConditionAtRequest && <p className="mt-0.5 text-slate-500"><strong>Patient Condition:</strong> {team.patientConditionAtRequest}</p>}
+                                                    </div>
+
+                                                    {/* Render Observations & Vitals logged by this Bedside Doctor */}
+                                                    {feedbackList.length > 0 ? (
+                                                        <div className="space-y-3 pt-2">
+                                                            {feedbackList.map((fb, fbIdx) => {
+                                                                const bpVal = fb.vitals?.bp || fb.bp || team.vitals?.bp || team.bp;
+                                                                const pulseVal = fb.vitals?.pulse || fb.pulse || team.vitals?.pulse || team.pulse;
+                                                                const tempVal = fb.vitals?.temp || fb.temp || team.vitals?.temp || team.temp;
+                                                                const spo2Val = fb.vitals?.spo2 || fb.spo2 || team.vitals?.spo2 || team.spo2;
+                                                                const hasVitals = bpVal || pulseVal || tempVal || spo2Val;
+
+                                                                return (
+                                                                    <div key={fb._id || fbIdx} className="bg-white p-4 rounded-xl border border-indigo-100/60 shadow-sm space-y-2">
+                                                                        <div className="flex justify-between items-center text-[10px] text-slate-400 font-extrabold uppercase">
+                                                                            <span>Bedside Observation Entry #{fbIdx + 1}</span>
+                                                                            {fb.submittedAt && <span>{formatDateTime(fb.submittedAt)}</span>}
+                                                                        </div>
+                                                                        <p className="italic text-slate-800 font-serif font-semibold text-xs leading-relaxed">
+                                                                            "{fb.observation}"
+                                                                        </p>
+
+                                                                        {/* 🌟 PROMINENT BEDSIDE RECORDED VITALS CARD 🌟 */}
+                                                                        {hasVitals && (
+                                                                            <div className="pt-2 border-t border-slate-100">
+                                                                                <span className="text-[9px] font-black uppercase text-indigo-600 block mb-1.5 flex items-center gap-1">
+                                                                                    <FaHeartbeat /> Vitals Recorded by Bedside Specialist
+                                                                                </span>
+                                                                                <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                                                                                    <div className="bg-rose-50/70 border border-rose-100 p-2 rounded-lg">
+                                                                                        <span className="text-[8px] font-bold text-rose-500 uppercase block">BP</span>
+                                                                                        <strong className="text-rose-900 text-xs font-black">{bpVal || "—"}</strong>
+                                                                                    </div>
+                                                                                    <div className="bg-amber-50/70 border border-amber-100 p-2 rounded-lg">
+                                                                                        <span className="text-[8px] font-bold text-amber-600 uppercase block">Pulse</span>
+                                                                                        <strong className="text-amber-900 text-xs font-black">{pulseVal ? `${pulseVal} bpm` : "—"}</strong>
+                                                                                    </div>
+                                                                                    <div className="bg-sky-50/70 border border-sky-100 p-2 rounded-lg">
+                                                                                        <span className="text-[8px] font-bold text-sky-600 uppercase block">Temp</span>
+                                                                                        <strong className="text-sky-900 text-xs font-black">{tempVal ? `${tempVal} °F` : "—"}</strong>
+                                                                                    </div>
+                                                                                    <div className="bg-emerald-50/70 border border-emerald-100 p-2 rounded-lg">
+                                                                                        <span className="text-[8px] font-bold text-emerald-600 uppercase block">SpO2</span>
+                                                                                        <strong className="text-emerald-900 text-xs font-black">{spo2Val ? `${spo2Val} %` : "—"}</strong>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+
+                                                                        <div className="flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-100 pt-2 font-bold">
+                                                                            <span>Condition: <strong className="text-slate-700">{fb.patientCondition || "Stable"}</strong></span>
+                                                                            <span>Priority: <strong className="text-slate-700">{fb.priorityRating || "Routine"}</strong></span>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-xs text-slate-400 italic">No observation logs submitted yet by this specialist.</p>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* 🌟 COLLABORATIVE SPECIALIST STAY MEDICATIONS POOL 🌟 */}
                             {collaborativeMeds && collaborativeMeds.length > 0 && (
                                 <div className="bg-white p-6 rounded-2xl border border-indigo-100 shadow-sm space-y-4">
                                     <div className="flex items-center justify-between border-b border-indigo-50 pb-3">
                                         <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center gap-2">
-                                            <FaHandHoldingHeart className="text-indigo-600" /> Collaborative Specialist Prescriptions Pool ({collaborativeMeds.length} Specialist{collaborativeMeds.length === 1 ? '' : 's'})
+                                            <FaHandHoldingHeart className="text-indigo-600" /> Specialist Stay Medication Recommendations ({collaborativeMeds.length})
                                         </h4>
                                         <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
-                                            Peer Review
+                                            Peer Consultation Review
                                         </span>
                                     </div>
 
-                                    <div className="space-y-5">
+                                    <div className="space-y-4">
                                         {collaborativeMeds.map((collab, cIdx) => {
                                             const doc = collab.doctor || {};
                                             const stayMeds = collab.activeStayRecommendations || [];
-                                            const homeMeds = collab.dischargeHomeRecommendations || [];
 
                                             return (
-                                                <div key={cIdx} className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 md:p-5 space-y-4">
-                                                    
-                                                    {/* Specialist Header */}
-                                                    <div className="flex items-center gap-3 border-b border-slate-200/60 pb-3">
-                                                        {doc.profileImage ? (
-                                                            <img src={getImageUrl(doc.profileImage)} alt={doc.name} className="w-10 h-10 rounded-xl object-cover border shrink-0" />
-                                                        ) : (
-                                                            <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm shrink-0">
-                                                                👨‍⚕️
-                                                            </div>
-                                                        )}
+                                                <div key={cIdx} className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                                                            👨‍⚕️
+                                                        </div>
                                                         <div>
                                                             <p className="text-xs font-black text-slate-900">{doc.name ? (doc.name.startsWith('Dr.') ? doc.name : `Dr. ${doc.name}`) : "Specialist Consultant"}</p>
                                                             <p className="text-[10px] font-bold text-indigo-600 uppercase">{doc.speciality || "Consultant"}</p>
                                                         </div>
                                                     </div>
 
-                                                    {/* Hospital Stay Medications */}
-                                                    {stayMeds.length > 0 && (
-                                                        <div className="space-y-2">
-                                                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
-                                                                <FaHospital /> Hospital Stay Medications (In-Patient Active)
-                                                            </span>
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                                                                {stayMeds.map((med, mIdx) => (
-                                                                    <div key={mIdx} className="p-3 bg-white rounded-xl border border-emerald-100 shadow-sm space-y-1">
-                                                                        <div className="flex justify-between items-start">
-                                                                            <span className="font-extrabold text-xs text-slate-850">{med.name}</span>
-                                                                            <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                                                                Stay
-                                                                            </span>
-                                                                        </div>
-                                                                        <p className="text-[11px] text-slate-600 font-medium">
-                                                                            {med.dosage} • {med.frequency} {med.duration && `(${med.duration})`}
-                                                                        </p>
-                                                                        {med.instructions && (
-                                                                            <p className="text-[10px] text-slate-400 italic">Directive: "{med.instructions}"</p>
-                                                                        )}
+                                                    {stayMeds.length > 0 ? (
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
+                                                            {stayMeds.map((med, mIdx) => (
+                                                                <div key={mIdx} className="p-3 bg-white rounded-xl border border-emerald-100 shadow-sm space-y-1">
+                                                                    <div className="flex justify-between items-start">
+                                                                        <span className="font-extrabold text-xs text-slate-850">{med.name}</span>
+                                                                        <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                                            Stay
+                                                                        </span>
                                                                     </div>
-                                                                ))}
-                                                            </div>
+                                                                    <p className="text-[11px] text-slate-600 font-medium">
+                                                                        {med.dosage} • {med.frequency} {med.duration && `(${med.duration})`}
+                                                                    </p>
+                                                                    {med.instructions && (
+                                                                        <p className="text-[10px] text-slate-400 italic">Directive: "{med.instructions}"</p>
+                                                                    )}
+                                                                </div>
+                                                            ))}
                                                         </div>
+                                                    ) : (
+                                                        <p className="text-xs text-slate-400 italic">No stay medications currently recommended by this specialist.</p>
                                                     )}
-
-                                                    {/* Post-Discharge Take-Home Medications */}
-                                                    {homeMeds.length > 0 && (
-                                                        <div className="space-y-2 pt-1">
-                                                            <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 flex items-center gap-1.5">
-                                                                <FaHome /> Post-Discharge Take-Home Medications
-                                                            </span>
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                                                                {homeMeds.map((med, hIdx) => (
-                                                                    <div key={hIdx} className="p-3 bg-white rounded-xl border border-purple-100 shadow-sm space-y-1">
-                                                                        <div className="flex justify-between items-start">
-                                                                            <span className="font-extrabold text-xs text-slate-850">{med.name}</span>
-                                                                            <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase bg-purple-50 text-purple-700 border border-purple-200">
-                                                                                Take Home
-                                                                            </span>
-                                                                        </div>
-                                                                        <p className="text-[11px] text-slate-600 font-medium">
-                                                                            {med.dosage} • {med.frequency} {med.duration && `(${med.duration})`}
-                                                                        </p>
-                                                                        {med.instructions && (
-                                                                            <p className="text-[10px] text-slate-400 italic">Directive: "{med.instructions}"</p>
-                                                                        )}
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-
                                                 </div>
                                             );
                                         })}
@@ -386,7 +468,7 @@ export default function CaseDetailsModal({
                             {(clinical.chiefComplaint || clinical.diagnosis || clinical.admissionNote || clinical.investigation) && (
                                 <div className="bg-white p-6 rounded-2xl border border-slate-150 shadow-sm space-y-4">
                                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2 border-b pb-2">
-                                        <FaStethoscope className="text-emerald-600" /> Clinical Diagnostic File
+                                        <FaStethoscope className="text-emerald-600" /> Primary Clinical Diagnostic File
                                     </h4>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
                                         <div className="p-3 bg-slate-50 rounded-xl border border-slate-150">
@@ -464,11 +546,11 @@ export default function CaseDetailsModal({
                                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2">
                                         <FaHospital className="text-[#08B36A]" /> In-Patient Stay Medications Chart ({stayMedications.length})
                                     </h4>
-                                    {isMainDoctor && !isCompletedOrDischarged && (
+                                    {!isCompletedOrDischarged && (
                                         <button
                                             type="button"
-                                            onClick={onAddStayMedicationTrigger}
-                                            className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-black rounded-lg transition-all flex items-center gap-1"
+                                            onClick={isMainDoctor ? onAddStayMedicationTrigger : onAddBedsideMedicineTrigger}
+                                            className="px-3.5 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
                                         >
                                             <FaPlus size={10} /> Add Stay Medication
                                         </button>
@@ -494,12 +576,13 @@ export default function CaseDetailsModal({
                                                                 </span>
                                                             </div>
                                                             <p className="text-slate-500 mt-0.5">Dosage: <strong className="text-slate-700">{med.dosage}</strong> • Frequency: <strong className="text-slate-700">{med.frequency}</strong></p>
+                                                            {med.instructions && <p className="text-[10px] text-slate-400 italic mt-0.5">Directive: "{med.instructions}"</p>}
                                                         </div>
                                                         {isActive && isMainDoctor && !isCompletedOrDischarged && (
                                                             <button
                                                                 onClick={() => onStopActiveMedication(caseDetails._id, med._id)}
                                                                 disabled={medicationActionLoading}
-                                                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition text-xs font-bold flex items-center gap-1"
+                                                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition text-xs font-bold flex items-center gap-1 cursor-pointer"
                                                             >
                                                                 <FaTrash /> Discontinue
                                                             </button>
@@ -569,12 +652,11 @@ export default function CaseDetailsModal({
                         {isCompletedOrDischarged ? (
                             <button 
                                 onClick={onClose}
-                                className="px-8 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs transition"
+                                className="px-8 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs transition cursor-pointer"
                             >
                                 Close View
                             </button>
                         ) : activeStatus === 'Pending Bedside' ? (
-                            /* Pending Bedside Request: Accept & Decline buttons */
                             <div className="flex gap-2.5 w-full sm:w-auto">
                                 <button 
                                     onClick={() => {
@@ -582,7 +664,7 @@ export default function CaseDetailsModal({
                                         if (onRejectTransfer) onRejectTransfer(caseDetails._id, reason);
                                         onClose();
                                     }}
-                                    className="w-full sm:w-auto px-6 py-3 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-2xl text-xs transition"
+                                    className="w-full sm:w-auto px-6 py-3 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-2xl text-xs transition cursor-pointer"
                                 >
                                     Decline Request
                                 </button>
@@ -591,52 +673,62 @@ export default function CaseDetailsModal({
                                         if (onAcceptTransfer) onAcceptTransfer(caseDetails._id);
                                         onClose();
                                     }}
-                                    className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs shadow-sm transition"
+                                    className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs shadow-sm transition cursor-pointer"
                                 >
                                     Accept Request
                                 </button>
                             </div>
                         ) : (activeStatus === 'Active Bedside' || (!isMainDoctor && isBedsideMode)) ? (
-                            /* Bedside Specialist Action Footers */
-                            <div className="flex gap-2.5 w-full sm:w-auto">
-                                {hasAcceptedShift ? (
+                            /* 🌟 Bedside Specialist Actions: Submit Observation + Add Stay Meds + Direct Complete Shift 🌟 */
+                            <div className="flex flex-wrap gap-2.5 w-full sm:w-auto justify-end">
+                                {hasAcceptedShift && (
                                     <button 
+                                        type="button"
                                         onClick={() => {
                                             if (onStartBedsideShift) onStartBedsideShift(caseDetails._id);
                                         }}
-                                        className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs shadow-sm transition"
+                                        className="px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs shadow-md transition cursor-pointer"
                                     >
                                         Start Bedside Shift
                                     </button>
-                                ) : hasInProgressShift ? (
-                                    <>
-                                        <button 
-                                            onClick={() => {
-                                                if (onFeedbackClick) onFeedbackClick();
-                                            }}
-                                            className="w-full sm:w-auto px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-2xl transition"
-                                        >
-                                            <FaClipboardList /> Submit Observation
-                                        </button>
-                                        <button 
-                                            onClick={() => {
-                                                if (onCompleteBedsideShift) onCompleteBedsideShift(caseDetails._id);
-                                            }}
-                                            className="w-full sm:w-auto px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl text-xs shadow-sm transition"
-                                        >
-                                            Complete Shift
-                                        </button>
-                                    </>
-                                ) : (
-                                    <button 
-                                        onClick={() => {
-                                            if (onFeedbackClick) onFeedbackClick();
-                                        }}
-                                        className="w-full sm:w-auto px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-2xl transition"
-                                    >
-                                        <FaClipboardList /> Submit Observation
-                                    </button>
                                 )}
+
+                                {/* Submit Observation & Vitals */}
+                                <button 
+                                    type="button"
+                                    onClick={() => {
+                                        if (onFeedbackClick) onFeedbackClick();
+                                    }}
+                                    className="px-5 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-2xl shadow-md transition cursor-pointer flex items-center gap-1.5"
+                                >
+                                    <FaClipboardList /> Submit Observation
+                                </button>
+
+                                {/* Option to Recommend In-Patient Stay Medicines via PrescriptionModal */}
+                                <button 
+                                    type="button"
+                                    onClick={() => {
+                                        if (onAddBedsideMedicineTrigger) {
+                                            onAddBedsideMedicineTrigger();
+                                        } else if (onAddStayMedicationTrigger) {
+                                            onAddStayMedicationTrigger();
+                                        }
+                                    }}
+                                    className="px-5 py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-2xl shadow-md transition cursor-pointer flex items-center gap-1.5"
+                                >
+                                    <FaPlus /> Add Stay Medication
+                                </button>
+
+                                {/* Complete Bedside Shift */}
+                                <button 
+                                    type="button"
+                                    onClick={() => {
+                                        if (onCompleteBedsideShift) onCompleteBedsideShift(caseDetails._id);
+                                    }}
+                                    className="px-5 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl text-xs shadow-md transition cursor-pointer flex items-center gap-1.5"
+                                >
+                                    <FaCheck /> Complete Shift
+                                </button>
                             </div>
                         ) : isPendingHandover ? (
                             <>
@@ -645,7 +737,7 @@ export default function CaseDetailsModal({
                                         if (onRejectTransfer) onRejectTransfer(caseDetails._id);
                                         onClose();
                                     }}
-                                    className="px-6 py-3 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition"
+                                    className="px-6 py-3 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition cursor-pointer"
                                 >
                                     Reject Handover
                                 </button>
@@ -654,41 +746,48 @@ export default function CaseDetailsModal({
                                         if (onAcceptTransfer) onAcceptTransfer(caseDetails._id);
                                         onClose();
                                     }}
-                                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-sm transition"
+                                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
                                 >
                                     Accept Handover
                                 </button>
                             </>
                         ) : isMainDoctor ? (
+                            /* Attending / Lead Doctor Action Controls */
                             <div className="flex flex-wrap gap-2.5 w-full sm:w-auto justify-end">
                                 {!isMainDoctorRoundActive ? (
                                     <button 
+                                        type="button"
                                         onClick={() => {
-                                            if (onStartMainDoctorRound) onStartMainDoctorRound(caseDetails._id);
+                                            if (onStartMainDoctorRound) {
+                                                onStartMainDoctorRound(caseDetails._id);
+                                            }
                                         }}
-                                        className="px-5 py-3 bg-[#08B36A] hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs flex items-center gap-2 shadow-sm transition"
+                                        className="px-5 py-3 bg-[#08B36A] hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
                                     >
                                         <FaClock /> Start Round Shift
                                     </button>
                                 ) : (
                                     <button 
+                                        type="button"
                                         onClick={() => {
                                             if (onFeedbackClick) onFeedbackClick();
                                         }}
-                                        className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-xs flex items-center gap-2 shadow-sm transition"
+                                        className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
                                     >
                                         <FaClipboardList /> Submit Observation
                                     </button>
                                 )}
                                 <button 
+                                    type="button"
                                     onClick={onAddDoctorClick} 
-                                    className="px-5 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold rounded-2xl text-xs flex items-center gap-2 transition"
+                                    className="px-5 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold rounded-2xl text-xs flex items-center gap-2 transition cursor-pointer"
                                 >
                                     <FaUserPlus /> Initiate Handover
                                 </button>
                                 <button 
+                                    type="button"
                                     onClick={onDischargeClick}
-                                    className="px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-2xl text-xs flex items-center gap-2 shadow-sm transition"
+                                    className="px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-2xl text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
                                 >
                                     <FaFileSignature /> Discharge Patient
                                 </button>
@@ -696,7 +795,7 @@ export default function CaseDetailsModal({
                         ) : (
                             <button 
                                 onClick={onClose}
-                                className="px-8 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs transition"
+                                className="px-8 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs transition cursor-pointer"
                             >
                                 Close
                             </button>
@@ -704,6 +803,7 @@ export default function CaseDetailsModal({
                     </div>
                 )}
             </div>
+
         </div>
     );
 }

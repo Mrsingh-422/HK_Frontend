@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef } from 'react';
-import { FaArrowLeft, FaFilePdf, FaPlus, FaCheckCircle, FaCalendarAlt, FaTimes, FaHeartbeat } from 'react-icons/fa';
+import { FaArrowLeft, FaFilePdf, FaPlus, FaCheckCircle, FaCalendarAlt, FaTimes, FaHeartbeat, FaPills } from 'react-icons/fa';
 
 export default function DischargeModal({
     isOpen,
@@ -43,7 +43,7 @@ export default function DischargeModal({
     };
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6 backdrop-blur-md bg-slate-900/50 overflow-y-auto">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 sm:p-6 backdrop-blur-md bg-slate-900/50 overflow-y-auto font-sans">
             <div className="absolute inset-0" onClick={onClose}></div>
             <div className="relative bg-white w-full max-w-4xl rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] overflow-hidden max-h-[92vh] flex flex-col my-auto border border-slate-100 z-10">
 
@@ -59,7 +59,7 @@ export default function DischargeModal({
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-20 shrink-0">
                     <div className="flex items-center gap-3">
-                        <button onClick={onClose} className="p-2.5 text-slate-400 hover:bg-slate-50 hover:text-slate-700 rounded-full transition-colors">
+                        <button onClick={onClose} className="p-2.5 text-slate-400 hover:bg-slate-50 hover:text-slate-700 rounded-full transition-colors cursor-pointer">
                             <FaArrowLeft size={16} />
                         </button>
                         <div>
@@ -67,7 +67,7 @@ export default function DischargeModal({
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Fields filled here reflect live on Digital Template</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-rose-500 rounded-full">
+                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-rose-500 rounded-full cursor-pointer">
                         <FaTimes size={18} />
                     </button>
                 </div>
@@ -102,7 +102,7 @@ export default function DischargeModal({
                                         <button
                                             type="button"
                                             onClick={() => handleRemoveFile(idx)}
-                                            className="text-slate-400 hover:text-rose-600 font-extrabold text-sm ml-2 px-1.5 hover:bg-slate-50 rounded-md"
+                                            className="text-slate-400 hover:text-rose-600 font-extrabold text-sm ml-2 px-1.5 hover:bg-slate-50 rounded-md cursor-pointer"
                                         >
                                             &times;
                                         </button>
@@ -288,7 +288,7 @@ export default function DischargeModal({
                         <button
                             type="button"
                             onClick={triggerFileSelect}
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all"
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
                         >
                             <FaFilePdf size={14} className="text-slate-500" />
                             <span>Reports ({clinicalReports.length})</span>
@@ -297,7 +297,7 @@ export default function DischargeModal({
                         <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
                             addedMedicinesCount > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-150 text-slate-500'
                         }`}>
-                            {addedMedicinesCount > 0 ? <FaCheckCircle size={14} /> : <FaPlus size={14} />}
+                            {addedMedicinesCount > 0 ? <FaCheckCircle size={14} /> : <FaPills size={14} />}
                             <span>{addedMedicinesCount > 0 ? `${addedMedicinesCount} Meds Staged` : 'No Meds Staged'}</span>
                         </div>
                     </div>
@@ -305,7 +305,7 @@ export default function DischargeModal({
                     <button
                         type="button"
                         onClick={onAddMedicineDetail}
-                        className="w-full sm:w-auto px-8 py-3 bg-[#08B36A] hover:bg-[#079d5c] text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-100 transition-all active:scale-95"
+                        className="w-full sm:w-auto px-8 py-3 bg-[#08B36A] hover:bg-[#079d5c] text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-100 transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
                     >
                         Next: Select Medications &rarr;
                     </button>
