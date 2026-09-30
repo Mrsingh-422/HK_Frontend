@@ -636,10 +636,11 @@ const UserAPI = {
         const response = await authApi.get("/user/labs/coupons");
         return response.data;
     },
-    getPharmacyCoupons: async () => {
-        const response = await authApi.get("/user/pharmacy/available-coupons");
-        return response.data;
-    },
+  // Cancel Medicine Order & Auto-Refund
+cancelPharmacyOrder: async (data) => {
+    const response = await authApi.post('/user/pharmacy/cancel-order', data);
+    return response.data;
+},
     validatePharmacyCoupon: async (couponName, pharmacyId, totalAmount) => {
         const response = await authApi.post(`/user/pharmacy/validate-coupon`, { couponName, pharmacyId, totalAmount });
         return response.data;
@@ -1048,6 +1049,15 @@ someFunction: async () => {
         const response = await authApi.post(`/user/ambulance/sos/escalate/${bookingId}`, {});
         return response.data;
     },
+    // 1.3 Date-Wise 2-Hour Slot Picker (GET /user/ambulance/slots/:ambulanceId?date=YYYY-MM-DD)
+    getAmbulanceSlots: async (ambulanceId, date) => {
+        const response = await authApi.get(`/user/ambulance/slots/${ambulanceId}`, {
+            params: { date } // Sends ?date=YYYY-MM-DD
+        });
+        return response.data;
+    },
+
+   
 
     // ADD THIS NEW API FUNCTION HERE:
     getBedMonthlySchedule: async (bedId, month, year) => {
@@ -1105,11 +1115,17 @@ someFunction: async () => {
         const response = await authApi.post(`/user/labs/verify-payment`, paymentData);
         return response.data;
     },
+// Verification API
+verifyPaymentPharmacy: async (paymentData) => {
+    const response = await authApi.post(`/user/pharmacy/verify-payment`, paymentData);
+    return response.data;
+},
 
-    verifyPaymentPharmacy: async (paymentData) => {
-        const response = await authApi.post(`/user/pharmacy/verify-payment`, paymentData);
-        return response.data;
-    },
+// Retry Pharmacy Payment API
+retryPharmacyPayment: async (data) => {
+    const response = await authApi.post('/user/pharmacy/retry-payment', data);
+    return response.data;
+},
 
     verifyPaymentHospital: async (paymentData) => {
         const response = await authApi.post(`user/hospital/verify-payment`, paymentData);
@@ -1256,10 +1272,7 @@ someFunction: async () => {
         return response.data;
     },
 
-    cancelPharmacyOrder: async (orderId) => {
-        const response = await authApi.post('/user/pharmacy/cancel-order', { orderId });
-        return response.data;
-    },
+   
 // ✅ Update this function in UserAPI.js:
 cancelAmbulanceBooking: async (bookingId, cancelData = {}) => {
     const response = await authApi.patch(`/user/ambulance/cancel/${bookingId}`, cancelData || {});
@@ -1422,10 +1435,7 @@ cancelAmbulanceBooking: async (bookingId, cancelData = {}) => {
         return response.data;
     },
 
-    cancelPharmacyOrder: async (orderId) => {
-        const response = await authApi.post('/user/pharmacy/cancel-order', { orderId });
-        return response.data;
-    },
+   
 
     cancelAmbulanceBooking: async (bookingId, cancelData = {}) => {
         const response = await authApi.patch(`/user/ambulance/cancel/${bookingId}`, cancelData || {});

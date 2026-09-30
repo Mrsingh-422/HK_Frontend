@@ -7,10 +7,26 @@ import {
     FiX, FiTruck, FiPackage, FiLayers,
     FiRefreshCw, FiClock, FiSearch, FiChevronLeft, FiChevronRight,
     FiUser, FiMapPin, FiCreditCard, FiStar, FiRotateCcw, FiUploadCloud,
-    FiAlertCircle, FiInfo, FiTrash2, FiLock, FiCheck, FiFileText
+    FiAlertCircle, FiInfo, FiTrash2, FiLock, FiCheck, FiFileText,
+    FiSlash, FiCheckCircle
 } from 'react-icons/fi';
 import { HiStar } from 'react-icons/hi';
-import { MdOutlineLocalPharmacy, MdOutlineRateReview, MdOutlineAssignmentReturn } from 'react-icons/md';
+import { MdOutlineLocalPharmacy, MdOutlineRateReview, MdOutlineAssignmentReturn, MdOutlineCancel } from 'react-icons/md';
+
+// --- HELPER: DYNAMIC RAZORPAY SCRIPT LOADER ---
+const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+        if (typeof window !== 'undefined' && window.Razorpay) {
+            resolve(true);
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+    });
+};
 
 // --- SUB-COMPONENT: STATUS TRACKER ---
 const StatusStepper = ({ status }) => {
@@ -113,6 +129,9 @@ function PharmacyOrders() {
     const [modal, setModal] = useState({ isOpen: false, data: null });
     const [reviewModal, setReviewModal] = useState({ isOpen: false, data: null });
     const [returnModal, setReturnModal] = useState({ isOpen: false, data: null, eligibility: null });
+    const [cancelModal, setCancelModal] = useState({ isOpen: false, order: null });
+    const [cancelSuccessData, setCancelSuccessData] = useState(null);
+    const [retryingPaymentId, setRetryingPaymentId] = useState(null);
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
@@ -121,13 +140,13 @@ function PharmacyOrders() {
     }, []);
 
     useEffect(() => {
-        if (modal.isOpen || reviewModal.isOpen || returnModal.isOpen) {
+        if (modal.isOpen || reviewModal.isOpen || returnModal.isOpen || cancelModal.isOpen || cancelSuccessData) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [modal.isOpen, reviewModal.isOpen, returnModal.isOpen]);
+    }, [modal.isOpen, reviewModal.isOpen, returnModal.isOpen, cancelModal.isOpen, cancelSuccessData]);
 
     // --- DATA FETCHING ---
     const loadOrders = useCallback(async (page = 1) => {
@@ -153,6 +172,72 @@ function PharmacyOrders() {
     useEffect(() => {
         loadOrders();
     }, [loadOrders]);
+
+    // --- RETRY PAYMENT HANDLER ---
+    const handleRetryPayment = async (order) => {
+        setRetryingPaymentId(order.orderId || order._id);
+        try {
+            const res = await UserAPI.retryPharmacyPayment({ orderId: order.orderId });
+            if (res && res.success) {
+                const isLoaded = await loadRazorpayScript();
+                if (!isLoaded) {
+                    toast.error("Razorpay SDK failed to load. Please check your internet connection.");
+                    setRetryingPaymentId(null);
+                    return;
+                }
+
+                const options = {
+                    key: res.key_id,
+                    amount: res.amount,
+                    currency: "INR",
+                    name: "Pharmacy Order Payment",
+                    description: `Payment for Order #${res.bookingId || order.orderId}`,
+                    order_id: res.razorpayOrderId,
+                    handler: async function (response) {
+                        try {
+                            const verifyRes = await UserAPI.verifyPaymentPharmacy({
+                                appointmentId: res.appointmentId,
+                                razorpayOrderId: response.razorpay_order_id,
+                                razorpayPaymentId: response.razorpay_payment_id,
+                                razorpaySignature: response.razorpay_signature
+                            });
+
+                            if (verifyRes && verifyRes.success) {
+                                toast.success(verifyRes.message || "Payment verified! Order confirmed successfully.");
+                                loadOrders();
+                            } else {
+                                toast.error(verifyRes?.message || "Payment verification failed.");
+                            }
+                        } catch (err) {
+                            console.error("Payment verification error:", err);
+                            toast.error(err.response?.data?.message || "Failed to verify payment.");
+                        }
+                    },
+                    modal: {
+                        ondismiss: function () {
+                            toast("Payment cancelled or closed.");
+                        }
+                    },
+                    theme: {
+                        color: "#4f46e5"
+                    }
+                };
+
+                const rzp = new window.Razorpay(options);
+                rzp.on('payment.failed', function (response) {
+                    toast.error(response.error?.description || "Payment failed. Please try again.");
+                });
+                rzp.open();
+            } else {
+                toast.error(res?.message || "Failed to initialize payment gateway.");
+            }
+        } catch (error) {
+            console.error("Retry payment error:", error);
+            toast.error(error.response?.data?.message || "Failed to initiate payment retry.");
+        } finally {
+            setRetryingPaymentId(null);
+        }
+    };
 
     // Open Return Modal with live eligibility check & Admin T&C
     const handleOpenReturnModal = async (order) => {
@@ -218,7 +303,193 @@ function PharmacyOrders() {
         return items.map(i => i.name).join(", ");
     };
 
-    // --- MODAL: RETURN & REPLACEMENT (SECTION 3.4 WITH ADMIN T&C) ---
+    // --- MODAL: CANCEL ORDER REASON & SUBMIT ---
+    const CancelOrderModal = ({ isOpen, onClose, order }) => {
+        const [reason, setReason] = useState("");
+        const [customReason, setCustomReason] = useState("");
+        const [submitting, setSubmitting] = useState(false);
+
+        const reasonsList = [
+            "Ordered by mistake",
+            "Found medicines at a lower price elsewhere",
+            "Delivery time is too long",
+            "Doctor changed prescription",
+            "Incorrect delivery address selected",
+            "Other"
+        ];
+
+        if (!mounted || !isOpen || !order) return null;
+
+        const handleCancelSubmit = async (e) => {
+            e.preventDefault();
+            const finalReason = reason === "Other" ? (customReason.trim() || "Cancelled by patient") : reason;
+            if (!finalReason) {
+                toast.error("Please select or enter a cancellation reason.");
+                return;
+            }
+
+            setSubmitting(true);
+            try {
+                const res = await UserAPI.cancelPharmacyOrder({
+                    orderId: order.orderId,
+                    reason: finalReason
+                });
+
+                if (res && res.success) {
+                    onClose();
+                    setCancelSuccessData({
+                        orderId: order.orderId,
+                        message: res.message,
+                        refundAmount: res.data?.refundAmount ?? 0,
+                        cancellationFee: res.data?.cancellationFee ?? 0,
+                        paymentStatus: res.data?.order?.paymentStatus || "Refund-Initiated"
+                    });
+                    loadOrders();
+                } else {
+                    toast.error(res?.message || "Failed to cancel order.");
+                }
+            } catch (err) {
+                console.error("Cancellation failed:", err);
+                toast.error(err.response?.data?.message || err.message || "Failed to cancel order.");
+            } finally {
+                setSubmitting(false);
+            }
+        };
+
+        return createPortal(
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6">
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300" onClick={onClose} />
+
+                <div className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-[0_30px_80px_-15px_rgba(0,0,0,0.5)] overflow-hidden p-6 md:p-8 animate-in zoom-in-95 fade-in duration-300">
+                    <div className="flex justify-between items-center mb-5">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100">
+                                <MdOutlineCancel size={22} />
+                            </div>
+                            <div>
+                                <h4 className="font-black text-slate-900 text-sm uppercase tracking-wider">Cancel Order</h4>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">#{order.orderId}</p>
+                            </div>
+                        </div>
+                        <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 hover:border-rose-100 transition-all">
+                            <FiX size={16} />
+                        </button>
+                    </div>
+
+                    <div className="p-4 bg-rose-50/60 border border-rose-100 rounded-2xl mb-5">
+                        <p className="text-[11px] font-semibold text-rose-800 leading-relaxed">
+                            Are you sure you want to cancel this medicine order? If already paid online, auto-refund will be initiated immediately and coupon limits will be restored.
+                        </p>
+                    </div>
+
+                    <form onSubmit={handleCancelSubmit} className="space-y-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Reason for cancellation *</label>
+                            <select
+                                value={reason}
+                                onChange={(e) => setReason(e.target.value)}
+                                required
+                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all"
+                            >
+                                <option value="">-- Choose Reason --</option>
+                                {reasonsList.map((r, i) => (
+                                    <option key={i} value={r}>{r}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {reason === "Other" && (
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Specify Reason *</label>
+                                <textarea
+                                    value={customReason}
+                                    onChange={(e) => setCustomReason(e.target.value)}
+                                    required
+                                    rows={3}
+                                    placeholder="Please describe why you are cancelling..."
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-rose-500 transition-all resize-none"
+                                />
+                            </div>
+                        )}
+
+                        <div className="pt-2 flex gap-3">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black text-[10px] uppercase tracking-wider transition-all"
+                            >
+                                Keep Order
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={submitting || !reason}
+                                className="flex-1 py-3.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-wider shadow-lg shadow-rose-200 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
+                            >
+                                {submitting ? <FiRefreshCw className="animate-spin" /> : "Confirm Cancel"}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>,
+            document.body
+        );
+    };
+
+    // --- POPUP: REFUND CONFIRMATION MODAL ---
+    const CancelSuccessModal = ({ data, onClose }) => {
+        if (!mounted || !data) return null;
+
+        return createPortal(
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
+
+                <div className="relative bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-6 md:p-8 text-center animate-in zoom-in-95 duration-200 space-y-4">
+                    <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-emerald-50">
+                        <FiCheckCircle size={28} />
+                    </div>
+
+                    <div>
+                        <h4 className="font-black text-slate-900 text-base">Order Cancelled</h4>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">#{data.orderId}</p>
+                    </div>
+
+                    {data.refundAmount > 0 ? (
+                        <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl text-left space-y-1.5">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-800 block">Refund Amount</span>
+                                <span className="px-2 py-0.5 bg-emerald-200/60 text-emerald-900 rounded-full text-[8.5px] font-black uppercase">
+                                    {data.paymentStatus || "Refund-Initiated"}
+                                </span>
+                            </div>
+                            <p className="text-2xl font-black text-emerald-700">₹{data.refundAmount}</p>
+                            {data.cancellationFee > 0 && (
+                                <p className="text-[10px] text-slate-500 font-medium">Cancellation Fee: ₹{data.cancellationFee}</p>
+                            )}
+                            <p className="text-[10px] text-emerald-800 font-semibold leading-relaxed pt-1 border-t border-emerald-200/50">
+                                🟢 Order Cancelled: ₹{data.refundAmount} refund has been initiated to your original payment method.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-left">
+                            <p className="text-xs font-semibold text-slate-600 leading-relaxed">
+                                {data.message || "Order cancelled successfully. No payment deduction was made."}
+                            </p>
+                        </div>
+                    )}
+
+                    <button
+                        onClick={onClose}
+                        className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
+                    >
+                        Okay, Got it
+                    </button>
+                </div>
+            </div>,
+            document.body
+        );
+    };
+
+    // --- MODAL: RETURN & REPLACEMENT (SECTION 3: 2-STEP VERIFICATION) ---
     const PharmacyReturnModal = ({ isOpen, onClose, order, eligibility }) => {
         const canReturn = eligibility ? eligibility.canReturn : true;
         const canReplace = eligibility ? eligibility.canReplace : true;
@@ -231,11 +502,12 @@ function PharmacyOrders() {
         const [submitting, setSubmitting] = useState(false);
 
         const reasonsList = [
-            "Damaged or Leaked Item",
+            "Damaged or Leaked Medicine",
             "Expired Product Delivered",
             "Wrong Product Delivered",
             "Seal Broken / Opened Packaging",
-            "Defective / Non-Functional Device"
+            "Defective / Non-Functional Device",
+            "Incorrect Quantity Received"
         ];
 
         useEffect(() => {
@@ -279,7 +551,7 @@ function PharmacyOrders() {
             setSubmitting(true);
             try {
                 const formData = new FormData();
-                formData.append('requestType', requestType);
+                formData.append('requestType', requestType); // "Return" | "Replacement"
                 formData.append('reason', reason);
                 if (userComments) formData.append('userComments', userComments);
                 
@@ -287,7 +559,8 @@ function PharmacyOrders() {
                     formData.append('proofImages', img);
                 });
 
-                const res = await UserAPI.submitPharmacyReturnRequest(order._id, formData);
+                const targetOrderId = order._id || order.orderId;
+                const res = await UserAPI.submitPharmacyReturnRequest(targetOrderId, formData);
 
                 if (res && res.success) {
                     toast.success(res.message || `${requestType} request submitted successfully!`);
@@ -330,7 +603,6 @@ function PharmacyOrders() {
                     </div>
 
                     <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar space-y-6">
-                        {/* Drug Compliance Notice */}
                         <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-100/80">
                             <FiAlertCircle className="text-amber-600 shrink-0 mt-0.5" size={18} />
                             <p className="text-[11px] font-semibold text-amber-800 leading-relaxed">
@@ -338,7 +610,7 @@ function PharmacyOrders() {
                             </p>
                         </div>
 
-                        {/* Request Type Selector */}
+                        {/* Choose Request Type */}
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Choose Request Type *</label>
                             <div className="grid grid-cols-2 gap-3">
@@ -389,14 +661,14 @@ function PharmacyOrders() {
                             </select>
                         </div>
 
-                        {/* User Comments */}
+                        {/* Comments */}
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Patient's Comments (Optional)</label>
                             <textarea
                                 value={userComments}
                                 onChange={(e) => setUserComments(e.target.value)}
                                 rows={3}
-                                placeholder="E.g., The digital screen of the BP monitor is cracked or not turning on."
+                                placeholder="E.g., Bottle seal was broken, or medicine was damaged."
                                 className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-400 resize-none"
                             />
                         </div>
@@ -404,7 +676,7 @@ function PharmacyOrders() {
                         {/* Proof Photos */}
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Proof Images (Optional, Max 5)</label>
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Proof Images (Max 5)</label>
                                 <span className="text-[10px] font-bold text-slate-400">{proofImages.length}/5 Selected</span>
                             </div>
 
@@ -441,7 +713,6 @@ function PharmacyOrders() {
                             )}
                         </div>
 
-                        {/* 📜 DYNAMIC ADMIN TERMS & CONDITIONS (SECTION 3.3) */}
                         {eligibility?.termsAndConditions && (
                             <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-1.5">
                                 <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5">
@@ -615,7 +886,7 @@ function PharmacyOrders() {
         );
     };
 
-    // --- MODAL: ORDER DETAILS (WITH RETURN OTP & CANCEL FLOW) ---
+    // --- MODAL: ORDER DETAILS ---
     const OrderDetailsModal = ({ data, onClose }) => {
         const [review, setReview] = useState(null);
         const [reviewLoading, setReviewLoading] = useState(false);
@@ -659,8 +930,8 @@ function PharmacyOrders() {
         const hasActiveReturn = data.returnDetails && data.returnDetails.status && data.returnDetails.status !== 'None';
         const eligibilityInfo = eligibility || checkOrderReturnWindow(data);
         const isEligibleForReturn = eligibilityInfo.isEligible || eligibilityInfo.canReturn || eligibilityInfo.canReplace;
+        const isCancellable = ['Placed', 'Under Review', 'Pending'].includes(data.status);
 
-        // Cancel return request handler (SECTION 3.5)
         const handleCancelReturn = async () => {
             setCancellingReturn(true);
             try {
@@ -723,7 +994,7 @@ function PharmacyOrders() {
                             </div>
                         </div>
 
-                        {/* REVERSE LOGISTICS & OTP TRACKING CARD (SECTION 3.3) */}
+                        {/* REVERSE LOGISTICS & OTP TRACKING CARD */}
                         {hasActiveReturn && data.returnDetails?.status === 'Approved' && (
                             <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-[2rem] p-6 text-white space-y-4 shadow-xl border border-indigo-500/20">
                                 <div className="flex justify-between items-start">
@@ -750,7 +1021,6 @@ function PharmacyOrders() {
                                     </div>
                                 )}
 
-                                {/* Cancel Return Request Action */}
                                 {['Assigned', 'PendingAssignment', 'OutForPickup'].includes(data.returnDetails.pickupStatus) && (
                                     <button
                                         disabled={cancellingReturn}
@@ -763,7 +1033,7 @@ function PharmacyOrders() {
                             </div>
                         )}
 
-                        {/* Standard Return Details when not in pickup mode */}
+                        {/* Standard Return Details */}
                         {hasActiveReturn && data.returnDetails?.status !== 'Approved' && (
                             <div className="p-6 bg-amber-50/60 border border-amber-100 rounded-[2rem] space-y-3">
                                 <div className="flex justify-between items-center">
@@ -934,8 +1204,10 @@ function PharmacyOrders() {
                                     <p className="text-3xl font-black">₹{data.billSummary?.totalAmount}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Paid via</p>
-                                    <p className="text-xs font-black text-emerald-400 uppercase mt-1">{data.paymentMethod}</p>
+                                    <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Payment Status</p>
+                                    <p className={`text-xs font-black uppercase mt-1 ${data.paymentStatus === 'Paid' ? 'text-emerald-400' : data.paymentStatus === 'Refund-Initiated' ? 'text-purple-400' : 'text-amber-400'}`}>
+                                        {data.paymentStatus || data.paymentMethod}
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -943,6 +1215,29 @@ function PharmacyOrders() {
 
                     {/* Actions Footer */}
                     <div className="p-6 md:p-8 bg-slate-50/50 border-t flex flex-wrap gap-3 shrink-0">
+                        {data.canRetryPayment && (
+                            <button 
+                                disabled={retryingPaymentId === (data.orderId || data._id)}
+                                onClick={() => {
+                                    onClose();
+                                    handleRetryPayment(data);
+                                }}
+                                className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-amber-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
+                            >
+                                <FiAlertCircle size={16} /> ⚠️ Payment Pending - Pay Now
+                            </button>
+                        )}
+                        {isCancellable && (
+                            <button 
+                                onClick={() => {
+                                    onClose();
+                                    setCancelModal({ isOpen: true, order: data });
+                                }}
+                                className="flex-1 py-4 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                            >
+                                <FiSlash size={15} /> Cancel Order
+                            </button>
+                        )}
                         {data.status === "Delivered" && !hasActiveReturn && isEligibleForReturn && (
                             <button 
                                 onClick={() => {
@@ -1015,6 +1310,7 @@ function PharmacyOrders() {
                                     {orders.map((order) => {
                                         const hasReturn = order.returnDetails && order.returnDetails.status && order.returnDetails.status !== 'None';
                                         const eligibility = checkOrderReturnWindow(order);
+                                        const isCancellable = ['Placed', 'Under Review', 'Pending'].includes(order.status);
 
                                         return (
                                             <tr key={order._id} className="hover:bg-slate-50/80 transition-colors group">
@@ -1042,6 +1338,34 @@ function PharmacyOrders() {
                                                 </td>
                                                 <td className="px-8 py-6 text-right">
                                                     <div className="flex gap-2 justify-end items-center">
+                                                        {/* RETRY PAYMENT ACTION BUTTON */}
+                                                        {order.canRetryPayment && (
+                                                            <button 
+                                                                disabled={retryingPaymentId === (order.orderId || order._id)}
+                                                                onClick={() => handleRetryPayment(order)}
+                                                                className="px-3.5 py-2.5 rounded-xl text-[10px] font-black uppercase bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1.5 shadow-md shadow-amber-100 disabled:opacity-50"
+                                                                title="Retry pending payment"
+                                                            >
+                                                                {retryingPaymentId === (order.orderId || order._id) ? (
+                                                                    <FiRefreshCw className="animate-spin" size={12} />
+                                                                ) : (
+                                                                    <FiAlertCircle size={12} />
+                                                                )}
+                                                                Pay Now
+                                                            </button>
+                                                        )}
+
+                                                        {/* CANCEL ORDER ACTION BUTTON */}
+                                                        {isCancellable && (
+                                                            <button 
+                                                                onClick={() => setCancelModal({ isOpen: true, order })}
+                                                                className="px-3.5 py-2.5 rounded-xl text-[10px] font-black uppercase bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all flex items-center gap-1 shadow-sm"
+                                                                title="Cancel Order"
+                                                            >
+                                                                <FiSlash size={12} /> Cancel
+                                                            </button>
+                                                        )}
+
                                                         {order.status === "Delivered" && !hasReturn && (
                                                             eligibility.isEligible ? (
                                                                 <button 
@@ -1052,7 +1376,6 @@ function PharmacyOrders() {
                                                                     <FiRotateCcw size={12} /> Return
                                                                 </button>
                                                             ) : (
-                                                                /* BLURRED / DISABLED BUTTON WHEN WINDOW CLOSED */
                                                                 <button
                                                                     disabled
                                                                     title={eligibility.reason}
@@ -1090,6 +1413,7 @@ function PharmacyOrders() {
                             {orders.map((order) => {
                                 const hasReturn = order.returnDetails && order.returnDetails.status && order.returnDetails.status !== 'None';
                                 const eligibility = checkOrderReturnWindow(order);
+                                const isCancellable = ['Placed', 'Under Review', 'Pending'].includes(order.status);
 
                                 return (
                                     <div key={order._id} className="py-5 flex flex-col gap-4">
@@ -1108,6 +1432,32 @@ function PharmacyOrders() {
                                         </div>
 
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                            {/* RETRY PAYMENT ACTION BUTTON (MOBILE) */}
+                                            {order.canRetryPayment && (
+                                                <button 
+                                                    disabled={retryingPaymentId === (order.orderId || order._id)}
+                                                    onClick={() => handleRetryPayment(order)} 
+                                                    className="w-full bg-amber-500 hover:bg-amber-600 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center text-white flex items-center justify-center gap-1.5 shadow-md shadow-amber-100 disabled:opacity-50 col-span-2 sm:col-span-1"
+                                                >
+                                                    {retryingPaymentId === (order.orderId || order._id) ? (
+                                                        <FiRefreshCw className="animate-spin" size={12} />
+                                                    ) : (
+                                                        <FiAlertCircle size={12} />
+                                                    )}
+                                                    ⚠️ Pay Now
+                                                </button>
+                                            )}
+
+                                            {/* CANCEL ORDER ACTION BUTTON (MOBILE) */}
+                                            {isCancellable && (
+                                                <button 
+                                                    onClick={() => setCancelModal({ isOpen: true, order })} 
+                                                    className="w-full bg-rose-50 hover:bg-rose-100 border border-rose-200 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center text-rose-600 flex items-center justify-center gap-1 shadow-sm"
+                                                >
+                                                    <FiSlash size={12} /> Cancel
+                                                </button>
+                                            )}
+
                                             {order.status === "Delivered" && !hasReturn && (
                                                 eligibility.isEligible ? (
                                                     <button 
@@ -1136,7 +1486,7 @@ function PharmacyOrders() {
                                             <button 
                                                 onClick={() => setModal({ isOpen: true, data: order })} 
                                                 className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center border border-slate-200 bg-white ${
-                                                    order.status !== "Delivered" ? "col-span-2 sm:col-span-3" : ""
+                                                    order.status !== "Delivered" && !order.canRetryPayment && !isCancellable ? "col-span-2 sm:col-span-3" : ""
                                                 }`}
                                             >
                                                 Details
@@ -1164,6 +1514,21 @@ function PharmacyOrders() {
                 <OrderDetailsModal 
                     data={modal.data} 
                     onClose={() => setModal({ isOpen: false, data: null })} 
+                />
+            )}
+
+            {cancelModal.isOpen && cancelModal.order && (
+                <CancelOrderModal
+                    isOpen={cancelModal.isOpen}
+                    order={cancelModal.order}
+                    onClose={() => setCancelModal({ isOpen: false, order: null })}
+                />
+            )}
+
+            {cancelSuccessData && (
+                <CancelSuccessModal
+                    data={cancelSuccessData}
+                    onClose={() => setCancelSuccessData(null)}
                 />
             )}
 

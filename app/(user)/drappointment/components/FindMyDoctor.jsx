@@ -91,12 +91,12 @@ export default function LandingFindDoctor() {
   };
 
   return (
-    <div className="bg-slate-900 text-slate-900 font-sans selection:bg-emerald-100 flex flex-col justify-center items-center w-full relative overflow-hidden">
+    <div className="bg-slate-900 text-slate-900 font-sans selection:bg-emerald-100 flex flex-col justify-center items-center w-full relative z-30 overflow-visible">
 
       {/* HERO SECTION WITH TOP-ALIGNED BACKGROUND PHOTO SLIDESHOW */}
       <section className="relative w-full min-h-[580px] md:min-h-[660px] pt-24 pb-32 md:pt-32 md:pb-44 px-6 flex flex-col items-center justify-center overflow-hidden">
 
-        {/* --- FULL-SIZE BACKGROUND PHOTOS WITH OBJECT-TOP (HEADS NOT CUT) --- */}
+        {/* FULL-SIZE BACKGROUND PHOTOS */}
         {heroPhotos.map((photoUrl, idx) => (
           <div
             key={idx}
@@ -112,19 +112,16 @@ export default function LandingFindDoctor() {
           </div>
         ))}
 
-        {/* --- SMART GRADIENT OVERLAY (KEEPS PHOTO TOP VISIBLE WHILE PROVIDING HIGH CONTRAST) --- */}
+        {/* GRADIENT OVERLAYS */}
         <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/50 via-black/35 to-slate-900/90 pointer-events-none" />
         <div className="absolute inset-0 z-[2] bg-radial from-transparent via-black/20 to-black/75 pointer-events-none" />
 
-        {/* --- FOREGROUND HERO CONTENT --- */}
+        {/* FOREGROUND HERO CONTENT */}
         <div className="max-w-4xl mx-auto text-center relative z-10">
-
-          {/* Badge */}
           <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/20 backdrop-blur-md text-emerald-300 text-xs font-black uppercase tracking-widest mb-6 border border-white/20 shadow-2xl">
             <FaCheckCircle className="text-emerald-400 animate-pulse" /> Verified Medical Network
           </div>
 
-          {/* Main Headline */}
           <h1 className="text-4xl sm:text-5xl md:text-7xl font-black tracking-tight mb-6 leading-[1.1] text-white drop-shadow-lg">
             Your health journey <br />
             <span className="text-emerald-400 bg-gradient-to-r from-emerald-300 via-teal-300 to-emerald-400 bg-clip-text text-transparent">
@@ -132,19 +129,17 @@ export default function LandingFindDoctor() {
             </span>
           </h1>
 
-          {/* Sub-description */}
           <p className="text-base sm:text-lg md:text-xl text-slate-100 max-w-2xl mx-auto leading-relaxed font-bold drop-shadow-md">
             Connect with India's top-rated certified specialists for video consultations
             or in-person clinic visits. Secure, fast, and reliable.
           </p>
 
-          {/* Slideshow Progress Dots */}
           <div className="flex justify-center items-center gap-2.5 mt-8">
             {heroPhotos.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setCurrentPhotoIndex(i)}
-                className={`h-2 rounded-full transition-all duration-500 ${
+                className={`h-2 rounded-full transition-all duration-500 cursor-pointer ${
                   currentPhotoIndex === i ? "w-8 bg-emerald-400 shadow-md shadow-emerald-400/50" : "w-2 bg-white/40 hover:bg-white/70"
                 }`}
                 aria-label={`Slide ${i + 1}`}
@@ -154,12 +149,12 @@ export default function LandingFindDoctor() {
         </div>
       </section>
 
-      {/* FLOATING SEARCH CONTAINER */}
-      <section className="w-full max-w-7xl px-6 relative z-20 -mt-16 md:-mt-20 mb-20">
-        <div className="max-w-3xl mx-auto relative" ref={searchRef}>
+      {/* FLOATING SEARCH CONTAINER - elevated z-index and overflow-visible */}
+      <section className="w-full max-w-7xl px-6 relative z-50 -mt-16 md:-mt-20 mb-20 overflow-visible">
+        <div className="max-w-3xl mx-auto relative overflow-visible" ref={searchRef}>
 
           {/* Main Search Bar Card */}
-          <div className="bg-white rounded-3xl p-3 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)] border border-slate-100 flex flex-col md:flex-row items-center gap-3 transition-all duration-300 hover:shadow-[0_30px_70px_-10px_rgba(16,185,129,0.35)]">
+          <div className="bg-white rounded-3xl p-3 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)] border border-slate-100 flex flex-col md:flex-row items-center gap-3 transition-all duration-300 hover:shadow-[0_30px_70px_-10px_rgba(16,185,129,0.35)] relative z-50">
             <div className="relative flex-1 w-full group">
               <FaSearch className={`absolute left-5 top-1/2 -translate-y-1/2 transition-colors duration-300 text-lg ${isSearching ? 'text-emerald-500 animate-pulse' : 'text-slate-400 group-focus-within:text-emerald-500'}`} />
               <input
@@ -173,7 +168,7 @@ export default function LandingFindDoctor() {
               {searchTerm && (
                 <button
                   onClick={() => { setSearchTerm(""); setSuggestions([]); }}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   <FaTimes className="text-sm" />
                 </button>
@@ -182,16 +177,16 @@ export default function LandingFindDoctor() {
 
             <button
               onClick={handleSearch}
-              className="w-full md:w-auto bg-emerald-600 text-white px-9 py-4.5 rounded-2xl font-black hover:bg-emerald-500 transition-all duration-200 active:scale-[0.98] shadow-xl hover:shadow-emerald-500/30 uppercase tracking-widest text-xs whitespace-nowrap min-h-[56px]"
+              className="w-full md:w-auto bg-emerald-600 text-white px-9 py-4.5 rounded-2xl font-black hover:bg-emerald-500 transition-all duration-200 active:scale-[0.98] shadow-xl hover:shadow-emerald-500/30 uppercase tracking-widest text-xs whitespace-nowrap min-h-[56px] cursor-pointer"
             >
               Search Doctors
             </button>
           </div>
 
-          {/* SUGGESTIONS DROPDOWN */}
+          {/* SUGGESTIONS DROPDOWN - elevated with z-[999] so it always stays above the next section */}
           {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white rounded-3xl shadow-[0_30px_70px_-15px_rgba(0,0,0,0.3)] border border-slate-100 overflow-hidden z-[100] transform transition-all duration-200 origin-top scale-100 opacity-100">
-              <div className="p-3 max-h-[380px] overflow-y-auto custom-scrollbar">
+            <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white rounded-3xl shadow-[0_30px_70px_-10px_rgba(0,0,0,0.4)] border border-slate-150 overflow-hidden z-[999] transform transition-all duration-200 origin-top">
+              <div className="p-3 max-h-[380px] overflow-y-auto">
                 <p className="px-4 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
                   Available Specialists
                 </p>

@@ -172,7 +172,6 @@ const PharmacyCart = () => {
             console.error("Checkout Summary Error:", error);
         } finally {
             setIsFetchingSummary(false);
-            setIsValidatingCoupon(false);
         }
     }, [selectedAddress, deliveryOption, rawSlotData, appliedCouponName, pharmacyItems.length, paymentMethod]);
 
@@ -180,20 +179,46 @@ const PharmacyCart = () => {
         fetchPharmacySummary();
     }, [fetchPharmacySummary]);
 
-    // 3. Apply / Remove Coupon
-    const handleApplyCoupon = (name) => {
+    // 3. Apply / Validate Coupon (Endpoint: POST /user/pharmacy/validate-coupon)
+    const handleApplyCoupon = async (name) => {
         const codeToApply = (name || couponCode).trim().toUpperCase();
         if (!codeToApply) return toast.error("Please enter a coupon code");
+
         setIsValidatingCoupon(true);
-        setAppliedCouponName(codeToApply);
-        setCouponCode("");
-        toast.success(`Applying coupon ${codeToApply}...`);
+        setCouponError("");
+
+        try {
+            const currentTotal = billSummary.itemTotal || pharmacyItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+
+            const res = await UserAPI.validatePharmacyCoupon(codeToApply, pharmacyId, currentTotal);
+
+            if (res && res.success) {
+                setAppliedCouponName(codeToApply);
+                setCouponCode("");
+                setCouponError("");
+                toast.success(res.message || `Coupon "${codeToApply}" applied! Saved ₹${res.discount || 0}`);
+            } else {
+                const errorMsg = res?.message || "Invalid or expired coupon.";
+                setCouponError(errorMsg);
+                toast.error(errorMsg);
+                setAppliedCouponName(null);
+            }
+        } catch (error) {
+            console.error("Coupon validation failed:", error);
+            const errorMsg = error.response?.data?.message || error.message || "Failed to validate coupon";
+            setCouponError(errorMsg);
+            toast.error(errorMsg);
+            setAppliedCouponName(null);
+        } finally {
+            setIsValidatingCoupon(false);
+        }
     };
 
     const handleRemoveCoupon = () => {
         setAppliedCouponName(null);
         setCouponCode("");
         setCouponError("");
+        toast.success("Coupon removed");
     };
 
     // 4. Computed Final Bill Totals
@@ -599,6 +624,7 @@ const PharmacyCart = () => {
                             setCouponCode={setCouponCode}
                             appliedCouponName={appliedCouponName}
                             setAppliedCouponName={setAppliedCouponName}
+                            couponError={couponError}
                             setServerDiscount={() => {}}
                             handleApplyCoupon={handleApplyCoupon}
                             isValidating={isValidatingCoupon}

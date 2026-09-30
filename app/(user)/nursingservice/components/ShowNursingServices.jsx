@@ -11,11 +11,12 @@ import {
     FaArrowLeft, 
     FaShieldAlt, 
     FaUserCheck, 
-    FaStethoscope 
+    FaStethoscope,
+    FaUserNurse
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
-// Fallback configuration mapping icons to global service titles [2]
+// Fallback configuration mapping icons to global service titles
 const SERVICE_ICONS = {
     "Medication Reminder": <FaClock className="text-teal-600" />,
     "Grocery Shopping": <FaShoppingCart className="text-teal-600" />,
@@ -46,7 +47,6 @@ export default function ShowNursingServices() {
     }, []);
 
     const handleServiceClick = (title) => {
-        // Navigates to the provider listing screen with the clicked service title
         router.push(`/nursingservice/providers?title=${encodeURIComponent(title)}`);
     };
 
@@ -63,15 +63,17 @@ export default function ShowNursingServices() {
             <main className="max-w-7xl mx-auto px-6 mt-12 space-y-16">
                 
                 {/* Hero / Introduction Block */}
-                <div className="max-w-2xl space-y-4">
-                    <div className="inline-flex items-center gap-1.5 text-teal-700 font-bold text-xs uppercase tracking-wider bg-white px-3.5 py-1.5 rounded-full shadow-sm border border-teal-100/60">
-                        <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></span> Professional Care at Home
+                <div className="max-w-3xl space-y-4">
+                    <div className="inline-flex items-center gap-2 text-teal-700 font-bold text-xs uppercase tracking-wider bg-white px-3.5 py-1.5 rounded-full shadow-sm border border-teal-100/60">
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></span>
+                        <FaUserNurse className="text-teal-600" size={12} />
+                        Professional Home Nursing Care
                     </div>
                     <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-none">
-                        Certified Clinical <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-500 to-emerald-600">Bureaus.</span>
+                        Certified In-Home <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-500 to-emerald-600">Nursing Services.</span>
                     </h2>
                     <p className="text-slate-500 text-sm md:text-base font-medium leading-relaxed">
-                        Select a home care treatment category below to discover and compare localized certified nursing services matching your clinical needs.
+                        Choose from our specialized clinical nursing services below to book certified, compassionate, and background-verified nurses directly to your home.
                     </p>
                 </div>
 
@@ -117,7 +119,7 @@ export default function ShowNursingServices() {
                 ) : (
                     <div className="py-20 text-center bg-white rounded-[2rem] border border-dashed border-slate-200">
                         <FaStethoscope className="text-slate-200 text-5xl mx-auto mb-3" />
-                        <h3 className="text-slate-800 font-bold text-sm tracking-wide">No Services Configured</h3>
+                        <h3 className="text-slate-800 font-bold text-sm tracking-wide">No Nursing Services Configured</h3>
                         <p className="text-slate-400 text-xs mt-1">There are no operational nursing categories available right now.</p>
                     </div>
                 )}
@@ -129,8 +131,8 @@ export default function ShowNursingServices() {
                             <FaShieldAlt className="text-teal-600 text-base" />
                         </div>
                         <div>
-                            <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wide">Verified Bureaus</h4>
-                            <p className="text-[11px] text-slate-400 font-medium mt-0.5">100% Inspected & Licensed</p>
+                            <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wide">Verified Nurse Partners</h4>
+                            <p className="text-[11px] text-slate-400 font-medium mt-0.5">100% Background-Checked & Licensed</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-4 p-5 bg-white rounded-2xl border border-slate-100 shadow-sm">
@@ -138,8 +140,8 @@ export default function ShowNursingServices() {
                             <FaUserCheck className="text-teal-600 text-base" />
                         </div>
                         <div>
-                            <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wide">Expert Clinicians</h4>
-                            <p className="text-[11px] text-slate-400 font-medium mt-0.5">Experienced & Trained Nurses</p>
+                            <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wide">Qualified Nurse Care</h4>
+                            <p className="text-[11px] text-slate-400 font-medium mt-0.5">Experienced & Trained Medical Staff</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-4 p-5 bg-white rounded-2xl border border-slate-100 shadow-sm">
@@ -147,8 +149,8 @@ export default function ShowNursingServices() {
                             <FaClock className="text-teal-600 text-base" />
                         </div>
                         <div>
-                            <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wide">Flexible Booking</h4>
-                            <p className="text-[11px] text-slate-400 font-medium mt-0.5">Daily, Hourly, or Multi-Day</p>
+                            <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wide">Flexible Home Visits</h4>
+                            <p className="text-[11px] text-slate-400 font-medium mt-0.5">Hourly, Daily, or Long-Term Care</p>
                         </div>
                     </div>
                 </section>

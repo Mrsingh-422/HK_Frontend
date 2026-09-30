@@ -13,7 +13,8 @@ import {
   FaClock,
   FaCalendarDay,
   FaLayerGroup,
-  FaArrowLeft
+  FaArrowLeft,
+  FaInfoCircle
 } from 'react-icons/fa'
 import { toast } from 'react-hot-toast'
 import NurseAPI from '@/app/services/NurseAPI'
@@ -34,6 +35,7 @@ export default function NurseServiceListingPage() {
   const [serviceTitle, setServiceTitle] = useState('');
   const [careSubCategoryId, setCareSubCategoryId] = useState('');
   const [description, setDescription] = useState('');
+  const [extraTemplateDetails, setExtraTemplateDetails] = useState(null);
   
   // Pricing State
   const [pricing, setPricing] = useState({
@@ -58,8 +60,8 @@ export default function NurseServiceListingPage() {
           NurseAPI.getMyServicesList('Approved') 
         ]);
         
-        if (catRes.success) setCategories(catRes.data);
-        if (listRes.success) setMyServices(listRes.data);
+        if (catRes.success) setCategories(catRes.data || []);
+        if (listRes.success) setMyServices(listRes.data || []);
       } catch (err) {
         toast.error("Error loading initial data");
       } finally {
@@ -75,17 +77,19 @@ export default function NurseServiceListingPage() {
     setCategory(val);
     setServiceTitle('');
     setSubCategories([]);
+    setMasterConsumables([]);
+    setExtraTemplateDetails(null);
     if (!val) return;
 
     try {
       const res = await NurseAPI.getNurseCsvSubCategories(val);
-      if (res.success) setSubCategories(res.data);
+      if (res.success) setSubCategories(res.data || []);
     } catch (err) {
       toast.error("Error loading services");
     }
   };
 
-  // 3. Handle Service Change -> Fetch Details (Prices & Consumables)
+  // 3. Handle Service Change -> Fetch Details (GET /provider/nurse/dash/care-details)
   const handleServiceChange = async (e) => {
     const val = e.target.value;
     setServiceTitle(val);
@@ -93,21 +97,47 @@ export default function NurseServiceListingPage() {
 
     setLoading(true);
     try {
-      const res = await NurseAPI.getNurseCsvServiceDetails(category, val);
-      if (res.success && res.data) {
-        const d = res.data;
-        setCareSubCategoryId(d._id);
-        setDescription(d.description || '');
+      // Calls care details API matching the new specification
+      const res = NurseAPI.getNurseCareDetails 
+        ? await NurseAPI.getNurseCareDetails(category, val)
+        : await NurseAPI.getNurseCsvServiceDetails(category, val);
+
+      if (res?.success && res?.data) {
+        const payloadData = res.data;
+        const template = payloadData.template || payloadData;
+        
+        setCareSubCategoryId(template._id);
+        setDescription(template.description || '');
+        setExtraTemplateDetails({
+          procedureIncluded: template.procedureIncluded,
+          prescriptionStatus: template.prescriptionStatus,
+          servicesOffered: template.servicesOffered
+        });
         
         setPricing({
-          oneDay: { base: d.oneDayOneTimePrice || 0, discount: 0, final: d.oneDayOneTimePrice || 0 },
-          multiDay: { base: d.forMultipleDaysPrice || 0, discount: 0, final: d.forMultipleDaysPrice || 0 },
-          hourly: { base: d.pricePerHour || 0, discount: 0, final: d.pricePerHour || 0 }
+          oneDay: { 
+            base: template.oneDayOneTimePrice || 0, 
+            discount: 0, 
+            final: template.oneDayOneTimePrice || 0 
+          },
+          multiDay: { 
+            base: template.forMultipleDaysPrice || 0, 
+            discount: 0, 
+            final: template.forMultipleDaysPrice || 0 
+          },
+          hourly: { 
+            base: template.pricePerHour || 0, 
+            discount: 0, 
+            final: template.pricePerHour || 0 
+          }
         });
 
-        setMasterConsumables(d.resolvedConsumables || []);
+        // Resolve consumables list from resolvedConsumables or allConsumables
+        const consumables = payloadData.resolvedConsumables || payloadData.allConsumables || template.resolvedConsumables || [];
+        setMasterConsumables(consumables);
       }
     } catch (err) {
+      console.error("Care details error:", err);
       toast.error("Error loading service details");
     } finally {
       setLoading(false);
@@ -203,7 +233,7 @@ export default function NurseServiceListingPage() {
         {!showForm && (
             <button 
                 onClick={() => setShowForm(true)}
-                className="bg-[#08B36A] hover:bg-[#069e5d] text-white px-8 py-4 rounded-[1.2rem] font-black text-sm shadow-lg shadow-green-100 transition-all flex items-center justify-center gap-2 active:scale-95"
+                className="bg-[#08B36A] hover:bg-[#069e5d] text-white px-8 py-4 rounded-[1.2rem] font-black text-sm shadow-lg shadow-green-100 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
             >
                 <FaPlus /> Add New Service
             </button>
@@ -217,7 +247,7 @@ export default function NurseServiceListingPage() {
             <div className="animate-in fade-in slide-in-from-top-4 duration-500">
                 <button 
                     onClick={() => setShowForm(false)}
-                    className="mb-6 flex items-center gap-2 text-gray-500 font-bold text-sm hover:text-[#08B36A] transition-colors"
+                    className="mb-6 flex items-center gap-2 text-gray-500 font-bold text-sm hover:text-[#08B36A] transition-colors cursor-pointer"
                 >
                     <FaArrowLeft /> Back to My Services
                 </button>
@@ -259,6 +289,25 @@ export default function NurseServiceListingPage() {
                             </select>
                         </div>
                     </div>
+
+                    {/* Procedure & Prescription Metadata Tag */}
+                    {extraTemplateDetails && (
+                      <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl flex flex-wrap gap-4 text-xs">
+                        {extraTemplateDetails.procedureIncluded && (
+                          <div className="flex items-center gap-1.5 text-slate-700">
+                            <FaInfoCircle className="text-[#08B36A]" />
+                            <span><strong>Procedures Included:</strong> {extraTemplateDetails.procedureIncluded}</span>
+                          </div>
+                        )}
+                        {extraTemplateDetails.prescriptionStatus && (
+                          <div className="flex items-center gap-1.5 text-slate-700">
+                            <span className="font-bold uppercase text-[10px] bg-white px-2 py-0.5 rounded border border-emerald-200">
+                              Prescription Required: {extraTemplateDetails.prescriptionStatus}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* 2. DESCRIPTION */}
                     <div>
@@ -332,7 +381,7 @@ export default function NurseServiceListingPage() {
                                     <option value="">-- Select Consumable --</option>
                                     {masterConsumables.map((item) => (
                                         <option key={item._id} value={item._id}>
-                                            {item.itemName} ({item.size}) - ₹{item.mrp}
+                                            {item.itemName} {item.size ? `(${item.size})` : ''} - ₹{item.mrp}
                                         </option>
                                     ))}
                                 </select>
@@ -346,7 +395,7 @@ export default function NurseServiceListingPage() {
                                     onChange={(e) => setTempConsDisc(e.target.value)}
                                 />
                             </div>
-                            <button onClick={linkConsumable} className="w-full md:w-32 bg-[#08B36A] text-white rounded-xl font-black text-sm h-[54px]">Link</button>
+                            <button onClick={linkConsumable} className="w-full md:w-32 bg-[#08B36A] text-white rounded-xl font-black text-sm h-[54px] cursor-pointer">Link</button>
                         </div>
 
                         {/* TABLE */}
@@ -369,7 +418,7 @@ export default function NurseServiceListingPage() {
                                             <td className="px-6 py-4 text-center text-orange-500">{item.discountPercentage}%</td>
                                             <td className="px-6 py-4 text-right font-black text-[#08B36A]">₹{item.final}</td>
                                             <td className="px-6 py-4 text-right">
-                                                <button onClick={() => removeConsumable(item.masterItemId)} className="text-gray-300 hover:text-red-500">
+                                                <button onClick={() => removeConsumable(item.masterItemId)} className="text-gray-300 hover:text-red-500 cursor-pointer">
                                                     <FaTrashAlt size={12} />
                                                 </button>
                                             </td>
@@ -387,7 +436,7 @@ export default function NurseServiceListingPage() {
                         <button 
                             onClick={handleSubmit}
                             disabled={loading}
-                            className="w-full py-5 bg-[#08B36A] text-white rounded-xl font-black text-sm shadow-xl uppercase tracking-wider transition-all"
+                            className="w-full py-5 bg-[#08B36A] text-white rounded-xl font-black text-sm shadow-xl uppercase tracking-wider transition-all cursor-pointer"
                         >
                             {loading ? "Processing..." : "List Service Now (Approved)"}
                         </button>

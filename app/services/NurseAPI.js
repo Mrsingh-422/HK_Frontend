@@ -173,11 +173,22 @@ const NurseAPI = {
         const response = await publicApi.get(`/admin/nurse-csv/sub-categories?category=${category}`);
         return response.data;
     },
- 
-    getNurseCsvServiceDetails: async (category, subCategory) => {
-        const response = await publicApi.get(`/admin/nurse-csv/details?category=${category}&subCategory=${subCategory}`);
-        return response.data;
-    },
+ getNurseCareDetails: async (category, subCategory, page = 1, limit = 20, search = '') => {
+    const token = localStorage.getItem('nurseToken') || localStorage.getItem('token');
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    if (subCategory) params.append('subCategory', subCategory);
+    if (page) params.append('page', page);
+    if (limit) params.append('limit', limit);
+    if (search) params.append('search', search);
+
+    const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/provider/nurse/dash/care-details?${params.toString()}`, {
+        headers: {
+            Authorization: `Bearer ${token}`
+        }
+    });
+    return response.data;
+},
  
     manageNurseService: async (payload) => {
         const response = await nurseVendorApi.post('/provider/nurse/dash/service/manage', payload);

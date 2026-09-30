@@ -17,14 +17,16 @@ import NursingPlans from './components/NursingPlans'
 import DailyCarePlan from './components/DailyCarePlan'
 import BookingSteps from './components/BookingSteps'
 import ShowNursingServices from './components/ShowNursingServices'
+import WheelchairScrollAnimation from './components/WheelchairScrollAnimation'
 
 function page() {
     return (
         <>
             <SecondNavbar />
             <NurseHero />
-            <FindMyNurse />
             <ShowNursingServices />
+            <WheelchairScrollAnimation />
+            <FindMyNurse />
             <DailyCarePlan />
             <NursingPlans />
             <BookingSteps />

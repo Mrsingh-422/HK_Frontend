@@ -80,6 +80,17 @@ export default function NurseBookingPage() {
     }
   };
 
+  // --- TOP BAR BACK HANDLER ---
+  const handleBack = () => {
+    if (step === 2) {
+      setStep(1);
+    } else if (step === 3) {
+      router.push("/userscreens/previousorders");
+    } else {
+      router.back();
+    }
+  };
+
   // --- STEP 1: SELECT LOCAL FILE ---
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -237,9 +248,9 @@ export default function NurseBookingPage() {
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <button 
-              onClick={() => { if (step > 1) setStep(step - 1); }} 
-              disabled={step === 3}
-              className="p-2.5 hover:bg-slate-100 rounded-full transition-all text-slate-500 disabled:opacity-30"
+              type="button"
+              onClick={handleBack} 
+              className="p-2.5 hover:bg-slate-100 rounded-full transition-all text-slate-500 cursor-pointer"
             >
               <FaArrowLeft size={18} />
             </button>
@@ -309,14 +320,14 @@ export default function NurseBookingPage() {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-bold transition-all"
+                      className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-bold transition-all cursor-pointer"
                     >
                       Change File
                     </button>
                     <button
                       type="button"
                       onClick={handleRemoveFile}
-                      className="px-4 py-2 bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-bold transition-all"
+                      className="px-4 py-2 bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-bold transition-all cursor-pointer"
                     >
                       Remove
                     </button>
@@ -347,7 +358,7 @@ export default function NurseBookingPage() {
               <button
                 type="submit"
                 disabled={!selectedFile || loading}
-                className="w-full py-4 bg-[#08B36A] hover:bg-[#069356] text-white text-[13px] font-bold rounded-2xl shadow-[0_4px_15px_rgba(8,179,106,0.2)] transition-all disabled:opacity-40 uppercase tracking-wide flex items-center justify-center gap-2"
+                className="w-full py-4 bg-[#08B36A] hover:bg-[#069356] text-white text-[13px] font-bold rounded-2xl shadow-[0_4px_15px_rgba(8,179,106,0.2)] transition-all disabled:opacity-40 uppercase tracking-wide flex items-center justify-center gap-2 cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -392,7 +403,7 @@ export default function NurseBookingPage() {
                 </div>
                 <button 
                   onClick={() => setShowAddCustomForm(!showAddCustomForm)}
-                  className="text-xs text-[#08B36A] font-bold hover:underline"
+                  className="text-xs text-[#08B36A] font-bold hover:underline cursor-pointer"
                 >
                   {showAddCustomForm ? "Hide Form" : "+ Add Custom Service"}
                 </button>
@@ -439,13 +450,13 @@ export default function NurseBookingPage() {
                     <button 
                       type="button" 
                       onClick={() => setShowAddCustomForm(false)} 
-                      className="px-3 py-1.5 text-xs text-slate-500 font-semibold"
+                      className="px-3 py-1.5 text-xs text-slate-500 font-semibold cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button 
                       type="submit" 
-                      className="px-4 py-1.5 bg-[#08B36A] text-white text-xs font-bold rounded-lg hover:bg-[#069356]"
+                      className="px-4 py-1.5 bg-[#08B36A] text-white text-xs font-bold rounded-lg hover:bg-[#069356] cursor-pointer"
                     >
                       Add to Queue
                     </button>
@@ -460,7 +471,7 @@ export default function NurseBookingPage() {
                     <button 
                       type="button" 
                       onClick={() => handleRemoveService(index)}
-                      className="absolute top-4 right-4 text-rose-500 hover:text-rose-700 transition"
+                      className="absolute top-4 right-4 text-rose-500 hover:text-rose-700 transition cursor-pointer"
                     >
                       <FaTrashAlt size={12} />
                     </button>
@@ -498,7 +509,7 @@ export default function NurseBookingPage() {
                 <button 
                   type="button"
                   onClick={() => router.push('/userscreens/myaccount')}
-                  className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-xs"
+                  className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-xs cursor-pointer"
                 >
                   <FaPlus size={10} /> Add Address
                 </button>
@@ -556,7 +567,7 @@ export default function NurseBookingPage() {
                     <p>No addresses registered.</p>
                     <button 
                       onClick={() => router.push('/userscreens/myaccount')}
-                      className="px-4 py-2 bg-[#08B36A] hover:bg-[#069356] text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                      className="px-4 py-2 bg-[#08B36A] hover:bg-[#069356] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
                     >
                       Add Your First Address
                     </button>
@@ -569,7 +580,7 @@ export default function NurseBookingPage() {
             <button
               onClick={handleBroadcastRequest}
               disabled={broadcastLoading || !selectedAddress}
-              className="w-full py-4 bg-[#08B36A] hover:bg-[#069356] text-white text-[13px] font-bold rounded-2xl shadow-[0_4px_15px_rgba(8,179,106,0.2)] transition-all disabled:opacity-40 uppercase tracking-wide flex items-center justify-center gap-2"
+              className="w-full py-4 bg-[#08B36A] hover:bg-[#069356] text-white text-[13px] font-bold rounded-2xl shadow-[0_4px_15px_rgba(8,179,106,0.2)] transition-all disabled:opacity-40 uppercase tracking-wide flex items-center justify-center gap-2 cursor-pointer"
             >
               {broadcastLoading ? (
                 <>
@@ -606,7 +617,7 @@ export default function NurseBookingPage() {
             </div>
             <button
               onClick={() => router.push("/userscreens/previousorders")}
-              className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-slate-800 transition-all active:scale-[0.98]"
+              className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-slate-800 transition-all active:scale-[0.98] cursor-pointer"
             >
               View Request
             </button>

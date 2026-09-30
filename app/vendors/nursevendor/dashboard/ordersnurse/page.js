@@ -79,7 +79,7 @@ const UnifiedOrderDetailModal = ({
     const [consumableSearch, setConsumableSearch] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [addedConsumables, setAddedConsumables] = useState([]);
-    const [taxAmount, setTaxAmount] = useState(50); 
+    const [taxAmount, setTaxAmount] = useState(35); 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDeclining, setIsDeclining] = useState(false);
 
@@ -87,7 +87,7 @@ const UnifiedOrderDetailModal = ({
         if (isOpen && order) {
             setServicePrices({});
             setAddedConsumables([]);
-            setTaxAmount(50);
+            setTaxAmount(35);
         }
     }, [isOpen, order]);
 
@@ -115,7 +115,7 @@ const UnifiedOrderDetailModal = ({
         if (val.trim().length > 1) {
             try {
                 const res = await NurseAPI.searchConsumables(val);
-                if (res.success) {
+                if (res?.success) {
                     setSearchResults(res.data || []);
                 }
             } catch (err) {
@@ -153,13 +153,14 @@ const UnifiedOrderDetailModal = ({
     const consumablesTotal = addedConsumables.reduce((acc, curr) => acc + (Number(curr.price) || 0), 0);
     const estimatedTotal = baseServicePriceTotal + consumablesTotal + (Number(taxAmount) || 0);
 
+    // --- PROPOSAL SUBMISSION HANDLER (POST /provider/nurse/prescription/respond) ---
     const handleProposalSubmit = async () => {
         const targetServices = order.services || order.detectedServices || [];
         
         // Validate pricing is assigned for all targeted services
         const missingPricing = targetServices.some(s => !servicePrices[s.title] || Number(servicePrices[s.title]) <= 0);
-        if (missingPricing) {
-            toast.error("Please specify a valid price for all parsed services");
+        if (missingPricing && targetServices.length > 0) {
+            toast.error("Please specify a valid price for all prescribed services");
             return;
         }
 
@@ -167,29 +168,29 @@ const UnifiedOrderDetailModal = ({
             setIsSubmitting(true);
 
             const payload = {
-                requestId: order._id || order.requestId,
+                requestId: order.requestId || order._id,
                 servicesPricing: targetServices.map(s => ({
                     title: s.title,
-                    price: Number(servicePrices[s.title])
+                    price: Number(servicePrices[s.title]) || 0
                 })),
                 consumablesUsed: addedConsumables.map(c => ({
                     name: c.name,
-                    price: Number(c.price)
+                    price: Number(c.price) || 0
                 })),
                 taxAmount: Number(taxAmount) || 0
             };
 
             const res = await NurseAPI.submitPrescriptionProposal(payload);
-            if (res.success) {
-                toast.success("Proposal submitted successfully!");
+            if (res && res.success) {
+                toast.success(res.message || "Proposal bill submitted successfully to patient.");
                 onRefresh();
                 onClose();
             } else {
-                toast.error(res.message || "Failed to submit proposal");
+                toast.error(res?.message || "Failed to submit proposal");
             }
         } catch (error) {
             console.error("Proposal submission error:", error);
-            toast.error("Internal service error during proposal submission");
+            toast.error(error?.response?.data?.message || "Internal service error during proposal submission");
         } finally {
             setIsSubmitting(false);
         }
@@ -198,18 +199,18 @@ const UnifiedOrderDetailModal = ({
     const handleDeclineRequest = async () => {
         try {
             setIsDeclining(true);
-            const payload = { requestId: order._id || order.requestId };
+            const payload = { requestId: order.requestId || order._id };
             const res = await NurseAPI.declinePrescriptionRequest(payload);
-            if (res.success) {
-                toast.success("Request declined successfully");
+            if (res && res.success) {
+                toast.success(res.message || "Request declined successfully");
                 onRefresh();
                 onClose();
             } else {
-                toast.error(res.message || "Failed to decline request");
+                toast.error(res?.message || "Failed to decline request");
             }
         } catch (error) {
             console.error("Decline error:", error);
-            toast.error("Internal service error during action processing");
+            toast.error(error?.response?.data?.message || "Internal service error during action processing");
         } finally {
             setIsDeclining(false);
         }
@@ -378,7 +379,7 @@ const UnifiedOrderDetailModal = ({
                                             <FaSearch className="text-gray-400 mr-2" />
                                             <input 
                                                 type="text" 
-                                                placeholder="Search consumables (e.g. Cotton, Gloves)"
+                                                placeholder="Search consumables (e.g. Cotton, Sterile Gauze, Gloves)"
                                                 className="w-full py-2 focus:outline-none text-sm bg-transparent"
                                                 value={consumableSearch}
                                                 onChange={handleConsumableSearch}
@@ -846,10 +847,12 @@ export default function NurseOrdersPage() {
             
             const response = await NurseAPI.assignStaffToBooking(payload);
             
-            if (response) {
-                toast.success("Staff Assigned Successfully!");
+            if (response && response.success) {
+                toast.success(response.message || "Staff Assigned Successfully!");
                 setIsAssignModalOpen(false);
                 loadData(); 
+            } else {
+                toast.error(response?.message || "Failed to assign staff");
             }
         } catch (error) {
             console.error("Assignment failed:", error);
@@ -1241,7 +1244,7 @@ export default function NurseOrdersPage() {
                 </div>
             )}
 
-            {/* Custom CSS for hiding scrollbar but keeping functionality */}
+            {/* Custom CSS for scrollbar */}
             <style jsx global>{`
                 .custom-scrollbar::-webkit-scrollbar {
                     width: 6px;
