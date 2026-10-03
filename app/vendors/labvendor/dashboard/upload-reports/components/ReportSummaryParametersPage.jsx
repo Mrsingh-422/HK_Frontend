@@ -1,6 +1,6 @@
 'use client'
 import React from 'react'
-import { FaCheckCircle, FaFlask } from 'react-icons/fa'
+import { FaCheckCircle, FaFlask, FaVial } from 'react-icons/fa'
 import { useAuth } from '@/app/context/AuthContext'
 
 export default function ReportSummaryParametersPage({ 
@@ -10,13 +10,21 @@ export default function ReportSummaryParametersPage({
 }) {
   const { labVendor } = useAuth() || {};
 
-  // Resolve dynamic Lab Name from auth or order data
   const resolvedLabName = labVendor?.labName || order?.labId?.name || order?.labName || "HK Clinic";
-
-  // Flat array of all parameters parsed dynamically from API test results
   const tests = testResultsData || order.testResults || [];
 
-  // Range evaluation logic
+  // Dynamic test name calculation
+  const getDisplayTestName = () => {
+    const directTests = order.items?.tests?.map(t => t.name) || [];
+    const packageTests = order.items?.packages?.map(p => p.name || p.packageName) || [];
+    const allNames = [...directTests, ...packageTests];
+    if (allNames.length > 0) return allNames.join(', ');
+    if (tests.length > 0) return tests.map(t => t.testName).join(', ');
+    return "Diagnostic Investigation";
+  };
+
+  const resolvedTestName = getDisplayTestName();
+
   const evaluateRange = (value, min, max) => {
     if (!value || isNaN(value)) return 'normal';
     const val = parseFloat(value);
@@ -27,12 +35,12 @@ export default function ReportSummaryParametersPage({
     return 'normal';
   };
 
-  // Compile all parameters dynamically from API
   const compiledParameters = [];
   tests.forEach(test => {
     test.parameters?.forEach(p => {
       const status = evaluateRange(p.value, p.minRef, p.maxRef);
       compiledParameters.push({
+        testCategoryName: test.testName || 'Investigation Assays',
         name: p.name || 'Unnamed Parameter',
         value: `${p.value ?? 'N/A'} ${p.unit || ''}`,
         status: status
@@ -40,12 +48,10 @@ export default function ReportSummaryParametersPage({
     });
   });
 
-  // Calculate dynamic health score purely from the raw database numbers
   const totalCount = compiledParameters.length;
   const normalCount = compiledParameters.filter(p => p.status === 'normal').length;
   const healthScore = totalCount > 0 ? Math.round((normalCount / totalCount) * 100) : 100;
 
-  // Format dynamic dates
   const bookingId = order?.bookingId || "N/A";
   const displayDate = order?.appointmentDate 
     ? formatDate(order.appointmentDate) 
@@ -54,7 +60,7 @@ export default function ReportSummaryParametersPage({
   function formatDate(dateStr) {
     try {
       const date = new Date(dateStr);
-      if (isNaN(date)) return "";
+      if (isNaN(date.getTime())) return "";
       const day = String(date.getDate()).padStart(2, '0');
       const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
       return `${day}/${months[date.getMonth()]}/${date.getFullYear()}`;
@@ -63,7 +69,6 @@ export default function ReportSummaryParametersPage({
     }
   }
 
-  // To fit precisely within A4 height limit, we render up to 8 top parameters on this summary page
   const visibleParameters = compiledParameters.slice(0, 8);
 
   return (
@@ -72,17 +77,13 @@ export default function ReportSummaryParametersPage({
       
       {/* Top Banner Wrapper */}
       <div className="flex flex-col">
-        {/* ========================================= */}
-        {/* 🟢 TOP BANNER                             */}
-        {/* ========================================= */}
-        <div className="bg-[#00a859] px-10 py-5 flex justify-between items-center text-white shrink-0 rounded-2xl shadow-xs">
-          {/* Left Side: Brand Logo */}
+        <div className="bg-[#00a859] px-10 py-4 flex justify-between items-center text-white shrink-0 rounded-2xl shadow-xs">
           <div className="flex items-center gap-3">
             <div className="bg-white px-3 py-1.5 rounded-xl shrink-0 flex items-center justify-center">
               <img 
                 src="/logo.png" 
                 alt="Health Kangaroo Logo" 
-                className="h-10 w-auto object-contain" 
+                className="h-9 w-auto object-contain" 
               />
             </div>
             <div>
@@ -91,65 +92,60 @@ export default function ReportSummaryParametersPage({
             </div>
           </div>
 
-          {/* Right Side: Smart Report Badge */}
           <div className="border border-white/60 bg-white/10 px-4 py-1.5 rounded-lg text-xs font-black tracking-wide uppercase shrink-0">
             Smart Report 3.0
           </div>
         </div>
       </div>
 
-      {/* ========================================= */}
-      {/* 📄 WELCOME & CIRCULAR HEALTH SCORE CARD    */}
-      {/* ========================================= */}
-      <div className="grid grid-cols-12 gap-6 items-center my-6 shrink-0 px-4">
-        
-        {/* Hello Text Area */}
-        <div className="col-span-8 space-y-3">
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-none">Hello {patientName},</h2>
-          <p className="text-sm text-slate-600 leading-relaxed font-bold">
-            We have processed your diagnostic samples for <span className="text-[#00a859] font-black">{resolvedLabName}</span>. Below is your dynamic body ecosystem health score card:
+      {/* Test Name & Hello Bar */}
+      <div className="grid grid-cols-12 gap-6 items-center my-4 shrink-0 px-4">
+        <div className="col-span-8 space-y-2">
+          <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg text-emerald-800 text-[10px] font-black uppercase tracking-wider">
+            <FaVial /> {resolvedTestName}
+          </div>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight leading-none">Hello {patientName},</h2>
+          <p className="text-xs text-slate-600 leading-relaxed font-bold">
+            We have processed your diagnostic samples for <span className="text-[#00a859] font-black">{resolvedLabName}</span>. Below is your parameter breakdown:
           </p>
         </div>
 
-        {/* Circular Gauge Area */}
+        {/* Circular Health Score */}
         <div className="col-span-4 flex justify-end">
-          <div className="w-40 h-40 bg-[#00a859] rounded-full flex flex-col items-center justify-center text-white shadow-lg shadow-emerald-100">
-            <span className="text-4xl font-black leading-none">{healthScore}</span>
-            <span className="text-[10px] font-black uppercase tracking-wider opacity-90 mt-2">Score / 100</span>
+          <div className="w-32 h-32 min-w-[128px] min-h-[128px] bg-[#00a859] rounded-full flex flex-col items-center justify-center text-white shadow-lg shadow-emerald-100">
+            <span className="text-3xl font-black leading-none">{healthScore}</span>
+            <span className="text-[9px] font-black uppercase tracking-wider opacity-90 mt-1">Score / 100</span>
           </div>
         </div>
-
       </div>
 
-      {/* ========================================= */}
-      {/* 📊 KEY PARAMETERS STATUS TABLE SECTION     */}
-      {/* ========================================= */}
-      <div className="flex-grow flex flex-col justify-center px-4 py-4 space-y-4">
+      {/* Key Parameters Status Table */}
+      <div className="flex-grow flex flex-col justify-center px-4 py-2 space-y-3">
         <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-          <h3 className="text-xl font-black text-slate-800 tracking-tight">Key Parameters Status</h3>
+          <h3 className="text-lg font-black text-slate-800 tracking-tight">Key Parameters Summary</h3>
           <span className="text-[10px] text-slate-400 font-bold">Booking ID: {bookingId} {displayDate && `• Date: ${displayDate}`}</span>
         </div>
         
-        <div className="space-y-3.5">
+        <div className="space-y-2.5">
           {visibleParameters.length > 0 ? (
             visibleParameters.map((param, index) => {
               const isNormal = param.status === 'normal';
               return (
                 <div 
                   key={index} 
-                  className="flex items-center justify-between p-4 rounded-xl bg-slate-50/70 border border-slate-100 shadow-xs hover:bg-slate-50 transition-colors animate-fade-in"
+                  className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50/70 border border-slate-100 shadow-xs hover:bg-slate-50 transition-colors animate-fade-in"
                 >
-                  {/* Parameter Name */}
-                  <span className="text-sm font-black text-slate-700 w-1/2">{param.name}</span>
+                  <div className="w-1/2">
+                    <span className="text-xs font-black text-slate-800 block">{param.name}</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">{param.testCategoryName}</span>
+                  </div>
                   
-                  {/* Measured Value */}
-                  <span className="text-sm font-black text-slate-800 w-1/4 text-center">{param.value}</span>
+                  <span className="text-xs font-black text-slate-800 w-1/4 text-center">{param.value}</span>
                   
-                  {/* Health Status Indicator */}
                   <div className="flex items-center justify-end gap-2 w-1/4 shrink-0">
                     <span className={`w-2.5 h-2.5 rounded-full ${isNormal ? 'bg-emerald-500' : 'bg-red-500 animate-pulse'}`}></span>
-                    <span className={`text-xs font-black uppercase tracking-tight ${isNormal ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {isNormal ? 'Everything looks good' : 'Concern'}
+                    <span className={`text-[11px] font-black uppercase tracking-tight ${isNormal ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {isNormal ? 'Normal' : 'Attention'}
                     </span>
                   </div>
                 </div>
@@ -164,16 +160,13 @@ export default function ReportSummaryParametersPage({
         </div>
       </div>
 
-      {/* ========================================= */}
-      {/* 🟢 SOLID PRIORITY BANNER FOOTER            */}
-      {/* ========================================= */}
-      <div className="bg-[#007a3e] px-8 py-4 rounded-2xl flex justify-between items-center text-white text-[10px] font-black uppercase tracking-wider shrink-0 mt-4 border border-emerald-800">
+      {/* Footer Banner */}
+      <div className="bg-[#007a3e] px-8 py-3.5 rounded-2xl flex justify-between items-center text-white text-[10px] font-black uppercase tracking-wider shrink-0 mt-3 border border-emerald-800">
         <div className="flex items-center gap-2">
           <FaCheckCircle className="text-emerald-300" size={14} />
           <span>Your Health is our priority. Stay consistent with regular checkups.</span>
         </div>
         
-        {/* Heart Beat pulse footer decoration */}
         <div className="flex items-center gap-1 opacity-80 shrink-0">
           <svg width="60" height="14" viewBox="0 0 60 14" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-emerald-300">
             <path d="M1 7H15L19 1L24 13L29 5L32 7H59" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>

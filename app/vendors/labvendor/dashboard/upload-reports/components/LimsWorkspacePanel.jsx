@@ -4,7 +4,7 @@ import {
   FaTimes, FaBookOpen, FaFileMedical, FaCloudUploadAlt, FaSpinner, 
   FaSearch, FaPlus, FaTrashAlt, FaSave, FaCheck, FaExclamationTriangle,
   FaUser, FaCheckSquare, FaFilePdf, FaFlask, FaLock, FaMapMarkerAlt,
-  FaEye, FaArrowLeft, FaRegClock, FaUpload
+  FaEye, FaArrowLeft, FaRegClock, FaUpload, FaVenusMars, FaLayerGroup
 } from 'react-icons/fa'
 import { toast, Toaster } from 'react-hot-toast'
 import LabVendorAPI from '@/app/services/LabVendorAPI';
@@ -99,37 +99,55 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
     try {
       // Step 1: Check for existing draft report
       const draftRes = await LabVendorAPI.getDraftReport(targetOrder._id, patientId);
-      if (draftRes && draftRes.success && draftRes.data) {
+      if (draftRes && draftRes.success && draftRes.data && draftRes.data.length > 0) {
         setTestValues(draftRes.data);
         setNotification({ type: 'success', message: 'Existing draft report loaded successfully.' });
         setLoadingLims(false);
         return;
       }
 
-      // Step 2: Fallback to Fuzzy Auto-Resolver based on booking parameters
-      const resolveRes = await LabVendorAPI.getBookingTemplates(targetOrder._id);
+      // Step 2: Query booking templates with orderId AND patientId for department/category specific structures
+      const resolveRes = await LabVendorAPI.getBookingTemplates(targetOrder._id, patientId);
       if (resolveRes && resolveRes.success && resolveRes.data) {
-        // Map resolved templates into active work structures
+        const detectedGender = resolveRes.detectedPatientGender || '';
+        
+        // Map templates including mainCategory, department, category, and sampleType
         const structuredData = Object.keys(resolveRes.data).map((key) => {
           const item = resolveRes.data[key];
+          const mainCategory = item.mainCategory || 'Biochemistry';
+          const department = item.department || `Department of ${mainCategory}`;
+
           return {
             testName: key,
+            mainCategory: mainCategory,
+            department: department,
+            category: item.category || 'General',
+            sampleType: item.sampleType || 'Serum',
+            genderApplied: item.genderApplied || detectedGender,
             interpretation: item.interpretation || '',
             parameters: item.parameters ? item.parameters.map(p => ({
+              _id: p._id || '',
               name: p.name || '',
               value: '',
               unit: p.unit || '',
               minRef: p.minRef || '',
               maxRef: p.maxRef || '',
+              type: p.type || 'numeric',
               method: p.method || '',
-              machine: p.machine || ''
+              machine: p.machine || '',
+              gender: p.gender || item.genderApplied || detectedGender || ''
             })) : []
           };
         });
 
         if (structuredData.length > 0) {
           setTestValues(structuredData);
-          setNotification({ type: 'info', message: 'Templates automatically matched for this patient.' });
+          setNotification({ 
+            type: 'info', 
+            message: `Templates auto-loaded${detectedGender ? ` for gender: ${detectedGender}` : ''}.` 
+          });
+        } else {
+          setNotification({ type: 'warning', message: 'No template configuration matched. You can search templates manually.' });
         }
       }
     } catch (err) {
@@ -140,36 +158,49 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
     }
   };
 
-  const handleAddTemplateToWorkspace = async (testName) => {
+  const handleAddTemplateToWorkspace = async (testItem) => {
+    const testName = typeof testItem === 'string' ? testItem : testItem.testName;
+    const testGender = typeof testItem === 'object' ? testItem.gender : undefined;
+
     try {
       const response = await LabVendorAPI.getTemplateParameters(testName);
       if (response && response.success && response.data) {
         const resolvedList = response.data[testName];
         
-        // Prevent duplicate panels
         if (testValues.some(item => item.testName === testName)) {
-          setNotification({ type: 'warning', message: 'Template is already present in workspace.' });
+          setNotification({ type: 'warning', message: `"${testName}" is already present in workspace.` });
           return;
         }
 
+        const mainCategory = testItem.mainCategory || 'Biochemistry';
+        const department = testItem.department || `Department of ${mainCategory}`;
+
         const newTestEntry = {
           testName: testName,
+          mainCategory: mainCategory,
+          department: department,
+          category: testItem.category || 'General',
+          sampleType: testItem.sampleType || 'Serum',
+          genderApplied: testGender || '',
           interpretation: resolvedList && resolvedList[0] ? resolvedList[0].interpretation : '',
           parameters: resolvedList ? resolvedList.map(p => ({
+            _id: p._id || '',
             name: p.name || '',
             value: '',
             unit: p.unit || '',
             minRef: p.minRef || '',
             maxRef: p.maxRef || '',
+            type: p.type || 'numeric',
             method: p.method || '',
-            machine: p.machine || ''
+            machine: p.machine || '',
+            gender: p.gender || testGender || ''
           })) : []
         };
 
         setTestValues(prev => [...prev, newTestEntry]);
         setSearchTerm('');
         setDropdownTemplates([]);
-        setNotification({ type: 'success', message: `Added ${testName} to current template layout.` });
+        setNotification({ type: 'success', message: `Added "${testName}" to current template layout.` });
       }
     } catch (err) {
       console.error(err);
@@ -215,7 +246,6 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
     }
   };
 
-  // Robust Isolated Iframe Physical Printing Handler
   const handlePrint = () => {
     const printContent = document.getElementById('lims-a4-preview-root');
     if (!printContent) {
@@ -266,8 +296,7 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
                 }
 
                 .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-slate-500, .text-slate-400, .text-slate-300,
-                .text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600, .text-gray-500, .text-gray-400,
-                .text-\\[\\#0e1e38\\], .text-\\[\\#1e3a8a\\], .text-slate-600 {
+                .text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600, .text-gray-500, .text-gray-400 {
                   color: #1e293b !important;
                 }
                 
@@ -314,18 +343,6 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
     }
   };
 
-  // =========================================================================
-  // 📥 CLIENT-SIDE COMPILATION & PDF UPLOADER (OPTIMIZED FOR VISUAL ALIGNMENT)
-  // =========================================================================
-  // Uses html2canvas-pro (not html2pdf.js / stock html2canvas) because it
-  // natively understands modern CSS color functions (lab, oklch, oklab,
-  // color-mix) that Tailwind's compiled CSS can emit. The old stock
-  // html2canvas parser throws on those and aborts the whole export.
-  //
-  // Each A4 page div (#lims-a4-preview-root > *) is rendered to its own
-  // canvas and added as its own PDF page, since the pages already have a
-  // fixed 210mm x 297mm layout — this avoids error-prone height-slicing of
-  // one giant stitched image.
   const triggerClientPdfCompilation = async () => {
     setPdfCompiling(true);
     toast.loading("Compiling dynamic A4 pages to high-resolution PDF...", { id: "pdf" });
@@ -359,7 +376,7 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
           scale: 2.5,
           useCORS: true,
           backgroundColor: '#ffffff',
-          windowWidth: 794, // standard A4 width @96dpi, locks visual aspect ratio
+          windowWidth: 794,
           onclone: (clonedDoc, clonedEl) => {
             clonedEl.style.width = '210mm';
             clonedEl.style.height = '297mm';
@@ -453,7 +470,14 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
   const formatAddress = () => {
     if (order.collectionType === 'Visit Lab') return 'Visit Lab (In-house Collection)';
     if (!order.address) return 'Home Collection (Details Missing)';
-    return `${order.address.houseNo || ''}, Sector ${order.address.sector || ''}, ${order.address.city || ''}`;
+    if (typeof order.address === 'string') return order.address;
+    return [
+      order.address.houseNo,
+      order.address.sector ? `Sector ${order.address.sector}` : '',
+      order.address.city,
+      order.address.state,
+      order.address.pincode
+    ].filter(Boolean).join(', ');
   };
 
   if (!order) return null;
@@ -472,9 +496,18 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
     return totalParams > 0 ? Math.round((normalParams / totalParams) * 100) : 92;
   };
 
-  // Enriched order object containing dynamic labProfile attributes loaded directly from the database API
+  const formattedAddressString = formatAddress();
+
   const enrichedOrder = {
     ...order,
+    addressString: formattedAddressString,
+    formattedAddress: formattedAddressString,
+    address: typeof order.address === 'object' && order.address !== null
+      ? {
+          ...order.address,
+          toString: () => formattedAddressString
+        }
+      : formattedAddressString,
     labId: {
       ...order?.labId,
       name: labProfile?.name || order?.labId?.name || order?.labName,
@@ -488,10 +521,8 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6 print-root">
-      {/* Click-outside backdrop closer */}
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm no-print" onClick={onClose}></div>
 
-      {/* Centered Modern Modal Wrapper */}
       <div className="relative bg-slate-50 w-full max-w-6xl h-[90vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-200 print-modal-wrapper">
         
         {/* Header bar */}
@@ -534,6 +565,11 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
                 >
                   <FaUser size={10} className={isActive ? 'text-[#08B36A]' : 'text-slate-400'} />
                   <span>{pat.name || pat.patientName || 'Family Member'}</span>
+                  {pat.gender && (
+                    <span className={`text-[10px] font-normal px-1.5 py-0.2 rounded ${isActive ? 'bg-blue-800 text-blue-100' : 'bg-slate-100 text-slate-500'}`}>
+                      {pat.gender}
+                    </span>
+                  )}
                   {isActive && <FaCheckSquare size={10} className="text-white" />}
                 </button>
               );
@@ -565,10 +601,9 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
           </button>
         </div>
 
-        {/* Split Screen Workspace Panel layout */}
+        {/* Workspace Panel */}
         <div className="flex-1 flex overflow-hidden">
           
-          {/* Main Workspace Scrolling area (Left / Center) */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6 print-scroll-wrapper no-scrollbar">
             {notification.message && (
               <div className={`p-4 rounded-2xl border flex items-start gap-3 no-print animate-fade-in ${
@@ -596,7 +631,7 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
                     </div>
                     <input 
                       type="text"
-                      placeholder="Search Templates (e.g. Kidney, CBC, Liver Panel)..."
+                      placeholder="Search Templates (e.g. Potassium, CBC, Kidney Panel)..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 hover:bg-slate-100/50 focus:bg-white rounded-2xl border border-slate-200 text-xs focus:ring-2 focus:ring-[#08B36A]/20 focus:outline-none transition-all font-bold text-slate-700"
@@ -608,10 +643,24 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
                       {dropdownTemplates.map((item) => (
                         <div 
                           key={item._id}
-                          onClick={() => handleAddTemplateToWorkspace(item.testName)}
+                          onClick={() => handleAddTemplateToWorkspace(item)}
                           className="p-3.5 hover:bg-green-50/50 cursor-pointer flex justify-between items-center transition-colors"
                         >
-                          <span className="text-xs font-black text-slate-800">{item.testName}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black text-slate-800">
+                              {item.displayName || item.testName}
+                            </span>
+                            {item.mainCategory && (
+                              <span className="text-[9px] bg-emerald-50 text-[#08B36A] font-bold px-2 py-0.5 rounded-full border border-emerald-100">
+                                {item.mainCategory}
+                              </span>
+                            )}
+                            {item.gender && (
+                              <span className="text-[10px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <FaVenusMars size={9} /> {item.gender}
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[10px] font-black text-[#08B36A] bg-green-50 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5">
                             <FaPlus /> ADD TO LAYOUT
                           </span>
@@ -643,15 +692,32 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
                     {testValues.map((test, tIdx) => (
                       <div key={tIdx} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                         <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-                          <div>
-                            <h3 className="text-xs font-black text-[#1e3a8a] tracking-wider uppercase">{test.testName}</h3>
-                            <p className="text-[9px] text-slate-400 font-extrabold mt-0.5 uppercase tracking-wider">Parameters Configured: {test.parameters.length}</p>
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <div>
+                              <h3 className="text-xs font-black text-[#1e3a8a] tracking-wider uppercase">{test.testName}</h3>
+                              <p className="text-[9px] text-slate-400 font-extrabold mt-0.5 uppercase tracking-wider">Parameters: {test.parameters.length}</p>
+                            </div>
+
+                            {/* Department / Category Badges */}
+                            <span className="text-[9px] bg-emerald-50 text-emerald-800 font-bold uppercase px-2.5 py-0.5 rounded-full border border-emerald-200">
+                              {test.department || `Department of ${test.mainCategory || 'Biochemistry'}`}
+                            </span>
+                            {test.category && (
+                              <span className="text-[9px] bg-slate-200/70 text-slate-700 font-bold uppercase px-2 py-0.5 rounded-full">
+                                {test.category}
+                              </span>
+                            )}
+                            {test.genderApplied && (
+                              <span className="text-[9px] bg-blue-50 text-blue-700 font-bold uppercase px-2 py-0.5 rounded-full border border-blue-100">
+                                Gender: {test.genderApplied}
+                              </span>
+                            )}
                           </div>
                           <button 
                             onClick={() => handleRemoveTestBlock(tIdx)}
-                            className="text-[10px] font-black text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-xl flex items-center gap-1.5 border border-red-100 transition-colors no-print uppercase tracking-wider"
+                            className="text-[10px] font-black text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-xl flex items-center gap-1.5 border border-red-100 transition-colors no-print uppercase tracking-wider shrink-0"
                           >
-                            <FaTrashAlt size={10} /> Delete Test
+                            <FaTrashAlt size={10} /> Delete
                           </button>
                         </div>
 
@@ -728,7 +794,7 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
 
               </div>
             ) : (
-              /* Tab B: Legacy Direct File Attachments */
+              /* Tab B: Direct File Upload */
               <div className="space-y-6">
                 <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-4">
                   <div className="space-y-1">
@@ -758,13 +824,12 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
             )}
           </div>
 
-          {/* Clinical Reference Sidebar Panel (Right) */}
+          {/* Clinical Reference Sidebar Panel */}
           <div className="w-80 bg-white border-l border-slate-100 overflow-y-auto p-6 hidden lg:block space-y-6 no-print">
             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pb-3 border-b border-slate-100 flex items-center gap-2">
               <FaUser /> Diagnostic Target context
             </h3>
             
-            {/* Active Patient summary */}
             {currentPatient && (
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs space-y-3 font-sans">
                 <div>
@@ -781,7 +846,9 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
                 {currentPatient.gender && (
                   <div>
                     <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Biological Sex</p>
-                    <p className="font-extrabold text-slate-800 mt-0.5">{currentPatient.gender}</p>
+                    <p className="font-extrabold text-slate-800 mt-0.5 flex items-center gap-1.5">
+                      <FaVenusMars className="text-blue-500" size={11} /> {currentPatient.gender}
+                    </p>
                   </div>
                 )}
                 {currentPatient.relation && (
@@ -812,7 +879,7 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
               <div>
                 <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Address context</p>
                 <p className="font-semibold text-slate-600 mt-1 leading-relaxed flex items-start gap-1">
-                  <FaMapMarkerAlt className="text-slate-400 text-xs mt-0.5" /> {formatAddress()}
+                  <FaMapMarkerAlt className="text-slate-400 text-xs mt-0.5 shrink-0" /> {formattedAddressString}
                 </p>
               </div>
             </div>
@@ -829,7 +896,7 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
 
         </div>
 
-        {/* Bottom Footer bar actions */}
+        {/* Footer actions */}
         <div className="p-5 bg-white border-t border-slate-100 flex justify-between items-center flex-shrink-0 no-print">
           <button 
             onClick={onClose} 
@@ -870,29 +937,24 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
 
       </div>
 
-      {/* ========================================================================= */}
-      {/* 📄 HIGH-FIDELITY PRINT-READY A4 PREVIEW OVERLAY                           */}
-      {/* ========================================================================= */}
+      {/* A4 Preview Overlay */}
       {isPreviewOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto no-print">
           <div className="relative bg-slate-100 w-full max-w-[850px] h-[90vh] rounded-[2rem] shadow-2xl flex flex-col justify-between overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             
-            {/* Toolbar */}
             <div className="p-6 bg-white border-b border-slate-100 flex justify-between items-center shrink-0">
               <div>
                 <h3 className="text-base font-black text-slate-800">Print Preview (A4 Page Sheets)</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Review generated pages. When finalized, click "Confirm & Upload".</p>
+                <p className="text-xs text-slate-400 mt-0.5">Review generated pages with department badges and categories.</p>
               </div>
               <button onClick={() => setIsPreviewOpen(false)} className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
                 <FaTimes size={16} />
               </button>
             </div>
 
-            {/* Document preview container */}
             <div className="flex-grow overflow-y-auto p-8 space-y-12 custom-scrollbar no-scrollbar">
               <div id="lims-a4-preview-root" className="space-y-12">
                 
-                {/* Page 1: Cover Page */}
                 <ReportCoverPage 
                   order={enrichedOrder}
                   patientName={currentPatient?.name || currentPatient?.patientName}
@@ -901,7 +963,6 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
                   labName={labProfile?.name || order?.labName}
                 />
 
-                {/* Page 2: Summary Page */}
                 <ReportSummaryParametersPage 
                   order={enrichedOrder}
                   patientName={currentPatient?.name || currentPatient?.patientName}
@@ -909,7 +970,6 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
                   testResultsData={testValues}
                 />
 
-                {/* Page 3: Assay Results Page */}
                 <ReportDetailedAssaysPage 
                   order={enrichedOrder}
                   patientName={currentPatient?.name || currentPatient?.patientName}
@@ -919,13 +979,11 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
                   evaluateRange={checkValueRange}
                 />
 
-                {/* Page 4: Promo Page */}
                 <ReportAppPromoPage order={enrichedOrder} />
 
               </div>
             </div>
 
-            {/* Footer actions */}
             <div className="p-6 bg-white border-t border-slate-100 flex justify-between items-center shrink-0">
               <button 
                 onClick={() => setIsPreviewOpen(false)}
@@ -935,7 +993,6 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
               </button>
 
               <div className="flex items-center gap-2">
-                {/* Direct Print Document Trigger */}
                 <button 
                   onClick={handlePrint}
                   className="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-sm"
@@ -965,7 +1022,7 @@ export default function LimsWorkspacePanel({ order, onClose, onSuccess }) {
         </div>
       )}
 
-      {/* Global Fallback Print Sheet styles */}
+      {/* Print Styles */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
             @page {

@@ -14,7 +14,6 @@ import UserAPI from "@/app/services/UserAPI";
 
 // Premium Static Image for Nursing
 const STATIC_NURSE_IMAGE = "https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=2070&auto=format&fit=crop";
-// const BASE_URL = "http://192.168.1.26:5002/";
 const BASE_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}/`;
 
 function FindMyNurse() {
@@ -53,16 +52,16 @@ function FindMyNurse() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 sm:mb-16 gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="w-8 h-[2px] bg-teal-500 rounded-full"></span>
-              <span className="text-teal-600 font-black text-[10px] uppercase tracking-widest">Verified Professionals</span>
+              <span className="w-8 h-[2px] bg-[#08B36A] rounded-full"></span>
+              <span className="text-[#08B36A] font-black text-[10px] uppercase tracking-widest">Verified Professionals</span>
             </div>
             <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight">
-              Expert Care <span className="text-teal-500">Specialists</span>
+              Expert Care <span className="text-[#08B36A]">Specialists</span>
             </h2>
           </div>
           <button 
             onClick={() => router.push("/nursingservice/seeallnurses")} 
-            className="flex items-center gap-3 font-black text-slate-900 hover:text-teal-600 transition-all text-xs sm:text-base group"
+            className="flex items-center gap-3 font-black text-slate-900 hover:text-[#08B36A] transition-all text-xs sm:text-base group"
           >
             Explore Directory
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-slate-900 flex items-center justify-center group-hover:bg-slate-900 group-hover:text-white transition-all">
@@ -84,7 +83,7 @@ function FindMyNurse() {
               <div
                 key={nurse._id}
                 onClick={() => handleBooking(nurse._id)}
-                className="group relative bg-white rounded-[2rem] sm:rounded-[3rem] p-3 sm:p-5 border border-slate-50 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.05)] hover:shadow-[0_30px_60px_-20px_rgba(20,184,166,0.15)] transition-all duration-500 cursor-pointer flex flex-col hover:-translate-y-2"
+                className="group relative bg-white rounded-[2rem] sm:rounded-[3rem] p-3 sm:p-5 border border-slate-200/80 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.05)] hover:shadow-[0_30px_60px_-20px_rgba(8,179,106,0.18)] hover:border-[#08B36A]/40 transition-all duration-500 cursor-pointer flex flex-col hover:-translate-y-2"
               >
                 {/* Image Section */}
                 <div className="relative aspect-[4/5] sm:aspect-square rounded-[1.5rem] sm:rounded-[2.2rem] overflow-hidden bg-slate-100 mb-4">
@@ -98,7 +97,7 @@ function FindMyNurse() {
                   {/* Experience Badge */}
                   <div className="absolute top-2 left-2 sm:top-4 sm:left-4">
                     <div className="bg-white/90 backdrop-blur-md px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl shadow-sm flex items-center gap-1 sm:gap-2">
-                      <FaAward className="text-teal-500 text-[10px] sm:text-xs" />
+                      <FaAward className="text-[#08B36A] text-[10px] sm:text-xs" />
                       <span className="font-black text-[8px] sm:text-[10px] text-slate-800 uppercase tracking-tighter">
                         {nurse.experienceYears} Yrs Exp
                       </span>
@@ -117,17 +116,17 @@ function FindMyNurse() {
                 {/* Content Section */}
                 <div className="flex flex-col flex-1 px-1 sm:px-2">
                   <div className="flex items-center gap-1.5 mb-1">
-                    <FaMapMarkerAlt className="text-teal-500 text-[8px] sm:text-[10px]" />
+                    <FaMapMarkerAlt className="text-[#08B36A] text-[8px] sm:text-[10px]" />
                     <span className="text-[8px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest">{nurse.city}</span>
                   </div>
 
-                  <h3 className="text-sm sm:text-xl font-black text-slate-900 leading-tight mb-2 sm:mb-3 group-hover:text-teal-600 transition-colors line-clamp-1">
+                  <h3 className="text-sm sm:text-xl font-black text-slate-900 leading-tight mb-2 sm:mb-3 group-hover:text-[#08B36A] transition-colors line-clamp-1">
                     {nurse.name}
                   </h3>
 
                   <div className="flex flex-wrap gap-1 mb-4">
                     {nurse.topServices?.map((service, idx) => (
-                      <span key={idx} className="bg-teal-50 text-teal-700 text-[7px] sm:text-[9px] font-black px-2 py-0.5 rounded-md uppercase border border-teal-100">
+                      <span key={idx} className="bg-emerald-50 text-emerald-800 text-[7px] sm:text-[9px] font-black px-2 py-0.5 rounded-md uppercase border border-emerald-100">
                         {service}
                       </span>
                     ))}
@@ -141,7 +140,7 @@ function FindMyNurse() {
                         ₹{nurse.startingPrice}
                       </p>
                     </div>
-                    <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-teal-500 text-white flex items-center justify-center shadow-lg shadow-teal-100 group-hover:bg-slate-900 transition-all">
+                    <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#08B36A] text-white flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:bg-slate-900 transition-all">
                       <FaArrowRight className="text-[10px] sm:text-sm" />
                     </div>
                   </div>
@@ -149,7 +148,7 @@ function FindMyNurse() {
 
                 {/* Verified Icon Badge */}
                 <div className="absolute -top-2 -right-2 bg-white rounded-full p-1 shadow-md border border-slate-50">
-                  <FaCheckCircle className="text-teal-500 text-sm sm:text-xl" />
+                  <FaCheckCircle className="text-[#08B36A] text-sm sm:text-xl" />
                 </div>
               </div>
             ))}

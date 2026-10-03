@@ -369,12 +369,7 @@ const LabVendorAPI = {
   // ==========================================
     // SMART LIMS REPORT & TEMPLATE API (UPDATED)
     // ==========================================
-    getDropdownTemplates: async (search = '') => {
-        const response = await labVendorApi.get('/provider/labs/report-templates/dropdown', {
-            params: search ? { search } : {}
-        });
-        return response.data;
-    },
+   
 
     getTemplateParameters: async (testNames) => {
         const response = await labVendorApi.get('/provider/labs/report-templates', {
@@ -383,44 +378,51 @@ const LabVendorAPI = {
         return response.data;
     },
 
-    getBookingTemplates: async (orderId) => {
-        const response = await labVendorApi.get(`/provider/labs/report-templates/booking/${orderId}`);
-        return response.data;
-    },
+getBookingTemplates: async (orderId, patientId) => {
+    const response = await labVendorApi.get(`/provider/labs/report-templates/booking/${orderId}`, {
+        params: patientId ? { patientId } : {}
+    });
+    return response.data;
+},
 
-    saveDraftReport: async (orderId, patientId, testValues) => {
-        const response = await labVendorApi.post(`/provider/labs/save-draft/${orderId}`, { 
-            patientId, 
-            testValues 
-        });
-        return response.data;
-    },
+getDropdownTemplates: async (search = '') => {
+    const response = await labVendorApi.get('/provider/labs/report-templates/dropdown', {
+        params: search ? { search } : {}
+    });
+    return response.data;
+},
 
-    getDraftReport: async (orderId, patientId) => {
-        const response = await labVendorApi.get(`/provider/labs/get-draft/${orderId}`, {
-            params: { patientId }
-        });
-        return response.data;
-    },
+getReportData: async (orderId, patientId) => {
+    const response = await labVendorApi.get(`/provider/labs/get-report-data/${orderId}`, {
+        params: patientId ? { patientId } : {}
+    });
+    return response.data;
+},
 
-    getReportData: async (orderId, patientId) => {
-        const response = await labVendorApi.get(`/provider/labs/get-report-data/${orderId}`, {
-            params: { patientId }
-        });
-        return response.data;
-    },
+saveDraftReport: async (orderId, patientId, testValues) => {
+    const response = await labVendorApi.post(`/provider/labs/save-draft/${orderId}`, { 
+        patientId, 
+        testValues 
+    });
+    return response.data;
+},
 
-    uploadClientPdf: async (orderId, formData) => {
-        const response = await labVendorApi.post(`/provider/labs/upload-client-pdf/${orderId}`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        return response.data;
-    },
-
+uploadClientPdf: async (orderId, formData) => {
+    const response = await labVendorApi.post(`/provider/labs/upload-client-pdf/${orderId}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+},
     generateBrandedReport: async (orderId, patientId, testValues) => {
         const response = await labVendorApi.post(`/provider/labs/generate-report/${orderId}`, { 
             patientId, 
             testValues 
+        });
+        return response.data;
+    },
+      getDraftReport: async (orderId, patientId) => {
+        const response = await labVendorApi.get(`/provider/labs/get-draft/${orderId}`, {
+            params: { patientId }
         });
         return response.data;
     },

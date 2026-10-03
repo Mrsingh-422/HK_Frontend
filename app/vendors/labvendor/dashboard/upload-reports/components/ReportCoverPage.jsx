@@ -2,7 +2,7 @@
 import React from 'react'
 import { 
   FaUser, FaCalendarAlt, FaShieldAlt, FaHome, FaLock, 
-  FaCheckCircle, FaFlask, FaUserMd, FaBrain, FaCheck
+  FaCheckCircle, FaFlask, FaUserMd, FaBrain, FaCheck, FaVial
 } from 'react-icons/fa'
 import { useAuth } from '@/app/context/AuthContext'
 
@@ -15,7 +15,6 @@ export default function ReportCoverPage({
 }) {
   const { labVendor } = useAuth() || {};
 
-  // Comprehensive safety resolver for lab metadata across order and auth state nested structures
   const getLabField = (fieldPath) => {
     const sources = [
       order?.labId,
@@ -40,26 +39,35 @@ export default function ReportCoverPage({
     return null;
   };
 
-  const resolvedLabName = getLabField('name') || (labName !== "HK Clinic" ? labName : null);
-  const resolvedNablNumber = getLabField('nablNumber');
+  const resolvedLabName = getLabField('name') || (labName !== "HK Clinic" ? labName : "Health Kangaroo Labs");
+  const resolvedNablNumber = getLabField('nablNumber') || "MC-6666";
 
-  // Safe Date Formatting
   const formattedCollectionDate = order?.appointmentDate 
     ? formatDate(order.appointmentDate) 
     : "31/Mar/2026";
 
-  // Safe Dynamic Mappings
   const bookingId = order?.bookingId || "17568565289";
   const displayAge = patientAge 
     ? (String(patientAge).toLowerCase().includes('yrs') ? patientAge : `${patientAge} Yrs`) 
     : "31 Yrs";
 
-  // =========================================================================
-  // 🔍 QR CODE METADATA GENERATOR (Encodes full patient details)
-  // =========================================================================
+  // Dynamic extraction of test / package names
+  const getDisplayTestName = () => {
+    const directTests = order.items?.tests?.map(t => t.name) || [];
+    const packageTests = order.items?.packages?.map(p => p.name || p.packageName) || [];
+    const allNames = [...directTests, ...packageTests];
+    if (allNames.length > 0) return allNames.join(', ');
+    if (order.testName) return order.testName;
+    if (order.packageName) return order.packageName;
+    return "Comprehensive Diagnostic Panel";
+  };
+
+  const resolvedTestName = getDisplayTestName();
+
   const qrDataText = `Health Kangaroo Smart Report
 ============================
 Booking ID: ${bookingId}
+Test Name: ${resolvedTestName}
 Lab Name: ${resolvedLabName}
 Patient Name: ${patientName}
 Age / Gender: ${patientGender}, ${displayAge}
@@ -68,7 +76,6 @@ Verified Status: Authentic ✅`;
 
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrDataText)}`;
 
-  // Helper to format date safely to DD/MMM/YYYY
   function formatDate(dateStr) {
     try {
       if (!dateStr) return "31/Mar/2026"
@@ -88,15 +95,11 @@ Verified Status: Authentic ✅`;
     /* Strict A4 Page Dimensions (794px x 1123px) */
     <div className="w-[794px] h-[1123px] min-h-[1123px] max-h-[1123px] mx-auto bg-gradient-to-b from-[#f3f9f6] to-white border border-gray-200 rounded-[2rem] shadow-xl overflow-hidden font-sans relative flex flex-col justify-between shrink-0 select-none">
       
-      {/* Top Section Group */}
+      {/* Top Section */}
       <div className="flex flex-col">
         
-        {/* ========================================= */}
-        {/* 🟢 TOP BANNER                             */}
-        {/* ========================================= */}
+        {/* Top Banner */}
         <div className="bg-[#00a859] px-10 py-5 flex justify-between items-center text-white shrink-0">
-          
-          {/* Left Side: Brand Logo */}
           <div className="flex items-center gap-3">
             <div className="bg-white px-3 py-1.5 rounded-xl shrink-0 flex items-center justify-center shadow-xs">
               <img 
@@ -114,27 +117,21 @@ Verified Status: Authentic ✅`;
             </div>
           </div>
 
-          {/* Right Side: Smart Report Badge */}
           <div className="border border-white/60 bg-white/10 px-4 py-1.5 rounded-lg text-xs font-black tracking-wide uppercase shrink-0">
             Smart Report 3.0
           </div>
         </div>
 
-        {/* ========================================= */}
-        {/* 👩‍⚕️ HERO SECTION (DOCTORS & TRUST BADGES)   */}
-        {/* ========================================= */}
-        <div className="px-10 pt-10 pb-4 grid grid-cols-12 gap-4 items-center relative overflow-hidden shrink-0">
+        {/* Hero Section */}
+        <div className="px-10 pt-8 pb-3 grid grid-cols-12 gap-4 items-center relative overflow-hidden shrink-0">
           
-          {/* Left Grid Column (Texts) */}
-          <div className="col-span-6 space-y-5 z-10">
+          <div className="col-span-6 space-y-4 z-10">
             <div>
               <p className="text-2xl font-bold text-[#0e1e38] tracking-tight">India's Trusted</p>
-              <h1 className="text-5xl font-black text-[#00a859] leading-none mt-1">Health Test</h1>
-              {/* Dynamic Lab Name Display */}
-              <h2 className="text-3xl font-black text-slate-800 tracking-tight mt-2">{resolvedLabName}</h2>
+              <h1 className="text-4xl font-black text-[#00a859] leading-none mt-1">Health Test</h1>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight mt-1.5">{resolvedLabName}</h2>
             </div>
 
-            {/* Heartbeat EKG Pulse Line Divider */}
             <div className="flex items-center gap-2 w-full max-w-[220px]">
               <div className="h-[2px] bg-emerald-200 flex-grow"></div>
               <svg width="34" height="16" viewBox="0 0 34 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#00a859] shrink-0">
@@ -143,8 +140,7 @@ Verified Status: Authentic ✅`;
               <div className="h-[2px] bg-emerald-200 flex-grow"></div>
             </div>
 
-            {/* NABL Accredited Badge */}
-            <div className="inline-flex items-center gap-3 bg-white border border-slate-150 px-4 py-2.5 rounded-xl shadow-xs">
+            <div className="inline-flex items-center gap-3 bg-white border border-slate-150 px-4 py-2 rounded-xl shadow-xs">
               <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <circle cx="12" cy="12" r="10" />
@@ -158,8 +154,7 @@ Verified Status: Authentic ✅`;
               </div>
             </div>
 
-            {/* Quick Pillars Row */}
-            <div className="flex items-center gap-4 pt-2">
+            <div className="flex items-center gap-4 pt-1">
               <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
                 <div className="w-6 h-6 rounded-full border border-[#00a859] flex items-center justify-center text-[#00a859] text-[10px] shrink-0"><FaCheck size={8}/></div>
                 Trusted Labs
@@ -175,13 +170,10 @@ Verified Status: Authentic ✅`;
             </div>
           </div>
 
-          {/* Right Grid Column (Smiling Doctors Image frame) */}
           <div className="col-span-6 flex justify-end relative">
-            <div className="relative w-72 h-72 bg-emerald-100/60 rounded-full flex items-center justify-center overflow-hidden border-4 border-white shadow-lg shrink-0">
-              {/* Background dot pattern */}
+            <div className="relative w-64 h-64 bg-emerald-100/60 rounded-full flex items-center justify-center overflow-hidden border-4 border-white shadow-lg shrink-0">
               <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#00a859_1.5px,transparent_1.5px)] [background-size:12px_12px]"></div>
               
-              {/* Restored Doctor Portrait Image */}
               <img 
                 src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=400&auto=format&fit=crop" 
                 alt="Medical Experts" 
@@ -197,14 +189,10 @@ Verified Status: Authentic ✅`;
 
       </div>
 
-      {/* ========================================= */}
-      {/* 📄 COMPREHENSIVE REPORT OVERLAPPING CARD   */}
-      {/* ========================================= */}
-      <div className="px-10 pb-12 flex-grow flex flex-col justify-center">
-        
-        <div className="bg-white rounded-[2rem] border border-slate-100 p-8 shadow-[0_20px_50px_rgba(0,0,0,0.04)] space-y-6">
+      {/* Patient Card Block */}
+      <div className="px-10 pb-8 flex-grow flex flex-col justify-center">
+        <div className="bg-white rounded-[2rem] border border-slate-100 p-7 shadow-[0_20px_50px_rgba(0,0,0,0.04)] space-y-4">
           
-          {/* Row 1: Booking and collection info */}
           <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100/60">
             <div className="w-8 h-8 rounded-full bg-emerald-50 text-[#00a859] flex items-center justify-center shrink-0">
               <FaCalendarAlt size={14} />
@@ -215,40 +203,39 @@ Verified Status: Authentic ✅`;
             </div>
           </div>
 
-          {/* Row 2: Patient Name Block */}
-          <div className="flex items-center gap-4 py-2 border-b border-dashed border-slate-100">
-            <div className="w-16 h-16 bg-[#00a859] text-white rounded-full flex items-center justify-center shadow-md shadow-emerald-100 shrink-0">
-              <FaUser size={26} />
+          <div className="flex items-center gap-4 py-1.5 border-b border-dashed border-slate-100">
+            <div className="w-14 h-14 bg-[#00a859] text-white rounded-full flex items-center justify-center shadow-md shadow-emerald-100 shrink-0">
+              <FaUser size={22} />
             </div>
             <div>
               <h2 className="text-2xl font-black text-slate-800 tracking-tight relative pb-1">
                 {patientName}
                 <span className="absolute bottom-0 left-0 w-24 h-[3px] bg-[#00a859] rounded-full"></span>
               </h2>
-              <p className="text-xs font-black text-slate-400 uppercase tracking-widest mt-1.5">{patientGender}, {displayAge}</p>
+              <p className="text-xs font-black text-slate-400 uppercase tracking-widest mt-1">{patientGender}, {displayAge}</p>
             </div>
           </div>
 
-          {/* Row 3: Comprehensive Report title */}
-          <div>
-            <p className="text-sm font-black text-slate-700 uppercase tracking-wider">A Comprehensive</p>
-            <h3 className="text-3xl font-black text-[#00a859] leading-none tracking-tight mt-1">Health Analysis Report</h3>
+          {/* Test Name Block */}
+          <div className="bg-emerald-50/70 border border-emerald-100 rounded-2xl p-3.5 flex items-start gap-3">
+            <div className="p-2 bg-[#00a859] text-white rounded-xl shrink-0 mt-0.5">
+              <FaVial size={13} />
+            </div>
+            <div>
+              <span className="text-[9px] font-black uppercase text-emerald-800 tracking-widest block leading-none">Diagnostic Test / Package</span>
+              <p className="text-sm font-black text-slate-800 mt-1 line-clamp-2 leading-snug">{resolvedTestName}</p>
+            </div>
           </div>
 
-          {/* Row 4: AI personalized report Pill */}
-          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xs w-fit">
+          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-4 py-2 rounded-full text-xs font-bold shadow-xs w-fit">
             <FaBrain /> AI Based Personalized Report for You
           </div>
 
-          {/* Row 5: Credibility check with QR Code */}
-          <div className="bg-[#f0faf5] rounded-2xl p-5 border border-emerald-100/60 relative overflow-hidden flex flex-col sm:flex-row items-center gap-6">
-            
-            {/* QR Code Container */}
-            <div className="w-24 h-24 bg-white p-2 rounded-xl border border-emerald-100 shadow-sm shrink-0 flex items-center justify-center">
+          <div className="bg-[#f0faf5] rounded-2xl p-4 border border-emerald-100/60 relative overflow-hidden flex flex-col sm:flex-row items-center gap-5">
+            <div className="w-20 h-20 bg-white p-2 rounded-xl border border-emerald-100 shadow-sm shrink-0 flex items-center justify-center">
               <img src={qrCodeUrl} alt="verification qr code" className="w-full h-full object-contain" />
             </div>
 
-            {/* Verification texts */}
             <div className="space-y-1 relative z-10 text-center sm:text-left flex-grow">
               <p className="text-xs font-black text-slate-800 tracking-tight leading-snug">
                 INDIA'S FIRST & ONLY CREDIBILITY CHECK FOR YOUR LAB REPORT
@@ -256,25 +243,21 @@ Verified Status: Authentic ✅`;
               <p className="text-[10px] text-slate-400 font-bold">
                 Check the authenticity of your lab report with machine data.
               </p>
-              <p className="text-[10px] text-[#00a859] font-black uppercase tracking-wider pt-1">
+              <p className="text-[10px] text-[#00a859] font-black uppercase tracking-wider pt-0.5">
                 Scan the QR using any QR code scanner
               </p>
             </div>
 
-            {/* Subtle background checkmark logo decoration */}
             <div className="absolute right-4 bottom-2 opacity-5 pointer-events-none text-[#00a859]">
-              <FaCheckCircle size={110} />
+              <FaCheckCircle size={90} />
             </div>
           </div>
 
         </div>
       </div>
 
-      {/* ========================================= */}
-      {/* 🟢 BOTTOM DARK GREEN BAR                   */}
-      {/* ========================================= */}
-      <div className="bg-[#007a3e] px-8 py-5 grid grid-cols-4 gap-4 text-white text-[10px] font-black uppercase tracking-wider border-t border-emerald-800 shrink-0">
-        
+      {/* Bottom Strip */}
+      <div className="bg-[#007a3e] px-8 py-4 grid grid-cols-4 gap-4 text-white text-[10px] font-black uppercase tracking-wider border-t border-emerald-800 shrink-0">
         <div className="flex items-center gap-2 justify-center border-r border-white/10 last:border-0">
           <FaFlask className="text-emerald-300" size={14} /> Advanced Technology
         </div>
@@ -290,7 +273,6 @@ Verified Status: Authentic ✅`;
         <div className="flex items-center gap-2 justify-center last:border-0">
           <FaLock className="text-emerald-300" size={14} /> Your Data is Safe
         </div>
-
       </div>
 
     </div>

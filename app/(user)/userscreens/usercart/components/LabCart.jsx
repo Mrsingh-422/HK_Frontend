@@ -59,8 +59,10 @@ const LabCart = () => {
     const [isValidating, setIsValidating] = useState(false);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
 
-    // Subscription & COD State
-    const [subscription, setSubscription] = useState(null);
+    // Subscription & Plan State
+    const [subscriptionData, setSubscriptionData] = useState(null);
+    const [hasActivePlan, setHasActivePlan] = useState(false);
+    const [vipCodAccess, setVipCodAccess] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState("Online"); // 'Online' | 'COD'
 
     // Collection Method State
@@ -112,7 +114,7 @@ const LabCart = () => {
         return baseSubtotal * multiplier;
     }, [baseSubtotal, multiplier]);
 
-    // 1. Fetch Metadata (Coupons, Addresses, Delivery Config, Subscription)
+    // 1. Fetch Metadata (Coupons, Addresses, Delivery Config, Subscription Status)
     const fetchMetadata = useCallback(async () => {
         try {
             setIsAddressLoading(true);
@@ -128,8 +130,16 @@ const LabCart = () => {
                 const defaultAddr = addrRes.data.find(a => a.isDefault) || addrRes.data[0];
                 setSelectedAddress(defaultAddr);
             }
+
+            // Dynamic Subscription Check
             if (subRes?.success && subRes.hasActivePlan) {
-                setSubscription(subRes.data);
+                setHasActivePlan(true);
+                setVipCodAccess(Boolean(subRes.vipCodAccess || subRes.data?.planId?.benefits?.unlimitedCodAccess));
+                setSubscriptionData(subRes.data);
+            } else {
+                setHasActivePlan(false);
+                setVipCodAccess(false);
+                setSubscriptionData(null);
             }
         } catch (error) {
             console.error("Metadata fetch error:", error);
@@ -189,29 +199,44 @@ const LabCart = () => {
         setCouponCode("");
     };
 
-    // 3. Computed Bill Totals
+    // 3. Computed Bill Totals with Dynamic Subscription Benefit Resolution
     const totals = useMemo(() => {
         const extraSlotFee = selectedAppointment?.slot?.extraFee || 0;
         const discountedAmount = Math.max(0, subtotal - serverDiscount);
 
         let homeVisitCharge = 0;
         let rapidDeliveryCharge = 0;
+        let isSubscriptionApplied = false;
+
+        const remainingFreeDeliveries = subscriptionData?.remainingBenefits?.freeLabDeliveriesCount ?? 0;
 
         if (deliveryConfig) {
             if (isFastDelivery) {
                 rapidDeliveryCharge = deliveryConfig.fastDeliveryExtra || 0;
             }
+
             if (collectionMethod === 'Home Collection') {
-                // Subscription VIP Waiver
-                if (subscription) {
+                const threshold = deliveryConfig.freeDeliveryThreshold;
+                const isNaturallyFree = typeof threshold === 'number' && subtotal >= threshold;
+
+                if (isNaturallyFree) {
+                    // Natural lab order threshold met -> ₹0 free
                     homeVisitCharge = 0;
-                } else if (subtotal < (deliveryConfig.freeDeliveryThreshold ?? 500)) {
-                    homeVisitCharge = deliveryConfig.fixedPrice ?? 50;
+                } else if (hasActivePlan && remainingFreeDeliveries > 0) {
+                    // Waived using Subscription remaining benefits -> ₹0 free
+                    homeVisitCharge = 0;
+                    isSubscriptionApplied = true;
+                } else {
+                    // Charged dynamically from lab delivery config
+                    homeVisitCharge = deliveryConfig.fixedPrice || 0;
                 }
             }
         }
 
         const totalAmount = discountedAmount + extraSlotFee + homeVisitCharge + rapidDeliveryCharge;
+
+        // Dynamic COD Availability
+        const isCodAvailable = Boolean(vipCodAccess || deliveryConfig?.isCodAvailable);
 
         return {
             baseSubtotal,
@@ -222,10 +247,23 @@ const LabCart = () => {
             homeVisitCharge,
             rapidDeliveryCharge,
             totalAmount,
-            isSubscriptionApplied: Boolean(subscription && collectionMethod === 'Home Collection'),
-            isCodAvailable: true // Always unlocked for Subscribed VIPs
+            isSubscriptionApplied,
+            remainingFreeDeliveries,
+            isCodAvailable
         };
-    }, [subtotal, baseSubtotal, multiplier, serverDiscount, selectedAppointment, collectionMethod, deliveryConfig, isFastDelivery, subscription]);
+    }, [
+        subtotal, 
+        baseSubtotal, 
+        multiplier, 
+        serverDiscount, 
+        selectedAppointment, 
+        collectionMethod, 
+        deliveryConfig, 
+        isFastDelivery, 
+        hasActivePlan, 
+        subscriptionData,
+        vipCodAccess
+    ]);
 
     // Handle Slot & Patient Modals
     const onFamilyConfirm = (membersList) => {
@@ -240,7 +278,7 @@ const LabCart = () => {
         toast.success(`Slot selected: ${slot.time}`);
     };
 
-    // 4. Final Booking & Razorpay Flow (Section 3.1 & Section 7)
+    // 4. Final Booking & Razorpay Flow
     const handleProceed = async () => {
         if (collectionMethod === 'Home Collection' && !selectedAddress) {
             return toast.error("Please select a home collection address");
@@ -258,7 +296,6 @@ const LabCart = () => {
             const isZeroTotal = Math.round(totals.totalAmount) === 0;
             const finalPaymentMethod = isZeroTotal ? "COD" : paymentMethod;
 
-            // Build patientMappings as per documentation Section 3.1
             const patientMappings = selectedMembers.map((member) => ({
                 patientId: member.relation === 'Self' ? 'Self' : member._id,
                 address: collectionMethod === 'Home Collection' ? {
@@ -292,7 +329,7 @@ const LabCart = () => {
                 return;
             }
 
-            // --- CASE A: Direct Confirmation for COD or Free Booking ---
+            // CASE A: Direct Confirmation for COD or Free Booking
             if (isZeroTotal || finalPaymentMethod === "COD" || res.data?.paymentStatus === "Paid" || res.data?.paymentStatus === "Pending") {
                 await handleClearCart();
                 setConfirmedBookingData({
@@ -311,7 +348,7 @@ const LabCart = () => {
                 return;
             }
 
-            // --- CASE B: Online Payment via Razorpay ---
+            // CASE B: Online Payment via Razorpay
             const isScriptLoaded = await loadRazorpayScript();
             if (!isScriptLoaded) {
                 toast.error("Failed to load Razorpay SDK.");
@@ -332,7 +369,7 @@ const LabCart = () => {
                     name: selectedMembers[0]?.memberName || "Patient",
                     contact: selectedAddress?.phone || ""
                 },
-                theme: { color: "#10b981" },
+                theme: { color: "#08B36A" },
                 modal: {
                     ondismiss: () => {
                         setIsCheckingOut(false);
@@ -398,7 +435,7 @@ const LabCart = () => {
                 <h2 className="text-2xl font-black text-slate-800">Your Lab Cart is Empty</h2>
                 <button
                     onClick={() => router.push('/booklabtest')}
-                    className="mt-6 bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-wider shadow-lg shadow-emerald-600/20"
+                    className="mt-6 bg-[#08B36A] hover:bg-[#079c5c] text-white px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-wider shadow-lg shadow-emerald-600/20 cursor-pointer"
                 >
                     Browse Tests & Packages
                 </button>
@@ -407,34 +444,44 @@ const LabCart = () => {
     }
 
     return (
-        <div className="bg-[#F8FAFC] min-h-screen pb-20 font-sans">
+        <div className="bg-[#F8FAFC] min-h-screen pb-20 font-sans text-slate-900">
             <div className="max-w-7xl mx-auto px-4 pt-6">
                 <div className="flex flex-col lg:flex-row gap-8 items-start">
 
                     {/* LEFT COLUMN */}
                     <div className="flex-1 w-full space-y-6">
                         
-                        {/* VIP Plan Badge */}
+                        {/* VIP Plan Active Benefit Banner */}
                         {totals.isSubscriptionApplied && (
-                            <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex items-center gap-3">
-                                <FaGem className="text-emerald-600" />
-                                <div>
-                                    <p className="text-xs font-bold text-emerald-900 uppercase tracking-tight">
-                                        {subscription.planId?.name || "VIP Plan"} Active
-                                    </p>
-                                    <p className="text-[11px] text-emerald-700">Free Home Sample Collection Applied</p>
+                            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-4.5 rounded-2xl flex items-center justify-between shadow-xs">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-white text-[#08B36A] flex items-center justify-center shadow-xs border border-emerald-100">
+                                        <FaGem size={18} />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-black text-emerald-950 uppercase tracking-tight">
+                                            {subscriptionData?.planId?.name || "VIP Plan"} Benefit Applied
+                                        </p>
+                                        <p className="text-[11px] font-semibold text-emerald-700 mt-0.5">
+                                            Free Home Sample Collection (₹0) automatically waived.
+                                        </p>
+                                    </div>
                                 </div>
+                                <span className="bg-[#08B36A] text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase">
+                                    {totals.remainingFreeDeliveries} Free Left
+                                </span>
                             </div>
                         )}
 
                         {/* COLLECTION METHOD */}
-                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                        <div className="bg-white border border-slate-200/90 rounded-[2rem] p-6 shadow-xs">
                             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">1. Collection Method</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <button
+                                    type="button"
                                     onClick={() => setCollectionMethod('Visit Lab')}
-                                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left
-                                        ${collectionMethod === 'Visit Lab' ? 'border-emerald-600 bg-emerald-50/50 text-emerald-900' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}
+                                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left cursor-pointer
+                                        ${collectionMethod === 'Visit Lab' ? 'border-[#08B36A] bg-emerald-50/40 text-emerald-950 ring-1 ring-[#08B36A]/20' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}
                                 >
                                     <div className="p-2.5 bg-slate-100 rounded-xl"><FaWalking size={18} /></div>
                                     <div>
@@ -444,13 +491,14 @@ const LabCart = () => {
                                 </button>
 
                                 <button
+                                    type="button"
                                     disabled={!isHomeCollectionAllowed}
                                     onClick={() => setCollectionMethod('Home Collection')}
-                                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left relative
+                                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left relative cursor-pointer
                                         ${!isHomeCollectionAllowed ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : ''}
-                                        ${collectionMethod === 'Home Collection' ? 'border-emerald-600 bg-emerald-50/50 text-emerald-900' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}
+                                        ${collectionMethod === 'Home Collection' ? 'border-[#08B36A] bg-emerald-50/40 text-emerald-950 ring-1 ring-[#08B36A]/20' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}
                                 >
-                                    <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl"><FaHome size={18} /></div>
+                                    <div className="p-2.5 bg-emerald-100 text-[#08B36A] rounded-xl"><FaHome size={18} /></div>
                                     <div>
                                         <p className="text-xs font-black">Home Collection</p>
                                         <p className="text-[10px] text-slate-400">Phlebotomist visits your doorstep</p>
@@ -463,11 +511,11 @@ const LabCart = () => {
                                 <div className="mt-6 pt-6 border-t border-slate-100">
                                     <div className="flex justify-between items-center mb-3">
                                         <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Sample Pickup Address</h4>
-                                        <button onClick={() => router.push('/profile/addresses')} className="text-[10px] font-bold text-emerald-600 uppercase hover:underline">+ Add New</button>
+                                        <button onClick={() => router.push('/profile/addresses')} className="text-[10px] font-bold text-[#08B36A] uppercase hover:underline cursor-pointer">+ Add New</button>
                                     </div>
 
                                     {isAddressLoading ? (
-                                        <div className="flex justify-center py-4"><FaSpinner className="animate-spin text-emerald-500" /></div>
+                                        <div className="flex justify-center py-4"><FaSpinner className="animate-spin text-[#08B36A]" /></div>
                                     ) : (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             {addresses.map((addr) => {
@@ -476,11 +524,11 @@ const LabCart = () => {
                                                     <div
                                                         key={addr._id}
                                                         onClick={() => setSelectedAddress(addr)}
-                                                        className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all
-                                                            ${isSelected ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                                                        className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all
+                                                            ${isSelected ? 'border-[#08B36A] bg-emerald-50/40 ring-1 ring-[#08B36A]/20' : 'border-slate-200 bg-white hover:border-slate-300'}`}
                                                     >
                                                         <div className="flex items-start gap-2.5">
-                                                            <FaMapMarkerAlt className={`mt-0.5 text-xs ${isSelected ? 'text-emerald-600' : 'text-slate-300'}`} />
+                                                            <FaMapMarkerAlt className={`mt-0.5 text-xs ${isSelected ? 'text-[#08B36A]' : 'text-slate-300'}`} />
                                                             <div>
                                                                 <span className="text-[10px] font-black uppercase text-slate-900">{addr.addressType}</span>
                                                                 <p className="text-xs font-bold text-slate-700 mt-0.5">{addr.name}</p>
@@ -502,11 +550,11 @@ const LabCart = () => {
                                 <div className="mt-4 pt-4 border-t border-slate-100">
                                     <div
                                         onClick={() => setIsFastDelivery(!isFastDelivery)}
-                                        className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all
+                                        className={`flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition-all
                                             ${isFastDelivery ? 'border-amber-500 bg-amber-50/50' : 'border-slate-200 bg-white'}`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className={`p-2 rounded-lg ${isFastDelivery ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                            <div className={`p-2 rounded-xl ${isFastDelivery ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                                 <FaBolt size={13} />
                                             </div>
                                             <div>
@@ -521,17 +569,18 @@ const LabCart = () => {
                         </div>
 
                         {/* PATIENT & SLOT SELECTION STATUS */}
-                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                        <div className="bg-white border border-slate-200/90 rounded-[2rem] p-6 shadow-xs space-y-4">
                             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">2. Patient & Schedule</h3>
                             
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <button
+                                    type="button"
                                     onClick={() => setIsFamilyModalOpen(true)}
-                                    className={`p-4 rounded-xl border text-left flex items-center justify-between transition-all
-                                        ${selectedMembers.length > 0 ? 'border-emerald-600 bg-emerald-50/30' : 'border-slate-200 hover:border-slate-300'}`}
+                                    className={`p-4 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer
+                                        ${selectedMembers.length > 0 ? 'border-[#08B36A] bg-emerald-50/30 ring-1 ring-[#08B36A]/20' : 'border-slate-200 hover:border-slate-300'}`}
                                 >
                                     <div className="flex items-center gap-3">
-                                        <FaUserCircle className={selectedMembers.length > 0 ? 'text-emerald-600' : 'text-slate-400'} size={18} />
+                                        <FaUserCircle className={selectedMembers.length > 0 ? 'text-[#08B36A]' : 'text-slate-400'} size={18} />
                                         <div>
                                             <p className="text-xs font-black text-slate-900">
                                                 {selectedMembers.length > 0 ? `${selectedMembers.length} Patient(s) Selected` : "Select Patients *"}
@@ -541,16 +590,17 @@ const LabCart = () => {
                                             </p>
                                         </div>
                                     </div>
-                                    <span className="text-[10px] font-bold text-emerald-600 uppercase">Change</span>
+                                    <span className="text-[10px] font-black text-[#08B36A] uppercase">Change</span>
                                 </button>
 
                                 <button
+                                    type="button"
                                     onClick={() => setIsSlotModalOpen(true)}
-                                    className={`p-4 rounded-xl border text-left flex items-center justify-between transition-all
-                                        ${selectedAppointment ? 'border-emerald-600 bg-emerald-50/30' : 'border-slate-200 hover:border-slate-300'}`}
+                                    className={`p-4 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer
+                                        ${selectedAppointment ? 'border-[#08B36A] bg-emerald-50/30 ring-1 ring-[#08B36A]/20' : 'border-slate-200 hover:border-slate-300'}`}
                                 >
                                     <div className="flex items-center gap-3">
-                                        <FaCheckCircle className={selectedAppointment ? 'text-emerald-600' : 'text-slate-400'} size={18} />
+                                        <FaCheckCircle className={selectedAppointment ? 'text-[#08B36A]' : 'text-slate-400'} size={18} />
                                         <div>
                                             <p className="text-xs font-black text-slate-900">
                                                 {selectedAppointment ? `${selectedAppointment.slot.time}` : "Select Time Slot *"}
@@ -560,46 +610,50 @@ const LabCart = () => {
                                             </p>
                                         </div>
                                     </div>
-                                    <span className="text-[10px] font-bold text-emerald-600 uppercase">Change</span>
+                                    <span className="text-[10px] font-black text-[#08B36A] uppercase">Change</span>
                                 </button>
                             </div>
                         </div>
 
                         {/* PAYMENT METHOD SELECTOR */}
                         {totals.totalAmount > 0 && (
-                            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                            <div className="bg-white border border-slate-200/90 rounded-[2rem] p-6 shadow-xs space-y-4">
                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">3. Payment Method</h3>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <button
                                         type="button"
                                         onClick={() => setPaymentMethod("Online")}
-                                        className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between
-                                            ${paymentMethod === "Online" ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'bg-white border-slate-200'}`}
+                                        className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer
+                                            ${paymentMethod === "Online" ? 'border-[#08B36A] bg-emerald-50/40 ring-1 ring-[#08B36A]/20' : 'bg-white border-slate-200'}`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl"><FaCreditCard size={15} /></div>
+                                            <div className="p-2.5 bg-emerald-100 text-[#08B36A] rounded-xl"><FaCreditCard size={15} /></div>
                                             <div>
                                                 <p className="text-xs font-black text-slate-900">Pay Online</p>
                                                 <p className="text-[10px] text-slate-500">UPI, Cards, NetBanking</p>
                                             </div>
                                         </div>
-                                        {paymentMethod === "Online" && <FaCheckCircle className="text-emerald-600" size={15} />}
+                                        {paymentMethod === "Online" && <FaCheckCircle className="text-[#08B36A]" size={15} />}
                                     </button>
 
                                     <button
                                         type="button"
+                                        disabled={!totals.isCodAvailable}
                                         onClick={() => setPaymentMethod("COD")}
-                                        className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between
-                                            ${paymentMethod === "COD" ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'bg-white border-slate-200'}`}
+                                        className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer
+                                            ${!totals.isCodAvailable ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : ''}
+                                            ${paymentMethod === "COD" ? 'border-[#08B36A] bg-emerald-50/40 ring-1 ring-[#08B36A]/20' : 'bg-white border-slate-200'}`}
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className="p-2.5 bg-slate-100 text-slate-700 rounded-xl"><FaMoneyBillWave size={15} /></div>
                                             <div>
                                                 <p className="text-xs font-black text-slate-900">Pay on Collection (COD)</p>
-                                                <p className="text-[10px] text-slate-500">Pay cash during sample collection</p>
+                                                <p className="text-[10px] text-slate-500">
+                                                    {totals.isCodAvailable ? "Pay cash on sample collection" : "COD unavailable"}
+                                                </p>
                                             </div>
                                         </div>
-                                        {paymentMethod === "COD" && <FaCheckCircle className="text-emerald-600" size={15} />}
+                                        {paymentMethod === "COD" && <FaCheckCircle className="text-[#08B36A]" size={15} />}
                                     </button>
                                 </div>
                             </div>
@@ -608,9 +662,9 @@ const LabCart = () => {
                         {/* REVIEW ITEMS */}
                         <div className="space-y-3">
                             {labItems.map((item) => (
-                                <div key={item._id} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+                                <div key={item._id} className="bg-white border border-slate-200/90 rounded-2xl p-4 flex items-center justify-between shadow-xs">
                                     <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
+                                        <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-[#08B36A]">
                                             <FaPrescriptionBottleAlt size={18} />
                                         </div>
                                         <div>
@@ -623,7 +677,7 @@ const LabCart = () => {
                                     <div className="text-right">
                                         <p className="font-black text-slate-900 text-sm">₹{(item.price * (selectedMembers.length || 1)).toLocaleString()}</p>
                                         <p className="text-[10px] text-slate-400">₹{item.price} × {selectedMembers.length || 1} Patient(s)</p>
-                                        <button onClick={() => removeItem(item.itemId)} className="text-[10px] text-rose-500 font-bold uppercase hover:underline mt-1">Remove</button>
+                                        <button onClick={() => removeItem(item.itemId)} className="text-[10px] text-rose-500 font-bold uppercase hover:underline mt-1 cursor-pointer">Remove</button>
                                     </div>
                                 </div>
                             ))}
@@ -635,9 +689,9 @@ const LabCart = () => {
                     <div className="w-full lg:w-[380px] space-y-6 lg:sticky lg:top-24">
 
                         {/* Coupon Section */}
-                        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
+                        <div className="bg-white border border-slate-200/90 rounded-[2rem] p-6 shadow-xs space-y-3">
                             <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                                <FaTicketAlt className="text-emerald-500" /> Apply Coupon
+                                <FaTicketAlt className="text-[#08B36A]" /> Apply Coupon
                             </h3>
                             <div className="flex gap-2">
                                 <input
@@ -646,12 +700,12 @@ const LabCart = () => {
                                     value={couponCode}
                                     onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                                     disabled={!!appliedCouponName}
-                                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-[#08B36A]/20"
                                 />
                                 {appliedCouponName ? (
-                                    <button onClick={removeCoupon} className="bg-rose-50 text-rose-600 px-4 rounded-xl text-[10px] font-black uppercase">Remove</button>
+                                    <button onClick={removeCoupon} className="bg-rose-50 text-rose-600 px-4 rounded-xl text-[10px] font-black uppercase cursor-pointer">Remove</button>
                                 ) : (
-                                    <button onClick={() => handleApplyCoupon()} disabled={isValidating || !couponCode} className="bg-slate-900 hover:bg-slate-800 text-white px-5 rounded-xl text-[10px] font-black uppercase">
+                                    <button onClick={() => handleApplyCoupon()} disabled={isValidating || !couponCode} className="bg-slate-900 hover:bg-slate-800 text-white px-5 rounded-xl text-[10px] font-black uppercase cursor-pointer">
                                         {isValidating ? <FaSpinner className="animate-spin" /> : "Apply"}
                                     </button>
                                 )}
@@ -659,7 +713,7 @@ const LabCart = () => {
                         </div>
 
                         {/* Cost Summary Box */}
-                        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                        <div className="bg-white border border-slate-200/90 rounded-[2rem] p-6 shadow-xs space-y-4">
                             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Order Summary</h3>
 
                             <div className="space-y-2.5 text-xs">
@@ -671,13 +725,13 @@ const LabCart = () => {
                                     <span>Patient Multiplier</span>
                                     <span className="font-black text-slate-900">× {totals.multiplier}</span>
                                 </div>
-                                <div className="flex justify-between text-emerald-800 font-bold bg-emerald-50/60 p-2 rounded-xl">
+                                <div className="flex justify-between text-[#08B36A] font-bold bg-emerald-50/60 p-2 rounded-xl border border-emerald-100/60">
                                     <span>Multiplied Total</span>
                                     <span>₹{totals.subtotal.toFixed(2)}</span>
                                 </div>
 
                                 {totals.discount > 0 && (
-                                    <div className="flex justify-between text-emerald-600 font-bold">
+                                    <div className="flex justify-between text-[#08B36A] font-bold">
                                         <span>Coupon Discount</span>
                                         <span>-₹{totals.discount.toFixed(2)}</span>
                                     </div>
@@ -687,7 +741,7 @@ const LabCart = () => {
                                     <span>Home Sample Collection</span>
                                     <span className="font-bold">
                                         {totals.homeVisitCharge === 0 ? (
-                                            <span className="text-emerald-600 uppercase font-black text-[10px]">Free</span>
+                                            <span className="text-[#08B36A] uppercase font-black text-[10px]">Free</span>
                                         ) : (
                                             `₹${totals.homeVisitCharge.toFixed(2)}`
                                         )}
@@ -697,7 +751,7 @@ const LabCart = () => {
                                 {totals.rapidDeliveryCharge > 0 && (
                                     <div className="flex justify-between text-amber-600 font-bold">
                                         <span>Fast Report Charge</span>
-                                        <span>+₹{totals.rapidDeliveryCharge.toFixed(2)}</span>
+                                        <span>+₹${totals.rapidDeliveryCharge.toFixed(2)}</span>
                                     </div>
                                 )}
 
@@ -708,7 +762,7 @@ const LabCart = () => {
                                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Total Payable</span>
                                         <span className="text-[10px] text-slate-400 font-medium">Inclusive of all taxes</span>
                                     </div>
-                                    <span className="text-2xl font-black text-slate-900">
+                                    <span className="text-2xl font-black text-[#08B36A]">
                                         ₹{totals.totalAmount.toFixed(2)}
                                     </span>
                                 </div>
@@ -717,8 +771,8 @@ const LabCart = () => {
                             <button
                                 onClick={handleProceed}
                                 disabled={isCheckingOut}
-                                className={`w-full py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2
-                                    ${!isCheckingOut ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 active:scale-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                                className={`w-full py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer
+                                    ${!isCheckingOut ? 'bg-[#08B36A] hover:bg-[#079c5c] text-white shadow-lg shadow-emerald-600/20 active:scale-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
                             >
                                 {isCheckingOut ? (
                                     <FaSpinner className="animate-spin" size={14} />
@@ -754,26 +808,24 @@ const LabCart = () => {
                 onConfirm={onSlotConfirm}
             />
 
-            {/* ========================================================= */}
-            {/* REDESIGNED ENHANCED CONFIRMATION MODAL */}
-            {/* ========================================================= */}
+            {/* CONFIRMATION MODAL */}
             {confirmedBookingData && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md animate-in fade-in duration-200">
                     <div className="bg-white rounded-[2.5rem] max-w-lg w-full border border-slate-100 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
                         
                         {/* Header Banner */}
-                        <div className="bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 p-6 text-white text-center relative shrink-0">
+                        <div className="bg-gradient-to-br from-[#08B36A] via-[#08B36A] to-emerald-800 p-6 text-white text-center relative shrink-0">
                             <button
                                 onClick={() => {
                                     setConfirmedBookingData(null);
                                     router.push('/userscreens/previousorders');
                                 }}
-                                className="absolute right-4 top-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white/80 hover:text-white transition"
+                                className="absolute right-4 top-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white/80 hover:text-white transition cursor-pointer"
                             >
                                 <FaTimes size={13} />
                             </button>
 
-                            <div className="w-14 h-14 bg-white rounded-2xl mx-auto flex items-center justify-center text-emerald-600 shadow-lg shadow-black/10 mb-3">
+                            <div className="w-14 h-14 bg-white rounded-2xl mx-auto flex items-center justify-center text-[#08B36A] shadow-lg shadow-black/10 mb-3">
                                 <FaCheckCircle size={28} />
                             </div>
                             <h3 className="text-xl font-black tracking-tight">Booking Confirmed!</h3>
@@ -784,7 +836,7 @@ const LabCart = () => {
                             </p>
                         </div>
 
-                        {/* Modal Body (Scrollable Details) */}
+                        {/* Modal Body */}
                         <div className="p-6 overflow-y-auto space-y-4 text-xs font-sans">
                             
                             {/* OTP Box */}
@@ -793,7 +845,7 @@ const LabCart = () => {
                                     <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 block mb-1">
                                         Sample Collection Security OTP
                                     </span>
-                                    <div className="text-3xl font-black tracking-[0.25em] text-emerald-700 font-mono">
+                                    <div className="text-3xl font-black tracking-[0.25em] text-[#08B36A] font-mono">
                                         {confirmedBookingData.tracking.otp}
                                     </div>
                                     <p className="text-[10px] text-slate-500 font-medium mt-1">
@@ -812,7 +864,7 @@ const LabCart = () => {
                                 </div>
                                 <div className="text-right">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Payment</span>
-                                    <span className="inline-flex items-center gap-1 font-black text-xs text-emerald-700 uppercase">
+                                    <span className="inline-flex items-center gap-1 font-black text-xs text-[#08B36A] uppercase">
                                         <FaCheckCircle size={10} />
                                         {confirmedBookingData.paymentStatus === "Paid" ? "Paid Online" : "Pay on Collection (COD)"}
                                     </span>
@@ -823,17 +875,17 @@ const LabCart = () => {
                             <div className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-3 shadow-sm">
                                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                                     <div className="flex items-center gap-2 text-slate-700 font-bold">
-                                        <FaCalendarAlt className="text-emerald-600" />
-                                        <span>{confirmedBookingData.appointmentDate || selectedAppointment?.date || "Scheduled Date"}</span>
+                                        <FaCalendarAlt className="text-[#08B36A]" />
+                                        <span>{confirmedBookingData.appointmentDate || selectedAppointment?.date}</span>
                                     </div>
                                     <div className="flex items-center gap-1.5 text-slate-700 font-bold">
-                                        <FaClock className="text-emerald-600" />
-                                        <span>{confirmedBookingData.appointmentTime || selectedAppointment?.slot?.time || "Time Slot"}</span>
+                                        <FaClock className="text-[#08B36A]" />
+                                        <span>{confirmedBookingData.appointmentTime || selectedAppointment?.slot?.time}</span>
                                     </div>
                                 </div>
 
                                 <div className="flex items-start gap-2.5 pt-1">
-                                    <FaMapMarkerAlt className="text-emerald-600 mt-0.5 shrink-0" />
+                                    <FaMapMarkerAlt className="text-[#08B36A] mt-0.5 shrink-0" />
                                     <div>
                                         <span className="font-black text-slate-900 uppercase text-[10px] block">
                                             {confirmedBookingData.collectionType || collectionMethod}
@@ -844,7 +896,7 @@ const LabCart = () => {
                                             </p>
                                         ) : (
                                             <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                                                Direct diagnostic lab walk-in visit
+                                                Diagnostic lab walk-in visit
                                             </p>
                                         )}
                                     </div>
@@ -855,13 +907,13 @@ const LabCart = () => {
                             <div className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-2 shadow-sm">
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
-                                        <FaUsers className="text-emerald-600" /> Patients ({(confirmedBookingData.patients || selectedMembers).length})
+                                        <FaUsers className="text-[#08B36A]" /> Patients ({(confirmedBookingData.patients || selectedMembers).length})
                                     </span>
                                 </div>
                                 <div className="flex flex-wrap gap-1.5">
                                     {(confirmedBookingData.patients || selectedMembers).map((m, idx) => (
                                         <span key={idx} className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-200/60">
-                                            {m.memberName || m.patientName || "Patient"}
+                                            {m.memberName || m.patientName}
                                         </span>
                                     ))}
                                 </div>
@@ -870,7 +922,7 @@ const LabCart = () => {
                             {/* Prescribed Tests / Packages */}
                             <div className="bg-white border border-slate-200/80 rounded-2xl p-4 space-y-2 shadow-sm">
                                 <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
-                                    <FaVial className="text-emerald-600" /> Booked Tests ({(confirmedBookingData.tests || labItems).length})
+                                    <FaVial className="text-[#08B36A]" /> Booked Tests ({(confirmedBookingData.tests || labItems).length})
                                 </span>
                                 <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
                                     {(confirmedBookingData.tests || labItems).map((t, idx) => (
@@ -885,12 +937,12 @@ const LabCart = () => {
                             {/* Total Amount Paid / Payable */}
                             <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl">
                                 <div>
-                                    <span className="text-[10px] font-black uppercase text-emerald-400 tracking-widest block">
+                                    <span className="text-[10px] font-black uppercase text-[#08B36A] tracking-widest block">
                                         Total Amount
                                     </span>
                                     <span className="text-[10px] text-slate-400 font-medium">All charges & taxes included</span>
                                 </div>
-                                <span className="text-xl font-black text-emerald-400">
+                                <span className="text-xl font-black text-[#08B36A]">
                                     ₹{Math.round(confirmedBookingData.totalAmount ?? totals.totalAmount).toLocaleString()}
                                 </span>
                             </div>
@@ -904,7 +956,7 @@ const LabCart = () => {
                                     setConfirmedBookingData(null);
                                     router.push('/userscreens/previousorders');
                                 }}
-                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                className="flex-1 bg-[#08B36A] hover:bg-[#079c5c] text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                             >
                                 <span>Track Appointment</span>
                                 <FaExternalLinkAlt size={10} />
@@ -914,7 +966,7 @@ const LabCart = () => {
                                     setConfirmedBookingData(null);
                                     router.push('/');
                                 }}
-                                className="px-5 py-3.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-2xl font-bold text-xs uppercase transition"
+                                className="px-5 py-3.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-2xl font-bold text-xs uppercase transition cursor-pointer"
                             >
                                 Home
                             </button>

@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react'
 import { 
     FaSearch, FaMapMarkerAlt, FaTimes, 
     FaUserCircle, FaCheckCircle, FaUserNurse, FaExchangeAlt, 
-    FaPhoneAlt, FaReceipt, FaRoute, FaClipboardList, FaMapPin
+    FaPhoneAlt, FaReceipt, FaRoute, FaClipboardList, FaMapPin,
+    FaHospital, FaBed, FaSyncAlt, FaFileMedical, FaClock
 } from 'react-icons/fa'
 import { toast, Toaster } from 'react-hot-toast'
 import NurseAPI from '@/app/services/NurseAPI'
@@ -38,7 +39,6 @@ export default function TrackNursePage() {
     const fetchBookingsToTrack = async () => {
         setLoading(true);
         try {
-            // Retrieve bookings marked as 'Assigned'
             const res = await NurseAPI.getBookings('Assigned');
             if (res.success) {
                 setBookings(res.data || []);
@@ -70,6 +70,7 @@ export default function TrackNursePage() {
             (b.bookingId && b.bookingId.toLowerCase().includes(val.toLowerCase())) ||
             (b.bookingIdCustom && b.bookingIdCustom.toLowerCase().includes(val.toLowerCase())) ||
             (b.assignedStaffId && b.assignedStaffId.name && b.assignedStaffId.name.toLowerCase().includes(val.toLowerCase())) ||
+            (b.assignedStaff && b.assignedStaff.name && b.assignedStaff.name.toLowerCase().includes(val.toLowerCase())) ||
             (b.assignedStaff && b.assignedStaff.staffName && b.assignedStaff.staffName.toLowerCase().includes(val.toLowerCase()))
         );
         setFilteredBookings(filtered);
@@ -112,7 +113,7 @@ export default function TrackNursePage() {
             }
         } catch (error) {
             console.error(error);
-            toast.error("Error fetching available providers.");
+            toast.error("Error fetching available staff.");
             setIsReassignModalOpen(false);
         } finally {
             setReassignLoading(false);
@@ -145,192 +146,228 @@ export default function TrackNursePage() {
         }
     };
 
-    // Handles reassignment triggers launched from within the Live Tracking modal
+    // Reassignment trigger launched from within Live Tracking modal
     const handleReassignFromTrackerModal = (trackerData) => {
         setIsTrackModalOpen(false);
         openReassignment({
-            _id: trackerData.bookingId, // Database object identifier
+            _id: trackerData.bookingId,
             bookingId: trackerData.bookingIdCustom || trackerData.bookingId,
             assignedStaff: trackerData.assignedStaff
         });
     };
 
     return (
-        <div className="bg-[#F9FAFB] min-h-screen font-sans p-6 md:p-12">
+        <div className="bg-[#F8FAFC] min-h-screen font-sans p-6 md:p-10 text-slate-900">
             <Toaster position="top-right" />
             
-            {/* --- TOP BAR --- */}
-            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                <h1 className="text-3xl font-extrabold text-gray-800">
-                    Track & Reassign <span className="text-[#08B36A]">Nurses</span>
-                </h1>
+            {/* Top Bar Header */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                <div>
+                    <div className="inline-flex items-center gap-2 text-[#08B36A] font-black text-[11px] uppercase tracking-wider bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 mb-2">
+                        <span className="w-2 h-2 rounded-full bg-[#08B36A] animate-ping" />
+                        Live Field Staff Monitor
+                    </div>
+                    <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
+                        Track & Reassign <span className="text-[#08B36A]">Nurses</span>
+                    </h1>
+                </div>
                 
-                <div className="flex items-center gap-4 w-full md:w-auto">
+                <div className="flex items-center gap-3 w-full md:w-auto">
                     <div className="relative flex-1 md:w-80">
-                        <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
                         <input 
                             type="text" 
                             value={searchQuery}
                             onChange={handleSearchChange}
-                            placeholder="Search Order ID / Name..." 
-                            className="w-full pl-12 pr-4 py-3 rounded-2xl border border-gray-200 outline-none focus:border-[#08B36A] shadow-sm text-sm"
+                            placeholder="Search Order ID / Nurse..." 
+                            className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white border border-slate-200 outline-none focus:border-[#08B36A] focus:ring-2 focus:ring-emerald-100 shadow-xs text-xs font-semibold"
                         />
                     </div>
                     <button 
+                        type="button"
                         onClick={fetchBookingsToTrack}
-                        className="bg-green-50 text-[#08B36A] font-bold px-6 py-3 rounded-2xl text-xs uppercase tracking-wider border border-green-100 whitespace-nowrap hover:bg-green-100/50 transition-all"
+                        className="bg-white hover:bg-emerald-50 text-[#08B36A] font-black px-5 py-3 rounded-2xl text-xs uppercase tracking-wider border border-emerald-200 flex items-center gap-2 transition-all shadow-xs shrink-0 cursor-pointer"
                     >
-                        Sync Dashboard
+                        <FaSyncAlt className={loading ? "animate-spin" : ""} size={12} />
+                        <span>Sync</span>
                     </button>
                 </div>
             </div>
 
-            {/* --- TRACKING TABLE --- */}
-            <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
+            {/* Tracking Table Container */}
+            <div className="bg-white rounded-[2rem] border border-slate-200/90 shadow-xs overflow-hidden">
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center py-20 gap-4 text-gray-400">
-                        <div className="w-10 h-10 border-4 border-[#08B36A] border-t-transparent rounded-full animate-spin"></div>
-                        <span className="font-bold text-sm">Fetching active orders...</span>
+                    <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
+                        <div className="w-10 h-10 border-4 border-[#08B36A] border-t-transparent rounded-full animate-spin" />
+                        <span className="font-bold text-xs uppercase tracking-wider">Fetching live operations...</span>
                     </div>
                 ) : filteredBookings.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-                        <FaUserNurse size={48} className="text-gray-200 mb-3" />
-                        <span className="font-bold text-sm">No trackable orders found in system</span>
+                    <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                        <FaUserNurse size={48} className="text-slate-200 mb-3" />
+                        <span className="font-bold text-xs uppercase tracking-wider">No active field orders found</span>
                     </div>
                 ) : (
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="border-b border-gray-50 bg-gray-50/30">
-                                <th className="px-8 py-5 text-xs font-bold text-gray-400 uppercase">Serial no.</th>
-                                <th className="px-8 py-5 text-xs font-bold text-gray-400 uppercase">Order ID</th>
-                                <th className="px-8 py-5 text-xs font-bold text-gray-400 uppercase">Assigned Nurse</th>
-                                <th className="px-8 py-5 text-xs font-bold text-gray-400 uppercase">Schedule Start</th>
-                                <th className="px-8 py-5 text-xs font-bold text-gray-400 uppercase">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                            {filteredBookings.map((item, idx) => {
-                                // Maps both list formats (assignedStaffId.name) and detail payloads (assignedStaff.staffName)
-                                const assignedNurseName = item.assignedStaffId?.name || item.assignedStaff?.staffName || item.assignedStaff?.name || "Unassigned";
-                                const assignedNursePhone = item.assignedStaffId?.phone || item.assignedStaff?.staffPhone || item.assignedStaff?.phone || "No Contact";
-                                const assignedNursePic = item.assignedStaffId?.profilePic || item.assignedStaff?.staffProfilePic || null;
-                                
-                                return (
-                                    <tr key={item._id} className="hover:bg-gray-50/50 transition-colors">
-                                        <td className="px-8 py-6 text-gray-600 font-medium">{idx + 1}</td>
-                                        <td className="px-8 py-6 text-gray-500 text-sm font-mono">
-                                            {item.bookingIdCustom || item.bookingId || "N/A"}
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 bg-gray-100 rounded-full border border-gray-100 overflow-hidden flex items-center justify-center text-gray-400 shadow-sm">
-                                                    {assignedNursePic ? (
-                                                        <img 
-                                                            src={formatImagePath(assignedNursePic)} 
-                                                            alt="Nurse Avatar" 
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <FaUserCircle size={22} />
-                                                    )}
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-100 bg-slate-50/60">
+                                    <th className="px-7 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">#</th>
+                                    <th className="px-7 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Booking ID</th>
+                                    <th className="px-7 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Assigned Staff</th>
+                                    <th className="px-7 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Location Type</th>
+                                    <th className="px-7 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Schedule</th>
+                                    <th className="px-7 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-xs">
+                                {filteredBookings.map((item, idx) => {
+                                    const assignedNurseName = item.assignedStaff?.name || item.assignedStaff?.staffName || item.assignedStaffId?.name || "Unassigned";
+                                    const assignedNursePhone = item.assignedStaff?.phone || item.assignedStaff?.staffPhone || item.assignedStaffId?.phone || "No phone";
+                                    const assignedNursePic = item.assignedStaff?.profilePic || item.assignedStaff?.staffProfilePic || item.assignedStaffId?.profilePic || null;
+                                    const isHospital = item.assessmentLocation === "At Hospital" || !!item.hospitalDetails;
+                                    
+                                    return (
+                                        <tr key={item._id} className="hover:bg-slate-50/60 transition-colors">
+                                            <td className="px-7 py-5 text-slate-400 font-bold">{idx + 1}</td>
+                                            <td className="px-7 py-5 font-mono font-bold text-slate-900">
+                                                {item.bookingIdCustom || item.bookingId || "N/A"}
+                                            </td>
+                                            <td className="px-7 py-5">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-9 h-9 bg-slate-100 rounded-xl border border-slate-200/80 overflow-hidden flex items-center justify-center text-slate-400 shadow-xs shrink-0">
+                                                        {assignedNursePic ? (
+                                                            <img 
+                                                                src={formatImagePath(assignedNursePic)} 
+                                                                alt="Avatar" 
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <FaUserCircle size={20} />
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-slate-900">{assignedNurseName}</div>
+                                                        <div className="text-[10px] text-[#08B36A] font-extrabold">{assignedNursePhone}</div>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <div className="font-bold text-[#1e40af]">{assignedNurseName}</div>
-                                                    <div className="text-[10px] text-[#08B36A] mt-0.5 font-bold">{assignedNursePhone}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-6 font-medium text-gray-600">
-                                            {item.schedule?.startDate ? new Date(item.schedule.startDate).toLocaleDateString() : 'N/A'}
-                                            <span className="block text-[10px] text-gray-400 mt-0.5">{item.schedule?.duration || ''}</span>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <button 
-                                                onClick={() => openLiveTracker(item._id)}
-                                                className="flex items-center gap-2 bg-[#08B36A] hover:bg-[#069a5a] text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md shadow-green-100"
-                                            >
-                                                <FaMapMarkerAlt size={12} /> Track
-                                            </button>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                                            </td>
+                                            <td className="px-7 py-5">
+                                                <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase px-2.5 py-1 rounded-full border ${
+                                                    isHospital 
+                                                        ? 'bg-purple-50 text-purple-700 border-purple-200' 
+                                                        : 'bg-emerald-50 text-[#08B36A] border-emerald-200'
+                                                }`}>
+                                                    {isHospital ? <FaHospital size={9} /> : <FaMapMarkerAlt size={9} />}
+                                                    {isHospital ? "Hospital Care" : "Home Care"}
+                                                </span>
+                                            </td>
+                                            <td className="px-7 py-5 font-medium text-slate-600">
+                                                <span className="font-bold text-slate-800 block">
+                                                    {item.schedule?.startDate ? new Date(item.schedule.startDate).toLocaleDateString() : 'N/A'}
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase">{item.schedule?.duration || ''}</span>
+                                            </td>
+                                            <td className="px-7 py-5 text-right">
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => openLiveTracker(item._id)}
+                                                    className="inline-flex items-center gap-1.5 bg-[#08B36A] hover:bg-[#079c5c] text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm shadow-emerald-600/20 active:scale-95 cursor-pointer"
+                                                >
+                                                    <FaMapMarkerAlt size={10} /> Track Live
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </div>
 
-            {/* --- WEB-STYLE LIVE TRACKING & FULL INFO MODAL --- */}
+            {/* LIVE TRACKING & FULL INFO MODAL */}
             {isTrackModalOpen && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-w-5xl rounded-[32px] shadow-2xl overflow-hidden relative animate-in zoom-in duration-300">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+                    <div className="bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden relative animate-in zoom-in duration-300 border border-slate-100 my-auto max-h-[90vh] flex flex-col">
                         
                         {/* Modal Header */}
-                        <div className="p-8 pb-4 flex justify-between items-center border-b border-gray-100">
+                        <div className="p-6 sm:p-8 pb-4 flex justify-between items-center border-b border-slate-100 shrink-0">
                             <div className="flex items-center gap-3">
-                                <div className="bg-green-50 p-2 rounded-xl text-[#08B36A]">
+                                <div className="bg-emerald-50 p-3 rounded-2xl text-[#08B36A] border border-emerald-100">
                                     <FaUserNurse size={20} />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-black text-gray-800 tracking-tight">Booking Live Tracker</h2>
-                                    <p className="text-xs text-gray-400 font-mono mt-0.5">ID: {liveTracking?.bookingIdCustom || liveTracking?.bookingId || 'Loading...'}</p>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-xl font-black text-slate-900 tracking-tight">Field Operations Monitor</h2>
+                                        <span className="bg-[#08B36A] text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
+                                            {liveTracking?.status || 'Active'}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-slate-400 font-mono mt-0.5">Order Ref: {liveTracking?.bookingIdCustom || liveTracking?.bookingId || 'Loading...'}</p>
                                 </div>
                             </div>
-                            <button onClick={() => setIsTrackModalOpen(false)} className="text-gray-300 hover:text-gray-500 transition-colors bg-gray-50 p-2.5 rounded-full">
-                                <FaTimes size={18} />
+                            <button 
+                                type="button"
+                                onClick={() => setIsTrackModalOpen(false)} 
+                                className="text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 p-2.5 rounded-full transition-colors cursor-pointer"
+                            >
+                                <FaTimes size={16} />
                             </button>
                         </div>
 
+                        {/* Modal Content */}
                         {trackingLoading ? (
                             <div className="p-20 flex flex-col items-center justify-center gap-3">
-                                <div className="w-10 h-10 border-4 border-[#08B36A] border-t-transparent rounded-full animate-spin"></div>
-                                <p className="text-sm text-gray-500 font-bold">Querying live tracking payload...</p>
+                                <div className="w-10 h-10 border-4 border-[#08B36A] border-t-transparent rounded-full animate-spin" />
+                                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Syncing GPS & Live Tracking State...</p>
                             </div>
                         ) : liveTracking ? (
-                            <div className="max-h-[70vh] overflow-y-auto p-8 space-y-6">
+                            <div className="overflow-y-auto p-6 sm:p-8 space-y-6 flex-1 scrollbar-none">
                                 
-                                {/* Desktop Split Columns */}
-                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                                     
-                                    {/* Left Column (Width: 7/12) - Live Transit Details */}
-                                    <div className="lg:col-span-7 space-y-6 border-r border-gray-100 lg:pr-8">
+                                    {/* Left Column (7/12) - Staff & Timeline Tracker */}
+                                    <div className="lg:col-span-7 space-y-5 border-r border-slate-100 lg:pr-6">
                                         
-                                        {/* Dispatched Field Nurse Card */}
-                                        <div className="bg-[#FAFBFC] rounded-3xl p-5 border border-gray-100">
-                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Dispatched Field Nurse</p>
+                                        {/* Assigned Field Nurse Card */}
+                                        <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 space-y-3">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                                                Dispatched Nursing Officer
+                                            </span>
+
                                             {liveTracking.assignedStaff ? (
                                                 <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-gray-300 border border-gray-100 shadow-sm overflow-hidden">
-                                                            {liveTracking.assignedStaff.staffProfilePic ? (
+                                                    <div className="flex items-center gap-3.5">
+                                                        <div className="w-13 h-13 bg-white rounded-2xl flex items-center justify-center text-slate-300 border border-slate-200 shadow-xs overflow-hidden shrink-0">
+                                                            {liveTracking.assignedStaff.profilePic || liveTracking.assignedStaff.staffProfilePic ? (
                                                                 <img 
-                                                                    src={formatImagePath(liveTracking.assignedStaff.staffProfilePic)} 
+                                                                    src={formatImagePath(liveTracking.assignedStaff.profilePic || liveTracking.assignedStaff.staffProfilePic)} 
                                                                     className="w-full h-full object-cover" 
-                                                                    alt="Staff avatar"
+                                                                    alt="Staff"
                                                                 />
                                                             ) : (
                                                                 <FaUserCircle size={36} />
                                                             )}
                                                         </div>
                                                         <div>
-                                                            <p className="font-bold text-gray-800 text-sm">{liveTracking.assignedStaff.staffName}</p>
-                                                            <p className="text-gray-400 text-xs">{liveTracking.assignedStaff.staffPhone || 'No phone registered'}</p>
-                                                            <p className="text-[9px] bg-blue-50 text-[#1e40af] border border-blue-100 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider w-fit mt-1">
-                                                                {liveTracking.assignedStaff.staffStatus || 'Active'}
-                                                            </p>
+                                                            <p className="font-black text-slate-900 text-sm">{liveTracking.assignedStaff.name || liveTracking.assignedStaff.staffName}</p>
+                                                            <p className="text-slate-500 text-xs font-semibold">{liveTracking.assignedStaff.phone || liveTracking.assignedStaff.staffPhone || 'No Phone Registered'}</p>
+                                                            <span className="inline-block text-[9px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded-full uppercase tracking-wider mt-1">
+                                                                {liveTracking.assignedStaff.status || liveTracking.assignedStaff.staffStatus || 'On Job'}
+                                                            </span>
                                                         </div>
                                                     </div>
-                                                    
                                                 </div>
                                             ) : (
-                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                                <div className="flex items-center justify-between gap-3">
                                                     <div>
-                                                        <p className="font-bold text-amber-600 text-sm">No Field Staff Dispatched</p>
-                                                        <p className="text-[11px] text-gray-400 mt-0.5">Dispatched staff details are required to monitor live transit progress.</p>
+                                                        <p className="font-black text-amber-700 text-xs">No Staff Assigned</p>
+                                                        <p className="text-[10px] text-slate-400">Allocate a nurse to initiate live tracking.</p>
                                                     </div>
                                                     <button 
-                                                        onClick={() => handleAssignFromTracker(liveTracking)}
-                                                        className="bg-[#1e40af] text-white font-black px-4 py-2 rounded-xl text-[10px] uppercase tracking-wider hover:bg-[#1e3a8a] transition-all whitespace-nowrap"
+                                                        type="button"
+                                                        onClick={() => handleReassignFromTrackerModal(liveTracking)}
+                                                        className="bg-[#08B36A] text-white font-black px-3.5 py-2 rounded-xl text-[10px] uppercase tracking-wider hover:bg-[#079c5c] transition-all cursor-pointer"
                                                     >
                                                         Assign Staff
                                                     </button>
@@ -338,138 +375,191 @@ export default function TrackNursePage() {
                                             )}
                                         </div>
 
-                                        {/* Tracking Metrics Bar (Distance & ETA) */}
+                                        {/* Tracking Distance / Duration Metrics */}
                                         {liveTracking.trackingMetrics && (
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="bg-blue-50/50 rounded-2xl p-4 border border-blue-50/80 flex items-center gap-3">
-                                                    <div className="p-3 rounded-xl bg-blue-50 text-[#1e40af]">
+                                            <div className="grid grid-cols-2 gap-3.5">
+                                                <div className="bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100 flex items-center gap-3">
+                                                    <div className="p-2.5 rounded-xl bg-white text-[#08B36A] shadow-xs">
                                                         <FaRoute size={16} />
                                                     </div>
                                                     <div>
-                                                        <p className="text-[9px] font-black uppercase text-blue-400 tracking-widest">Est. Distance</p>
-                                                        <p className="text-base font-black text-[#1e40af] mt-0.5">{liveTracking.trackingMetrics.distance || 'N/A'}</p>
+                                                        <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Est. Distance</p>
+                                                        <p className="text-sm font-black text-slate-900 mt-0.5">{liveTracking.trackingMetrics.distance || 'In Proximity'}</p>
                                                     </div>
                                                 </div>
-                                                <div className="bg-green-50/40 rounded-2xl p-4 border border-green-50 flex items-center gap-3">
-                                                    <div className="p-3 rounded-xl bg-green-50 text-[#08B36A]">
-                                                        <FaMapMarkerAlt size={16} />
+                                                <div className="bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100 flex items-center gap-3">
+                                                    <div className="p-2.5 rounded-xl bg-white text-[#08B36A] shadow-xs">
+                                                        <FaClock size={16} />
                                                     </div>
                                                     <div>
-                                                        <p className="text-[9px] font-black uppercase text-[#08B36A] tracking-widest">Est. Duration (ETA)</p>
-                                                        <p className="text-base font-black text-[#08B36A] mt-0.5">{liveTracking.trackingMetrics.eta || 'N/A'}</p>
+                                                        <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">ETA Duration</p>
+                                                        <p className="text-sm font-black text-slate-900 mt-0.5">{liveTracking.trackingMetrics.eta || 'On Schedule'}</p>
                                                     </div>
                                                 </div>
                                             </div>
                                         )}
 
-                                        {/* Interactive Tracking Timeline */}
-                                        <div className="space-y-0 pl-1">
-                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Service Timeline Tracker</p>
-                                            <TimelineItem 
-                                                title="Booking Assigned" 
-                                                desc="Staff allocation recorded." 
-                                                isCompleted={!!liveTracking.progress?.isAssigned} 
-                                            />
-                                            <TimelineItem 
-                                                title="On the Way" 
-                                                desc="Provider is in-transit to patient location." 
-                                                isCompleted={!!liveTracking.progress?.isOnWay} 
-                                            />
-                                            <TimelineItem 
-                                                title="Arrived at Location" 
-                                                desc="Field nurse arrived at destination." 
-                                                isCompleted={!!liveTracking.progress?.isArrived} 
-                                                showBadge={!!liveTracking.progress?.isArrived && !liveTracking.progress?.isCompleted}
-                                            />
-                                            <TimelineItem 
-                                                title="Service Commenced" 
-                                                desc="Procedure started." 
-                                                isCompleted={!!liveTracking.progress?.isStarted} 
-                                            />
-                                            <TimelineItem 
-                                                title="Completed" 
-                                                desc="Operational session closed." 
-                                                isCompleted={!!liveTracking.progress?.isCompleted} 
-                                                isLast={true} 
-                                            />
+                                        {/* Interactive Progress Timeline */}
+                                        <div className="pt-2">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Live Service Progress</p>
+                                            <div className="space-y-0 pl-1">
+                                                <TimelineItem 
+                                                    title="Nurse Assigned" 
+                                                    desc="Staff allocation verified and confirmed." 
+                                                    isCompleted={!!liveTracking.progress?.isAssigned || !!liveTracking.assignedStaff} 
+                                                />
+                                                <TimelineItem 
+                                                    title="On the Way" 
+                                                    desc="Nurse is in transit to patient destination." 
+                                                    isCompleted={!!liveTracking.progress?.isOnWay || liveTracking.status === "On the way"} 
+                                                />
+                                                <TimelineItem 
+                                                    title="Arrived at Location" 
+                                                    desc="Staff reached bedside / address." 
+                                                    isCompleted={!!liveTracking.progress?.isArrived || liveTracking.status === "Arrived"} 
+                                                    showBadge={liveTracking.status === "Arrived"}
+                                                />
+                                                <TimelineItem 
+                                                    title="Service Commenced" 
+                                                    desc="Clinical procedure in progress." 
+                                                    isCompleted={!!liveTracking.progress?.isStarted || liveTracking.status === "Service-Started" || liveTracking.status === "In Progress"} 
+                                                />
+                                                <TimelineItem 
+                                                    title="Service Completed" 
+                                                    desc="Care session safely completed and closed." 
+                                                    isCompleted={!!liveTracking.progress?.isCompleted || liveTracking.status === "Completed"} 
+                                                    isLast={true} 
+                                                />
+                                            </div>
                                         </div>
+
+                                        {/* Live Clinical Notes */}
+                                        {liveTracking.serviceNotes && (
+                                            <div className="bg-amber-50/60 rounded-2xl p-4 border border-amber-200/80 space-y-1">
+                                                <div className="flex items-center gap-1.5 text-amber-800 font-black text-[10px] uppercase tracking-wider">
+                                                    <FaFileMedical size={12} />
+                                                    <span>Live Clinical Notes</span>
+                                                </div>
+                                                <p className="text-xs text-amber-950 font-medium leading-relaxed">
+                                                    {liveTracking.serviceNotes}
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {/* Right Column (Width: 5/12) - Client & Booking Profile */}
-                                    <div className="lg:col-span-5 space-y-6">
+                                    {/* Right Column (5/12) - Patient & Location Specs */}
+                                    <div className="lg:col-span-5 space-y-5">
                                         
-                                        {/* Patient Details & Info */}
-                                        <div className="bg-gray-50 rounded-3xl p-6 border border-gray-100 space-y-4 text-xs">
+                                        {/* LOCATION SPEC: HOSPITAL BEDSIDE OR HOME ADDRESS */}
+                                        {liveTracking.assessmentLocation === "At Hospital" || liveTracking.hospitalDetails ? (
+                                            <div className="bg-purple-50/60 rounded-2xl p-5 border border-purple-200/80 space-y-3">
+                                                <div className="flex items-center gap-2 text-purple-900">
+                                                    <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-700">
+                                                        <FaHospital size={14} />
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-[10px] font-black uppercase text-purple-600 tracking-wider block">Hospital Care Location</span>
+                                                        <p className="font-black text-sm text-slate-900">
+                                                            {liveTracking.hospitalDetails?.hospitalName || "Hospital Bedside"}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-purple-200/50 text-xs">
+                                                    <div className="bg-white p-2.5 rounded-xl border border-purple-100">
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase block">Ward / Section</span>
+                                                        <span className="font-black text-slate-900">{liveTracking.hospitalDetails?.wardName || "General Ward"}</span>
+                                                    </div>
+                                                    <div className="bg-white p-2.5 rounded-xl border border-purple-100">
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase block">Bed Number</span>
+                                                        <span className="font-black text-purple-700">{liveTracking.hospitalDetails?.bedNumber || "Bed N/A"}</span>
+                                                    </div>
+                                                </div>
+
+                                                {liveTracking.hospitalDetails?.floorNumber && (
+                                                    <p className="text-[11px] font-medium text-slate-600">
+                                                        Floor: <span className="font-bold">{liveTracking.hospitalDetails.floorNumber}</span> • {liveTracking.hospitalDetails.hospitalAddress || ''}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 space-y-2">
+                                                <div className="flex items-center gap-2 text-slate-700">
+                                                    <FaMapMarkerAlt className="text-[#08B36A]" size={13} />
+                                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Home Service Destination</span>
+                                                </div>
+                                                <p className="text-xs font-bold text-slate-800 leading-relaxed">
+                                                    {liveTracking.address?.houseNo}, {liveTracking.address?.sector}
+                                                    {liveTracking.address?.landmark && `, Landmark: ${liveTracking.address.landmark}`}
+                                                </p>
+                                                <p className="text-[11px] text-slate-500 font-medium">
+                                                    {liveTracking.address?.city}, {liveTracking.address?.state} - {liveTracking.address?.pincode}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {/* Patient Details */}
+                                        <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 space-y-3">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-gray-300 border border-gray-100 shadow-sm overflow-hidden">
+                                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-slate-300 border border-slate-200 overflow-hidden shrink-0">
                                                     {liveTracking.patientDetails?.patientProfilePic ? (
                                                         <img 
                                                             src={formatImagePath(liveTracking.patientDetails.patientProfilePic)} 
                                                             className="w-full h-full object-cover" 
-                                                            alt="Patient avatar"
+                                                            alt="Patient"
                                                         />
                                                     ) : (
-                                                        <FaUserCircle size={36} />
+                                                        <FaUserCircle size={24} />
                                                     )}
                                                 </div>
                                                 <div>
-                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Patient Details</p>
-                                                    <p className="text-base font-black text-gray-800">{liveTracking.patientDetails?.patientName || 'N/A'}</p>
-                                                    <p className="text-gray-500 mt-0.5">{liveTracking.patientDetails?.patientPhone || 'N/A'}</p>
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Patient Name</span>
+                                                    <p className="text-sm font-black text-slate-900">{liveTracking.patientDetails?.patientName || 'Registered Patient'}</p>
+                                                    <p className="text-xs text-slate-500 font-semibold">{liveTracking.patientDetails?.patientPhone || 'No Contact Record'}</p>
                                                 </div>
-                                            </div>
-
-                                            <div className="border-t border-gray-200/60 pt-3">
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                                                    <FaMapMarkerAlt size={10} className="text-[#08B36A]" /> Service Address
-                                                </p>
-                                                <p className="text-gray-700 font-medium leading-relaxed">
-                                                    House No {liveTracking.address?.houseNo}
-                                                    {liveTracking.address?.landmark && `, Landmark: ${liveTracking.address.landmark}`}
-                                                    <span className="block mt-1 font-bold text-gray-600">{liveTracking.address?.city}, {liveTracking.address?.state} - {liveTracking.address?.pincode}</span>
-                                                </p>
                                             </div>
                                         </div>
 
-                                        {/* Service Description Card */}
-                                        <div className="border border-gray-100 rounded-3xl p-6 space-y-3">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <span className="bg-blue-50 text-[#1e40af] text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-blue-100">
-                                                        {liveTracking.bookingType || 'Prescription'} Booking
-                                                    </span>
-                                                    <h4 className="font-extrabold text-gray-800 text-sm mt-1.5">{liveTracking.serviceDetails?.title || 'Prescription Service'}</h4>
-                                                </div>
-                                                <span className="text-xs text-gray-400 font-black uppercase tracking-wider">{liveTracking.serviceDetails?.duration || 'Standard'}</span>
+                                        {/* Service Details Card */}
+                                        <div className="bg-slate-900 text-white rounded-2xl p-5 space-y-3 border border-slate-800">
+                                            <div>
+                                                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-[#08B36A] border border-white/10">
+                                                    {liveTracking.bookingType || 'Nursing'} Service
+                                                </span>
+                                                <h4 className="font-black text-sm text-white mt-1.5">{liveTracking.serviceDetails?.title || 'Clinical Care Visit'}</h4>
+                                                <p className="text-[11px] text-slate-400 mt-0.5">Mode: {liveTracking.serviceDetails?.type || liveTracking.serviceDetails?.duration || 'Standard Session'}</p>
                                             </div>
-                                            <p className="text-xs text-gray-500">Type: {liveTracking.serviceDetails?.type || 'Standard Care'}</p>
-                                            <div className="border-t border-gray-100/80 pt-4 flex justify-between text-xs text-gray-600 font-medium">
-                                                <span>Base Price</span>
-                                                <span className="font-extrabold text-gray-800 text-base">₹{liveTracking.serviceDetails?.basePrice || 0}</span>
+                                            
+                                            <div className="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
+                                                <span className="text-slate-400">Total Booking Value</span>
+                                                <span className="font-black text-base text-[#08B36A]">₹{liveTracking.serviceDetails?.basePrice || liveTracking.totalPrice || 0}</span>
                                             </div>
                                         </div>
+
                                     </div>
 
                                 </div>
 
                             </div>
                         ) : (
-                            <div className="p-8 text-center text-xs text-gray-400">Failed to retrieve tracking metrics.</div>
+                            <div className="p-8 text-center text-xs text-slate-400 font-semibold">Failed to retrieve tracking metrics.</div>
                         )}
 
-                        {/* Footer Close Actions with Reassign Trigger */}
-                        <div className="p-8 pt-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
+                        {/* Modal Footer */}
+                        <div className="p-6 sm:p-8 pt-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50 shrink-0">
                             {liveTracking?.assignedStaff && (
                                 <button 
+                                    type="button"
                                     onClick={() => handleReassignFromTrackerModal(liveTracking)}
-                                    className="flex items-center gap-2 px-8 py-4 bg-[#1e40af] hover:bg-[#1e3a8a] text-white font-black rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md shadow-blue-100"
+                                    className="flex items-center gap-2 px-6 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-2xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs"
                                 >
-                                    <FaExchangeAlt size={12} /> Reassign Staff
+                                    <FaExchangeAlt size={11} /> Reassign Staff
                                 </button>
                             )}
                             <button 
+                                type="button"
                                 onClick={() => setIsTrackModalOpen(false)}
-                                className="px-8 py-4 bg-gray-200 hover:bg-gray-300 text-gray-700 font-black rounded-2xl text-xs uppercase tracking-wider transition-all"
+                                className="px-6 py-3.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black rounded-2xl text-xs uppercase tracking-wider transition-all cursor-pointer"
                             >
                                 Close Details
                             </button>
@@ -478,51 +568,57 @@ export default function TrackNursePage() {
                 </div>
             )}
 
-            {/* --- REASSIGN STAFF MODAL --- */}
+            {/* REASSIGN STAFF MODAL */}
             {isReassignModalOpen && targetBooking && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden relative p-8 animate-in zoom-in duration-300">
-                        <div className="flex justify-between items-center mb-6">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden relative p-6 sm:p-8 animate-in zoom-in duration-300 border border-slate-100">
+                        <div className="flex justify-between items-center mb-5">
                             <div>
-                                <h3 className="text-xl font-black text-gray-800 tracking-tight">Reassign Staff</h3>
-                                <p className="text-xs text-gray-400 mt-1">Order Ref: {targetBooking.bookingId}</p>
+                                <h3 className="text-lg font-black text-slate-900 tracking-tight">Reassign Staff</h3>
+                                <p className="text-xs text-slate-400 font-mono mt-0.5">Order Ref: {targetBooking.bookingId}</p>
                             </div>
-                            <button onClick={() => setIsReassignModalOpen(false)} className="text-gray-300 hover:text-gray-500 transition-colors">
-                                <FaTimes size={24} />
+                            <button 
+                                type="button"
+                                onClick={() => setIsReassignModalOpen(false)} 
+                                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                            >
+                                <FaTimes size={18} />
                             </button>
                         </div>
 
                         {reassignLoading ? (
                             <div className="py-12 flex flex-col items-center justify-center gap-3">
-                                <div className="w-8 h-8 border-4 border-[#1e40af] border-t-transparent rounded-full animate-spin"></div>
-                                <p className="text-xs text-gray-500 font-bold">Processing reallocation query...</p>
+                                <div className="w-8 h-8 border-4 border-[#08B36A] border-t-transparent rounded-full animate-spin" />
+                                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Processing staff query...</p>
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                <div className="p-4 rounded-2xl border border-dashed border-gray-100 bg-gray-50/50 text-xs">
-                                    <p className="font-bold text-gray-500">Currently Assigned:</p>
-                                    <p className="text-sm font-black text-gray-800 mt-1">
-                                        {targetBooking.assignedStaff?.staffName || targetBooking.assignedStaffId?.name || "No staff assigned"}
+                                <div className="p-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-xs">
+                                    <span className="font-bold text-slate-400 uppercase text-[10px] block">Currently Assigned</span>
+                                    <p className="text-sm font-black text-slate-900 mt-0.5">
+                                        {targetBooking.assignedStaff?.staffName || targetBooking.assignedStaff?.name || targetBooking.assignedStaffId?.name || "No Staff Assigned"}
                                     </p>
                                 </div>
 
-                                <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider">Select Available Staff</p>
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                                    Select Available Staff
+                                </span>
                                 
                                 {availableStaff.length === 0 ? (
-                                    <p className="text-xs text-red-500 italic py-4">No active nursing staff are available right now.</p>
+                                    <p className="text-xs text-rose-500 font-bold italic py-4">No available nursing staff right now.</p>
                                 ) : (
-                                    <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                                    <div className="max-h-60 overflow-y-auto space-y-2 pr-1 scrollbar-none">
                                         {availableStaff.map((staff) => (
                                             <div 
                                                 key={staff._id}
-                                                className="flex justify-between items-center p-4 rounded-2xl bg-white border border-gray-100 hover:border-[#08B36A] hover:bg-green-50/10 transition-all cursor-pointer group"
+                                                className="flex justify-between items-center p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-[#08B36A] hover:bg-emerald-50/20 transition-all cursor-pointer group"
                                                 onClick={() => handleReassignStaff(staff._id)}
                                             >
                                                 <div>
-                                                    <p className="font-bold text-gray-800 text-sm group-hover:text-[#08B36A]">{staff.name}</p>
-                                                    <p className="text-[10px] text-gray-400">{staff.phone || 'No phone record'}</p>
+                                                    <p className="font-black text-slate-900 text-xs group-hover:text-[#08B36A]">{staff.name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-semibold">{staff.phone || 'No phone'}</p>
                                                 </div>
-                                                <span className="text-[10px] bg-green-50 text-[#08B36A] border border-green-100 font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                                                <span className="text-[10px] bg-emerald-50 text-[#08B36A] border border-emerald-200 font-black px-2.5 py-1 rounded-full uppercase tracking-wider">
                                                     Assign
                                                 </span>
                                             </div>
@@ -538,33 +634,31 @@ export default function TrackNursePage() {
     );
 }
 
-// Timeline Helper Component
+// Timeline Item Sub-Component
 function TimelineItem({ title, desc, isCompleted = false, isLast = false, showBadge = false }) {
     return (
-        <div className="flex gap-6 relative">
+        <div className="flex gap-4 relative">
             {!isLast && (
-                <div className={`absolute left-[13px] top-[26px] bottom-0 w-[2px] ${isCompleted ? 'bg-[#08B36A]' : 'bg-gray-100'}`}></div>
+                <div className={`absolute left-[11px] top-[24px] bottom-0 w-[2px] ${isCompleted ? 'bg-[#08B36A]' : 'bg-slate-200'}`} />
             )}
             
-            <div className="z-10 bg-white py-1">
+            <div className="z-10 bg-white py-1 shrink-0">
                 {isCompleted ? (
-                    <FaCheckCircle className="text-[#08B36A]" size={26} />
+                    <FaCheckCircle className="text-[#08B36A]" size={22} />
                 ) : (
-                    <div className="w-6 h-6 rounded-full border-2 border-gray-100 ml-0.5"></div>
+                    <div className="w-5 h-5 rounded-full border-2 border-slate-200 ml-0.5" />
                 )}
             </div>
 
-            <div className="pb-8 flex-1 flex justify-between items-start">
-                <div className="space-y-1">
-                    <p className={`font-bold text-sm transition-all ${isCompleted ? 'text-gray-800' : 'text-gray-300'}`}>{title}</p>
-                    <p className={`text-[11px] leading-relaxed max-w-[220px] ${isCompleted ? 'text-gray-500' : 'text-gray-300'}`}>{desc}</p>
-                    {showBadge && (
-                        <div className="inline-flex items-center gap-1.5 bg-green-50 text-[#08B36A] px-2 py-0.5 rounded-full border border-green-100 mt-2">
-                             <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                             <span className="text-[9px] font-black uppercase tracking-widest">Live Now</span>
-                        </div>
-                    )}
-                </div>
+            <div className="pb-6 flex-1">
+                <p className={`font-black text-xs transition-colors ${isCompleted ? 'text-slate-900' : 'text-slate-400'}`}>{title}</p>
+                <p className={`text-[11px] leading-relaxed ${isCompleted ? 'text-slate-500' : 'text-slate-300'}`}>{desc}</p>
+                {showBadge && (
+                    <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-[#08B36A] px-2 py-0.5 rounded-full border border-emerald-200 mt-1.5">
+                         <div className="w-1.5 h-1.5 bg-[#08B36A] rounded-full animate-ping" />
+                         <span className="text-[9px] font-black uppercase tracking-widest">Live Now</span>
+                    </div>
+                )}
             </div>
         </div>
     );

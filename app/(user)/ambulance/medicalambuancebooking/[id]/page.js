@@ -70,7 +70,7 @@ export default function AmbulanceBookingPage() {
     paymentMethod: "COD"
   });
 
-  // --- 1. Initial Data Fetching ---
+  // --- 1. Initial Data Fetching (Includes Full Dynamic Pricing Details) ---
   useEffect(() => {
     const token = localStorage.getItem('userToken');
     if (!token) {
@@ -78,12 +78,14 @@ export default function AmbulanceBookingPage() {
       router.push('/ambulance');
       return;
     }
+
     const init = async () => {
       try {
         const storedCoordsString = localStorage.getItem('userCoords');
         const userCoords = storedCoordsString ? JSON.parse(storedCoordsString) : { lat: 30.6, lng: 76.7 };
         setCoords(userCoords);
 
+        // Fetch reverse geocode address
         fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userCoords.lat}&lon=${userCoords.lng}`)
           .then(res => res.json())
           .then(addrData => {
@@ -94,10 +96,11 @@ export default function AmbulanceBookingPage() {
           })
           .catch(() => {});
 
-        const [hospitalRes, familyRes, ambRes, couponsRes] = await Promise.allSettled([
+        // Fetch Hospitals, Family Members, Full Ambulance Details & Coupons
+        const [hospitalRes, familyRes, ambDetailRes, couponsRes] = await Promise.allSettled([
           UserAPI.getNearbyHospitals ? UserAPI.getNearbyHospitals(userCoords) : UserAPI.getHospitalsList(userCoords),
           UserAPI.getFamilyMembers(),
-          UserAPI.getNearestAmbulances(userCoords),
+          UserAPI.getAmbulanceDetail ? UserAPI.getAmbulanceDetail(id) : Promise.resolve({ success: false }),
           UserAPI.getAmbulanceCoupons ? UserAPI.getAmbulanceCoupons(id) : Promise.resolve({ success: false })
         ]);
 
@@ -112,9 +115,16 @@ export default function AmbulanceBookingPage() {
           setFamilyMembers(familyRes.value.data || []);
         }
 
-        if (ambRes.status === "fulfilled" && ambRes.value?.success) {
-          const selected = (ambRes.value.data || []).find(a => a._id === id);
-          setAmbulance(selected);
+        // Set live ambulance profile with dynamic staff fees from API
+        if (ambDetailRes.status === "fulfilled" && ambDetailRes.value?.success) {
+          setAmbulance(ambDetailRes.value.data);
+        } else {
+          // Fallback to nearest list if detail fails
+          const ambListRes = await UserAPI.getNearestAmbulances(userCoords);
+          if (ambListRes.success) {
+            const selected = (ambListRes.data || []).find(a => a._id === id);
+            setAmbulance(selected);
+          }
         }
 
         if (couponsRes.status === "fulfilled" && couponsRes.value?.success) {
@@ -162,10 +172,49 @@ export default function AmbulanceBookingPage() {
     fetchSlots();
   }, [id, selectedDate]);
 
+  // =========================================================================
+  // 💰 DYNAMIC PRICING HELPERS (100% Extracted from Backend API)
+  // =========================================================================
+  const getDoctorPrice = () => {
+    if (!ambulance) return 0;
+    return (
+      ambulance?.pricing?.supportStaff?.doctor?.fee ??
+      ambulance?.pricing?.supportStaff?.doctor?.price ??
+      ambulance?.supportStaff?.doctor?.price ??
+      ambulance?.supportStaff?.doctor?.fee ??
+      0
+    );
+  };
+
+  const getNursePrice = () => {
+    if (!ambulance) return 0;
+    return (
+      ambulance?.pricing?.supportStaff?.nurse?.fee ??
+      ambulance?.pricing?.supportStaff?.nurse?.price ??
+      ambulance?.supportStaff?.nurse?.price ??
+      ambulance?.supportStaff?.nurse?.fee ??
+      0
+    );
+  };
+
+  const getBaseAmbulancePrice = () => {
+    if (!ambulance) return 0;
+    return (
+      ambulance?.pricing?.basePrice ??
+      ambulance?.pricing?.fixedPrice ??
+      ambulance?.displayPrice ??
+      0
+    );
+  };
+
   // --- Calculations ---
-  const currentSubtotal = ambulance ? (ambulance.pricing?.fixedPrice || 2000) +
-    (formData.supportStaff.doctor ? (ambulance.supportStaff?.doctor?.price || 500) : 0) +
-    (formData.supportStaff.nurse ? (ambulance.supportStaff?.nurse?.price || 200) : 0) : 0;
+  const doctorFee = getDoctorPrice();
+  const nurseFee = getNursePrice();
+  const baseAmbulanceFee = getBaseAmbulancePrice();
+
+  const currentSubtotal = (ambulance ? baseAmbulanceFee : 0) +
+    (formData.supportStaff.doctor ? doctorFee : 0) +
+    (formData.supportStaff.nurse ? nurseFee : 0);
 
   let discountAmount = 0;
   if (appliedCoupon) {
@@ -271,12 +320,13 @@ export default function AmbulanceBookingPage() {
       data.append("pickupLocation", JSON.stringify(pickupLocationObj));
       data.append("patientDetails", JSON.stringify(patientDetailsObj));
 
+      // Dynamic supporting staff charge calculation
       const supportingStaffCharge =
-        (formData.supportStaff.doctor ? (ambulance.supportStaff?.doctor?.price || 500) : 0) +
-        (formData.supportStaff.nurse ? (ambulance.supportStaff?.nurse?.price || 200) : 0);
+        (formData.supportStaff.doctor ? doctorFee : 0) +
+        (formData.supportStaff.nurse ? nurseFee : 0);
 
       data.append("pricing", JSON.stringify({
-        ambulanceCharge: ambulance.pricing?.fixedPrice || 2000,
+        ambulanceCharge: baseAmbulanceFee,
         supportingStaffCharge: supportingStaffCharge,
         subtotal: currentSubtotal,
         discount: discountAmount,
@@ -286,9 +336,7 @@ export default function AmbulanceBookingPage() {
       // Execute Booking Initiation
       const res = await UserAPI.bookAmbulance(data);
 
-      // =========================================================================
-      // 🔒 STRICT RAZORPAY VERIFICATION FLOW (POST /user/ambulance/verify-payment)
-      // =========================================================================
+      // --- FLOW A: RAZORPAY VERIFICATION (POST /user/ambulance/verify-payment) ---
       if (formData.paymentMethod === "Online" && (res.requiresPayment || res.razorpayOrderId || res.key_id)) {
         const isLoaded = await loadRazorpayScript();
         if (!isLoaded) {
@@ -297,11 +345,10 @@ export default function AmbulanceBookingPage() {
           return;
         }
 
-        // Strict Extraction of appointmentId (Mandatory MongoDB ID / Custom ID)
         const targetAppointmentId = res.appointmentId || res.bookingId || res.booking?._id || res.booking?.bookingId;
 
         if (!targetAppointmentId) {
-          alert("Error: Missing appointmentId from server response.");
+          alert("Error: Missing appointmentId reference.");
           setIsSubmitting(false);
           return;
         }
@@ -315,7 +362,6 @@ export default function AmbulanceBookingPage() {
           order_id: res.razorpayOrderId,
           handler: async function (paymentResponse) {
             try {
-              // ⚠️ STRICT PAYLOAD FORMAT AS PER DOCUMENTATION
               const verifyPayload = {
                 appointmentId: targetAppointmentId,
                 razorpayOrderId: paymentResponse.razorpay_order_id,
@@ -326,7 +372,6 @@ export default function AmbulanceBookingPage() {
               const verifyRes = await UserAPI.verifyPaymentAmbulance(verifyPayload);
 
               if (verifyRes && verifyRes.success) {
-                // Success: Display OTP from response
                 setBookingSuccessData(verifyRes.data || { 
                   bookingId: verifyRes.data?.bookingId || res.bookingId, 
                   otp: verifyRes.data?.otp 
@@ -396,7 +441,9 @@ export default function AmbulanceBookingPage() {
             </button>
             <div>
               <h1 className="text-2xl font-black tracking-tight">Schedule Medical Ambulance</h1>
-              <p className="text-xs font-bold text-[#08B36A] uppercase tracking-widest">Unit ID: {ambulance.vehicleNumber || ambulance._id.slice(-6).toUpperCase()}</p>
+              <p className="text-xs font-bold text-[#08B36A] uppercase tracking-widest">
+                Unit: {ambulance.vehicle?.vehicleNumber || ambulance.vehicleNumber || ambulance._id.slice(-6).toUpperCase()}
+              </p>
             </div>
           </div>
           <button className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl font-bold text-sm border border-red-100">
@@ -537,13 +584,13 @@ export default function AmbulanceBookingPage() {
               </div>
             </div>
 
-            {/* SUPPORT STAFF */}
+            {/* DYNAMIC SUPPORT STAFF SELECTOR (Prices From Backend API) */}
             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
               <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6">Add Support Staff (Optional)</h3>
               <div className="space-y-3">
                 {[
-                  { id: 'nurse', label: 'Nurse (+₹200)', icon: Activity },
-                  { id: 'doctor', label: 'Doctor (+₹500)', icon: Stethoscope }
+                  { id: 'nurse', label: `Nurse (+₹${nurseFee})`, fee: nurseFee, icon: Activity },
+                  { id: 'doctor', label: `Doctor (+₹${doctorFee})`, fee: doctorFee, icon: Stethoscope }
                 ].map((staff) => (
                   <div
                     key={staff.id}
@@ -578,11 +625,11 @@ export default function AmbulanceBookingPage() {
                   />
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-2xl font-black">{ambulance.name}</h2>
-                  <p className="text-emerald-400 text-sm font-bold uppercase tracking-widest">{ambulance.vehicleType}</p>
+                  <h2 className="text-2xl font-black">{ambulance.name || ambulance.vehicle?.name}</h2>
+                  <p className="text-emerald-400 text-sm font-bold uppercase tracking-widest">{ambulance.vehicle?.vehicleType || ambulance.vehicleType}</p>
                   <div className="flex flex-wrap gap-4 mt-3">
                     <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
-                      <User className="w-4 h-4 text-emerald-500" /> {ambulance.driverInfo?.fullName || "Verified Driver"}
+                      <User className="w-4 h-4 text-emerald-500" /> {ambulance.driverInfo?.name || ambulance.driverInfo?.fullName || "Verified Driver"}
                     </div>
                     <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
                       <Clock className="w-4 h-4 text-emerald-500" /> {ambulance.eta || "Ready"}
@@ -600,14 +647,14 @@ export default function AmbulanceBookingPage() {
                     <div className="p-2 bg-slate-800 rounded-lg"><Phone className="w-4 h-4 text-emerald-400" /></div>
                     <div>
                       <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Phone</p>
-                      <p className="text-sm font-bold">{ambulance.phone || "9876543210"}</p>
+                      <p className="text-sm font-bold">{ambulance.driverInfo?.phone || ambulance.phone || "9876543210"}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-slate-800 rounded-lg"><Mail className="w-4 h-4 text-emerald-400" /></div>
                     <div>
                       <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Email</p>
-                      <p className="text-sm font-bold truncate max-w-[180px]">{ambulance.email || "support@hospital.com"}</p>
+                      <p className="text-sm font-bold truncate max-w-[180px]">{ambulance.driverInfo?.email || ambulance.email || "support@hospital.com"}</p>
                     </div>
                   </div>
                 </div>
@@ -616,14 +663,14 @@ export default function AmbulanceBookingPage() {
                     <div className="p-2 bg-slate-800 rounded-lg"><Truck className="w-4 h-4 text-emerald-400" /></div>
                     <div>
                       <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Vehicle Reg</p>
-                      <p className="text-sm font-bold">{ambulance.vehicleNumber || "PB65AM1024"}</p>
+                      <p className="text-sm font-bold">{ambulance.vehicle?.vehicleNumber || ambulance.vehicleNumber || "PB65AM1024"}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-slate-800 rounded-lg"><Navigation className="w-4 h-4 text-emerald-400" /></div>
                     <div>
                       <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Service Radius</p>
-                      <p className="text-sm font-bold">{ambulance.serviceRadius || "15 km"}</p>
+                      <p className="text-sm font-bold">{ambulance.vehicle?.serviceRadius || ambulance.serviceRadius || "15 km"}</p>
                     </div>
                   </div>
                 </div>

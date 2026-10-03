@@ -342,6 +342,53 @@ const UserAPI = {
         const response = await publicApi.get("/user/pharmacy/categories");
         return response.data;
     },
+    // ==========================================
+// PHARMACY COUPONS API METHODS
+// ==========================================
+
+/**
+ * 1. Fetch Available Pharmacy Coupons
+ * Endpoint: GET /user/pharmacy/available-coupons?vendorId=...
+ * @param {string} [pharmacyId=""] - Optional store/vendor ID
+ */
+getPharmacyCoupons: async (pharmacyId = "") => {
+    try {
+        const query = pharmacyId ? `?vendorId=${encodeURIComponent(pharmacyId)}` : "";
+        const response = await authApi.get(`/user/pharmacy/available-coupons${query}`);
+        return response.data;
+    } catch (error) {
+        console.error("Get Pharmacy Coupons API Error:", error);
+        return {
+            success: false,
+            message: error.response?.data?.message || error.message || "Failed to fetch coupons",
+            data: []
+        };
+    }
+},
+
+/**
+ * 2. Validate and Apply Coupon
+ * Endpoint: POST /user/pharmacy/validate-coupon
+ * @param {string} couponCode - Coupon code (e.g. "MED15")
+ * @param {string} pharmacyId - Store ID
+ * @param {number} totalAmount - Cart medicines subtotal
+ */
+validatePharmacyCoupon: async (couponCode, pharmacyId, totalAmount) => {
+    try {
+        const response = await authApi.post("/user/pharmacy/validate-coupon", {
+            couponCode: couponCode ? couponCode.trim().toUpperCase() : "",
+            pharmacyId: pharmacyId || undefined,
+            totalAmount: Number(totalAmount) || 0
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Validate Pharmacy Coupon API Error:", error);
+        return {
+            success: false,
+            message: error.response?.data?.message || error.message || "Failed to validate coupon"
+        };
+    }
+},
 
     // ==========================================
     // PRIVATE METHODS (Token Required)
@@ -792,16 +839,33 @@ cancelPharmacyOrder: async (data) => {
         const response = await authApi.post("/user/nurse/checkout", payload);
         return response.data;
     },
+   // Inside UserAPI.js:
+
+getHospitalDropdown: async (searchQuery = "") => {
+    try {
+        const query = searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : "";
+        
+        // Try user hospital route with fallback
+        const response = await authApi.get(`/user/hospital/dropdown${query}`);
+        return response.data;
+    } catch (error) {
+        // Fallback check if route is /hospital/dropdown
+        try {
+            const fallbackRes = await authApi.get(`/hospital/dropdown${searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : ""}`);
+            return fallbackRes.data;
+        } catch (err) {
+            console.warn("Hospital dropdown route not found, falling back to manual input.");
+            return { success: false, data: [] };
+        }
+    }
+},
 
     // 5.2 Place Nurse Booking (POST /user/nurse/book)
     bookNurseAppointment: async (payload) => {
         const response = await authApi.post("/user/nurse/book", payload);
         return response.data;
     },
-    processBooking: async (payload) => {
-        const response = await authApi.post("/user/nurse/book", payload);
-        return response.data;
-    },
+   
     getNurseCoupon: async (id) => {
         const response = await authApi.get(`user/nurse/coupons/${id}`);
         return response.data;
@@ -829,18 +893,29 @@ cancelPharmacyOrder: async (data) => {
     },
 
     // Fetches the global list of unique nursing services with their lowest starting prices [2]
-    getGlobalNursingServices: async () => {
-        const response = await authApi.get("/user/nurse/services/global");
-        return response.data;
-    },
+   getGlobalNursingServices: async (params = {}) => {
+    const { category, search } = params;
+    const response = await authApi.get("/user/nurse/services/global", {
+        params: {
+            ...(category && { category }),
+            ...(search && { search })
+        }
+    });
+    return response.data;
+},
 
-    // Fetches certified nursing bureaus and dynamic pricing sheets for a selected service title
-    getProvidersForService: async (serviceTitle) => {
-        const response = await authApi.get("/user/nurse/services/providers", {
-            params: { serviceTitle }
-        });
-        return response.data;
-    },
+
+   getProvidersForService: async ({ serviceId, subCategory, userLat, userLng }) => {
+    const response = await authApi.get("/user/nurse/services/providers", {
+        params: {
+            ...(serviceId && { serviceId }),
+            ...(subCategory && { subCategory }),
+            ...(userLat && { userLat }),
+            ...(userLng && { userLng })
+        }
+    });
+    return response.data;
+},
 
 
 
@@ -1257,16 +1332,30 @@ retryPharmacyPayment: async (data) => {
 
     // 4. Cancellation & Benefit Restores
     // These ensure that if a "Free" booking is cancelled, the benefit count is restored (+1)
-    cancelNurseBooking: async (bookingId) => {
-        const response = await authApi.patch(`/user/nurse/cancel/${bookingId}`);
+   
+cancelNurseBooking: async (bookingId, reason = "") => {
+    try {
+        const response = await authApi.patch(`/user/nurse/cancel/${bookingId}`, {
+            reason: reason || "Cancelled by patient"
+        });
         return response.data;
-    },
+    } catch (error) {
+        console.error("Cancel Nurse Booking API Error:", error);
+        return {
+            success: false,
+            message: error.response?.data?.message || error.message || "Failed to cancel booking"
+        };
+    }
+},
     // Add this to your UserAPI object
-    getNurseSearchSuggestions: async (query) => {
-        const response = await authApi.get(`/user/nurse/search-suggestions?q=${query}`);
-        return response.data;
-    },
-
+   // 3. Autocomplete Search Suggestions (Both Services and Care Providers)
+// Endpoint: GET /user/nurse/search-suggestions?query=...
+getNurseSearchSuggestions: async (query) => {
+    const response = await authApi.get("/user/nurse/search-suggestions", {
+        params: { query }
+    });
+    return response.data;
+},
     cancelLabBooking: async (bookingId) => {
         const response = await authApi.put(`/user/labs/cancel/${bookingId}`);
         return response.data;
@@ -1424,11 +1513,7 @@ cancelAmbulanceBooking: async (bookingId, cancelData = {}) => {
         return response.data;
     },
 
-    // 4. Cancellation & Benefit Restores
-    cancelNurseBooking: async (bookingId) => {
-        const response = await authApi.patch(`/user/nurse/cancel/${bookingId}`);
-        return response.data;
-    },
+   
 
     cancelLabBooking: async (bookingId) => {
         const response = await authApi.put(`/user/labs/cancel/${bookingId}`);

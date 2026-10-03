@@ -6,6 +6,7 @@ import {
   FaUserNurse,
   FaStethoscope,
   FaHome,
+  FaNotesMedical,
 } from 'react-icons/fa';
 
 /* ------------------------------------------------------------------ */
@@ -152,15 +153,14 @@ function Caster({ rot = 0 }) {
   );
 }
 
-/* Nurse walking behind the chair, hands on the push handles.
-   Local coordinates: shifted 16 units left by the parent <g>. */
-function Nurse({ phase, amp, bob, lean, arm }) {
+/* Nurse walking behind the chair, hands on the push handles. */
+function Nurse({ phase, amp, bob, lean, arm, nurseHair = '#5B3A29', nurseBand = '#08B36A' }) {
   const HIPX = 16;
   const HIPY = 146 + bob;
 
   const leg = (ph, far) => {
-    const t = 27 * amp * Math.sin(ph); // thigh swing
-    const flex = amp * (7 + 42 * Math.max(0, Math.cos(ph))); // knee bends on swing phase
+    const t = 27 * amp * Math.sin(ph);
+    const flex = amp * (7 + 42 * Math.max(0, Math.cos(ph)));
     const sh = t - flex;
     const kx = HIPX + 39 * Math.sin(t * D2R);
     const ky = HIPY + 39 * Math.cos(t * D2R);
@@ -178,7 +178,7 @@ function Nurse({ phase, amp, bob, lean, arm }) {
             stroke="#94A3B8"
             strokeWidth="1.5"
           />
-          <line x1={ax - 5} y1={ay + 4.5} x2={ax + 15} y2={ay + 4.5} stroke="#08B36A" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1={ax - 5} y1={ay + 4.5} x2={ax + 15} y2={ay + 4.5} stroke={nurseBand} strokeWidth="1.8" strokeLinecap="round" />
         </g>
       </g>
     );
@@ -190,7 +190,7 @@ function Nurse({ phase, amp, bob, lean, arm }) {
       {leg(phase + Math.PI, true)}
       {leg(phase, false)}
 
-      {/* upper body (leans into the push) */}
+      {/* upper body */}
       <g transform={`translate(0 ${bob}) rotate(${lean} 16 148)`}>
         {/* uniform */}
         <path
@@ -200,12 +200,12 @@ function Nurse({ phase, amp, bob, lean, arm }) {
           strokeWidth="1.6"
           strokeLinejoin="round"
         />
-        <rect x="-3" y="141" width="38" height="6" rx="2" fill="#08B36A" opacity="0.95" />
-        <path d="M8 80 L16 94 L24 80" fill="none" stroke="#08B36A" strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round" />
+        <rect x="-3" y="141" width="38" height="6" rx="2" fill={nurseBand} opacity="0.95" />
+        <path d="M8 80 L16 94 L24 80" fill="none" stroke={nurseBand} strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round" />
 
         {/* name badge */}
-        <rect x="3" y="102" width="12" height="8" rx="1.8" fill="#fff" stroke="#08B36A" strokeWidth="1.4" />
-        <line x1="5.5" y1="105" x2="12.5" y2="105" stroke="#08B36A" strokeWidth="1.2" />
+        <rect x="3" y="102" width="12" height="8" rx="1.8" fill="#fff" stroke={nurseBand} strokeWidth="1.4" />
+        <line x1="5.5" y1="105" x2="12.5" y2="105" stroke={nurseBand} strokeWidth="1.2" />
         <line x1="5.5" y1="107.6" x2="10.5" y2="107.6" stroke="#94A3B8" strokeWidth="1" />
 
         {/* stethoscope */}
@@ -215,17 +215,17 @@ function Nurse({ phase, amp, bob, lean, arm }) {
 
         {/* neck + head */}
         <rect x="11" y="66" width="10" height="14" rx="4" fill="#E2A97F" />
-        <circle cx="0" cy="51" r="8" fill="#5B3A29" />
+        <circle cx="0" cy="51" r="8" fill={nurseHair} />
         <circle cx="16" cy="55" r="14" fill="url(#skinGrad)" />
         <path d="M29 54 Q34 58 29 61" fill="url(#skinGrad)" stroke="#E2A97F" strokeWidth="1" />
         <circle cx="9" cy="57" r="3" fill="#E2A97F" />
         <path
           d="M2 55 C1 42 14 38 26 43 C29 45 29 49 27 51 C21 47 13 48 8 53 C6 55 6 58 7 62 C4 61 2 58 2 55 Z"
-          fill="#5B3A29"
+          fill={nurseHair}
         />
         {/* face */}
         <circle cx="23" cy="53" r="1.7" fill="#1E293B" />
-        <path d="M19 48.5 Q23 46.5 27 48.5" stroke="#5B3A29" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+        <path d="M19 48.5 Q23 46.5 27 48.5" stroke={nurseHair} strokeWidth="1.5" fill="none" strokeLinecap="round" />
         <path d="M20 62 Q25 65.5 29 61.5" stroke="#B4372A" strokeWidth="1.7" fill="none" strokeLinecap="round" />
         <circle cx="24" cy="60" r="2.7" fill="#F87171" opacity="0.3" />
 
@@ -237,8 +237,8 @@ function Nurse({ phase, amp, bob, lean, arm }) {
           strokeWidth="1.4"
           strokeLinejoin="round"
         />
-        <rect x="14.6" y="35" width="3" height="8" rx="1" fill="#08B36A" />
-        <rect x="12" y="37.6" width="8" height="3" rx="1" fill="#08B36A" />
+        <rect x="14.6" y="35" width="3" height="8" rx="1" fill={nurseBand} />
+        <rect x="12" y="37.6" width="8" height="3" rx="1" fill={nurseBand} />
       </g>
 
       {/* arm reaching the push handle (IK) */}
@@ -252,8 +252,23 @@ function Nurse({ phase, amp, bob, lean, arm }) {
   );
 }
 
-function ChairAndPatient({ rearRot, casterRot, bob, patientTilt, nurse, speed }) {
+function ChairAndPatient({
+  id = 1,
+  rearRot,
+  casterRot,
+  bob,
+  patientTilt,
+  nurse,
+  speed,
+  gownColors = ['#22D693', '#079A5C'],
+  patientHair = '#3B2A20',
+  nurseHair = '#5B3A29',
+  nurseBand = '#08B36A',
+  hasIV = true,
+}) {
   const lineLen = 18 + speed * 110;
+  const gownId = `gownGrad_${id}`;
+
   return (
     <svg
       viewBox="-40 0 340 260"
@@ -261,9 +276,9 @@ function ChairAndPatient({ rearRot, casterRot, bob, patientTilt, nurse, speed })
       style={{ overflow: 'visible', display: 'block', width: '100%', height: '100%' }}
     >
       <defs>
-        <linearGradient id="gownGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#22D693" />
-          <stop offset="1" stopColor="#079A5C" />
+        <linearGradient id={gownId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor={gownColors[0]} />
+          <stop offset="1" stopColor={gownColors[1]} />
         </linearGradient>
         <linearGradient id="uniformGrad" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#FFFFFF" />
@@ -293,7 +308,7 @@ function ChairAndPatient({ rearRot, casterRot, bob, patientTilt, nurse, speed })
       {/* far-side wheel (depth) */}
       <RearWheel rot={rearRot} far />
 
-      {/* ---------- wheelchair frame ---------- */}
+      {/* wheelchair frame */}
       <g fill="none" strokeLinecap="round" strokeLinejoin="round" stroke="#475569">
         <path d="M62 86 L84 92 L92 152" strokeWidth="5" />
         <path d="M92 152 L192 152" strokeWidth="5" />
@@ -306,9 +321,21 @@ function ChairAndPatient({ rearRot, casterRot, bob, patientTilt, nurse, speed })
       <rect x="92" y="145" width="98" height="8" rx="4" fill="#1E293B" />
       <path d="M86 100 L90 142" stroke="#1E293B" strokeWidth="8" strokeLinecap="round" />
 
+      {/* IV Drip stand */}
+      {hasIV && (
+        <g transform={`translate(0 ${bob})`} strokeLinecap="round" strokeLinejoin="round">
+          <line x1="72" y1="36" x2="72" y2="148" stroke="#94A3B8" strokeWidth="3" />
+          <path d="M64 36 Q72 32 80 36" fill="none" stroke="#64748B" strokeWidth="2.5" />
+          <rect x="66" y="38" width="12" height="20" rx="3.5" fill="#E0F2FE" stroke="#38BDF8" strokeWidth="1.4" opacity="0.95" />
+          <rect x="68" y="46" width="8" height="2.5" rx="0.5" fill={gownColors[0]} />
+          <circle cx="72" cy="58" r="1.5" fill="#38BDF8" />
+          <path d="M72 58 C72 82 92 108 126 112" fill="none" stroke="#38BDF8" strokeWidth="1.2" strokeDasharray="3 2" opacity="0.85" />
+        </g>
+      )}
+
       <Caster rot={casterRot} />
 
-      {/* ---------- patient legs ---------- */}
+      {/* patient legs */}
       <g strokeLinecap="round" strokeLinejoin="round" fill="none">
         <line x1="114" y1="139" x2="186" y2="138" stroke="#475569" strokeWidth="20" />
         <line x1="186" y1="138" x2="226" y2="184" stroke="#475569" strokeWidth="15" />
@@ -319,13 +346,13 @@ function ChairAndPatient({ rearRot, casterRot, bob, patientTilt, nurse, speed })
         stroke="#94A3B8"
         strokeWidth="1.5"
       />
-      <path d="M224 193 L252 193" stroke="#08B36A" strokeWidth="2" strokeLinecap="round" />
+      <path d="M224 193 L252 193" stroke={gownColors[0]} strokeWidth="2" strokeLinecap="round" />
 
-      {/* ---------- patient torso + head ---------- */}
+      {/* patient torso + head */}
       <g transform={`translate(0 ${bob}) rotate(${patientTilt} 114 110)`}>
         <path
           d="M97 148 C94 128 96 108 102 95 C107 86 121 86 126 95 C130 110 131 130 129 148 Z"
-          fill="url(#gownGrad)"
+          fill={`url(#${gownId})`}
           stroke="#067A49"
           strokeWidth="1.5"
           strokeLinejoin="round"
@@ -338,10 +365,10 @@ function ChairAndPatient({ rearRot, casterRot, bob, patientTilt, nurse, speed })
         <circle cx="108" cy="66" r="3.4" fill="#E2A97F" />
         <path
           d="M99 64 C97 47 112 43 124 49 C129 51 129 56 127 58 C120 54 112 55 106 60 C104 62 104 66 105 70 C101 70 99 68 99 64 Z"
-          fill="#3B2A20"
+          fill={patientHair}
         />
         <circle cx="121" cy="62" r="1.7" fill="#1E293B" />
-        <path d="M117 57.5 Q121 55.5 125 57.5" stroke="#3B2A20" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+        <path d="M117 57.5 Q121 55.5 125 57.5" stroke={patientHair} strokeWidth="1.5" fill="none" strokeLinecap="round" />
         <path d="M118 71 Q123 74.5 127 70.5" stroke="#9A3412" strokeWidth="1.6" fill="none" strokeLinecap="round" />
         <circle cx="122" cy="68" r="2.6" fill="#F87171" opacity="0.28" />
       </g>
@@ -353,17 +380,17 @@ function ChairAndPatient({ rearRot, casterRot, bob, patientTilt, nurse, speed })
       {/* near wheel */}
       <RearWheel rot={rearRot} />
 
-      {/* patient's arm resting on the armrest, with hospital wristband */}
+      {/* patient's arm resting on armrest */}
       <g transform={`translate(0 ${bob})`} strokeLinecap="round" fill="none">
-        <line x1="112" y1="98" x2="120" y2="114" stroke="#08B36A" strokeWidth="12" />
+        <line x1="112" y1="98" x2="120" y2="114" stroke={gownColors[0]} strokeWidth="12" />
         <line x1="120" y1="114" x2="146" y2="112" stroke="#EBBB96" strokeWidth="8" />
-        <rect x="132" y="108" width="9" height="7" rx="2" fill="#FFFFFF" stroke="#08B36A" strokeWidth="1.5" />
+        <rect x="132" y="108" width="9" height="7" rx="2" fill="#FFFFFF" stroke={gownColors[0]} strokeWidth="1.5" />
         <circle cx="149" cy="112" r="5.5" fill="#F0C4A0" stroke="#D99A72" strokeWidth="1" />
       </g>
 
-      {/* ---------- the nurse, pushing from behind ---------- */}
+      {/* the nurse */}
       <g transform="translate(-16 0)">
-        <Nurse {...nurse} />
+        <Nurse {...nurse} nurseHair={nurseHair} nurseBand={nurseBand} />
       </g>
     </svg>
   );
@@ -396,16 +423,13 @@ function Hospital({ open = 0 }) {
         </clipPath>
       </defs>
 
-      {/* roof cross */}
       <rect x="132" y="6" width="36" height="36" rx="9" fill="#08B36A" />
       <rect x="145" y="12" width="10" height="24" rx="2" fill="#fff" />
       <rect x="138" y="19" width="24" height="10" rx="2" fill="#fff" />
 
-      {/* building */}
       <rect x="14" y="48" width="272" height="252" rx="10" fill="url(#wallGrad)" stroke="#CBD5E1" strokeWidth="2" />
       <rect x="14" y="48" width="272" height="14" rx="7" fill="#334155" />
 
-      {/* sign */}
       <rect x="55" y="70" width="190" height="34" rx="9" fill="#08B36A" />
       <text x="150" y="92" textAnchor="middle" fontSize="14" fontWeight="800" fill="#fff" fontFamily="ui-sans-serif, system-ui, sans-serif">
         Nurse Care Center
@@ -414,7 +438,6 @@ function Hospital({ open = 0 }) {
         Professional Care | 24/7
       </text>
 
-      {/* windows */}
       {wins.map((w, i) => (
         <g key={i}>
           <rect x={w.x} y={w.y} width="40" height="26" rx="4" fill="url(#glassGrad)" stroke="#94A3B8" strokeWidth="1.5" />
@@ -422,11 +445,9 @@ function Hospital({ open = 0 }) {
         </g>
       ))}
 
-      {/* awning */}
       <path d="M90 204 L210 204 L200 188 L100 188 Z" fill="#08B36A" />
       <rect x="90" y="203" width="120" height="5" rx="2" fill="#067A49" />
 
-      {/* entrance */}
       <rect x="105" y="204" width="90" height="96" fill="url(#lobbyGrad)" />
       <rect x="105" y="204" width="90" height="96" fill="none" stroke="#475569" strokeWidth="3" />
       <g clipPath="url(#doorClip)">
@@ -439,7 +460,7 @@ function Hospital({ open = 0 }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Content                                                            */
+/*  Content & Multi-Unit Configurations                               */
 /* ------------------------------------------------------------------ */
 const CHECKPOINTS = [
   { t: 0, label: 'Admission', Icon: FaUserNurse },
@@ -447,18 +468,51 @@ const CHECKPOINTS = [
   { t: 1, label: 'Homecare', Icon: FaHome },
 ];
 
-const INTRO_BUBBLE = "Hi! I'm your nurse. I'll take care of you.";
-
-const STAGES = [
-  { name: 'Nurse-assisted admission', bubble: "I'll help you get comfortable." },
-  { name: 'Nursing care and monitoring', bubble: "Let's get your care started." },
-  { name: 'Discharge and home nursing', bubble: "You're ready. I've got you!" },
+const NURSING_TEAMS = [
+  {
+    id: 1,
+    timeOffset: 0,
+    scaleFactor: 1.0,
+    verticalOffset: 0,
+    zIndex: 12,
+    gownColors: ['#22D693', '#079A5C'],
+    patientHair: '#3B2A20',
+    nurseHair: '#5B3A29',
+    nurseBand: '#08B36A',
+    hasIV: true,
+    speech: "Nurse-assisted admission & vital care.",
+  },
+  {
+    id: 2,
+    timeOffset: 5.2,
+    scaleFactor: 0.90,
+    verticalOffset: 6,
+    zIndex: 11,
+    gownColors: ['#38BDF8', '#0284C7'],
+    patientHair: '#E2E8F0', // Senior patient
+    nurseHair: '#854D0E',
+    nurseBand: '#0284C7',
+    hasIV: true,
+    speech: "Bedside monitoring & medication rounds.",
+  },
+  {
+    id: 3,
+    timeOffset: 10.4,
+    scaleFactor: 0.82,
+    verticalOffset: 12,
+    zIndex: 10,
+    gownColors: ['#F472B6', '#DB2777'],
+    patientHair: '#713F12',
+    nurseHair: '#1E293B',
+    nurseBand: '#EC4899',
+    hasIV: false,
+    speech: "Recovery discharge & home nursing.",
+  },
 ];
 
-/* auto-play timing (seconds) */
-const WALK_SECONDS = 12; // time to travel from the left edge to the hospital
-const DWELL_SECONDS = 2.5; // pause at the hospital with the doors open
-const CYCLE_SECONDS = WALK_SECONDS + DWELL_SECONDS;
+const WALK_SECONDS = 13;
+const DWELL_SECONDS = 2.5;
+const CYCLE_SECONDS = 16;
 
 const ANIM_CSS = `
 @keyframes nurseBubbleFloat {
@@ -476,37 +530,17 @@ const ANIM_CSS = `
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 export default function WheelchairScrollAnimation() {
-  const [state, setState] = useState({ p: 0, v: 0, fade: 0 });
+  const [clock, setClock] = useState(0);
   const [size, setSize] = useState({ w: 960, h: 540 });
-
   const trackRef = useRef(null);
 
-  /* auto-play loop: walk left -> right, pause at the hospital, then start again */
   useEffect(() => {
     let raf = 0;
     const t0 = performance.now();
-    let last = t0;
-    let prevP = 0;
 
     const loop = (now) => {
-      const t = ((now - t0) / 1000) % CYCLE_SECONDS;
-
-      let progress = 1;
-      if (t < WALK_SECONDS) {
-        const u = t / WALK_SECONDS;
-        // mostly steady walking speed, with a gentle start
-        progress = u * 0.65 + smoothstep(0, 1, u) * 0.35;
-      }
-
-      // fade in at the start, fade out just before the loop restarts
-      const fade = smoothstep(0, 0.6, t) * (1 - smoothstep(CYCLE_SECONDS - 0.7, CYCLE_SECONDS, t));
-
-      const dt = Math.max(now - last, 1);
-      const v = Math.max((progress - prevP) * (16.7 / dt), 0); // per-frame speed, frame-rate independent
-      prevP = progress;
-      last = now;
-
-      setState({ p: progress, v, fade });
+      const elapsed = (now - t0) / 1000;
+      setClock(elapsed);
       raf = requestAnimationFrame(loop);
     };
 
@@ -514,7 +548,6 @@ export default function WheelchairScrollAnimation() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  /* measure the scene so everything scales to it */
   useEffect(() => {
     if (!trackRef.current) return;
     const el = trackRef.current;
@@ -525,57 +558,26 @@ export default function WheelchairScrollAnimation() {
     return () => ro.disconnect();
   }, []);
 
-  const { p, v, fade } = state;
   const { w: trackW, h: trackH } = size;
 
-  /* ---------- scene geometry ---------- */
+  /* Geometry */
   const pathH = clamp(trackH * 0.17, 54, 88);
   const contact = pathH * 0.55;
-
-  // the svg is 340 units wide (nurse + chair)
-  const chairW = clamp(Math.min(trackW * 0.4, trackH * 0.95), 200, 470);
-  const s = chairW / 340;
-  const chairH = chairW * (260 / 340);
-
+  const baseChairW = clamp(Math.min(trackW * 0.38, trackH * 0.90), 190, 440);
   const hospW = Math.min(clamp(trackW * 0.3, 150, 340), trackH * 0.86);
 
-  const startX = 14;
-  const endX = Math.max(trackW - hospW * 0.6 - chairW * 0.87, startX + 60);
-  const dist = p * (endX - startX);
-  const chairLeft = startX + dist;
-
-  /* ---------- rolling physics: angle = distance / radius ---------- */
-  const distUnits = dist / s;
-  const rearRot = (distUnits / 39.5) * RAD;
-  const casterRot = (distUnits / 13.25) * RAD;
-
-  /* ---------- nurse walking ---------- */
-  const walkPh = (distUnits / 82) * 2 * Math.PI;
-  const movementEnergy = smoothstep(0, 0.0008, Math.abs(v));
-  const amp = clamp(movementEnergy + Math.abs(Math.sin(walkPh)) * 0.35, 0, 1);
-  const nBob = -Math.abs(Math.sin(walkPh)) * 2.8 * amp;
-  const nLean = 7 + Math.sin(walkPh) * 1.2;
-  const la = nLean * D2R;
-  const bx = 18 - 16;
-  const by = 88 - 148;
-  const nsx = 16 + bx * Math.cos(la) - by * Math.sin(la);
-  const nsy = 148 + bx * Math.sin(la) + by * Math.cos(la) + nBob;
-  const nurseArm = solveArm(nsx, nsy, 76, 86, 36, 34);
-  const nurse = { phase: walkPh, amp, bob: nBob, lean: nLean, arm: nurseArm };
-
-  const patientBob = Math.sin(distUnits * 0.13) * 1.15;
-  const patientTilt = Math.sin(distUnits * 0.08) * 0.7;
-
-  const speed = v > 0 ? clamp(v * 300, 0, 1) : 0;
-  const doorOpen = smoothstep(0.82, 0.97, p);
-  const activeStage = p < 0.34 ? 0 : p < 0.67 ? 1 : 2;
-  const bubbleText = p < 0.1 ? INTRO_BUBBLE : STAGES[activeStage].bubble;
+  /* Lead progress for top bar & doors */
+  const leadLoopTime = clock % CYCLE_SECONDS;
+  const leadProgress = leadLoopTime < WALK_SECONDS
+    ? (leadLoopTime / WALK_SECONDS) * 0.65 + smoothstep(0, 1, leadLoopTime / WALK_SECONDS) * 0.35
+    : 1;
+  const doorOpen = smoothstep(0.82, 0.97, leadProgress);
 
   return (
     <div className="w-full bg-[#F8FAFC] py-10 overflow-x-clip font-sans">
-      {/* --- ANIMATION CONTAINER --- */}
       <div className="max-w-7xl mx-auto px-3 md:px-8">
         <div className="bg-white/95 backdrop-blur-md rounded-[2rem] border border-slate-200/80 p-4 md:p-6 shadow-2xl shadow-slate-300/40">
+          
           {/* Header */}
           <div className="flex flex-wrap justify-between items-center gap-3 mb-4 pb-4 border-b border-slate-100">
             <div className="flex items-center gap-3">
@@ -584,27 +586,34 @@ export default function WheelchairScrollAnimation() {
               </div>
               <div>
                 <h3 className="text-base md:text-lg font-black text-slate-900 tracking-tight">
-                  Your nurse is with you all the way
+                  Your Dedicated Nursing Care Convoy
                 </h3>
                 <p className="text-xs font-semibold text-slate-400">
-                  Now at: <span className="text-slate-600">{STAGES[activeStage].name}</span>
+                  Active Care: <span className="text-slate-600">Continuous patient monitoring & home assistance</span>
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 bg-emerald-50 text-[#08B36A] px-4 py-2 rounded-xl border border-emerald-100">
-              <FaHeartbeat className="animate-pulse" />
-              <span className="text-sm font-black tabular-nums">{Math.round(p * 100)}% of the way</span>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="hidden sm:flex items-center gap-2 bg-slate-50 text-slate-700 px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold">
+                <FaNotesMedical className="text-indigo-500" size={13} />
+                <span>Multi-Patient Vitals: <strong className="text-slate-900 font-extrabold">All Normal (SpO2 99%)</strong></span>
+              </div>
+
+              <div className="flex items-center gap-2 bg-emerald-50 text-[#08B36A] px-4 py-2 rounded-xl border border-emerald-100">
+                <FaHeartbeat className="animate-pulse" />
+                <span className="text-sm font-black tabular-nums">24/7 Home Nursing</span>
+              </div>
             </div>
           </div>
 
-          {/* --- SCENE --- */}
+          {/* SCENE */}
           <div
             ref={trackRef}
             className="relative w-full h-[380px] sm:h-[480px] lg:h-[560px] rounded-3xl overflow-hidden border border-slate-200"
             style={{ background: 'linear-gradient(180deg, #BFE6FF 0%, #E3F4FF 55%, #F1FBF5 100%)' }}
           >
-            {/* sun */}
+            {/* Sun */}
             <div
               className="absolute rounded-full"
               style={{
@@ -617,7 +626,7 @@ export default function WheelchairScrollAnimation() {
               }}
             />
 
-            {/* clouds */}
+            {/* Clouds */}
             <div
               className="absolute left-0 right-0"
               style={{
@@ -626,12 +635,12 @@ export default function WheelchairScrollAnimation() {
                 backgroundImage: CLOUD_TILE,
                 backgroundRepeat: 'repeat-x',
                 backgroundSize: 'auto 100%',
-                backgroundPosition: `${-p * 150}px 0`,
+                backgroundPosition: `${-clock * 18}px 0`,
                 opacity: 0.95,
               }}
             />
 
-            {/* floating crosses + hearts */}
+            {/* Floating crosses & hearts */}
             <div
               className="absolute left-0 right-0"
               style={{
@@ -640,11 +649,11 @@ export default function WheelchairScrollAnimation() {
                 backgroundImage: CARE_TILE,
                 backgroundRepeat: 'repeat-x',
                 backgroundSize: 'auto 100%',
-                backgroundPosition: `${-p * 80}px 0`,
+                backgroundPosition: `${-clock * 12}px 0`,
               }}
             />
 
-            {/* skyline */}
+            {/* Skyline */}
             <div
               className="absolute left-0 right-0"
               style={{
@@ -653,11 +662,11 @@ export default function WheelchairScrollAnimation() {
                 backgroundImage: SKYLINE_TILE,
                 backgroundRepeat: 'repeat-x',
                 backgroundSize: 'auto 100%',
-                backgroundPosition: `${-p * 120}px 100%`,
+                backgroundPosition: `${-clock * 15}px 100%`,
               }}
             />
 
-            {/* trees */}
+            {/* Trees */}
             <div
               className="absolute left-0 right-0"
               style={{
@@ -666,11 +675,11 @@ export default function WheelchairScrollAnimation() {
                 backgroundImage: TREES_TILE,
                 backgroundRepeat: 'repeat-x',
                 backgroundSize: 'auto 100%',
-                backgroundPosition: `${-p * 240}px 100%`,
+                backgroundPosition: `${-clock * 28}px 100%`,
               }}
             />
 
-            {/* path */}
+            {/* Path */}
             <div
               className="absolute left-0 right-0 bottom-0"
               style={{
@@ -682,108 +691,126 @@ export default function WheelchairScrollAnimation() {
               }}
             />
 
-            {/* progress trail */}
-            <div
-              className="absolute rounded-full"
-              style={{
-                left: 0,
-                bottom: contact - 2,
-                height: 5,
-                width: chairLeft + chairW * 0.4,
-                opacity: fade,
-                background: 'linear-gradient(90deg, rgba(8,179,106,0) 0%, #08B36A 100%)',
-                boxShadow: '0 0 12px rgba(8,179,106,0.55)',
-              }}
-            />
-
-            {/* care pulse ring */}
-            <div
-              className="absolute pointer-events-none"
-              style={{
-                left: chairLeft + chairW * 0.12,
-                bottom: contact + chairH * 0.55,
-                width: 24,
-                height: 24,
-                borderRadius: '999px',
-                border: '2px solid rgba(8,179,106,0.45)',
-                transform: 'translate(-50%, 50%)',
-                animation: 'carePulse 1.4s ease-out infinite',
-                zIndex: 9,
-                display: fade < 0.05 ? 'none' : 'block',
-              }}
-            />
-
-            {/* hospital */}
+            {/* Hospital Entrance */}
             <div
               className="absolute"
-              style={{ right: 0, bottom: contact - 4, width: hospW, height: hospW }}
+              style={{ right: 0, bottom: contact - 4, width: hospW, height: hospW, zIndex: 15 }}
             >
               <Hospital open={doorOpen} />
             </div>
 
-            {/* checkpoints */}
-            {CHECKPOINTS.map(({ t, label, Icon }) => {
-              const reached = p >= t - 0.02;
+            {/* Checkpoints */}
+            {CHECKPOINTS.map(({ t, label, Icon }) => (
+              <div
+                key={label}
+                className="absolute flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border shadow-sm bg-white text-slate-600 border-slate-200"
+                style={{
+                  left: 20 + t * (trackW - hospW * 0.65 - 80),
+                  bottom: 6,
+                  transform: 'translateX(-50%)',
+                  zIndex: 6,
+                }}
+              >
+                <Icon size={11} className="text-[#08B36A]" />
+                {label}
+              </div>
+            ))}
+
+            {/* ========================================================= */}
+            {/* MULTIPLE NURSES & PATIENTS MOVING ACROSS THE SCENE         */}
+            {/* ========================================================= */}
+            {NURSING_TEAMS.map((unit) => {
+              const pairTime = (clock + (CYCLE_SECONDS - unit.timeOffset)) % CYCLE_SECONDS;
+
+              let p = 1;
+              if (pairTime < WALK_SECONDS) {
+                const u = pairTime / WALK_SECONDS;
+                p = u * 0.65 + smoothstep(0, 1, u) * 0.35;
+              }
+
+              // Smooth fade-in on start, fade-out when entering hospital
+              const fade = smoothstep(0, 0.6, pairTime) * (1 - smoothstep(CYCLE_SECONDS - 0.8, CYCLE_SECONDS, pairTime));
+
+              const chairW = baseChairW * unit.scaleFactor;
+              const s = chairW / 340;
+              const chairH = chairW * (260 / 340);
+
+              const startX = -chairW * 0.9;
+              const endX = Math.max(trackW - hospW * 0.6 - chairW * 0.87, 80);
+              const dist = p * (endX - startX);
+              const chairLeft = startX + dist;
+
+              /* Wheel & walking physics */
+              const distUnits = dist / s;
+              const rearRot = (distUnits / 39.5) * RAD;
+              const casterRot = (distUnits / 13.25) * RAD;
+
+              const walkPh = (distUnits / 82) * 2 * Math.PI;
+              const amp = 0.95;
+              const nBob = -Math.abs(Math.sin(walkPh)) * 2.8 * amp;
+              const nLean = 7 + Math.sin(walkPh) * 1.2;
+              const la = nLean * D2R;
+              const bx = 18 - 16;
+              const by = 88 - 148;
+              const nsx = 16 + bx * Math.cos(la) - by * Math.sin(la);
+              const nsy = 148 + bx * Math.sin(la) + by * Math.cos(la) + nBob;
+              const nurseArm = solveArm(nsx, nsy, 76, 86, 36, 34);
+              const nurse = { phase: walkPh, amp, bob: nBob, lean: nLean, arm: nurseArm };
+
+              const patientBob = Math.sin(distUnits * 0.13) * 1.15;
+              const patientTilt = Math.sin(distUnits * 0.08) * 0.7;
+
+              if (fade <= 0.01) return null;
+
               return (
                 <div
-                  key={label}
-                  className={`absolute flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border shadow-sm transition-all duration-300 ${
-                    reached
-                      ? 'bg-[#08B36A] text-white border-emerald-600 scale-105'
-                      : 'bg-white text-slate-500 border-slate-200'
-                  }`}
+                  key={unit.id}
+                  className="absolute will-change-transform"
                   style={{
-                    left: startX + t * (endX - startX) + chairW * 0.41,
-                    bottom: 5,
-                    transform: 'translateX(-50%)',
-                    zIndex: 5,
+                    left: 0,
+                    bottom: contact - 30 * s + unit.verticalOffset,
+                    width: chairW,
+                    height: chairH,
+                    transform: `translate3d(${chairLeft}px, 0, 0)`,
+                    zIndex: unit.zIndex,
+                    opacity: fade,
+                    filter: 'drop-shadow(0 6px 8px rgba(15,23,42,0.18))',
                   }}
                 >
-                  <Icon size={11} />
-                  {label}
+                  <ChairAndPatient
+                    id={unit.id}
+                    rearRot={rearRot}
+                    casterRot={casterRot}
+                    bob={patientBob}
+                    patientTilt={patientTilt}
+                    nurse={nurse}
+                    speed={0.4}
+                    gownColors={unit.gownColors}
+                    patientHair={unit.patientHair}
+                    nurseHair={unit.nurseHair}
+                    nurseBand={unit.nurseBand}
+                    hasIV={unit.hasIV}
+                  />
+
+                  {/* Nurse Speech Bubble */}
+                  <div
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: 18 * s,
+                      bottom: chairH - 30 * s + 6,
+                      animation: 'nurseBubbleFloat 2s ease-in-out infinite',
+                    }}
+                  >
+                    <div className="relative flex items-center gap-1.5 whitespace-nowrap rounded-2xl bg-white border border-emerald-200 px-3 py-1.5 text-[10px] sm:text-xs font-bold text-slate-700 shadow-md">
+                      <FaUserNurse className="text-[#08B36A]" size={11} />
+                      {unit.speech}
+                      <span className="absolute -bottom-1.5 left-6 w-3 h-3 rotate-45 bg-white border-r border-b border-emerald-200" />
+                    </div>
+                  </div>
                 </div>
               );
             })}
 
-            {/* nurse + wheelchair + patient */}
-            <div
-              className="absolute will-change-transform"
-              style={{
-                left: 0,
-                bottom: contact - 30 * s,
-                width: chairW,
-                height: chairH,
-                transform: `translate3d(${chairLeft}px, 0, 0)`,
-                zIndex: 10,
-                opacity: fade,
-                filter: 'drop-shadow(0 6px 8px rgba(15,23,42,0.18))',
-              }}
-            >
-              <ChairAndPatient
-                rearRot={rearRot}
-                casterRot={casterRot}
-                bob={patientBob}
-                patientTilt={patientTilt}
-                nurse={nurse}
-                speed={speed}
-              />
-
-              {/* nurse speech bubble */}
-              <div
-                className="absolute pointer-events-none"
-                style={{
-                  left: 22 * s,
-                  bottom: chairH - 32 * s + 8,
-                  animation: 'nurseBubbleFloat 1.8s ease-in-out infinite',
-                }}
-              >
-                <div className="relative flex items-center gap-1.5 whitespace-nowrap rounded-2xl bg-white border border-emerald-200 px-3 py-1.5 text-[11px] sm:text-xs font-bold text-slate-700 shadow-md">
-                  <FaUserNurse className="text-[#08B36A]" size={12} />
-                  {bubbleText}
-                  <span className="absolute -bottom-1.5 left-6 w-3 h-3 rotate-45 bg-white border-r border-b border-emerald-200" />
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

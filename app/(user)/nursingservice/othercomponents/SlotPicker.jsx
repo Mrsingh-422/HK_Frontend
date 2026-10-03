@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
 import moment from "moment";
+import { FaCalendarAlt, FaClock, FaChevronLeft, FaChevronRight, FaRegCalendarCheck } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
 export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect }) {
@@ -9,7 +10,7 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [currentMonth, setCurrentMonth] = useState(moment()); // Dynamically defaults to today's month
+    const [currentMonth, setCurrentMonth] = useState(moment());
 
     const [selectedSlot, setSelectedSlot] = useState(null);
     const [hourlyStartSlot, setHourlyStartSlot] = useState(null);
@@ -140,39 +141,77 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
     }, [currentMonth]);
 
     return (
-        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
-            <h3 className="text-lg font-black text-slate-800 mb-6">Select Schedule</h3>
+        <div className="bg-white rounded-[2rem] p-6 md:p-8 shadow-sm border border-slate-100 space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#08B36A] flex items-center justify-center">
+                        <FaRegCalendarCheck size={18} />
+                    </div>
+                    <div>
+                        <h3 className="text-base font-black text-slate-900">Select Schedule</h3>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Choose Visit Duration & Slot</p>
+                    </div>
+                </div>
+            </div>
 
-            <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8">
+            {/* Mode Selector Tabs */}
+            <div className="grid grid-cols-3 gap-2 bg-slate-100/70 p-1.5 rounded-2xl border border-slate-200/60">
                 {[
-                    {id: 'One day One Time', label: 'Single', price: avail?.prices?.oneDayFinal},
-                    {id: 'For Multiple Days', label: 'Multi-Day', price: avail?.prices?.multipleDaysFinal},
-                    {id: 'Acc. To Per/Hours', label: 'Hourly', price: avail?.prices?.hourlyFinal}
+                    { id: 'One day One Time', label: 'Single Visit', price: avail?.prices?.oneDayFinal },
+                    { id: 'For Multiple Days', label: 'Multi-Day', price: avail?.prices?.multipleDaysFinal },
+                    { id: 'Acc. To Per/Hours', label: 'Hourly', price: avail?.prices?.hourlyFinal }
                 ].map((m) => (
                     <button
                         key={m.id}
-                        onClick={() => { setMode(m.id); setStartDate(null); setEndDate(null); setSelectedSlot(null); setHourlyStartSlot(null); setHourlyEndSlot(null); }}
-                        className={`flex-1 py-3 rounded-xl transition-all flex flex-col items-center ${mode === m.id ? "bg-white text-teal-600 shadow-sm" : "text-slate-400"}`}
+                        type="button"
+                        onClick={() => { 
+                            setMode(m.id); 
+                            setStartDate(null); 
+                            setEndDate(null); 
+                            setSelectedSlot(null); 
+                            setHourlyStartSlot(null); 
+                            setHourlyEndSlot(null); 
+                        }}
+                        className={`py-2.5 px-2 rounded-xl transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                            mode === m.id 
+                                ? "bg-white text-[#08B36A] shadow-sm font-black ring-1 ring-[#08B36A]/20" 
+                                : "text-slate-500 hover:text-slate-800 font-semibold"
+                        }`}
                     >
-                        <span className="text-[10px] font-black uppercase tracking-wider">{m.label}</span>
-                        <span className="text-[9px] font-bold">₹{m.price || '0'}</span>
+                        <span className="text-[11px] uppercase tracking-tight">{m.label}</span>
+                        <span className="text-[10px] font-extrabold opacity-90">₹{m.price || '0'}</span>
                     </button>
                 ))}
             </div>
 
-            <div className="flex items-center justify-between mb-6 px-2">
-                <button onClick={() => setCurrentMonth(currentMonth.clone().subtract(1, 'month'))} className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center transition-all hover:bg-slate-100">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            {/* Calendar Controls */}
+            <div className="flex items-center justify-between px-2 pt-2">
+                <button 
+                    type="button"
+                    onClick={() => setCurrentMonth(currentMonth.clone().subtract(1, 'month'))} 
+                    className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-600 flex items-center justify-center transition-all hover:bg-slate-50 hover:border-slate-300"
+                >
+                    <FaChevronLeft size={12} />
                 </button>
-                <span className="text-sm font-black text-slate-800">{currentMonth.format('MMMM YYYY')}</span>
-                <button onClick={() => setCurrentMonth(currentMonth.clone().add(1, 'month'))} className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center transition-all hover:bg-slate-100">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                <span className="text-sm font-black text-slate-800 tracking-tight">
+                    {currentMonth.format('MMMM YYYY')}
+                </span>
+                <button 
+                    type="button"
+                    onClick={() => setCurrentMonth(currentMonth.clone().add(1, 'month'))} 
+                    className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-600 flex items-center justify-center transition-all hover:bg-slate-50 hover:border-slate-300"
+                >
+                    <FaChevronRight size={12} />
                 </button>
             </div>
 
-            <div className="grid grid-cols-7 gap-2 mb-8">
-                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, idx) => (
-                    <div key={idx} className="text-[10px] font-black text-slate-300 text-center py-2">{d}</div>
+            {/* Calendar Grid */}
+            <div className="grid grid-cols-7 gap-2">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, idx) => (
+                    <div key={idx} className="text-[10px] font-black text-slate-400 text-center py-1 uppercase tracking-wider">
+                        {d}
+                    </div>
                 ))}
                 {calendarDays.map((date) => {
                     const dStr = date.format('YYYY-MM-DD');
@@ -183,8 +222,6 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                     const isPremium = dateInfo?.pricing?.isPremium;
                     
                     const displayPrice = mode === "One day One Time" ? dateInfo?.pricing?.oneDayPrice : dateInfo?.pricing?.multipleDayPrice;
-
-                    // Safety boundaries to prevent selection of historic dates
                     const today = moment().startOf('day');
                     const isPastDate = date.isBefore(today, 'day');
 
@@ -193,50 +230,88 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                             key={dStr}
                             disabled={loading || !isCurrentMonth || isPastDate}
                             onClick={() => handleDateClick(dStr)}
-                            className={`h-16 rounded-2xl flex flex-col items-center justify-center border transition-all ${
-                                !isCurrentMonth ? "opacity-20 cursor-not-allowed" :
-                                isPastDate ? "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed" :
-                                isSel ? "bg-teal-500 text-white border-teal-500 shadow-lg" :
-                                inRange ? "bg-teal-50 border-teal-100 text-teal-700" :
-                                isPremium ? "bg-rose-50 border-rose-100 hover:border-rose-300" : "bg-teal-50/30 border-teal-50 hover:border-teal-100"
+                            type="button"
+                            className={`min-h-[58px] p-1.5 rounded-2xl flex flex-col items-center justify-center border transition-all cursor-pointer ${
+                                !isCurrentMonth ? "opacity-25 cursor-not-allowed border-transparent" :
+                                isPastDate ? "bg-slate-50/70 text-slate-300 border-slate-100 cursor-not-allowed" :
+                                isSel ? "bg-[#08B36A] text-white border-[#08B36A] shadow-md shadow-[#08B36A]/20" :
+                                inRange ? "bg-emerald-50 border-emerald-200 text-[#08B36A]" :
+                                isPremium ? "bg-amber-50/50 border-amber-200 hover:border-amber-300" : 
+                                "bg-white border-slate-200 hover:border-[#08B36A] hover:bg-emerald-50/20"
                             }`}
                         >
-                            <span className={`text-[11px] font-black ${isPastDate ? "text-slate-300" : !isSel && isPremium ? "text-rose-600" : !isSel ? "text-teal-700" : ""}`}>{date.date()}</span>
+                            <span className={`text-xs font-black ${
+                                isPastDate ? "text-slate-300" : 
+                                isSel ? "text-white" : 
+                                isPremium ? "text-amber-700" : "text-slate-800"
+                            }`}>
+                                {date.date()}
+                            </span>
+                            
                             {displayPrice && mode !== "Acc. To Per/Hours" && !isPastDate && (
-                                <span className={`text-[7px] font-bold ${isSel ? "text-white/80" : "text-slate-400"}`}>₹{displayPrice}</span>
+                                <span className={`text-[8px] font-bold ${isSel ? "text-white/90" : "text-slate-400"}`}>
+                                    ₹{displayPrice}
+                                </span>
                             )}
+
                             {dateInfo?.pricing?.extraFee > 0 && !isPastDate && (
-                                <span className={`text-[6px] font-black ${isSel ? 'text-white' : 'text-rose-500 underline'}`}>+₹{dateInfo.pricing.extraFee}</span>
+                                <span className={`text-[7px] font-black ${isSel ? 'text-white' : 'text-emerald-700'}`}>
+                                    +₹{dateInfo.pricing.extraFee}
+                                </span>
                             )}
                         </button>
                     );
                 })}
             </div>
 
+            {/* Arrival Time Selector for Single Visit */}
             {mode === "One day One Time" && startDate && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Arrival Time</h4>
-                    <select 
-                        className="w-full p-4 rounded-2xl border-2 border-slate-50 bg-slate-50/50 text-xs font-black text-slate-700 outline-none focus:border-teal-500 transition-all"
-                        value={selectedSlot?.time || ""}
-                        onChange={(e) => setSelectedSlot(avail?.timeSlots?.find(s => s.time === e.target.value))}
-                    >
-                        <option value="">Select Arrival Time</option>
-                        {avail?.timeSlots?.map((slot) => (
-                            <option key={slot.time} value={slot.time}>
-                                {slot.displayTime} — {slot.slotPremiumFee > 0 ? `+ ₹${slot.slotPremiumFee} Premium` : "No Extra Fee"}
-                            </option>
-                        ))}
-                    </select>
+                <div className="space-y-3 pt-3 border-t border-slate-100 animate-in fade-in">
+                    <div className="flex items-center gap-2">
+                        <FaClock className="text-[#08B36A] text-xs" />
+                        <h4 className="text-xs font-black text-slate-600 uppercase tracking-wider">
+                            Choose Arrival Time
+                        </h4>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                        {avail?.timeSlots?.map((slot) => {
+                            const isSelected = selectedSlot?.time === slot.time;
+                            const hasPremium = slot.slotPremiumFee > 0;
+
+                            return (
+                                <button
+                                    key={slot.time}
+                                    type="button"
+                                    onClick={() => setSelectedSlot(slot)}
+                                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                                        isSelected 
+                                            ? "border-[#08B36A] bg-[#08B36A] text-white shadow-md shadow-[#08B36A]/20" 
+                                            : "border-slate-200 bg-white hover:border-[#08B36A] hover:bg-emerald-50/20 text-slate-800"
+                                    }`}
+                                >
+                                    <p className="text-xs font-black">{slot.displayTime}</p>
+                                    <p className={`text-[9px] font-bold mt-0.5 ${isSelected ? "text-emerald-100" : hasPremium ? "text-amber-600" : "text-slate-400"}`}>
+                                        {hasPremium ? `+₹${slot.slotPremiumFee}` : "Standard"}
+                                    </p>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
 
+            {/* Time Selector for Hourly Mode */}
             {mode === "Acc. To Per/Hours" && startDate && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
-                        {!hourlyStartSlot ? "Select Start Time" : !hourlyEndSlot ? "Select End Time" : "Time Range Selected"}
-                    </h4>
-                    <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-3 pt-3 border-t border-slate-100 animate-in fade-in">
+                    <div className="flex items-center gap-2">
+                        <FaClock className="text-[#08B36A] text-xs" />
+                        <h4 className="text-xs font-black text-slate-600 uppercase tracking-wider">
+                            {!hourlyStartSlot ? "Select Start Time" : !hourlyEndSlot ? "Select End Time" : "Time Range Selected"}
+                        </h4>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                         {avail?.timeSlots?.map((slot) => {
                             const isStart = hourlyStartSlot?.time === slot.time;
                             const isEnd = hourlyEndSlot?.time === slot.time;
@@ -246,21 +321,32 @@ export default function SlotPicker({ nurseId, itemId, isPackage, onSlotSelect })
                             return (
                                 <button
                                     key={slot.time}
+                                    type="button"
                                     onClick={() => {
-                                        if (!hourlyStartSlot || (hourlyStartSlot && hourlyEndSlot)) { setHourlyStartSlot(slot); setHourlyEndSlot(null); }
-                                        else {
-                                            if (moment(slot.time, "HH:mm").isBefore(moment(hourlyStartSlot.time, "HH:mm"))) { setHourlyStartSlot(slot); setHourlyEndSlot(null); }
-                                            else setHourlyEndSlot(slot);
+                                        if (!hourlyStartSlot || (hourlyStartSlot && hourlyEndSlot)) { 
+                                            setHourlyStartSlot(slot); 
+                                            setHourlyEndSlot(null); 
+                                        } else {
+                                            if (moment(slot.time, "HH:mm").isBefore(moment(hourlyStartSlot.time, "HH:mm"))) { 
+                                                setHourlyStartSlot(slot); 
+                                                setHourlyEndSlot(null); 
+                                            } else {
+                                                setHourlyEndSlot(slot);
+                                            }
                                         }
                                     }}
-                                    className={`p-4 rounded-[1.5rem] border-2 transition-all flex flex-col items-center gap-1 ${
-                                        isStart || isEnd ? "border-teal-500 bg-teal-500 text-white" :
-                                        inRange ? "border-teal-200 bg-teal-50 text-teal-700" :
-                                        hasPremium ? "border-rose-100 bg-rose-50/30 hover:border-rose-200" : "border-slate-50 bg-slate-50/50 hover:border-slate-200"
+                                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                                        isStart || isEnd 
+                                            ? "border-[#08B36A] bg-[#08B36A] text-white shadow-md shadow-[#08B36A]/20" 
+                                            : inRange 
+                                            ? "border-emerald-200 bg-emerald-50 text-[#08B36A]" 
+                                            : "border-slate-200 bg-white hover:border-[#08B36A] text-slate-800"
                                     }`}
                                 >
-                                    <span className="text-[10px] font-black">{slot.displayTime}</span>
-                                    <span className={`text-[8px] font-bold ${isStart || isEnd ? "text-white/80" : hasPremium ? "text-rose-500" : "text-slate-400"}`}>
+                                    <span className="text-xs font-black">{slot.displayTime}</span>
+                                    <span className={`block text-[9px] font-bold mt-0.5 ${
+                                        isStart || isEnd ? "text-emerald-100" : hasPremium ? "text-amber-600" : "text-slate-400"
+                                    }`}>
                                         {hasPremium ? `+₹${slot.slotPremiumFee}` : "Standard"}
                                     </span>
                                 </button>

@@ -12,7 +12,7 @@ export default function AddressSelector({ selectedAddress, onSelect }) {
             try {
                 const res = await UserAPI.getUserAddresses();
                 if (res?.success) {
-                    setAddresses(res.data);
+                    setAddresses(res.data || []);
                     const defaultAddr = res.data.find(a => a.isDefault) || res.data[0];
                     if (defaultAddr && !selectedAddress) {
                         onSelect(defaultAddr);
@@ -27,75 +27,78 @@ export default function AddressSelector({ selectedAddress, onSelect }) {
         fetchAddresses();
     }, []);
 
-    if (loading) return <div className="animate-pulse h-48 bg-slate-100 rounded-3xl" />;
+    if (loading) {
+        return <div className="animate-pulse h-40 bg-slate-100 rounded-2xl" />;
+    }
 
     return (
-        <section className="space-y-6">
-            <div className="flex items-center justify-between px-2">
+        <section className="space-y-4">
+            <div className="flex items-center justify-between px-1">
                 <div>
-                    <h3 className="text-lg font-black text-slate-800">Visit Address</h3>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-tight">Where should the nurse arrive?</p>
+                    <h3 className="text-base font-black text-slate-900">Visit Address</h3>
+                    <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+                        Where should the nursing team arrive?
+                    </p>
                 </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {addresses.map((addr) => (
-                    <div
-                        key={addr._id}
-                        onClick={() => onSelect(addr)}
-                        className={`cursor-pointer p-6 rounded-[2.5rem] border-2 transition-all relative flex flex-col ${
-                            selectedAddress?._id === addr._id
-                                ? "border-teal-500 bg-teal-50/30 shadow-xl shadow-teal-500/5"
-                                : "border-slate-100 bg-white hover:border-slate-200"
-                        }`}
-                    >
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${selectedAddress?._id === addr._id ? "bg-teal-500 text-white" : "bg-slate-100 text-slate-400"}`}>
-                                    <FaMapMarkerAlt size={14} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {addresses.map((addr) => {
+                    const isSelected = selectedAddress?._id === addr._id;
+                    return (
+                        <div
+                            key={addr._id}
+                            onClick={() => onSelect(addr)}
+                            className={`cursor-pointer p-5 rounded-2xl border-2 transition-all relative flex flex-col justify-between ${
+                                isSelected
+                                    ? "border-[#08B36A] bg-emerald-50/40 ring-1 ring-[#08B36A]/20 shadow-xs"
+                                    : "border-slate-200 bg-white hover:border-slate-300"
+                            }`}
+                        >
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                                        isSelected ? "bg-[#08B36A] text-white" : "bg-slate-100 text-slate-500"
+                                    }`}>
+                                        <FaMapMarkerAlt size={12} />
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                                        {addr.addressType || "Home"}
+                                    </span>
                                 </div>
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                    {addr.addressType || "Home"}
-                                </span>
+                                {isSelected && (
+                                    <FaCheckCircle className="text-[#08B36A]" size={16} />
+                                )}
                             </div>
-                            {selectedAddress?._id === addr._id && (
-                                <div className="bg-teal-500 text-white p-1 rounded-full">
-                                    <FaCheckCircle size={14} />
+
+                            <div className="space-y-1 mb-3 flex-1">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                    <FaUser className="text-slate-400 text-[10px]" />
+                                    <p className="text-xs font-black text-slate-900">{addr.name}</p>
                                 </div>
-                            )}
-                        </div>
-
-                        <div className="space-y-1 mb-4 flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                                <FaUser className="text-slate-300 text-[10px]" />
-                                <p className="text-sm font-black text-slate-900">{addr.name}</p>
+                                <p className="text-xs font-semibold text-slate-600 leading-relaxed">
+                                    {addr.houseNo}, {addr.sector}
+                                    {addr.landmark && `, near ${addr.landmark}`}
+                                </p>
+                                <p className="text-[11px] font-medium text-slate-400">
+                                    {addr.city}, {addr.state} - {addr.pincode}
+                                </p>
                             </div>
-                            <p className="text-xs font-bold text-slate-600 leading-relaxed">
-                                {addr.houseNo}, {addr.sector}
-                                {addr.landmark && `, near ${addr.landmark}`}
-                            </p>
-                            <p className="text-[11px] font-medium text-slate-400">
-                                {addr.city}, {addr.state} - {addr.pincode}
-                            </p>
-                        </div>
 
-                        <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
-                            <FaPhoneAlt className="text-slate-300 text-[10px]" />
-                            <p className="text-[10px] font-black text-slate-500 tracking-tighter">
-                                {addr.phone}
-                            </p>
+                            <div className="pt-2.5 border-t border-slate-100 flex items-center gap-2">
+                                <FaPhoneAlt className="text-slate-400 text-[9px]" />
+                                <p className="text-[11px] font-black text-slate-600">
+                                    {addr.phone}
+                                </p>
+                            </div>
                         </div>
-
-                        {selectedAddress?._id === addr._id && (
-                            <div className="absolute inset-0 rounded-[2.5rem] ring-2 ring-teal-500 ring-inset pointer-events-none" />
-                        )}
-                    </div>
-                ))}
+                    );
+                })}
 
                 {addresses.length === 0 && (
-                    <div className="col-span-full py-10 border-2 border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center text-slate-400">
-                        <FaMapMarkerAlt size={24} className="mb-2 opacity-20" />
-                        <p className="text-xs font-bold">No addresses found. Please add one.</p>
+                    <div className="col-span-full py-8 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400">
+                        <FaMapMarkerAlt size={22} className="mb-2 opacity-30 text-[#08B36A]" />
+                        <p className="text-xs font-bold">No saved addresses found. Please add an address.</p>
                     </div>
                 )}
             </div>

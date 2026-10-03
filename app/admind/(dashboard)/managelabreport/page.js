@@ -5,8 +5,19 @@ import AdminAPI from '@/app/services/AdminAPI';
 import {
     FaPlus, FaTimes, FaArrowLeft, FaEdit, FaSearch,
     FaExclamationTriangle, FaInfoCircle, FaFlask, FaUpload,
-    FaDatabase, FaListAlt, FaCogs, FaCheckCircle
+    FaDatabase, FaListAlt, FaCogs, FaCheckCircle, FaVenusMars
 } from 'react-icons/fa';
+
+// Frontend Helper Function to check Normal / Low / High based on documentation
+export const getParameterStatus = (observedValue, minRef, maxRef) => {
+    const val = parseFloat(observedValue);
+    const min = parseFloat(minRef);
+    const max = parseFloat(maxRef);
+    if (isNaN(val)) return { status: "Normal", color: "text-slate-800" };
+    if (!isNaN(min) && val < min) return { status: "LOW", color: "text-amber-600 font-bold" };
+    if (!isNaN(max) && val > max) return { status: "HIGH", color: "text-red-600 font-bold" };
+    return { status: "NORMAL", color: "text-emerald-600 font-bold" };
+};
 
 export default function Page() {
     // ==========================================
@@ -40,12 +51,13 @@ export default function Page() {
     const [selectedTemplate, setSelectedTemplate] = useState(null);
 
     // ==========================================
-    // 🌟 FORM STATES (API 8 & 9)
+    // 🌟 FORM STATES (Updated with Gender support)
     // ==========================================
     const emptyFormState = {
         testName: '',
+        gender: 'Both', // 'Male', 'Female', 'Both'
         parameters: [
-            { name: '', unit: '', minRef: '', maxRef: '', method: '', machine: '', interpretation: '' }
+            { name: '', unit: '', minRef: '', maxRef: '', type: 'numeric', method: '', machine: '', interpretation: '' }
         ]
     };
     const [formData, setFormData] = useState(emptyFormState);
@@ -136,7 +148,7 @@ export default function Page() {
             ...prev,
             parameters: [
                 ...prev.parameters,
-                { name: '', unit: '', minRef: '', maxRef: '', method: '', machine: '', interpretation: '' }
+                { name: '', unit: '', minRef: '', maxRef: '', type: 'numeric', method: '', machine: '', interpretation: '' }
             ]
         }));
     };
@@ -171,7 +183,7 @@ export default function Page() {
         try {
             const response = await AdminAPI.createReportTemplate(formData);
             if (response.success) {
-                showNotification("Template created manually.", "success");
+                showNotification("Template created successfully.", "success");
                 setIsCreateModalOpen(false);
                 setFormData(emptyFormState);
                 fetchTemplates(1, debouncedSearch);
@@ -192,6 +204,7 @@ export default function Page() {
                 setSelectedTemplate(response.data);
                 setFormData({
                     testName: response.data.testName,
+                    gender: response.data.gender || 'Both',
                     parameters: response.data.parameters || []
                 });
                 setIsEditModalOpen(true);
@@ -274,7 +287,7 @@ export default function Page() {
                     </div>
                     <div>
                         <h1 className="text-xl md:text-2xl font-bold text-gray-800 tracking-wide">Lab Tests Manager</h1>
-                        <p className="text-[13px] text-gray-500 font-medium mt-0.5">Configure diagnostic standards and master report template schemas</p>
+                        <p className="text-[13px] text-gray-500 font-medium mt-0.5">Configure diagnostic standards, gender-specific reference intervals, and master schemas</p>
                     </div>
                 </div>
 
@@ -354,6 +367,7 @@ export default function Page() {
                                 <tr className="bg-white border-b border-gray-100 text-[13px] text-gray-500 font-bold tracking-wide">
                                     <th className="p-5">S No.</th>
                                     <th className="p-5">Report Test Title</th>
+                                    <th className="p-5 text-center">Gender Cohort</th>
                                     <th className="p-5 text-center">Parameters Count</th>
                                     <th className="p-5 text-center">Actions</th>
                                 </tr>
@@ -363,20 +377,34 @@ export default function Page() {
                                     templates.map((template, index) => (
                                         <tr key={template._id} className="border-b border-gray-50 hover:bg-[#f8fcf9] transition-colors group">
 
-                                            {/* Clickable Row Content Opens details (API 2) */}
                                             <td onClick={() => handleOpenDetails(template._id)} className="p-5 font-medium text-gray-500 cursor-pointer w-16">
                                                 {(currentPage - 1) * 10 + (index + 1)}
                                             </td>
                                             <td onClick={() => handleOpenDetails(template._id)} className="p-5 font-bold text-gray-800 cursor-pointer group-hover:text-[#08B36A] transition-colors">
                                                 {template.testName}
                                             </td>
+
+                                            {/* Gender Badge */}
+                                            <td onClick={() => handleOpenDetails(template._id)} className="p-5 text-center cursor-pointer">
+                                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold rounded-full border ${
+                                                    template.gender === 'Female' 
+                                                        ? 'bg-pink-50 text-pink-700 border-pink-200' 
+                                                        : template.gender === 'Male'
+                                                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                }`}>
+                                                    <FaVenusMars size={10} />
+                                                    {template.gender || 'Both'}
+                                                </span>
+                                            </td>
+
                                             <td onClick={() => handleOpenDetails(template._id)} className="p-5 text-center cursor-pointer">
                                                 <span className="inline-block px-3 py-1 bg-[#e6f7eb] text-[#08B36A] border border-[#08B36A]/20 text-[12px] font-bold rounded-full">
                                                     {template.parameters?.length || 0} variables
                                                 </span>
                                             </td>
 
-                                            {/* Action buttons (Manual Edit / Delete) */}
+                                            {/* Action buttons */}
                                             <td className="p-5 text-center w-36">
                                                 <div className="flex justify-center items-center gap-3">
                                                     <button onClick={() => handleOpenEdit(template._id)} className="text-[#f59e0b] hover:text-white bg-[#fffbeb] hover:bg-[#f59e0b] p-2 rounded-lg transition-all shadow-sm">
@@ -391,7 +419,7 @@ export default function Page() {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan="4" className="p-8 text-center text-gray-400 font-medium text-[14px]">
+                                        <td colSpan="5" className="p-8 text-center text-gray-400 font-medium text-[14px]">
                                             No report templates found in database.
                                         </td>
                                     </tr>
@@ -489,7 +517,7 @@ export default function Page() {
                     <div className="mt-8 pt-6 border-t border-gray-100">
                         <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Required Columns Format</h4>
                         <div className="bg-[#fafafa] p-3 rounded-xl border border-gray-150 text-[11px] font-mono text-gray-600 overflow-x-auto whitespace-nowrap">
-                            <span className="text-[#08B36A] font-semibold">testName,parameterName,unit,minRef,maxRef...</span>
+                            <span className="text-[#08B36A] font-semibold">testName,gender,parameterName,unit,minRef,maxRef,type...</span>
                         </div>
                     </div>
                 </div>
@@ -523,20 +551,35 @@ export default function Page() {
 
                                 {/* Main Config card */}
                                 <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-                                    <div>
-                                        <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Test Document Title <span className="text-red-500">*</span></label>
-                                        <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                                <FaListAlt className="text-gray-400 text-[13px]" />
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="md:col-span-2">
+                                            <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Test Document Title <span className="text-red-500">*</span></label>
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                                    <FaListAlt className="text-gray-400 text-[13px]" />
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    placeholder="e.g. Complete Blood Count (CBC)"
+                                                    value={formData.testName}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, testName: e.target.value }))}
+                                                    className="w-full pl-10 pr-4 py-3 bg-[#fafafa] rounded-xl border border-gray-200 focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] outline-none transition-all text-[14px] font-semibold text-gray-800"
+                                                />
                                             </div>
-                                            <input
-                                                type="text"
-                                                required
-                                                placeholder="e.g. Complete Blood Count (CBC)"
-                                                value={formData.testName}
-                                                onChange={(e) => setFormData(prev => ({ ...prev, testName: e.target.value }))}
-                                                className="w-full pl-10 pr-4 py-3 bg-[#fafafa] rounded-xl border border-gray-200 focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] outline-none transition-all text-[14px] font-semibold text-gray-800"
-                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Gender Cohort <span className="text-red-500">*</span></label>
+                                            <select
+                                                value={formData.gender}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-[#fafafa] rounded-xl border border-gray-200 focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] outline-none transition-all text-[14px] font-semibold text-gray-800 cursor-pointer"
+                                            >
+                                                <option value="Both">Both (All Genders)</option>
+                                                <option value="Male">Male</option>
+                                                <option value="Female">Female</option>
+                                            </select>
                                         </div>
                                     </div>
                                 </div>
@@ -586,6 +629,17 @@ export default function Page() {
                                                         />
                                                     </div>
                                                     <div>
+                                                        <label className="block text-[11px] font-bold text-gray-500 mb-1">Type</label>
+                                                        <select
+                                                            value={param.type || 'numeric'}
+                                                            onChange={(e) => handleParamChange(index, 'type', e.target.value)}
+                                                            className="w-full px-3 py-2 border rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#08B36A] font-semibold"
+                                                        >
+                                                            <option value="numeric">Numeric</option>
+                                                            <option value="text">Text / Qualitative</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
                                                         <label className="block text-[11px] font-bold text-gray-500 mb-1">Min Reference</label>
                                                         <input
                                                             type="text"
@@ -612,7 +666,7 @@ export default function Page() {
                                                             className="w-full px-3 py-2 border rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#08B36A] font-semibold"
                                                         />
                                                     </div>
-                                                    <div>
+                                                    <div className="md:col-span-3">
                                                         <label className="block text-[11px] font-bold text-gray-500 mb-1">Instrument/Machine</label>
                                                         <input
                                                             type="text"
@@ -676,19 +730,34 @@ export default function Page() {
 
                                 {/* Main Config Card */}
                                 <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-                                    <div>
-                                        <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Test Document Title <span className="text-red-500">*</span></label>
-                                        <div className="relative">
-                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                                <FaListAlt className="text-gray-400 text-[13px]" />
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="md:col-span-2">
+                                            <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Test Document Title <span className="text-red-500">*</span></label>
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                                    <FaListAlt className="text-gray-400 text-[13px]" />
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    value={formData.testName}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, testName: e.target.value }))}
+                                                    className="w-full pl-10 pr-4 py-3 bg-[#fafafa] rounded-xl border border-gray-200 focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] outline-none transition-all text-[14px] font-semibold text-gray-800"
+                                                />
                                             </div>
-                                            <input
-                                                type="text"
-                                                required
-                                                value={formData.testName}
-                                                onChange={(e) => setFormData(prev => ({ ...prev, testName: e.target.value }))}
-                                                className="w-full pl-10 pr-4 py-3 bg-[#fafafa] rounded-xl border border-gray-200 focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] outline-none transition-all text-[14px] font-semibold text-gray-800"
-                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Gender Cohort <span className="text-red-500">*</span></label>
+                                            <select
+                                                value={formData.gender}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-[#fafafa] rounded-xl border border-gray-200 focus:border-[#08B36A] focus:ring-1 focus:ring-[#08B36A] outline-none transition-all text-[14px] font-semibold text-gray-800 cursor-pointer"
+                                            >
+                                                <option value="Both">Both (All Genders)</option>
+                                                <option value="Male">Male</option>
+                                                <option value="Female">Female</option>
+                                            </select>
                                         </div>
                                     </div>
                                 </div>
@@ -738,6 +807,17 @@ export default function Page() {
                                                         />
                                                     </div>
                                                     <div>
+                                                        <label className="block text-[11px] font-bold text-gray-500 mb-1">Type</label>
+                                                        <select
+                                                            value={param.type || 'numeric'}
+                                                            onChange={(e) => handleParamChange(index, 'type', e.target.value)}
+                                                            className="w-full px-3 py-2 border rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#08B36A] font-semibold"
+                                                        >
+                                                            <option value="numeric">Numeric</option>
+                                                            <option value="text">Text / Qualitative</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
                                                         <label className="block text-[11px] font-bold text-gray-500 mb-1">Min Reference</label>
                                                         <input
                                                             type="text"
@@ -764,7 +844,7 @@ export default function Page() {
                                                             className="w-full px-3 py-2 border rounded-lg text-xs bg-white text-gray-800 outline-none focus:border-[#08B36A] font-semibold"
                                                         />
                                                     </div>
-                                                    <div>
+                                                    <div className="md:col-span-3">
                                                         <label className="block text-[11px] font-bold text-gray-500 mb-1">Instrument/Machine</label>
                                                         <input
                                                             type="text"
@@ -828,7 +908,19 @@ export default function Page() {
                                     <FaFlask className="text-[#08B36A] text-2xl" />
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-black text-gray-800">{selectedTemplate.testName}</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-xl font-black text-gray-800">{selectedTemplate.testName}</h3>
+                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${
+                                            selectedTemplate.gender === 'Female' 
+                                                ? 'bg-pink-50 text-pink-700 border-pink-200' 
+                                                : selectedTemplate.gender === 'Male'
+                                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        }`}>
+                                            <FaVenusMars size={9} />
+                                            {selectedTemplate.gender || 'Both'}
+                                        </span>
+                                    </div>
                                     <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mt-1">Master Schema Profile</p>
                                 </div>
                             </div>
@@ -841,7 +933,14 @@ export default function Page() {
                                     <div key={param._id || i} className="bg-[#fafafa] p-5 rounded-2xl border border-gray-100 space-y-3">
 
                                         <div className="flex items-center justify-between border-b pb-2 border-gray-200">
-                                            <p className="text-[14px] font-bold text-gray-800">{param.name}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-[14px] font-bold text-gray-800">{param.name}</p>
+                                                {param.type && (
+                                                    <span className="text-[9px] uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-extrabold">
+                                                        {param.type}
+                                                    </span>
+                                                )}
+                                            </div>
                                             {param.unit && (
                                                 <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#e6f7eb] text-[#08B36A] border border-[#08B36A]/10">
                                                     {param.unit}
@@ -878,7 +977,7 @@ export default function Page() {
 
                             <div className="mt-6 pt-5 border-t border-gray-100 grid grid-cols-2 gap-4 text-[11px] text-gray-400 font-bold">
                                 <div>ID: {selectedTemplate._id}</div>
-                                <div className="text-right">UPDATED: {new Date(selectedTemplate.updatedAt).toLocaleDateString()}</div>
+                                <div className="text-right">UPDATED: {new Date(selectedTemplate.updatedAt || Date.now()).toLocaleDateString()}</div>
                             </div>
                         </div>
 
@@ -898,7 +997,7 @@ export default function Page() {
                         </div>
                         <h3 className="text-[20px] font-bold text-gray-800 mb-2">Are you sure?</h3>
                         <p className="text-[14px] text-gray-500 font-medium mb-8">
-                            Do you really want to delete <span className="text-gray-800 font-bold">"{selectedTemplate.testName}"</span>?
+                            Do you really want to delete <span className="text-gray-800 font-bold">"{selectedTemplate.testName}" ({selectedTemplate.gender || 'Both'})</span>?
                         </p>
                         <div className="flex items-center justify-center gap-3">
                             <button onClick={() => { setIsDeleteModalOpen(false); setSelectedTemplate(null); }} className="flex-1 px-4 py-3 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl text-[14px] font-bold transition-all">
