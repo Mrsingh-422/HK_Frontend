@@ -1,19 +1,20 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom'; // Required for screen centering
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import UserAPI from '../../../../services/UserAPI';
 import {
     FiX, FiActivity, FiLayers, FiHome,
     FiDownload, FiSearch, FiRefreshCw, FiChevronLeft, FiChevronRight,
-    FiUser, FiMapPin, FiClock, FiCreditCard, FiStar, FiCheckCircle
+    FiUser, FiMapPin, FiClock, FiCreditCard, FiStar, FiCheckCircle,
+    FiAlertCircle, FiPhone, FiZap, FiCalendar, FiCheck
 } from 'react-icons/fi';
 import { HiStar } from 'react-icons/hi';
 import { MdOutlineScience, MdOutlineRateReview, MdPayment } from 'react-icons/md';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5002";
 
-// Helper to resolve files and assets from the backend server
+// Helper to resolve files and assets from backend
 const getReportFileUrl = (path) => {
     if (!path) return null;
     if (path.startsWith('http://') || path.startsWith('https://')) {
@@ -23,8 +24,118 @@ const getReportFileUrl = (path) => {
     return `${BACKEND_URL}/${cleanedPath}`;
 };
 
-// --- SUB-COMPONENT: STEPPER ---
-const StatusStepper = ({ status }) => {
+// Dynamically load Razorpay SDK
+const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+        if (typeof window !== 'undefined' && window.Razorpay) {
+            resolve(true);
+            return;
+        }
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+    });
+};
+
+// --- SUB-COMPONENT: DELIVERY & COLLECTION MODE BADGE ---
+const LabModeBadge = ({ deliveryMode, collectionType }) => {
+    const isExpress = deliveryMode?.isExpressReporting || deliveryMode?.type === 'EXPRESS_HOME';
+
+    if (isExpress) {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+                <FiZap size={10} className="text-amber-500 fill-amber-500 shrink-0" />
+                Fast Express (+₹{deliveryMode?.fastReportCharge || 0})
+            </span>
+        );
+    }
+
+    if (collectionType === "Home Collection" || deliveryMode?.type === 'HOME') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+                <FiHome size={10} className="shrink-0" />
+                Home Sample
+            </span>
+        );
+    }
+
+    return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+            <FiMapPin size={10} className="shrink-0" />
+            Lab Visit
+        </span>
+    );
+};
+
+// --- SUB-COMPONENT: PAYMENT STATUS BADGE ---
+const LabPaymentBadge = ({ paymentStatus, paymentMethod, isCod }) => {
+    const isCash = isCod || paymentMethod === 'COD';
+
+    if (isCash) {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+                💵 COD {paymentStatus === 'Paid' ? '(Paid)' : '(Pending)'}
+            </span>
+        );
+    }
+
+    if (paymentStatus === 'Paid') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+                <FiCheckCircle size={10} className="shrink-0 text-emerald-600" /> Paid Online
+            </span>
+        );
+    }
+
+    return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+            <FiAlertCircle size={10} className="shrink-0 text-rose-500" /> Payment Incomplete
+        </span>
+    );
+};
+
+// --- SUB-COMPONENT: STEPPER & LIVE TIMELINE ---
+const StatusStepper = ({ status, trackingTimeline }) => {
+    if (trackingTimeline && trackingTimeline.length > 0) {
+        return (
+            <div className="w-full py-3 md:py-4 space-y-3">
+                <div className="relative border-l-2 border-indigo-500/30 ml-3 md:ml-4 pl-4 md:pl-6 space-y-4">
+                    {trackingTimeline.map((step, index) => (
+                        <div key={index} className="relative group">
+                            <div className={`absolute -left-[23px] md:-left-[31px] top-1 w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                step.isCompleted
+                                    ? "bg-emerald-500 border-emerald-300 text-white"
+                                    : step.isCurrent
+                                    ? "bg-indigo-600 border-indigo-300 animate-pulse"
+                                    : "bg-slate-800 border-slate-600"
+                            }`}>
+                                {step.isCompleted && <FiCheck size={10} />}
+                            </div>
+                            <div>
+                                <div className="flex items-center justify-between">
+                                    <h5 className={`text-xs font-black uppercase tracking-wider ${
+                                        step.isCurrent ? "text-indigo-400 font-black" : step.isCompleted ? "text-white" : "text-slate-400"
+                                    }`}>
+                                        {step.title}
+                                    </h5>
+                                    {step.time && (
+                                        <span className="text-[9px] font-mono text-slate-400">
+                                            {new Date(step.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">{step.description}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
     const statusMap = {
         "Prescription Uploaded": 0,
         "Under Review": 0,
@@ -86,17 +197,16 @@ function LabOrders() {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
     const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0 });
-    const [modal, setModal] = useState({ isOpen: false, data: null });
+    const [modal, setModal] = useState({ isOpen: false, data: null, trackingData: null });
     const [reviewModal, setReviewModal] = useState({ isOpen: false, data: null });
+    const [retryingId, setRetryingId] = useState(null);
     const [mounted, setMounted] = useState(false);
 
-    // 1. Handle Mounting for Portals (Next.js SSR safety)
     useEffect(() => {
         setMounted(true);
         return () => setMounted(false);
     }, []);
 
-    // 2. Prevent body scroll when modals are open
     useEffect(() => {
         if (modal.isOpen || reviewModal.isOpen) {
             document.body.style.overflow = 'hidden';
@@ -111,12 +221,12 @@ function LabOrders() {
         setLoading(true);
         try {
             const res = await UserAPI.getLabBookings(page, 10);
-            if (res.success) {
-                setOrders(res.data);
+            if (res && res.success) {
+                setOrders(res.data || []);
                 setPagination({
-                    currentPage: res.currentPage,
-                    totalPages: res.totalPages,
-                    totalCount: res.count
+                    currentPage: res.currentPage || 1,
+                    totalPages: res.totalPages || 1,
+                    totalCount: res.totalBookings ?? res.count ?? (res.data ? res.data.length : 0)
                 });
             }
         } catch (error) {
@@ -131,30 +241,121 @@ function LabOrders() {
         loadBookings();
     }, [loadBookings]);
 
-    // Submit or Update Review API Connection
+    // Open Details & Live Tracking Modal
+    const handleOpenDetails = async (order) => {
+        setModal({ isOpen: true, data: order, trackingData: null });
+        try {
+            const targetId = order.bookingId || order._id;
+            const res = await UserAPI.getLabDetails?.(targetId);
+            if (res && res.success && res.data) {
+                setModal({ isOpen: true, data: { ...order, ...res.data }, trackingData: res.data });
+            }
+        } catch (e) {
+            console.warn("Lab tracking details fetch skipped:", e);
+        }
+    };
+
+    // --- RETRY LAB PAYMENT HANDLER (POST /user/labs/retry-payment) ---
+    const handleRetryPayment = async (order) => {
+        const targetBookingId = order.bookingId || order._id;
+        setRetryingId(targetBookingId);
+
+        try {
+            const res = await UserAPI.retryPaymentLab({ bookingId: targetBookingId });
+
+            if (res && res.success) {
+                const isLoaded = await loadRazorpayScript();
+                if (!isLoaded) {
+                    toast.error("Razorpay SDK failed to load. Please check your internet connection.");
+                    setRetryingId(null);
+                    return;
+                }
+
+                let keyId = res.key_id || res.key || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+                if (typeof keyId === 'string' && keyId.startsWith("zp_")) {
+                    keyId = "r" + keyId;
+                }
+
+                const options = {
+                    key: keyId,
+                    amount: res.amount,
+                    currency: "INR",
+                    name: "Health Kangaroo Diagnostics",
+                    description: `Payment for Lab Booking #${res.bookingId || targetBookingId}`,
+                    order_id: res.razorpayOrderId,
+                    handler: async function (razorpayResponse) {
+                        try {
+                            const verifyPayload = {
+                                bookingId: res.bookingId || targetBookingId,
+                                appointmentId: res.bookingMongoId || order._id,
+                                razorpay_payment_id: razorpayResponse.razorpay_payment_id,
+                                razorpay_order_id: razorpayResponse.razorpay_order_id || res.razorpayOrderId,
+                                razorpay_signature: razorpayResponse.razorpay_signature,
+                                razorpayPaymentId: razorpayResponse.razorpay_payment_id,
+                                razorpayOrderId: razorpayResponse.razorpay_order_id || res.razorpayOrderId,
+                                razorpaySignature: razorpayResponse.razorpay_signature,
+                                paymentMethod: "Online"
+                            };
+
+                            const verifyRes = await UserAPI.verifyPaymentLab(verifyPayload);
+
+                            if (verifyRes && verifyRes.success) {
+                                toast.success(verifyRes.message || "Payment verified! Your booking is confirmed.");
+                                loadBookings();
+                            } else {
+                                toast.error(verifyRes?.message || "Payment verification failed.");
+                            }
+                        } catch (err) {
+                            console.error("Payment verification error:", err);
+                            toast.error(err.response?.data?.message || "Error verifying payment with server.");
+                        }
+                    },
+                    modal: {
+                        ondismiss: function () {
+                            toast("Payment window closed.");
+                        }
+                    },
+                    theme: {
+                        color: "#08B36A"
+                    }
+                };
+
+                const rzp = new window.Razorpay(options);
+                rzp.on('payment.failed', function (response) {
+                    toast.error(response.error?.description || "Payment failed. Please try again.");
+                });
+                rzp.open();
+            } else {
+                toast.error(res?.message || "Failed to initialize payment retry.");
+            }
+        } catch (error) {
+            console.error("Retry lab payment error:", error);
+            toast.error(error.response?.data?.message || "Failed to initiate payment retry.");
+        } finally {
+            setRetryingId(null);
+        }
+    };
+
+    // Review Submit / Update
     const handleReviewSubmit = async (bookingId, ratingData, isUpdate = false) => {
         try {
             let res;
-
             if (isUpdate) {
-                const updatePayload = {
+                res = await UserAPI.updateReview(bookingId, {
                     rating: ratingData.rating,
                     comment: ratingData.comment
-                };
-                res = await UserAPI.updateReview(bookingId, updatePayload);
+                });
             } else {
-                const reviewPayload = {
-                    bookingId: bookingId, // MongoDB ObjectId (_id)
+                res = await UserAPI.addRatingAndReviewLab({
+                    bookingId: bookingId,
                     rating: ratingData.rating,
                     comment: ratingData.comment
-                };
-                res = await UserAPI.addRatingAndReviewLab(reviewPayload);
+                });
             }
             
             if (res && res.success) {
                 toast.success(res.message || "Thank you for sharing your diagnostics experience!");
                 setReviewModal({ isOpen: false, data: null });
-                // Re-fetch list to capture updated details
                 loadBookings();
             } else {
                 toast.error(res?.message || "Failed to submit review.");
@@ -166,24 +367,41 @@ function LabOrders() {
     };
 
     // Helpers
-    const getItemsCount = (items) => (items?.tests?.length || 0) + (items?.packages?.length || 0);
+    const getLabName = (order) => {
+        return order.lab?.name || order.labId?.name || "Diagnostic Lab";
+    };
 
-    const getItemsSummary = (items) => {
-        if (!items) return "Diagnostic Booking";
-        const tests = items.tests?.map(t => t.name) || [];
-        const packages = items.packages?.map(p => p.name) || [];
-        const all = [...tests, ...packages];
-        return all.length > 0 ? all.join(", ") : "Diagnostic Booking";
+    const getItemsCount = (order) => {
+        if (order.items?.length) return order.items.length;
+        return (order.items?.tests?.length || 0) + (order.items?.packages?.length || 0);
+    };
+
+    const getItemsSummary = (order) => {
+        if (order.items && Array.isArray(order.items) && order.items.length > 0) {
+            return order.items.map(i => i.name).join(", ");
+        }
+        if (order.items) {
+            const tests = order.items.tests?.map(t => t.name) || [];
+            const packages = order.items.packages?.map(p => p.name) || [];
+            const all = [...tests, ...packages];
+            if (all.length > 0) return all.join(", ");
+        }
+        return "Prescribed Lab Tests";
+    };
+
+    const isPendingPayment = (order) => {
+        const isNotCod = !order.isCod && order.paymentMethod !== 'COD';
+        return (order.paymentStatus === 'Pending' || order.status === 'Pending') && isNotCod;
     };
 
     const getStatusStyles = (status) => {
-        if (['Report Generated', 'Completed'].includes(status)) return 'text-emerald-600 bg-emerald-50';
-        if (status === 'Cancelled') return 'text-rose-500 bg-rose-50';
-        if (['Prescription Uploaded', 'Under Review', 'Tests Added', 'Pending'].includes(status)) return 'text-amber-600 bg-amber-50';
-        return 'text-indigo-600 bg-indigo-50';
+        if (['Report Generated', 'Completed'].includes(status)) return 'text-emerald-700 bg-emerald-50 border-emerald-200';
+        if (status === 'Cancelled') return 'text-rose-700 bg-rose-50 border-rose-200';
+        if (['Prescription Uploaded', 'Under Review', 'Tests Added', 'Pending'].includes(status)) return 'text-amber-700 bg-amber-50 border-amber-200';
+        return 'text-indigo-700 bg-indigo-50 border-indigo-200';
     };
 
-    // --- MODAL PORTAL COMPONENT: ADD & UPDATE REVIEW ---
+    // --- MODAL: ADD / EDIT REVIEW ---
     const LabReviewModal = ({ isOpen, onClose, data }) => {
         const [rating, setRating] = useState(5);
         const [comment, setComment] = useState("");
@@ -192,7 +410,6 @@ function LabOrders() {
         const [modalLoading, setModalLoading] = useState(true);
         const [isEditMode, setIsEditMode] = useState(false);
 
-        // Fetch existing review dynamically when modal opens
         useEffect(() => {
             const fetchReviewStatus = async () => {
                 if (!isOpen || !data?._id) return;
@@ -240,11 +457,9 @@ function LabOrders() {
 
         return createPortal(
             <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6">
-                {/* Backdrop */}
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300" onClick={onClose} />
 
-                {/* Modal Card */}
-                <div className="relative bg-white w-full max-w-md rounded-[2.5rem] p-6 md:p-8 shadow-[0_30px_80px_-15px_rgba(0,0,0,0.5)] overflow-hidden p-6 md:p-8 animate-in zoom-in-95 fade-in duration-300">
+                <div className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-[0_30px_80px_-15px_rgba(0,0,0,0.5)] overflow-hidden p-6 md:p-8 animate-in zoom-in-95 fade-in duration-300">
                     <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-2">
                             <span className="bg-amber-100 text-amber-600 p-2 rounded-xl">
@@ -254,7 +469,7 @@ function LabOrders() {
                                 <h4 className="font-black text-slate-900 text-sm md:text-base uppercase tracking-widest">
                                     {modalLoading ? "Checking Status..." : isEditMode ? "Edit Review" : "Rate Booking"}
                                 </h4>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">Reviewing {data.labId?.name}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Reviewing {getLabName(data)}</p>
                             </div>
                         </div>
                         <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 hover:border-rose-100 transition-all">
@@ -269,7 +484,6 @@ function LabOrders() {
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit} className="space-y-6">
-                            {/* STAR INTERACTIVE GRID */}
                             <div className="flex flex-col items-center justify-center gap-2 p-5 bg-slate-50 rounded-2xl border border-slate-100">
                                 <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Tap to Rate Stars</span>
                                 <div className="flex gap-2">
@@ -298,7 +512,6 @@ function LabOrders() {
                                 </span>
                             </div>
 
-                            {/* TEXT COMMENT */}
                             <div className="space-y-1.5">
                                 <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1 block">Comment Feedback</label>
                                 <textarea
@@ -306,12 +519,11 @@ function LabOrders() {
                                     onChange={(e) => setComment(e.target.value)}
                                     rows={4}
                                     required
-                                    placeholder="Describe the service details, phlebotomist behavior, collection safety, or speed of lab report..."
+                                    placeholder="Describe phlebotomist safety, collection punctuality, or speed of lab report..."
                                     className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs font-semibold outline-none ring-1 ring-slate-100 focus:ring-indigo-500 transition-all placeholder:text-slate-400 resize-none"
                                 />
                             </div>
 
-                            {/* SUBMIT */}
                             <button
                                 type="submit"
                                 disabled={submitting}
@@ -333,12 +545,15 @@ function LabOrders() {
         );
     };
 
-    // --- MODAL PORTAL COMPONENT: ORDER DETAILS ---
-    const LabDetailsModal = ({ data, onClose }) => {
+    // --- MODAL: ORDER DETAILS & LIVE TIMELINE ---
+    const LabDetailsModal = ({ data, trackingData, onClose }) => {
         const [review, setReview] = useState(null);
         const [reviewLoading, setReviewLoading] = useState(false);
 
-        // Fetch the review status for this specific booking
+        const currentData = trackingData || data;
+        const targetOtp = currentData.pickupOtp || currentData.tracking?.otp;
+        const pendingPayment = isPendingPayment(currentData);
+
         useEffect(() => {
             const loadReview = async () => {
                 if (data?.status === "Completed" && data?._id) {
@@ -362,15 +577,12 @@ function LabOrders() {
 
         return createPortal(
             <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6">
-                {/* Backdrop */}
                 <div
                     className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300"
                     onClick={onClose}
                 />
 
-                {/* Modal Card */}
                 <div className="relative bg-white w-full max-w-2xl rounded-[2.5rem] md:rounded-[3.5rem] shadow-[0_30px_80px_-15px_rgba(0,0,0,0.5)] overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95 fade-in duration-300">
-
                     {/* Header */}
                     <div className="p-6 md:p-8 border-b flex justify-between items-center bg-slate-50/30 shrink-0">
                         <div className="flex items-center gap-3">
@@ -378,7 +590,7 @@ function LabOrders() {
                                 <FiActivity size={20} />
                             </span>
                             <div>
-                                <h3 className="font-black text-slate-900 text-sm md:text-base uppercase tracking-widest">Booking #{data.bookingId}</h3>
+                                <h3 className="font-black text-slate-900 text-sm md:text-base uppercase tracking-widest font-mono">#{data.bookingId}</h3>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Diagnostic Summary</p>
                             </div>
                         </div>
@@ -391,113 +603,144 @@ function LabOrders() {
                     </div>
 
                     {/* Scrollable Content */}
-                    <div className="p-6 md:p-10 overflow-y-auto custom-scrollbar space-y-8 flex-1">
-
-                        {/* Status & Lab Info */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-4">
-                                    {/* Dynamic Image Wrapper supporting resolved base path URLs */}
-                                    <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 font-black text-xl border border-indigo-100 overflow-hidden shrink-0">
-                                        {data.labId?.profileImage ? (
-                                            <img 
-                                                src={getReportFileUrl(data.labId.profileImage)} 
-                                                className="w-full h-full object-cover" 
-                                                alt="Lab Logo" 
-                                                onError={(e) => {
-                                                    e.target.onerror = null;
-                                                    e.target.style.display = 'none';
-                                                }}
-                                            />
-                                        ) : (
-                                            data.labId?.name?.charAt(0) || 'L'
-                                        )}
-                                    </div>
-                                    <div>
-                                        <h4 className="font-black text-slate-900 text-lg leading-tight">{data.labId?.name}</h4>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1 mt-1">
-                                            <FiMapPin size={12} /> {data.labId?.city}
-                                        </p>
-                                    </div>
+                    <div className="p-6 md:p-10 overflow-y-auto custom-scrollbar space-y-6 flex-1">
+                        {/* Status Tracker & Timeline Card */}
+                        <div className="bg-slate-900 rounded-[2rem] p-6 md:p-8 text-white relative overflow-hidden">
+                            <div className="flex flex-wrap justify-between items-start gap-2 mb-3">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Order Progress</p>
+                                    <h2 className="text-2xl md:text-3xl font-black mt-0.5">{currentData.status}</h2>
                                 </div>
-                                <StatusStepper status={data.status} />
+                                <div className="flex flex-wrap gap-1.5 items-center">
+                                    <LabModeBadge deliveryMode={currentData.deliveryMode} collectionType={currentData.collectionType} />
+                                    <LabPaymentBadge paymentStatus={currentData.paymentStatus} paymentMethod={currentData.paymentMethod} isCod={currentData.isCod} />
+                                </div>
                             </div>
 
-                            <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
-                                <p className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest">Slot & Security Details</p>
-                                <div className="space-y-3">
-                                    <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                                        <div className="flex items-center gap-3">
-                                            <FiClock className="text-indigo-500" size={16} />
-                                            <span>{new Date(data.appointmentDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}</span>
-                                        </div>
+                            {/* OTP Box */}
+                            {targetOtp && (
+                                <div className="my-4 p-4 bg-indigo-500/20 rounded-2xl border border-indigo-400/30 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[9px] font-black uppercase text-indigo-300 tracking-wider">Sample Collection Security OTP</p>
+                                        <p className="text-xs font-semibold text-slate-300">Share with phlebotomist upon arrival</p>
                                     </div>
-                                    <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                                        <div className="flex items-center gap-3">
-                                            <FiActivity className="text-indigo-500" size={16} />
-                                            <span>{data.appointmentTime}</span>
-                                        </div>
-                                        {data.tracking?.otp && (
-                                            <span className="bg-amber-100 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-md text-[10px] tracking-wider uppercase font-black">
-                                                OTP: {data.tracking.otp}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-3 text-xs font-bold text-slate-700">
-                                        {data.collectionType === "Home Collection" ? <FiHome className="text-emerald-500" size={16} /> : <FiMapPin className="text-blue-500" size={16} />}
-                                        <span>Collection: {data.collectionType}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                                        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Booking Type:</span>
-                                        <span className="font-semibold text-slate-800">{data.bookingType || "Direct"}</span>
-                                    </div>
+                                    <span className="text-2xl font-black text-white tracking-[0.25em] font-mono bg-black/50 px-3.5 py-1.5 rounded-xl border border-indigo-400/30">
+                                        {targetOtp}
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Timeline Stepper */}
+                            <StatusStepper status={currentData.status} trackingTimeline={currentData.trackingTimeline} />
+
+                            <div className="mt-4 flex flex-wrap gap-2 text-slate-300">
+                                <div className="px-3 py-1.5 bg-white/10 rounded-lg text-[10px] font-bold flex items-center gap-1.5">
+                                    <FiClock size={12} /> {currentData.formattedDate || (currentData.schedule?.date ? `${currentData.schedule.date}, ${currentData.schedule.timeSlot}` : new Date(currentData.createdAt || currentData.appointmentDate).toLocaleString())}
+                                </div>
+                                <div className="px-3 py-1.5 bg-white/10 rounded-lg text-[10px] font-bold flex items-center gap-1.5">
+                                    <FiHome size={12} /> {currentData.collectionType || 'Home Collection'}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Tests List */}
+                        {/* Phlebotomist Details Card */}
+                        {currentData.phlebotomist && (
+                            <div className="p-5 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-[2rem] border border-indigo-100 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-lg font-black shadow-md shadow-indigo-100 shrink-0">
+                                        <FiUser size={22} />
+                                    </div>
+                                    <div>
+                                        <span className="text-[9px] font-black uppercase tracking-wider text-indigo-600">Assigned Medical Phlebotomist</span>
+                                        <h4 className="font-black text-slate-900 text-sm">{currentData.phlebotomist.name}</h4>
+                                        <p className="text-[10px] font-bold text-slate-500">Verified Sample Collector</p>
+                                    </div>
+                                </div>
+                                {currentData.phlebotomist.phone && (
+                                    <a
+                                        href={`tel:${currentData.phlebotomist.phone}`}
+                                        className="p-3 bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl border border-indigo-200 transition-colors shadow-sm flex items-center gap-1 text-xs font-black"
+                                    >
+                                        <FiPhone size={14} /> Call
+                                    </a>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Included Tests & Packages */}
                         <div className="space-y-4">
                             <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Included Tests & Packages</h5>
                             <div className="grid grid-cols-1 gap-2.5">
-                                {data.items?.tests?.map((test, i) => (
-                                    <div key={i} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                        <span className="font-bold text-slate-700 text-sm">{test.name}</span>
-                                        <span className="font-black text-slate-900">₹{test.price}</span>
-                                    </div>
-                                ))}
-                                {data.items?.packages?.map((pkg, i) => (
-                                    <div key={i} className="flex justify-between items-center bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
-                                        <span className="font-black text-indigo-700 text-sm">{pkg.name} <span className="text-[8px] uppercase ml-1 opacity-60">(Package)</span></span>
-                                        <span className="font-black text-indigo-900">₹{pkg.price}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Patient Grid */}
-                        <div className="space-y-4">
-                            <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Patients Assigned</h5>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {data.patients?.map((p, i) => (
-                                    <div key={i} className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-slate-100">
-                                        <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100"><FiUser size={16} /></div>
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-black text-slate-900 leading-none mb-1 truncate">{p.name}</p>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase">{p.gender} • {p.relation}</p>
+                                {currentData.items && Array.isArray(currentData.items) ? (
+                                    currentData.items.map((test, i) => (
+                                        <div key={i} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                            <div>
+                                                <span className="font-bold text-slate-800 text-sm">{test.name}</span>
+                                                {test.patientMultiplier > 1 && (
+                                                    <span className="text-[10px] text-slate-400 block font-semibold">× {test.patientMultiplier} Patients</span>
+                                                )}
+                                            </div>
+                                            <span className="font-black text-slate-900">₹{test.totalPrice || test.price}</span>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))
+                                ) : (
+                                    <>
+                                        {currentData.items?.tests?.map((test, i) => (
+                                            <div key={i} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                                <span className="font-bold text-slate-700 text-sm">{test.name}</span>
+                                                <span className="font-black text-slate-900">₹{test.price}</span>
+                                            </div>
+                                        ))}
+                                        {currentData.items?.packages?.map((pkg, i) => (
+                                            <div key={i} className="flex justify-between items-center bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
+                                                <span className="font-black text-indigo-700 text-sm">{pkg.name} <span className="text-[8px] uppercase ml-1 opacity-60">(Package)</span></span>
+                                                <span className="font-black text-indigo-900">₹{pkg.price}</span>
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
                             </div>
                         </div>
 
-                        {/* Dynamic Review Card (Loaded from Backend) */}
+                        {/* Lab & Address Details */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                                <p className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">Diagnostic Lab</p>
+                                <div className="flex gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black shrink-0">
+                                        <MdOutlineScience size={20} />
+                                    </div>
+                                    <div className="text-[12px] font-bold text-slate-600 leading-relaxed">
+                                        <p className="text-slate-900 font-black mb-0.5">{getLabName(currentData)}</p>
+                                        <p>{currentData.lab?.address || currentData.labId?.address || 'Sector 17'}</p>
+                                        <p>{currentData.lab?.city || currentData.labId?.city || 'Chandigarh'}</p>
+                                        {currentData.lab?.phone && (
+                                            <p className="text-indigo-600 font-bold text-[11px] mt-1">📞 {currentData.lab.phone}</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                                <p className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">Collection Point</p>
+                                <div className="flex gap-3">
+                                    <FiMapPin className="text-indigo-500 shrink-0 mt-1" size={16} />
+                                    <div className="text-[12px] font-bold text-slate-600 leading-relaxed">
+                                        <p className="text-slate-900 font-black mb-1">{currentData.address?.name || "Patient"}</p>
+                                        <p>{currentData.address?.houseNo}, {currentData.address?.sector}</p>
+                                        <p>{currentData.address?.city}, {currentData.address?.pincode}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Dynamic Review Card */}
                         {data.status === "Completed" && (
                             <div className="space-y-4">
                                 <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Submitted Feedback</h5>
                                 {reviewLoading ? (
                                     <div className="flex items-center gap-2 bg-slate-50 p-6 rounded-[2rem] border border-slate-100 text-xs font-semibold text-slate-400">
                                         <FiRefreshCw className="animate-spin text-slate-400" size={14} />
-                                        <span>Syncing your submitted review...</span>
+                                        <span>Syncing your review...</span>
                                     </div>
                                 ) : review ? (
                                     <div className="bg-amber-50/50 border border-amber-100/70 p-6 rounded-[2rem] space-y-3">
@@ -518,9 +761,6 @@ function LabOrders() {
                                         <p className="text-xs font-semibold text-slate-700 italic leading-relaxed">
                                             "{review.comment}"
                                         </p>
-                                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                                            Last Updated: {new Date(review.updatedAt || review.createdAt).toLocaleDateString()}
-                                        </p>
                                     </div>
                                 ) : (
                                     <div className="bg-slate-50 border border-slate-100 p-6 rounded-[2rem] text-center">
@@ -539,103 +779,66 @@ function LabOrders() {
                             </div>
                         )}
 
-                        {/* Bill & Payment Details Summary */}
-                        <div className="space-y-4">
-                            <div className="bg-slate-900 text-white rounded-[2.5rem] p-8">
-                                <div className="flex items-center gap-2 mb-6">
-                                    <FiCreditCard className="text-indigo-400" />
-                                    <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Financial Summary</h5>
+                        {/* Bill Summary */}
+                        <div className="bg-slate-900 text-white rounded-[2.5rem] p-8">
+                            <div className="flex items-center gap-2 mb-6">
+                                <FiCreditCard className="text-indigo-400" />
+                                <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Financial Summary</h5>
+                            </div>
+                            <div className="space-y-3 text-xs font-bold border-b border-white/10 pb-6 mb-6">
+                                <div className="flex justify-between text-slate-400">
+                                    <span>Base Tests Total</span>
+                                    <span>₹{currentData.billSummary?.baseTestsTotal || currentData.billSummary?.itemTotal || 0}</span>
                                 </div>
-                                <div className="space-y-3 text-xs font-bold border-b border-white/10 pb-6 mb-6">
+                                {currentData.billSummary?.homeSampleCollectionCharge > 0 && (
                                     <div className="flex justify-between text-slate-400">
-                                        <span>Subtotal</span>
-                                        <span>₹{data.billSummary?.itemTotal}</span>
+                                        <span>Home Sample Collection</span>
+                                        <span>₹{currentData.billSummary?.homeSampleCollectionCharge}</span>
                                     </div>
-                                    {data.billSummary?.itemDiscount > 0 && (
-                                        <div className="flex justify-between text-rose-400">
-                                            <span>Item Discount</span>
-                                            <span>- ₹{data.billSummary?.itemDiscount}</span>
-                                        </div>
-                                    )}
-                                    {data.billSummary?.couponDiscount > 0 && (
-                                        <div className="flex justify-between text-rose-400">
-                                            <span>Coupon Applied</span>
-                                            <span>- ₹{data.billSummary?.couponDiscount}</span>
-                                        </div>
-                                    )}
-                                    {data.billSummary?.homeVisitCharge > 0 && (
-                                        <div className="flex justify-between text-slate-400">
-                                            <span>Home Visit Fee</span>
-                                            <span>₹{data.billSummary?.homeVisitCharge}</span>
-                                        </div>
-                                    )}
-                                    {data.billSummary?.rapidDeliveryCharge > 0 && (
-                                        <div className="flex justify-between text-slate-400">
-                                            <span>Rapid Delivery Charge</span>
-                                            <span>₹{data.billSummary?.rapidDeliveryCharge}</span>
-                                        </div>
-                                    )}
-                                    {data.billSummary?.distanceCharge > 0 && (
-                                        <div className="flex justify-between text-slate-400">
-                                            <span>Distance Fee</span>
-                                            <span>₹{data.billSummary?.distanceCharge}</span>
-                                        </div>
-                                    )}
+                                )}
+                                {currentData.billSummary?.fastReportCharge > 0 && (
+                                    <div className="flex justify-between text-amber-400">
+                                        <span>Fast Express Report</span>
+                                        <span>+ ₹{currentData.billSummary?.fastReportCharge}</span>
+                                    </div>
+                                )}
+                                {currentData.billSummary?.couponDiscount > 0 && (
+                                    <div className="flex justify-between text-rose-400">
+                                        <span>Coupon Applied</span>
+                                        <span>- ₹{currentData.billSummary?.couponDiscount}</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">Total Amount</p>
+                                    <p className="text-3xl font-black">₹{currentData.billSummary?.totalAmount}</p>
                                 </div>
-                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                                    <div>
-                                        <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">Net Paid</p>
-                                        <p className="text-3xl font-black">₹{data.billSummary?.totalAmount}</p>
-                                    </div>
-                                    <div className="text-left sm:text-right">
-                                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Payment Status</p>
-                                        <p className="text-xs font-black text-emerald-400 uppercase mt-1 flex items-center gap-1.5 justify-start sm:justify-end">
-                                            <FiCheckCircle /> {data.paymentStatus}
-                                        </p>
-                                    </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Payment Status</p>
+                                    <p className="text-xs font-black text-emerald-400 uppercase mt-1 flex items-center gap-1.5 justify-end">
+                                        <FiCheckCircle /> {currentData.paymentStatus || "Paid"}
+                                    </p>
                                 </div>
                             </div>
-
-                            {/* Transaction Details Receipt */}
-                            {data.paymentDetails && (
-                                <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 text-xs text-slate-600 space-y-2.5">
-                                    <span className="text-[9px] font-black uppercase text-indigo-600 tracking-wider flex items-center gap-1.5 mb-2">
-                                        <MdPayment size={14} /> Settlement Details
-                                    </span>
-                                    <div className="grid grid-cols-2 gap-y-1 bg-white p-4 rounded-xl border border-slate-100/50">
-                                        <span>Payment ID:</span>
-                                        <span className="font-mono text-slate-800 break-all">{data.paymentDetails.razorpayPaymentId || "N/A"}</span>
-                                        
-                                        <span>Order Reference ID:</span>
-                                        <span className="font-mono text-slate-800 break-all">{data.paymentDetails.razorpayOrderId || "N/A"}</span>
-                                        
-                                        <span>Bank / Method:</span>
-                                        <span className="capitalize text-slate-800">{data.paymentDetails.bank || data.paymentDetails.method || data.paymentMethod || "N/A"}</span>
-
-                                        {data.paymentDetails.wallet && (
-                                            <>
-                                                <span>Wallet Partner:</span>
-                                                <span className="capitalize text-slate-800">{data.paymentDetails.wallet}</span>
-                                            </>
-                                        )}
-
-                                        {data.paymentDetails.vpa && (
-                                            <>
-                                                <span>VPA / UPI ID:</span>
-                                                <span className="font-mono text-slate-800 break-all">{data.paymentDetails.vpa}</span>
-                                            </>
-                                        )}
-
-                                        <span>Transaction Date:</span>
-                                        <span className="text-slate-800">{data.paymentDetails.paidAt ? new Date(data.paymentDetails.paidAt).toLocaleString() : "N/A"}</span>
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     </div>
 
-                    {/* Actions with full PDF download handlers */}
-                    <div className="p-6 md:p-8 bg-slate-50/50 border-t flex flex-wrap sm:flex-nowrap gap-3 shrink-0">
+                    {/* Actions */}
+                    <div className="p-6 md:p-8 bg-slate-50/50 border-t flex flex-wrap gap-3 shrink-0">
+                        {pendingPayment && (
+                            <button 
+                                disabled={retryingId === (data.bookingId || data._id)}
+                                onClick={() => {
+                                    onClose();
+                                    handleRetryPayment(data);
+                                }}
+                                className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-amber-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
+                            >
+                                <FiAlertCircle size={16} /> ⚠️ Payment Incomplete - Pay Now
+                            </button>
+                        )}
+
                         {data.status === "Completed" && (
                             <button 
                                 onClick={() => {
@@ -648,18 +851,24 @@ function LabOrders() {
                             </button>
                         )}
                         
-                        {/* Download Receipt Link */}
                         {data.reportFile && (
                             <a 
                                 href={getReportFileUrl(data.reportFile)}
-                                download={`receipt-${data.bookingId}.pdf`}
+                                download={`report-${data.bookingId}.pdf`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all text-center"
                             >
-                                <FiDownload size={16} /> Download Receipt
+                                <FiDownload size={16} /> Download Digital Report
                             </a>
                         )}
+
+                        <button 
+                            onClick={onClose}
+                            className="flex-1 py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
+                        >
+                            Close
+                        </button>
                     </div>
                 </div>
             </div>,
@@ -672,12 +881,12 @@ function LabOrders() {
             {/* Header */}
             <div className="p-5 md:p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h3 className="font-black text-slate-900 text-lg md:text-xl tracking-tight">Lab Records</h3>
-                    <p className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest mt-1">Found {pagination.totalCount} Bookings</p>
+                    <h3 className="font-black text-slate-900 text-lg md:text-xl tracking-tight">Diagnostic Lab Records</h3>
+                    <p className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest mt-1">Total {pagination.totalCount} Bookings</p>
                 </div>
                 <div className="relative w-full sm:w-72">
                     <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input type="text" placeholder="Search Order ID..." className="w-full bg-slate-50 border-none rounded-2xl py-3 pl-11 pr-4 text-xs md:text-sm font-semibold outline-none ring-1 ring-slate-100 focus:ring-indigo-500 transition-all" />
+                    <input type="text" placeholder="Search Booking ID..." className="w-full bg-slate-50 border-none rounded-2xl py-3 pl-11 pr-4 text-xs md:text-sm font-semibold outline-none ring-1 ring-slate-100 focus:ring-indigo-500 transition-all" />
                 </div>
             </div>
 
@@ -691,87 +900,178 @@ function LabOrders() {
                     <div className="text-center py-16 text-slate-400 text-xs font-medium">No lab records available.</div>
                 ) : (
                     <>
+                        {/* Desktop Clean Uniform Table */}
                         <div className="hidden lg:block overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                            <table className="w-full text-left border-collapse table-auto">
                                 <thead>
-                                    <tr className="bg-slate-50/50">
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Order Info</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Tests</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Date</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Amount</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Action</th>
+                                    <tr className="bg-slate-50/70 border-b border-slate-100">
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Booking ID</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Tests & Lab</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Schedule Date</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Bill & Payment</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {orders.map((order) => (
-                                        <tr key={order._id} className="hover:bg-slate-50/50 transition-colors group">
-                                            <td className="px-8 py-6">
-                                                <p className="text-xs font-black text-slate-900 leading-none mb-1">#{order.bookingId}</p>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase">{order.labId?.name}</p>
-                                            </td>
-                                            <td className="px-8 py-6">
-                                                <p className="text-sm font-black text-slate-800 truncate mb-1">
-                                                    {getItemsSummary(order.items).slice(0, 30)}
-                                                </p>
-                                                <p className="text-[9px] font-bold text-indigo-500 uppercase flex items-center gap-1"><FiLayers /> {getItemsCount(order.items)} Items</p>
-                                            </td>
-                                            <td className="px-8 py-6">
-                                                <p className="text-xs font-bold text-slate-700">{new Date(order.appointmentDate).toLocaleDateString()}</p>
-                                                <p className="text-[10px] text-slate-400 font-bold uppercase">{order.appointmentTime}</p>
-                                            </td>
-                                            <td className="px-8 py-6"><span className="text-sm font-black text-slate-900">₹{order.billSummary?.totalAmount}</span></td>
-                                            <td className="px-8 py-6">
-                                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${getStatusStyles(order.status)}`}>{order.status}</span>
-                                            </td>
-                                            <td className="px-8 py-6 text-right">
-                                                <div className="flex gap-2 justify-end items-center">
-                                                    {order.status === "Completed" && (
+                                    {orders.map((order) => {
+                                        const pendingPayment = isPendingPayment(order);
+
+                                        return (
+                                            <tr key={order._id || order.bookingId} className="hover:bg-slate-50/80 transition-colors">
+                                                {/* Column 1: Booking ID */}
+                                                <td className="px-6 py-5 align-middle">
+                                                    <div className="flex flex-col gap-1 items-start">
+                                                        <span className="text-xs font-black text-slate-900 tracking-wider font-mono">
+                                                            #{order.bookingId}
+                                                        </span>
+                                                        <LabModeBadge deliveryMode={order.deliveryMode} collectionType={order.collectionType} />
+                                                    </div>
+                                                </td>
+
+                                                {/* Column 2: Tests & Lab */}
+                                                <td className="px-6 py-5 align-middle">
+                                                    <div className="flex items-center gap-3.5">
+                                                        <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-xs shrink-0 border border-indigo-100/80">
+                                                            <MdOutlineScience size={16} />
+                                                        </div>
+                                                        <div className="max-w-[210px]">
+                                                            <p className="text-xs font-black text-slate-800 truncate leading-snug">{getItemsSummary(order)}</p>
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight mt-0.5">{getLabName(order)} • {getItemsCount(order)} Item(s)</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                {/* Column 3: Date & Slot */}
+                                                <td className="px-6 py-5 align-middle">
+                                                    <div className="flex flex-col text-xs font-bold text-slate-700">
+                                                        <span>{order.formattedDate || (order.schedule?.formattedDate || new Date(order.createdAt || order.appointmentDate).toLocaleDateString())}</span>
+                                                        <span className="text-[10px] font-medium text-slate-400 mt-0.5">
+                                                            {order.schedule?.timeSlot || order.appointmentTime || "09:00 AM - 11:00 AM"}
+                                                        </span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Column 4: Bill & Payment */}
+                                                <td className="px-6 py-5 align-middle">
+                                                    <div className="flex flex-col gap-1 items-start">
+                                                        <span className="text-sm font-black text-slate-900">₹{order.billSummary?.totalAmount}</span>
+                                                        <LabPaymentBadge paymentStatus={order.paymentStatus} paymentMethod={order.paymentMethod} isCod={order.isCod} />
+                                                    </div>
+                                                </td>
+
+                                                {/* Column 5: Status */}
+                                                <td className="px-6 py-5 align-middle text-center">
+                                                    <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border whitespace-nowrap ${getStatusStyles(order.status)}`}>
+                                                        {order.status}
+                                                    </span>
+                                                </td>
+
+                                                {/* Column 6: Actions */}
+                                                <td className="px-6 py-5 align-middle text-right">
+                                                    <div className="inline-flex items-center justify-end gap-2 whitespace-nowrap">
+                                                        {/* RETRY PAYMENT ACTION */}
+                                                        {pendingPayment && (
+                                                            <button 
+                                                                disabled={retryingId === (order.bookingId || order._id)}
+                                                                onClick={() => handleRetryPayment(order)}
+                                                                className="h-8 px-3 rounded-xl text-[10px] font-black uppercase bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                                                                title="Retry pending payment"
+                                                            >
+                                                                {retryingId === (order.bookingId || order._id) ? (
+                                                                    <FiRefreshCw className="animate-spin" size={11} />
+                                                                ) : (
+                                                                    <FiAlertCircle size={11} />
+                                                                )}
+                                                                Pay Now
+                                                            </button>
+                                                        )}
+
+                                                        {order.status === "Completed" && (
+                                                            <button 
+                                                                onClick={() => setReviewModal({ isOpen: true, data: order })} 
+                                                                className="h-8 px-3 rounded-xl text-[10px] font-black uppercase bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1 shadow-sm"
+                                                            >
+                                                                <FiStar size={11} /> Rate
+                                                            </button>
+                                                        )}
                                                         <button 
-                                                            onClick={() => setReviewModal({ isOpen: true, data: order })} 
-                                                            className="px-4 py-2 rounded-xl text-[9px] font-black uppercase bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1 shadow-md shadow-amber-100"
+                                                            onClick={() => handleOpenDetails(order)} 
+                                                            className="h-8 px-3.5 rounded-xl text-[10px] font-black uppercase border border-slate-200 bg-white text-slate-700 hover:bg-slate-900 hover:text-white transition-all"
                                                         >
-                                                            <FiStar /> Rate Service
+                                                            Track / Details
                                                         </button>
-                                                    )}
-                                                    <button onClick={() => setModal({ isOpen: true, data: order })} className="px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-slate-200 hover:bg-slate-900 hover:text-white transition-all">View Summary</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
 
                         {/* Mobile Cards */}
                         <div className="block lg:hidden divide-y divide-slate-100 px-4">
-                            {orders.map((order) => (
-                                <div key={order._id} className="py-5 flex flex-col gap-3.5">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <p className="text-[10px] font-black text-slate-400 tracking-wider">#{order.bookingId}</p>
-                                            <h4 className="text-sm font-black text-slate-800 line-clamp-1">{getItemsSummary(order.items)}</h4>
+                            {orders.map((order) => {
+                                const pendingPayment = isPendingPayment(order);
+
+                                return (
+                                    <div key={order._id || order.bookingId} className="py-5 flex flex-col gap-3">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <span className="text-[10px] font-black text-slate-400 tracking-wider">#{order.bookingId}</span>
+                                                <h4 className="text-sm font-black text-slate-800 line-clamp-1 mt-0.5">{getItemsSummary(order)}</h4>
+                                                <p className="text-[10px] font-bold text-slate-400">{getLabName(order)} • {getItemsCount(order)} Item(s)</p>
+                                            </div>
+                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${getStatusStyles(order.status)}`}>{order.status}</span>
                                         </div>
-                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${getStatusStyles(order.status)}`}>{order.status}</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {order.status === "Completed" && (
+
+                                        <div className="flex flex-wrap gap-1.5 items-center">
+                                            <LabPaymentBadge paymentStatus={order.paymentStatus} paymentMethod={order.paymentMethod} isCod={order.isCod} />
+                                            <LabModeBadge deliveryMode={order.deliveryMode} collectionType={order.collectionType} />
+                                        </div>
+
+                                        <div className="flex justify-between items-center text-xs font-bold text-slate-600 bg-slate-50 p-2.5 rounded-xl">
+                                            <span>{order.formattedDate || new Date(order.createdAt || order.appointmentDate).toLocaleDateString()}</span>
+                                            <span className="text-sm font-black text-slate-900">Total: ₹{order.billSummary?.totalAmount}</span>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2 pt-1">
+                                            {pendingPayment && (
+                                                <button 
+                                                    disabled={retryingId === (order.bookingId || order._id)}
+                                                    onClick={() => handleRetryPayment(order)} 
+                                                    className="w-full bg-amber-500 hover:bg-amber-600 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center text-white flex items-center justify-center gap-1.5 shadow-md shadow-amber-100 disabled:opacity-50 col-span-2 sm:col-span-1"
+                                                >
+                                                    {retryingId === (order.bookingId || order._id) ? (
+                                                        <FiRefreshCw className="animate-spin" size={12} />
+                                                    ) : (
+                                                        <FiAlertCircle size={12} />
+                                                    )}
+                                                    ⚠️ Pay Now
+                                                </button>
+                                            )}
+
+                                            {order.status === "Completed" && (
+                                                <button 
+                                                    onClick={() => setReviewModal({ isOpen: true, data: order })} 
+                                                    className="w-full bg-amber-500 hover:bg-amber-600 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center text-white flex items-center justify-center gap-1 shadow-sm"
+                                                >
+                                                    <FiStar size={11} /> Rate
+                                                </button>
+                                            )}
                                             <button 
-                                                onClick={() => setReviewModal({ isOpen: true, data: order })} 
-                                                className="w-full bg-amber-500 hover:bg-amber-600 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center text-white flex items-center justify-center gap-1 shadow-md shadow-amber-100"
+                                                onClick={() => handleOpenDetails(order)} 
+                                                className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center border border-slate-200 bg-white ${
+                                                    order.status !== "Completed" && !pendingPayment ? "col-span-2" : ""
+                                                }`}
                                             >
-                                                <FiStar /> Rate Service
+                                                Track / Details
                                             </button>
-                                        )}
-                                        <button 
-                                            onClick={() => setModal({ isOpen: true, data: order })} 
-                                            className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center border border-slate-200 bg-white ${order.status !== "Completed" ? "col-span-2" : ""}`}
-                                        >
-                                            View Summary
-                                        </button>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </>
                 )}
@@ -786,11 +1086,12 @@ function LabOrders() {
                 </div>
             </div>
 
-            {/* --- Portal Modals --- */}
+            {/* Modals */}
             {modal.isOpen && modal.data && (
                 <LabDetailsModal
                     data={modal.data}
-                    onClose={() => setModal({ isOpen: false, data: null })}
+                    trackingData={modal.trackingData}
+                    onClose={() => setModal({ isOpen: false, data: null, trackingData: null })}
                 />
             )}
 

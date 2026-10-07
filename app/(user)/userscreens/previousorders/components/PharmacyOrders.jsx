@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
@@ -8,10 +8,10 @@ import {
     FiRefreshCw, FiClock, FiSearch, FiChevronLeft, FiChevronRight,
     FiUser, FiMapPin, FiCreditCard, FiStar, FiRotateCcw, FiUploadCloud,
     FiAlertCircle, FiInfo, FiTrash2, FiLock, FiCheck, FiFileText,
-    FiSlash, FiCheckCircle
+    FiSlash, FiCheckCircle, FiPhone, FiZap, FiCalendar, FiShoppingBag
 } from 'react-icons/fi';
 import { HiStar } from 'react-icons/hi';
-import { MdOutlineLocalPharmacy, MdOutlineRateReview, MdOutlineAssignmentReturn, MdOutlineCancel } from 'react-icons/md';
+import { MdOutlineLocalPharmacy, MdOutlineRateReview, MdOutlineAssignmentReturn, MdOutlineCancel, MdOutlineDeliveryDining } from 'react-icons/md';
 
 // --- HELPER: DYNAMIC RAZORPAY SCRIPT LOADER ---
 const loadRazorpayScript = () => {
@@ -28,8 +28,120 @@ const loadRazorpayScript = () => {
     });
 };
 
-// --- SUB-COMPONENT: STATUS TRACKER ---
-const StatusStepper = ({ status }) => {
+// --- SUB-COMPONENT: DELIVERY MODE BADGE ---
+const DeliveryModeBadge = ({ deliveryMode, slotSchedule }) => {
+    if (!deliveryMode) return null;
+
+    if (deliveryMode.type === 'EXPRESS' || deliveryMode.isRapid) {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+                <FiZap size={10} className="text-rose-500 fill-rose-500 shrink-0" />
+                Express (+₹{deliveryMode.rapidCharge || 0})
+            </span>
+        );
+    }
+
+    if (deliveryMode.type === 'SLOT' || deliveryMode.isSlotDelivery) {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+                <FiCalendar size={10} className="shrink-0" />
+                Slot: {slotSchedule?.timeSlot || 'Scheduled'} {deliveryMode.isPremiumSlot && `(+₹${deliveryMode.slotCharge || 0})`}
+            </span>
+        );
+    }
+
+    if (deliveryMode.type === 'PICKUP') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 font-bold rounded-md text-[10px] whitespace-nowrap">
+                <FiShoppingBag size={10} className="shrink-0" />
+                Self Pickup
+            </span>
+        );
+    }
+
+    return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+            <FiTruck size={10} className="shrink-0" />
+            Standard
+        </span>
+    );
+};
+
+// --- SUB-COMPONENT: PAYMENT BADGE ---
+const PaymentBadge = ({ paymentInfo, paymentStatus, paymentMethod }) => {
+    const isCod = paymentInfo?.isCod || paymentMethod === 'COD' || paymentInfo?.method === 'COD';
+    const status = paymentInfo?.status || paymentStatus;
+
+    if (isCod) {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+                💵 COD {status === 'Paid' ? '(Paid)' : '(Pending)'}
+            </span>
+        );
+    }
+
+    if (status === 'Paid') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+                <FiCheckCircle size={10} className="shrink-0" /> Paid Online
+            </span>
+        );
+    }
+
+    if (status === 'Refund-Initiated' || status === 'Refunded') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 font-bold rounded-md text-[10px] whitespace-nowrap">
+                ↩️ {status}
+            </span>
+        );
+    }
+
+    return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+            <FiAlertCircle size={10} className="shrink-0" /> Payment Incomplete
+        </span>
+    );
+};
+
+// --- SUB-COMPONENT: STATUS TRACKER / TIMELINE ---
+const StatusStepper = ({ status, trackingTimeline }) => {
+    if (trackingTimeline && trackingTimeline.length > 0) {
+        return (
+            <div className="w-full py-3 md:py-4 space-y-3">
+                <div className="relative border-l-2 border-indigo-500/30 ml-3 md:ml-4 pl-4 md:pl-6 space-y-4">
+                    {trackingTimeline.map((step, index) => (
+                        <div key={index} className="relative group">
+                            <div className={`absolute -left-[23px] md:-left-[31px] top-1 w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                step.isCompleted
+                                    ? "bg-emerald-500 border-emerald-300 text-white"
+                                    : step.isCurrent
+                                    ? "bg-indigo-600 border-indigo-300 animate-pulse"
+                                    : "bg-slate-800 border-slate-600"
+                            }`}>
+                                {step.isCompleted && <FiCheck size={10} />}
+                            </div>
+                            <div>
+                                <div className="flex items-center justify-between">
+                                    <h5 className={`text-xs font-black uppercase tracking-wider ${
+                                        step.isCurrent ? "text-indigo-400 font-black" : step.isCompleted ? "text-white" : "text-slate-400"
+                                    }`}>
+                                        {step.title}
+                                    </h5>
+                                    {step.time && (
+                                        <span className="text-[9px] font-mono text-slate-400">
+                                            {new Date(step.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">{step.description}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
     const statusMap = {
         "Placed": 0,
         "Under Review": 1,
@@ -62,7 +174,7 @@ const StatusStepper = ({ status }) => {
     );
 };
 
-// --- SUB-COMPONENT: RETURN STATUS BADGE (ALL ENUMS) ---
+// --- SUB-COMPONENT: RETURN STATUS BADGE ---
 const ReturnStatusBadge = ({ returnDetails }) => {
     if (!returnDetails || !returnDetails.status || returnDetails.status === 'None') return null;
 
@@ -76,8 +188,8 @@ const ReturnStatusBadge = ({ returnDetails }) => {
     };
 
     return (
-        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${styles[returnDetails.status] || 'bg-slate-100 text-slate-600'}`}>
-            <FiRotateCcw size={10} /> {returnDetails.requestType || 'Return'}: {returnDetails.status}
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap ${styles[returnDetails.status] || 'bg-slate-100 text-slate-600'}`}>
+            <FiRotateCcw size={10} className="shrink-0" /> {returnDetails.requestType || 'Return'}: {returnDetails.status}
         </span>
     );
 };
@@ -101,7 +213,6 @@ const checkOrderReturnWindow = (order) => {
         };
     }
 
-    // Fallback: 7 Days Delivery Window Calculation
     const deliveryTimestamp = new Date(order.deliveredAt || order.updatedAt || order.createdAt).getTime();
     const daysSinceDelivery = Math.floor((Date.now() - deliveryTimestamp) / (1000 * 60 * 60 * 24));
     const windowLimit = 7;
@@ -126,7 +237,7 @@ function PharmacyOrders() {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
     const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0 });
-    const [modal, setModal] = useState({ isOpen: false, data: null });
+    const [modal, setModal] = useState({ isOpen: false, data: null, trackingData: null });
     const [reviewModal, setReviewModal] = useState({ isOpen: false, data: null });
     const [returnModal, setReturnModal] = useState({ isOpen: false, data: null, eligibility: null });
     const [cancelModal, setCancelModal] = useState({ isOpen: false, order: null });
@@ -154,11 +265,11 @@ function PharmacyOrders() {
         try {
             const res = await UserAPI.getPharmacyOrders(page, 10);
             if (res && res.success) {
-                setOrders(res.data);
+                setOrders(res.data || []);
                 setPagination({
-                    currentPage: res.currentPage,
-                    totalPages: res.totalPages,
-                    totalCount: res.count
+                    currentPage: res.currentPage || 1,
+                    totalPages: res.totalPages || 1,
+                    totalCount: res.totalOrders ?? res.count ?? (res.data ? res.data.length : 0)
                 });
             }
         } catch (error) {
@@ -173,9 +284,23 @@ function PharmacyOrders() {
         loadOrders();
     }, [loadOrders]);
 
+    // --- OPEN DETAILS & TRACKING MODAL ---
+    const handleOpenOrderDetails = async (order) => {
+        setModal({ isOpen: true, data: order, trackingData: null });
+        try {
+            const res = await UserAPI.getPharmacyOrderTracking(order.orderId || order._id);
+            if (res && res.success && res.data) {
+                setModal({ isOpen: true, data: { ...order, ...res.data }, trackingData: res.data });
+            }
+        } catch (err) {
+            console.warn("Tracking data fetch skipped/failed:", err);
+        }
+    };
+
     // --- RETRY PAYMENT HANDLER ---
     const handleRetryPayment = async (order) => {
-        setRetryingPaymentId(order.orderId || order._id);
+        const targetOrderId = order.orderId || order._id;
+        setRetryingPaymentId(targetOrderId);
         try {
             const res = await UserAPI.retryPharmacyPayment({ orderId: order.orderId });
             if (res && res.success) {
@@ -191,15 +316,15 @@ function PharmacyOrders() {
                     amount: res.amount,
                     currency: "INR",
                     name: "Pharmacy Order Payment",
-                    description: `Payment for Order #${res.bookingId || order.orderId}`,
+                    description: `Payment for Order #${order.orderId}`,
                     order_id: res.razorpayOrderId,
                     handler: async function (response) {
                         try {
                             const verifyRes = await UserAPI.verifyPaymentPharmacy({
-                                appointmentId: res.appointmentId,
-                                razorpayOrderId: response.razorpay_order_id,
-                                razorpayPaymentId: response.razorpay_payment_id,
-                                razorpaySignature: response.razorpay_signature
+                                orderId: order.orderId,
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature
                             });
 
                             if (verifyRes && verifyRes.success) {
@@ -239,10 +364,10 @@ function PharmacyOrders() {
         }
     };
 
-    // Open Return Modal with live eligibility check & Admin T&C
+    // Open Return Modal with live eligibility check
     const handleOpenReturnModal = async (order) => {
         try {
-            const trackingRes = await UserAPI.getPharmacyOrderTracking(order._id);
+            const trackingRes = await UserAPI.getPharmacyOrderTracking(order.orderId || order._id);
             const eligibility = trackingRes?.data?.returnEligibility || trackingRes?.returnEligibility;
             
             if (eligibility && !eligibility.canReturn && !eligibility.canReplace) {
@@ -292,10 +417,11 @@ function PharmacyOrders() {
     };
 
     const getStatusStyle = (status) => {
-        if (status === 'Delivered') return 'text-emerald-600 bg-emerald-50';
-        if (status === 'Shipped') return 'text-indigo-600 bg-indigo-50';
-        if (status === 'Cancelled') return 'text-rose-500 bg-rose-50';
-        return 'text-amber-600 bg-amber-50'; 
+        if (status === 'Delivered') return 'text-emerald-700 bg-emerald-50 border-emerald-200';
+        if (status === 'Shipped') return 'text-indigo-700 bg-indigo-50 border-indigo-200';
+        if (status === 'Cancelled') return 'text-rose-700 bg-rose-50 border-rose-200';
+        if (status === 'Pending') return 'text-rose-600 bg-rose-50 border-rose-200';
+        return 'text-amber-700 bg-amber-50 border-amber-200'; 
     };
 
     const getItemNames = (items) => {
@@ -303,7 +429,22 @@ function PharmacyOrders() {
         return items.map(i => i.name).join(", ");
     };
 
-    // --- MODAL: CANCEL ORDER REASON & SUBMIT ---
+    const getPharmacyName = (order) => {
+        return order.pharmacy?.name || order.pharmacyId?.name || "Pharmacy Partner";
+    };
+
+    const getPharmacyInitial = (order) => {
+        const name = getPharmacyName(order);
+        return name.charAt(0).toUpperCase();
+    };
+
+    const isOrderPendingPayment = (order) => {
+        const payStatus = order.paymentInfo?.status || order.paymentStatus;
+        const payMethod = order.paymentInfo?.method || order.paymentMethod;
+        return (order.status === 'Pending' || order.canRetryPayment) && payStatus === 'Pending' && payMethod !== 'COD';
+    };
+
+    // --- MODAL: CANCEL ORDER ---
     const CancelOrderModal = ({ isOpen, onClose, order }) => {
         const [reason, setReason] = useState("");
         const [customReason, setCustomReason] = useState("");
@@ -435,7 +576,7 @@ function PharmacyOrders() {
         );
     };
 
-    // --- POPUP: REFUND CONFIRMATION MODAL ---
+    // --- POPUP: REFUND CONFIRMATION ---
     const CancelSuccessModal = ({ data, onClose }) => {
         if (!mounted || !data) return null;
 
@@ -489,7 +630,7 @@ function PharmacyOrders() {
         );
     };
 
-    // --- MODAL: RETURN & REPLACEMENT (SECTION 3: 2-STEP VERIFICATION) ---
+    // --- MODAL: RETURN & REPLACEMENT ---
     const PharmacyReturnModal = ({ isOpen, onClose, order, eligibility }) => {
         const canReturn = eligibility ? eligibility.canReturn : true;
         const canReplace = eligibility ? eligibility.canReplace : true;
@@ -551,7 +692,7 @@ function PharmacyOrders() {
             setSubmitting(true);
             try {
                 const formData = new FormData();
-                formData.append('requestType', requestType); // "Return" | "Replacement"
+                formData.append('requestType', requestType);
                 formData.append('reason', reason);
                 if (userComments) formData.append('userComments', userComments);
                 
@@ -810,7 +951,7 @@ function PharmacyOrders() {
                                 <h4 className="font-black text-slate-900 text-sm md:text-base uppercase tracking-widest">
                                     {modalLoading ? "Syncing..." : isEditMode ? "Edit Review" : "Rate Order"}
                                 </h4>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">Reviewing {data.pharmacyId?.name}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Reviewing {getPharmacyName(data)}</p>
                             </div>
                         </div>
                         <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 hover:border-rose-100 transition-all">
@@ -886,12 +1027,14 @@ function PharmacyOrders() {
         );
     };
 
-    // --- MODAL: ORDER DETAILS ---
-    const OrderDetailsModal = ({ data, onClose }) => {
+    // --- MODAL: ORDER DETAILS & LIVE TRACKING ---
+    const OrderDetailsModal = ({ data, trackingData, onClose }) => {
         const [review, setReview] = useState(null);
         const [reviewLoading, setReviewLoading] = useState(false);
         const [eligibility, setEligibility] = useState(null);
         const [cancellingReturn, setCancellingReturn] = useState(false);
+
+        const currentData = trackingData || data;
 
         useEffect(() => {
             const fetchDetails = async () => {
@@ -913,7 +1056,7 @@ function PharmacyOrders() {
 
                 if (data.status === "Delivered" && (!data.returnDetails || data.returnDetails.status === 'None')) {
                     try {
-                        const trackRes = await UserAPI.getPharmacyOrderTracking(data._id);
+                        const trackRes = await UserAPI.getPharmacyOrderTracking(data.orderId || data._id);
                         const elig = trackRes?.data?.returnEligibility || trackRes?.returnEligibility;
                         setEligibility(elig || checkOrderReturnWindow(data));
                     } catch (err) {
@@ -931,6 +1074,8 @@ function PharmacyOrders() {
         const eligibilityInfo = eligibility || checkOrderReturnWindow(data);
         const isEligibleForReturn = eligibilityInfo.isEligible || eligibilityInfo.canReturn || eligibilityInfo.canReplace;
         const isCancellable = ['Placed', 'Under Review', 'Pending'].includes(data.status);
+        const deliveryAddress = currentData.deliveryAddress || currentData.address;
+        const deliveryPartner = currentData.deliveryPartner;
 
         const handleCancelReturn = async () => {
             setCancellingReturn(true);
@@ -977,22 +1122,80 @@ function PharmacyOrders() {
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar space-y-6">
-                        {/* Status Stepper Card */}
+                        {/* Status Tracker & Timeline Card */}
                         <div className="bg-slate-900 rounded-[2rem] p-6 md:p-8 text-white relative overflow-hidden">
                             <FiTruck size={120} className="absolute -right-4 -bottom-4 opacity-5 pointer-events-none" />
                             <div className="relative z-10">
-                                <div className="flex justify-between items-start mb-1">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Current Progress</p>
-                                    <ReturnStatusBadge returnDetails={data.returnDetails} />
+                                <div className="flex flex-wrap justify-between items-start gap-2 mb-2">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Order Tracking</p>
+                                        <h2 className="text-2xl md:text-3xl font-black mt-0.5">{currentData.status}</h2>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 items-center">
+                                        <DeliveryModeBadge deliveryMode={currentData.deliveryMode} slotSchedule={currentData.slotSchedule} />
+                                        <PaymentBadge paymentInfo={currentData.paymentInfo} paymentStatus={currentData.paymentStatus} paymentMethod={currentData.paymentMethod} />
+                                        <ReturnStatusBadge returnDetails={currentData.returnDetails} />
+                                    </div>
                                 </div>
-                                <h2 className="text-3xl font-black mb-6">{data.status}</h2>
-                                <StatusStepper status={data.status} />
-                                <div className="mt-6 flex flex-wrap gap-3">
-                                    <div className="px-3 py-1.5 bg-white/10 rounded-lg text-[10px] font-bold flex items-center gap-2"><FiClock/> {data.appointmentTime || 'Standard Delivery'}</div>
-                                    <div className="px-3 py-1.5 bg-white/10 rounded-lg text-[10px] font-bold flex items-center gap-2"><FiPackage/> {data.collectionType || 'Doorstep Delivery'}</div>
+
+                                {/* Delivery OTP Banner */}
+                                {currentData.deliveryOTP && (
+                                    <div className="my-4 p-4 bg-indigo-500/20 rounded-2xl border border-indigo-400/30 flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase text-indigo-300 tracking-wider">Doorstep Delivery OTP</p>
+                                            <p className="text-xs font-semibold text-slate-300">Share with driver upon receiving medicine bag</p>
+                                        </div>
+                                        <span className="text-2xl font-black text-white tracking-[0.25em] font-mono bg-black/50 px-3.5 py-1.5 rounded-xl border border-indigo-400/30">
+                                            {currentData.deliveryOTP}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* Timeline or Stepper */}
+                                <StatusStepper status={currentData.status} trackingTimeline={currentData.trackingTimeline} />
+
+                                <div className="mt-4 flex flex-wrap gap-2 text-slate-300">
+                                    <div className="px-3 py-1.5 bg-white/10 rounded-lg text-[10px] font-bold flex items-center gap-1.5">
+                                        <FiClock size={12} /> {currentData.formattedDate || new Date(currentData.createdAt).toLocaleString()}
+                                    </div>
+                                    <div className="px-3 py-1.5 bg-white/10 rounded-lg text-[10px] font-bold flex items-center gap-1.5">
+                                        <FiPackage size={12} /> {currentData.collectionType || 'Home Delivery'}
+                                    </div>
                                 </div>
                             </div>
                         </div>
+
+                        {/* LIVE DELIVERY PARTNER CARD */}
+                        {deliveryPartner && (
+                            <div className="p-5 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-[2rem] border border-indigo-100 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-lg font-black shadow-md shadow-indigo-100 shrink-0 overflow-hidden">
+                                        {deliveryPartner.profilePic ? (
+                                            <img src={deliveryPartner.profilePic} alt={deliveryPartner.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <MdOutlineDeliveryDining size={26} />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <span className="text-[9px] font-black uppercase tracking-wider text-indigo-600 flex items-center gap-1">
+                                            Assigned Delivery Partner
+                                        </span>
+                                        <h4 className="font-black text-slate-900 text-sm">{deliveryPartner.name}</h4>
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase">
+                                            {deliveryPartner.vehicleType} • {deliveryPartner.vehicleNumber}
+                                        </p>
+                                    </div>
+                                </div>
+                                {deliveryPartner.phone && (
+                                    <a
+                                        href={`tel:${deliveryPartner.phone}`}
+                                        className="p-3 bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl border border-indigo-200 transition-colors shadow-sm flex items-center gap-1 text-xs font-black"
+                                    >
+                                        <FiPhone size={14} /> Call
+                                    </a>
+                                )}
+                            </div>
+                        )}
 
                         {/* REVERSE LOGISTICS & OTP TRACKING CARD */}
                         {hasActiveReturn && data.returnDetails?.status === 'Approved' && (
@@ -1056,157 +1259,133 @@ function PharmacyOrders() {
                             </div>
                         )}
 
-                        {/* Eligibility / Window Status Banner */}
-                        {!hasActiveReturn && data.status === "Delivered" && (
-                            <div className={`p-5 rounded-[2rem] border flex items-start gap-3 ${
-                                isEligibleForReturn
-                                    ? "bg-emerald-50/60 border-emerald-100 text-emerald-800"
-                                    : "bg-slate-50 border-slate-200 text-slate-500"
-                            }`}>
-                                {isEligibleForReturn ? (
-                                    <FiInfo className="shrink-0 mt-0.5 text-emerald-600" size={16} />
-                                ) : (
-                                    <FiLock className="shrink-0 mt-0.5 text-slate-400" size={16} />
-                                )}
-                                <div className="text-xs">
-                                    {isEligibleForReturn ? (
-                                        <p className="font-bold">
-                                            Return window active: <span className="font-black text-emerald-900">{eligibilityInfo.daysRemaining} days left</span> to request a return or replacement.
-                                        </p>
-                                    ) : (
-                                        <p className="font-semibold">
-                                            {eligibilityInfo.reason || "Return window closed: Return/Replacement was only allowed within policy days."}
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
                         {/* Items Section */}
                         <div className="space-y-4">
                             <h4 className="font-black text-[10px] uppercase tracking-widest text-slate-400 flex items-center gap-2 px-1">
-                                <FiLayers className="text-indigo-500" /> Order Manifest
+                                <FiLayers className="text-indigo-500" /> Order Manifest ({currentData.itemsCount || currentData.items?.length || 0} Items)
                             </h4>
                             <div className="space-y-2">
-                                {data.items?.map((item, i) => (
+                                {currentData.items?.map((item, i) => (
                                     <div key={i} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100 hover:border-indigo-100 transition-colors">
-                                        <div>
-                                            <p className="font-black text-slate-800 text-sm">{item.name}</p>
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase mt-0.5">{item.duration || 'Pack'} • Qty: {item.quantity}</p>
+                                        <div className="flex items-center gap-3">
+                                            {item.image && (
+                                                <img src={item.image} alt={item.name} className="w-12 h-12 object-contain bg-white rounded-xl p-1 border border-slate-200" />
+                                            )}
+                                            <div>
+                                                <p className="font-black text-slate-800 text-sm">{item.name}</p>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase mt-0.5">
+                                                    {item.packaging || item.duration || 'Pack'} • Qty: {item.quantity}
+                                                    {item.freeQuantity > 0 && <span className="text-emerald-600 font-bold ml-1">(+ {item.freeQuantity} Free)</span>}
+                                                </p>
+                                                {item.isComboApplied && (
+                                                    <span className="inline-block mt-0.5 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase rounded">
+                                                        Combo Offer Applied
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                        <p className="font-black text-slate-900">₹{item.price}</p>
+                                        <div className="text-right">
+                                            <p className="font-black text-slate-900">₹{item.price}</p>
+                                            {item.mrp && item.mrp > item.price && (
+                                                <p className="text-[10px] text-slate-400 line-through">₹{item.mrp}</p>
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        {/* Info Grid */}
+                        {/* Pharmacy & Address Info Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
-                                <p className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">Shipping To</p>
+                                <p className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">Fulfilling Pharmacy</p>
+                                <div className="flex gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black shrink-0">
+                                        <MdOutlineLocalPharmacy size={20} />
+                                    </div>
+                                    <div className="text-[12px] font-bold text-slate-600 leading-relaxed">
+                                        <p className="text-slate-900 font-black mb-0.5">{getPharmacyName(currentData)}</p>
+                                        <p>{currentData.pharmacy?.address || currentData.pharmacyId?.address || 'Verified Store Branch'}</p>
+                                        <p>{currentData.pharmacy?.city || currentData.pharmacyId?.city}</p>
+                                        {currentData.pharmacy?.phone && (
+                                            <p className="text-indigo-600 font-bold text-[11px] mt-1">📞 {currentData.pharmacy.phone}</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                                <p className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">Shipping Address</p>
                                 <div className="flex gap-3">
                                     <FiMapPin className="text-indigo-500 shrink-0 mt-1" size={16} />
                                     <div className="text-[12px] font-bold text-slate-600 leading-relaxed">
-                                        <p className="text-slate-900 font-black mb-1">{data.address?.name}</p>
-                                        <p>{data.address?.houseNo}, {data.address?.sector}</p>
-                                        <p>{data.address?.city}, {data.address?.pincode}</p>
+                                        <p className="text-slate-900 font-black mb-1">{deliveryAddress?.name}</p>
+                                        <p>{deliveryAddress?.houseNo}, {deliveryAddress?.sector}</p>
+                                        <p>{deliveryAddress?.city}, {deliveryAddress?.pincode}</p>
+                                        {deliveryAddress?.phone && (
+                                            <p className="text-slate-500 text-[10px] font-semibold mt-1">Phone: {deliveryAddress.phone}</p>
+                                        )}
                                     </div>
                                 </div>
-                            </div>
-                            <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
-                                <p className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">Patient Profile</p>
-                                {data.patients?.map((p, idx) => (
-                                    <div key={idx} className="flex gap-3">
-                                        <FiUser className="text-emerald-500 shrink-0 mt-1" size={16} />
-                                        <div className="text-[12px] font-bold text-slate-600 leading-relaxed">
-                                            <p className="text-slate-900 font-black mb-1">{p.name}</p>
-                                            <p>{p.gender} • {p.age} Yrs • {p.relation}</p>
-                                        </div>
-                                    </div>
-                                ))}
                             </div>
                         </div>
 
-                        {/* Verified Feedback Block */}
-                        {data.status === "Delivered" && (
-                            <div className="space-y-4">
-                                <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Order Review Details</h5>
-                                {reviewLoading ? (
-                                    <div className="flex items-center gap-2 bg-slate-50 p-6 rounded-[2rem] border border-slate-100 text-xs font-semibold text-slate-400">
-                                        <FiRefreshCw className="animate-spin text-slate-400" size={14} />
-                                        <span>Syncing feedback history...</span>
-                                    </div>
-                                ) : review ? (
-                                    <div className="bg-amber-50/50 border border-amber-100/70 p-6 rounded-[2rem] space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[9px] font-black uppercase text-amber-600 tracking-wider flex items-center gap-1.5">
-                                                <MdOutlineRateReview size={14} /> Submitted Feedback
-                                            </span>
-                                            <div className="flex gap-0.5">
-                                                {[1, 2, 3, 4, 5].map((star) => (
-                                                    <HiStar
-                                                        key={star}
-                                                        size={16}
-                                                        className={star <= review.rating ? "text-amber-400 fill-amber-400" : "text-slate-200"}
-                                                    />
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <p className="text-xs font-semibold text-slate-700 italic leading-relaxed">
-                                            "{review.comment}"
-                                        </p>
-                                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                                            Date: {new Date(review.updatedAt || review.createdAt).toLocaleDateString()}
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div className="bg-slate-50 border border-slate-100 p-6 rounded-[2rem] text-center">
-                                        <p className="text-xs font-bold text-slate-400">You have not submitted any feedback for this order yet.</p>
-                                        <button 
-                                            onClick={() => {
-                                                onClose();
-                                                setReviewModal({ isOpen: true, data: data });
-                                            }}
-                                            className="mt-2 text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700"
-                                        >
-                                            Submit Review
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Payment Invoice */}
+                        {/* Payment Invoice & Bill Breakdown */}
                         <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white">
                             <div className="flex items-center gap-2 mb-6">
                                 <FiCreditCard className="text-indigo-400" />
-                                <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Payment Invoice</h5>
+                                <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Payment Invoice & Summary</h5>
                             </div>
                             <div className="space-y-3 text-xs font-bold border-b border-white/10 pb-6 mb-6">
                                 <div className="flex justify-between text-slate-400">
-                                    <span>Subtotal</span>
-                                    <span>₹{data.billSummary?.itemTotal}</span>
+                                    <span>Item Total</span>
+                                    <span>₹{currentData.billSummary?.itemTotal || 0}</span>
                                 </div>
-                                <div className="flex justify-between text-slate-400">
-                                    <span>Shipping & Handling</span>
-                                    <span>₹{data.billSummary?.deliveryCharge}</span>
-                                </div>
-                                {data.billSummary?.couponDiscount > 0 && (
+                                {currentData.billSummary?.deliveryCharge > 0 && (
+                                    <div className="flex justify-between text-slate-400">
+                                        <span>Standard Delivery</span>
+                                        <span>₹{currentData.billSummary?.deliveryCharge}</span>
+                                    </div>
+                                )}
+                                {currentData.billSummary?.rapidDeliveryCharge > 0 && (
+                                    <div className="flex justify-between text-red-400">
+                                        <span>1-Hour Express Delivery</span>
+                                        <span>+ ₹{currentData.billSummary?.rapidDeliveryCharge}</span>
+                                    </div>
+                                )}
+                                {currentData.billSummary?.slotCharge > 0 && (
+                                    <div className="flex justify-between text-purple-400">
+                                        <span>Premium Time Slot</span>
+                                        <span>+ ₹{currentData.billSummary?.slotCharge}</span>
+                                    </div>
+                                )}
+                                {currentData.billSummary?.couponDiscount > 0 && (
                                     <div className="flex justify-between text-rose-400">
-                                        <span>Discount Applied</span>
-                                        <span>- ₹{data.billSummary?.couponDiscount}</span>
+                                        <span>Coupon Discount Applied</span>
+                                        <span>- ₹{currentData.billSummary?.couponDiscount}</span>
+                                    </div>
+                                )}
+                                {currentData.billSummary?.comboSavings > 0 && (
+                                    <div className="flex justify-between text-emerald-400">
+                                        <span>Combo Savings</span>
+                                        <span>- ₹{currentData.billSummary?.comboSavings}</span>
                                     </div>
                                 )}
                             </div>
                             <div className="flex justify-between items-center">
                                 <div>
                                     <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">Grand Total</p>
-                                    <p className="text-3xl font-black">₹{data.billSummary?.totalAmount}</p>
+                                    <p className="text-3xl font-black">₹{currentData.billSummary?.totalAmount}</p>
                                 </div>
                                 <div className="text-right">
                                     <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Payment Status</p>
-                                    <p className={`text-xs font-black uppercase mt-1 ${data.paymentStatus === 'Paid' ? 'text-emerald-400' : data.paymentStatus === 'Refund-Initiated' ? 'text-purple-400' : 'text-amber-400'}`}>
-                                        {data.paymentStatus || data.paymentMethod}
+                                    <p className={`text-xs font-black uppercase mt-1 ${
+                                        (currentData.paymentInfo?.status === 'Paid' || currentData.paymentStatus === 'Paid')
+                                            ? 'text-emerald-400' 
+                                            : (currentData.paymentInfo?.isCod || currentData.paymentMethod === 'COD') 
+                                            ? 'text-amber-400' 
+                                            : 'text-rose-400'
+                                    }`}>
+                                        {currentData.paymentInfo?.status || currentData.paymentStatus || 'Pending'} ({currentData.paymentInfo?.method || currentData.paymentMethod || 'Online'})
                                     </p>
                                 </div>
                             </div>
@@ -1215,7 +1394,7 @@ function PharmacyOrders() {
 
                     {/* Actions Footer */}
                     <div className="p-6 md:p-8 bg-slate-50/50 border-t flex flex-wrap gap-3 shrink-0">
-                        {data.canRetryPayment && (
+                        {isOrderPendingPayment(data) && (
                             <button 
                                 disabled={retryingPaymentId === (data.orderId || data._id)}
                                 onClick={() => {
@@ -1224,7 +1403,7 @@ function PharmacyOrders() {
                                 }}
                                 className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-amber-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
                             >
-                                <FiAlertCircle size={16} /> ⚠️ Payment Pending - Pay Now
+                                <FiAlertCircle size={16} /> ⚠️ Payment Incomplete - Pay Now
                             </button>
                         )}
                         {isCancellable && (
@@ -1260,8 +1439,11 @@ function PharmacyOrders() {
                                 <FiStar size={16} /> {review ? "Edit Review" : "Rate Order"}
                             </button>
                         )}
-                        <button className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
-                            Invoice
+                        <button 
+                            onClick={onClose}
+                            className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                        >
+                            Close
                         </button>
                     </div>
                 </div>
@@ -1293,17 +1475,17 @@ function PharmacyOrders() {
                     <div className="text-center py-16 text-slate-400 text-xs font-medium">No orders found.</div>
                 ) : (
                     <>
-                        {/* Desktop Table */}
+                        {/* Desktop Clean Uniform Table */}
                         <div className="hidden lg:block overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                            <table className="w-full text-left border-collapse table-auto">
                                 <thead>
-                                    <tr className="bg-slate-50/50">
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Order ID</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Items</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Date</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Price</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Action</th>
+                                    <tr className="bg-slate-50/70 border-b border-slate-100">
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Order ID</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Items & Pharmacy</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Schedule Date</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Bill & Payment</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -1311,58 +1493,89 @@ function PharmacyOrders() {
                                         const hasReturn = order.returnDetails && order.returnDetails.status && order.returnDetails.status !== 'None';
                                         const eligibility = checkOrderReturnWindow(order);
                                         const isCancellable = ['Placed', 'Under Review', 'Pending'].includes(order.status);
+                                        const pendingPayment = isOrderPendingPayment(order);
 
                                         return (
-                                            <tr key={order._id} className="hover:bg-slate-50/80 transition-colors group">
-                                                <td className="px-8 py-6">
-                                                    <span className="text-xs font-black text-slate-900 tracking-wider">#{order.orderId}</span>
+                                            <tr key={order._id || order.orderId} className="hover:bg-slate-50/80 transition-colors">
+                                                {/* Column 1: Order ID + Delivery Type */}
+                                                <td className="px-6 py-5 align-middle">
+                                                    <div className="flex flex-col gap-1 items-start">
+                                                        <span className="text-xs font-black text-slate-900 tracking-wider font-mono">
+                                                            #{order.orderId}
+                                                        </span>
+                                                        <DeliveryModeBadge deliveryMode={order.deliveryMode} slotSchedule={order.slotSchedule} />
+                                                    </div>
                                                 </td>
-                                                <td className="px-8 py-6">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-black shrink-0">{order.pharmacyId?.name?.charAt(0)}</div>
-                                                        <div className="max-w-[200px]">
-                                                            <p className="text-sm font-black text-slate-800 truncate mb-1 group-hover:text-indigo-600 transition-colors">{getItemNames(order.items)}</p>
-                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{order.pharmacyId?.name}</p>
+
+                                                {/* Column 2: Items & Pharmacy */}
+                                                <td className="px-6 py-5 align-middle">
+                                                    <div className="flex items-center gap-3.5">
+                                                        <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-xs shrink-0 border border-indigo-100/80">
+                                                            {getPharmacyInitial(order)}
+                                                        </div>
+                                                        <div className="max-w-[210px]">
+                                                            <p className="text-xs font-black text-slate-800 truncate leading-snug">{getItemNames(order.items)}</p>
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight mt-0.5">{getPharmacyName(order)} • {order.itemsCount || order.items?.length || 1} Item(s)</p>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-6 text-xs font-bold text-slate-600">{new Date(order.createdAt).toLocaleDateString()}</td>
-                                                <td className="px-8 py-6"><span className="text-sm font-black text-slate-900">₹{order.billSummary?.totalAmount}</span></td>
-                                                <td className="px-8 py-6">
+
+                                                {/* Column 3: Date & Slot */}
+                                                <td className="px-6 py-5 align-middle">
+                                                    <div className="flex flex-col text-xs font-bold text-slate-700">
+                                                        <span>{order.formattedDate || new Date(order.createdAt).toLocaleDateString()}</span>
+                                                        <span className="text-[10px] font-medium text-slate-400 mt-0.5">
+                                                            {order.slotSchedule?.timeSlot ? order.slotSchedule.timeSlot : (order.deliveryMode?.label || "Standard Time")}
+                                                        </span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Column 4: Price & Payment Badge */}
+                                                <td className="px-6 py-5 align-middle">
                                                     <div className="flex flex-col gap-1 items-start">
-                                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusStyle(order.status)}`}>
+                                                        <span className="text-sm font-black text-slate-900">₹{order.billSummary?.totalAmount}</span>
+                                                        <PaymentBadge paymentInfo={order.paymentInfo} paymentStatus={order.paymentStatus} paymentMethod={order.paymentMethod} />
+                                                    </div>
+                                                </td>
+
+                                                {/* Column 5: Status */}
+                                                <td className="px-6 py-5 align-middle text-center">
+                                                    <div className="inline-flex flex-col gap-1 items-center">
+                                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border whitespace-nowrap ${getStatusStyle(order.status)}`}>
                                                             {order.status}
                                                         </span>
                                                         <ReturnStatusBadge returnDetails={order.returnDetails} />
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-6 text-right">
-                                                    <div className="flex gap-2 justify-end items-center">
-                                                        {/* RETRY PAYMENT ACTION BUTTON */}
-                                                        {order.canRetryPayment && (
+
+                                                {/* Column 6: Actions */}
+                                                <td className="px-6 py-5 align-middle text-right">
+                                                    <div className="inline-flex items-center justify-end gap-2 whitespace-nowrap">
+                                                        {/* RETRY PAYMENT ACTION */}
+                                                        {pendingPayment && (
                                                             <button 
                                                                 disabled={retryingPaymentId === (order.orderId || order._id)}
                                                                 onClick={() => handleRetryPayment(order)}
-                                                                className="px-3.5 py-2.5 rounded-xl text-[10px] font-black uppercase bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1.5 shadow-md shadow-amber-100 disabled:opacity-50"
+                                                                className="h-8 px-3 rounded-xl text-[10px] font-black uppercase bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                                                                 title="Retry pending payment"
                                                             >
                                                                 {retryingPaymentId === (order.orderId || order._id) ? (
-                                                                    <FiRefreshCw className="animate-spin" size={12} />
+                                                                    <FiRefreshCw className="animate-spin" size={11} />
                                                                 ) : (
-                                                                    <FiAlertCircle size={12} />
+                                                                    <FiAlertCircle size={11} />
                                                                 )}
                                                                 Pay Now
                                                             </button>
                                                         )}
 
-                                                        {/* CANCEL ORDER ACTION BUTTON */}
+                                                        {/* CANCEL ORDER ACTION */}
                                                         {isCancellable && (
                                                             <button 
                                                                 onClick={() => setCancelModal({ isOpen: true, order })}
-                                                                className="px-3.5 py-2.5 rounded-xl text-[10px] font-black uppercase bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all flex items-center gap-1 shadow-sm"
+                                                                className="h-8 px-3 rounded-xl text-[10px] font-black uppercase bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all flex items-center gap-1 shadow-sm"
                                                                 title="Cancel Order"
                                                             >
-                                                                <FiSlash size={12} /> Cancel
+                                                                <FiSlash size={11} /> Cancel
                                                             </button>
                                                         )}
 
@@ -1370,34 +1583,36 @@ function PharmacyOrders() {
                                                             eligibility.isEligible ? (
                                                                 <button 
                                                                     onClick={() => handleOpenReturnModal(order)} 
-                                                                    className="px-3.5 py-2.5 rounded-xl text-[10px] font-black uppercase bg-slate-900 hover:bg-slate-800 text-white transition-all flex items-center gap-1.5 shadow-sm"
+                                                                    className="h-8 px-3 rounded-xl text-[10px] font-black uppercase bg-slate-900 hover:bg-slate-800 text-white transition-all flex items-center gap-1.5 shadow-sm"
                                                                     title="Request Return or Replacement"
                                                                 >
-                                                                    <FiRotateCcw size={12} /> Return
+                                                                    <FiRotateCcw size={11} /> Return
                                                                 </button>
                                                             ) : (
                                                                 <button
                                                                     disabled
                                                                     title={eligibility.reason}
-                                                                    className="px-3 py-2.5 rounded-xl text-[9px] font-black uppercase bg-slate-100 text-slate-400 border border-slate-200/60 opacity-40 cursor-not-allowed filter blur-[0.2px] flex items-center gap-1 select-none"
+                                                                    className="h-8 px-2.5 rounded-xl text-[9px] font-black uppercase bg-slate-100 text-slate-400 border border-slate-200/60 opacity-40 cursor-not-allowed flex items-center gap-1 select-none"
                                                                 >
                                                                     <FiLock size={10} /> Expired
                                                                 </button>
                                                             )
                                                         )}
+
                                                         {order.status === "Delivered" && (
                                                             <button 
                                                                 onClick={() => setReviewModal({ isOpen: true, data: order })} 
-                                                                className="px-3.5 py-2.5 rounded-xl text-[10px] font-black uppercase bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1 shadow-md shadow-amber-100"
+                                                                className="h-8 px-3 rounded-xl text-[10px] font-black uppercase bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1 shadow-sm"
                                                             >
-                                                                <FiStar /> Rate
+                                                                <FiStar size={11} /> Rate
                                                             </button>
                                                         )}
+
                                                         <button 
-                                                            onClick={() => setModal({ isOpen: true, data: order })} 
-                                                            className="bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase hover:bg-slate-900 hover:text-white transition-all"
+                                                            onClick={() => handleOpenOrderDetails(order)} 
+                                                            className="h-8 px-3.5 rounded-xl text-[10px] font-black uppercase border border-slate-200 bg-white text-slate-700 hover:bg-slate-900 hover:text-white transition-all"
                                                         >
-                                                            Details
+                                                            Track / Details
                                                         </button>
                                                     </div>
                                                 </td>
@@ -1414,26 +1629,42 @@ function PharmacyOrders() {
                                 const hasReturn = order.returnDetails && order.returnDetails.status && order.returnDetails.status !== 'None';
                                 const eligibility = checkOrderReturnWindow(order);
                                 const isCancellable = ['Placed', 'Under Review', 'Pending'].includes(order.status);
+                                const pendingPayment = isOrderPendingPayment(order);
 
                                 return (
-                                    <div key={order._id} className="py-5 flex flex-col gap-4">
+                                    <div key={order._id || order.orderId} className="py-5 flex flex-col gap-3">
                                         <div className="flex justify-between items-start">
                                             <div className="flex gap-3">
-                                                <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-black text-xs shrink-0">{order.pharmacyId?.name?.charAt(0)}</div>
+                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-black text-xs shrink-0">
+                                                    {getPharmacyInitial(order)}
+                                                </div>
                                                 <div>
                                                     <span className="text-[10px] font-black text-slate-400 tracking-wider">#{order.orderId}</span>
                                                     <h4 className="text-sm font-black text-slate-800 line-clamp-1 mt-0.5">{getItemNames(order.items)}</h4>
+                                                    <p className="text-[10px] font-bold text-slate-400">{getPharmacyName(order)} • {order.itemsCount || order.items?.length || 1} Item(s)</p>
                                                 </div>
                                             </div>
                                             <div className="flex flex-col items-end gap-1">
-                                                <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase ${getStatusStyle(order.status)}`}>{order.status}</span>
+                                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${getStatusStyle(order.status)}`}>{order.status}</span>
                                                 <ReturnStatusBadge returnDetails={order.returnDetails} />
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                            {/* RETRY PAYMENT ACTION BUTTON (MOBILE) */}
-                                            {order.canRetryPayment && (
+                                        {/* Mobile Badges Row */}
+                                        <div className="flex flex-wrap gap-1.5 items-center">
+                                            <PaymentBadge paymentInfo={order.paymentInfo} paymentStatus={order.paymentStatus} paymentMethod={order.paymentMethod} />
+                                            <DeliveryModeBadge deliveryMode={order.deliveryMode} slotSchedule={order.slotSchedule} />
+                                        </div>
+
+                                        {/* Total & Date */}
+                                        <div className="flex justify-between items-center text-xs font-bold text-slate-600 bg-slate-50 p-2.5 rounded-xl">
+                                            <span>{order.formattedDate || new Date(order.createdAt).toLocaleDateString()}</span>
+                                            <span className="text-sm font-black text-slate-900">Total: ₹{order.billSummary?.totalAmount}</span>
+                                        </div>
+
+                                        {/* Mobile Action Buttons */}
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                                            {pendingPayment && (
                                                 <button 
                                                     disabled={retryingPaymentId === (order.orderId || order._id)}
                                                     onClick={() => handleRetryPayment(order)} 
@@ -1448,7 +1679,6 @@ function PharmacyOrders() {
                                                 </button>
                                             )}
 
-                                            {/* CANCEL ORDER ACTION BUTTON (MOBILE) */}
                                             {isCancellable && (
                                                 <button 
                                                     onClick={() => setCancelModal({ isOpen: true, order })} 
@@ -1469,7 +1699,7 @@ function PharmacyOrders() {
                                                 ) : (
                                                     <button 
                                                         disabled
-                                                        className="w-full bg-slate-100 text-slate-400 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest text-center flex items-center justify-center gap-1 opacity-40 cursor-not-allowed border border-slate-200/50 filter blur-[0.2px]"
+                                                        className="w-full bg-slate-100 text-slate-400 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest text-center flex items-center justify-center gap-1 opacity-40 cursor-not-allowed border border-slate-200/50"
                                                     >
                                                         <FiLock size={10} /> Expired
                                                     </button>
@@ -1484,12 +1714,12 @@ function PharmacyOrders() {
                                                 </button>
                                             )}
                                             <button 
-                                                onClick={() => setModal({ isOpen: true, data: order })} 
+                                                onClick={() => handleOpenOrderDetails(order)} 
                                                 className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center border border-slate-200 bg-white ${
-                                                    order.status !== "Delivered" && !order.canRetryPayment && !isCancellable ? "col-span-2 sm:col-span-3" : ""
+                                                    order.status !== "Delivered" && !pendingPayment && !isCancellable ? "col-span-2 sm:col-span-3" : ""
                                                 }`}
                                             >
-                                                Details
+                                                Track / Details
                                             </button>
                                         </div>
                                     </div>
@@ -1513,7 +1743,8 @@ function PharmacyOrders() {
             {modal.isOpen && modal.data && (
                 <OrderDetailsModal 
                     data={modal.data} 
-                    onClose={() => setModal({ isOpen: false, data: null })} 
+                    trackingData={modal.trackingData}
+                    onClose={() => setModal({ isOpen: false, data: null, trackingData: null })} 
                 />
             )}
 

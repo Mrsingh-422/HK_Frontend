@@ -1,27 +1,41 @@
 "use client";
-import UserAPI from '@/app/services/UserAPI';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import UserAPI from '@/app/services/UserAPI';
 
 import {
     FiX, FiStar, FiArrowLeft, FiClock,
-    FiUser, FiAward, FiDownload, FiRefreshCw,
-    FiSearch, FiMapPin, FiActivity, FiLoader,
-    FiCheck, FiInfo, FiDollarSign, FiShoppingBag,
-    FiAlertTriangle, FiTrash2, FiCheckCircle
+    FiUser, FiSearch, FiMapPin, FiLoader,
+    FiCheck, FiDollarSign, FiTrash2, FiCheckCircle,
+    FiPhone, FiZap, FiAlertTriangle, FiAlertCircle
 } from 'react-icons/fi';
 import { MdVerified, MdOutlineMedicalServices, MdLocalHospital } from 'react-icons/md';
 
 // Dynamic image path builder
 const getImageUrl = (imagePath) => {
-    if (!imagePath) return 'https://via.placeholder.com/200';
+    if (!imagePath) return 'https://images.unsplash.com/photo-1594824813576-a192f15b5f25?auto=format&fit=crop&w=400&q=80';
     if (imagePath.startsWith('http')) return imagePath;
-    const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://your-api-domain.com';
+    const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5002';
     const cleanPath = imagePath.replace(/^public\//, "");
     return `${BASE_URL}/${cleanPath}`;
 };
 
-const CANCELLABLE_STATUSES = ["Pending", "Confirmed", "Assigned", "On-The-Way", "Arrived"];
+// Dynamically load Razorpay SDK
+const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+        if (typeof window !== "undefined" && window.Razorpay) {
+            resolve(true);
+            return;
+        }
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+    });
+};
 
 const COMMON_CANCEL_REASONS = [
     "Patient discharged early from hospital",
@@ -31,11 +45,64 @@ const COMMON_CANCEL_REASONS = [
     "Other personal reasons"
 ];
 
-// --- SUB-COMPONENT: TRACKER ---
-const StatusStepper = ({ status }) => {
-    const steps = ["Pending", "Confirmed", "Assigned", "On-The-Way", "Arrived", "Service-Started", "Completed"];
-    
-    if (status === 'Cancelled') {
+// --- SUB-COMPONENT: DELIVERY MODE BADGE ---
+const NurseModeBadge = ({ order }) => {
+    const isExpress = order.isFasterService || order.priceBreakdown?.fasterServiceCharge > 0;
+
+    if (isExpress) {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 font-bold rounded-md text-[10px] whitespace-nowrap">
+                <FiZap size={10} className="text-amber-500 fill-amber-500 shrink-0" />
+                Express 1-Hr
+            </span>
+        );
+    }
+
+    if (order.assessmentLocation === "At Hospital" || order.hospitalDetails) {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 font-bold rounded-md text-[10px] whitespace-nowrap">
+                <MdLocalHospital size={11} className="shrink-0 text-purple-600" />
+                Hospital Bedside
+            </span>
+        );
+    }
+
+    return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold rounded-md text-[10px] whitespace-nowrap">
+            <FiUser size={10} className="shrink-0" />
+            {order.serviceDetails?.duration || "Home Visit"}
+        </span>
+    );
+};
+
+// --- SUB-COMPONENT: PAYMENT STATUS BADGE (STRICTLY FROM CHECKLIST) ---
+const NursePaymentBadge = ({ order }) => {
+    if (order.isCod === true || order.paymentMethod === 'COD') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 font-bold rounded-md text-[10px] whitespace-nowrap">
+                💵 {order.paymentDisplayLabel || "Cash on Delivery (Pay on Visit)"}
+            </span>
+        );
+    }
+
+    if (order.isPaid === true || order.paymentStatus === 'Paid') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold rounded-md text-[10px] whitespace-nowrap">
+                <FiCheckCircle size={11} className="shrink-0 text-emerald-600" /> {order.paymentDisplayLabel || "Paid Online"}
+            </span>
+        );
+    }
+
+    return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 font-bold rounded-md text-[10px] whitespace-nowrap">
+            <FiAlertTriangle size={11} className="shrink-0 text-rose-500" /> {order.paymentDisplayLabel || "Payment Pending"}
+        </span>
+    );
+};
+
+// --- SUB-COMPONENT: TRACKER & LIVE TIMELINE ---
+const StatusStepper = ({ status, trackingTimeline }) => {
+    if (status === 'Cancelled' || trackingTimeline?.isCancelled) {
         return (
             <div className="w-full py-4 bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-center justify-between text-rose-700 animate-fadeIn">
                 <div className="flex items-center gap-3">
@@ -44,42 +111,52 @@ const StatusStepper = ({ status }) => {
                     </div>
                     <div>
                         <p className="text-xs font-black uppercase tracking-wider">Booking Cancelled</p>
-                        <p className="text-[10px] font-semibold text-rose-500">This service was cancelled. Any eligible refund is processed.</p>
+                        <p className="text-[10px] font-semibold text-rose-500">This clinical care booking was cancelled.</p>
                     </div>
                 </div>
             </div>
         );
     }
 
-    const statusMap = { 
-        "Pending": 0, 
-        "Confirmed": 1, 
-        "Assigned": 2, 
-        "On-The-Way": 3, 
-        "Arrived": 4, 
-        "Service-Started": 5, 
-        "Completed": 6 
+    const steps = [
+        { label: "Pending", isDone: Boolean(trackingTimeline?.isPending || true) },
+        { label: "Confirmed", isDone: Boolean(trackingTimeline?.isConfirmed || status !== "Pending") },
+        { label: "Assigned", isDone: Boolean(trackingTimeline?.isAssigned || ["Assigned", "On-The-Way", "Arrived", "Service-Started", "Completed"].includes(status)) },
+        { label: "On-The-Way", isDone: Boolean(trackingTimeline?.isOnWay || ["On-The-Way", "Arrived", "Service-Started", "Completed"].includes(status)) },
+        { label: "Arrived", isDone: Boolean(trackingTimeline?.isArrived || ["Arrived", "Service-Started", "Completed"].includes(status)) },
+        { label: "In-Service", isDone: Boolean(trackingTimeline?.isStarted || ["Service-Started", "Completed"].includes(status)) },
+        { label: "Completed", isDone: Boolean(trackingTimeline?.isCompleted || status === "Completed") }
+    ];
+
+    const statusMap = {
+        "Pending": 0,
+        "Confirmed": 1,
+        "Assigned": 2,
+        "On-The-Way": 3,
+        "Arrived": 4,
+        "Service-Started": 5,
+        "Completed": 6
     };
     const currentStep = statusMap[status] ?? 0;
 
     return (
-        <div className="w-full py-4 md:py-10 px-1 md:px-4">
+        <div className="w-full py-4 md:py-8 px-1 md:px-2">
             <div className="relative flex items-center justify-between">
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-slate-100 -z-10"></div>
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-slate-800 -z-0"></div>
                 <div
-                    className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-[#08B36A] transition-all duration-1000 z-10"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-[#08B36A] transition-all duration-700 z-10"
                     style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
                 ></div>
                 {steps.map((step, index) => {
-                    const stepLabel = step === "Service-Started" ? "In-Service" : step;
+                    const isDone = index <= currentStep || step.isDone;
                     return (
-                        <div key={step} className="flex flex-col items-center gap-1.5 md:gap-2.5 relative z-20">
+                        <div key={step.label} className="flex flex-col items-center gap-1.5 md:gap-2 relative z-20">
                             <div className={`w-3 h-3 md:w-3.5 md:h-3.5 rounded-full border-2 transition-all duration-500 ${
-                                index <= currentStep ? "bg-[#08B36A] border-emerald-100 ring-2 md:ring-4 ring-emerald-50" : "bg-white border-slate-200"
+                                isDone ? "bg-[#08B36A] border-emerald-300 ring-2 md:ring-4 ring-emerald-900/50" : "bg-slate-800 border-slate-600"
                             }`}></div>
-                            <span className={`text-[7.5px] md:text-[9px] font-black uppercase tracking-tighter md:tracking-[0.15em] whitespace-nowrap ${
-                                index <= currentStep ? "text-slate-900" : "text-slate-400"
-                            }`}>{stepLabel}</span>
+                            <span className={`text-[7.5px] md:text-[8.5px] font-black uppercase tracking-tighter whitespace-nowrap ${
+                                isDone ? "text-emerald-400" : "text-slate-500"
+                            }`}>{step.label}</span>
                         </div>
                     );
                 })}
@@ -88,7 +165,7 @@ const StatusStepper = ({ status }) => {
     );
 };
 
-// --- SUB-COMPONENT: STAR RATER ---
+// --- SUB-COMPONENT: STAR RATING ---
 const StarRating = ({
     title,
     onBack,
@@ -98,19 +175,9 @@ const StarRating = ({
     comment,
     setComment,
     existingReview,
-    submitting,
-    loadingReview
+    submitting
 }) => {
     const [hover, setHover] = useState(0);
-
-    if (loadingReview) {
-        return (
-            <div className="flex flex-col items-center justify-center py-12 gap-4">
-                <FiLoader className="text-[#08B36A] animate-spin" size={28} />
-                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Checking prior reviews...</p>
-            </div>
-        );
-    }
 
     const getRatingLabel = (val) => {
         switch (val) {
@@ -128,15 +195,15 @@ const StarRating = ({
             <button
                 disabled={submitting}
                 onClick={onBack}
-                className="flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase mb-6 md:mb-8 hover:text-[#08B36A] transition-colors mx-auto disabled:opacity-50"
+                className="flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase mb-6 md:mb-8 hover:text-[#08B36A] transition-colors mx-auto disabled:opacity-50 cursor-pointer"
             >
-                <FiArrowLeft /> Back to Profile
+                <FiArrowLeft /> Back to Details
             </button>
             <h3 className="text-xl md:text-2xl font-black text-slate-900 mb-2 tracking-tight">
-                {existingReview ? "Edit Your Review" : "Rate Provider"}
+                {existingReview ? "Edit Your Review" : "Rate Nurse Service"}
             </h3>
             <p className="text-slate-500 text-xs md:text-sm mb-6 md:mb-8 font-medium">
-                How was your session with {title}?
+                How was your clinical session with {title}?
             </p>
             <div className="flex flex-col items-center justify-center gap-2 p-5 bg-slate-50 rounded-2xl border border-slate-100 max-w-md mx-auto mb-6">
                 <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Tap to Rate Stars</span>
@@ -149,7 +216,7 @@ const StarRating = ({
                             onMouseEnter={() => setHover(s)}
                             onMouseLeave={() => setHover(0)}
                             onClick={() => setRating(s)}
-                            className="transform transition-transform active:scale-90 disabled:opacity-50 hover:scale-110"
+                            className="transform transition-transform active:scale-90 disabled:opacity-50 hover:scale-110 cursor-pointer"
                         >
                             <FiStar className={`${(hover || rating) >= s ? "fill-amber-400 text-amber-400 drop-shadow-md" : "text-slate-200"} transition-all size-8 sm:size-10 md:size-11`} />
                         </button>
@@ -160,7 +227,6 @@ const StarRating = ({
                 </span>
             </div>
 
-            {/* Comment Area */}
             <div className="mb-6 max-w-md mx-auto text-left">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block pl-1">
                     Review Comment (Optional)
@@ -170,7 +236,7 @@ const StarRating = ({
                     rows={3}
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    placeholder="Describe your service experience here..."
+                    placeholder="Describe staff nurse punctuality, hygiene, clinical skill..."
                     className="w-full bg-slate-50 border-none rounded-2xl p-4 text-xs md:text-sm font-semibold outline-none ring-1 ring-slate-100 focus:ring-[#08B36A] transition-all resize-none"
                 />
             </div>
@@ -178,7 +244,7 @@ const StarRating = ({
             <button
                 disabled={rating === 0 || submitting}
                 onClick={() => onSubmit(rating, comment)}
-                className={`w-full py-4 md:py-5 rounded-xl md:rounded-[24px] font-black text-[10px] md:text-[11px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                className={`w-full py-4 md:py-5 rounded-xl md:rounded-[24px] font-black text-[10px] md:text-[11px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
                     rating > 0 && !submitting
                         ? "bg-[#08B36A] hover:bg-[#079c5c] text-white shadow-xl shadow-[#08B36A]/20"
                         : "bg-slate-100 text-slate-400 cursor-not-allowed"
@@ -200,15 +266,16 @@ const StarRating = ({
 function NursingOrders() {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0 });
     const [searchTerm, setSearchTerm] = useState("");
-    const [modal, setModal] = useState({ isOpen: false, type: 'details', data: null });
+    const [modal, setModal] = useState({ isOpen: false, type: 'details', data: null, trackingData: null });
+    const [retryingId, setRetryingId] = useState(null);
     const [mounted, setMounted] = useState(false);
 
     // Review & Ratings States
     const [rating, setRating] = useState(0);
     const [comment, setComment] = useState("");
     const [existingReview, setExistingReview] = useState(null);
-    const [loadingReview, setLoadingReview] = useState(false);
     const [submittingReview, setSubmittingReview] = useState(false);
 
     // Cancellation UI States
@@ -218,13 +285,11 @@ function NursingOrders() {
     const [cancelling, setCancelling] = useState(false);
     const [cancellationResult, setCancellationResult] = useState(null);
 
-    // 1. Handle Mounting for Portals
     useEffect(() => {
         setMounted(true);
         return () => setMounted(false);
     }, []);
 
-    // 2. Prevent body scroll when modal is open
     useEffect(() => {
         if (modal.isOpen || cancelModal.isOpen || cancellationResult) {
             document.body.style.overflow = 'hidden';
@@ -234,13 +299,18 @@ function NursingOrders() {
         return () => { document.body.style.overflow = 'unset'; };
     }, [modal.isOpen, cancelModal.isOpen, cancellationResult]);
 
-    // Fetch Orders Data
-    const fetchOrders = useCallback(async () => {
+    // 1. Fetch Orders Data (GET /user/nurse/my-appointments)
+    const fetchOrders = useCallback(async (page = 1) => {
         try {
             setLoading(true);
-            const response = await UserAPI.getNursingBookings();
-            if (response.success) {
+            const response = await UserAPI.getNursingBookings(page, 20);
+            if (response && response.success) {
                 setOrders(response.data || []);
+                setPagination({
+                    currentPage: response.currentPage || 1,
+                    totalPages: response.totalPages || 1,
+                    totalCount: response.totalRecords ?? response.count ?? (response.data ? response.data.length : 0)
+                });
             }
         } catch (error) {
             console.error("Error loading nursing bookings:", error);
@@ -253,34 +323,96 @@ function NursingOrders() {
         fetchOrders();
     }, [fetchOrders]);
 
-    // Fetch Prior Review Details
-    useEffect(() => {
-        if (modal.isOpen && modal.data?._id) {
-            const fetchReview = async () => {
-                try {
-                    setLoadingReview(true);
-                    const res = await UserAPI.getReviewsByOrder(modal.data._id);
-                    if (res.success && (res.data || res.hasReviewed)) {
-                        const reviewData = res.data || res.review;
-                        setExistingReview(reviewData);
-                        setRating(reviewData?.rating || 0);
-                        setComment(reviewData?.comment || "");
-                    } else {
-                        setExistingReview(null);
-                        setRating(0);
-                        setComment("");
-                    }
-                } catch (err) {
-                    console.error("Error fetching review:", err);
-                    setExistingReview(null);
-                } finally {
-                    setLoadingReview(false);
-                }
-            };
-            fetchReview();
+    // 2. Open Live Details & Tracking Modal (GET /user/nurse/track/:id)
+    const handleOpenDetails = async (order) => {
+        setModal({ isOpen: true, type: 'details', data: order, trackingData: null });
+        try {
+            const targetId = order._id || order.bookingId;
+            const res = await UserAPI.getNurseTracking(targetId);
+            if (res && res.success && res.data) {
+                setModal({ isOpen: true, type: 'details', data: { ...order, ...res.data }, trackingData: res.data });
+            }
+        } catch (e) {
+            console.warn("Nurse tracking fetch fallback:", e);
         }
-    }, [modal.isOpen, modal.data?._id]);
+    };
 
+    // 3. Retry Payment Handler (POST /user/nurse/retry-payment & POST /user/nurse/verify-payment)
+    const handleRetryPayment = async (order) => {
+        const appointmentId = order._id || order.appointmentId;
+        const targetBookingId = order.bookingId || order._id;
+        setRetryingId(appointmentId);
+
+        try {
+            const res = await UserAPI.retryPaymentNurse({
+                appointmentId: appointmentId,
+                bookingId: targetBookingId
+            });
+
+            if (res && res.success) {
+                const isLoaded = await loadRazorpayScript();
+                if (!isLoaded) {
+                    alert("Razorpay SDK failed to load. Please check internet connection.");
+                    setRetryingId(null);
+                    return;
+                }
+
+                let keyId = res.key_id || res.key || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+                if (typeof keyId === 'string' && keyId.startsWith("zp_")) {
+                    keyId = "r" + keyId;
+                }
+
+                const options = {
+                    key: keyId,
+                    amount: res.amount,
+                    currency: res.currency || "INR",
+                    name: "Health Kangaroo Nursing Care",
+                    description: `Payment for Nurse Booking #${res.bookingId || targetBookingId}`,
+                    order_id: res.razorpayOrderId,
+                    handler: async function (razorpayResponse) {
+                        try {
+                            const verifyPayload = {
+                                appointmentId: res.appointmentId || appointmentId,
+                                razorpayOrderId: razorpayResponse.razorpay_order_id || res.razorpayOrderId,
+                                razorpayPaymentId: razorpayResponse.razorpay_payment_id,
+                                razorpaySignature: razorpayResponse.razorpay_signature
+                            };
+
+                            const verifyRes = await UserAPI.verifyPaymentNurse(verifyPayload);
+
+                            if (verifyRes && verifyRes.success) {
+                                alert(verifyRes.message || "Payment verified successfully. Booking is now Confirmed!");
+                                fetchOrders();
+                            } else {
+                                alert(verifyRes?.message || "Payment verification failed.");
+                            }
+                        } catch (err) {
+                            console.error("Payment verification error:", err);
+                            alert("Error verifying payment with server.");
+                        }
+                    },
+                    theme: {
+                        color: "#FF8A00"
+                    }
+                };
+
+                const rzp = new window.Razorpay(options);
+                rzp.on('payment.failed', function (response) {
+                    alert(response.error?.description || "Payment failed. Please try again.");
+                });
+                rzp.open();
+            } else {
+                alert(res?.message || "Failed to initialize payment retry.");
+            }
+        } catch (error) {
+            console.error("Retry nurse payment error:", error);
+            alert("Failed to initiate payment retry.");
+        } finally {
+            setRetryingId(null);
+        }
+    };
+
+    // Review Submit
     const handleReviewSubmit = async (selectedRating, selectedComment) => {
         if (!modal.data) return;
         try {
@@ -294,15 +426,15 @@ function NursingOrders() {
             } else {
                 response = await UserAPI.addRatingAndReviewNurse({
                     bookingId: modal.data._id,
-                    nurseId: modal.data.nurseId?._id,
+                    nurseId: modal.data.nurseId?._id || modal.data.nurseBureau?.id,
                     rating: selectedRating,
                     comment: selectedComment
                 });
             }
 
             if (response.success) {
-                alert(response.message || "Review process finished successfully!");
-                setModal({ isOpen: false, type: 'details', data: null });
+                alert(response.message || "Review submitted successfully!");
+                setModal({ isOpen: false, type: 'details', data: null, trackingData: null });
                 fetchOrders();
             } else {
                 alert(response.message || "Failed to process review.");
@@ -315,14 +447,12 @@ function NursingOrders() {
         }
     };
 
-    // Open Cancellation Dialog
     const openCancelDialog = (booking) => {
         setCancelModal({ isOpen: true, booking });
         setCancelReason(COMMON_CANCEL_REASONS[0]);
         setCustomCancelReason("");
     };
 
-    // Process Cancellation Request (PATCH /user/nurse/cancel/:id)
     const handleConfirmCancellation = async () => {
         if (!cancelModal.booking?._id) return;
         const finalReason = customCancelReason.trim() || cancelReason;
@@ -336,10 +466,9 @@ function NursingOrders() {
                     bookingId: cancelModal.booking.bookingId,
                     status: "Cancelled",
                     cancellationFee: 0,
-                    refundAmount: cancelModal.booking.priceBreakdown?.totalPrice || cancelModal.booking.paymentDetails?.amount || 0
+                    refundAmount: cancelModal.booking.totalAmount || cancelModal.booking.totalPrice || 0
                 });
 
-                // Update in local state
                 setOrders(prev => prev.map(o => o._id === cancelModal.booking._id ? { ...o, status: 'Cancelled' } : o));
                 if (modal.data?._id === cancelModal.booking._id) {
                     setModal(prev => ({ ...prev, data: { ...prev.data, status: 'Cancelled' } }));
@@ -357,31 +486,40 @@ function NursingOrders() {
         }
     };
 
+    const getNurseBureauName = (order) => {
+        return order.nurseId?.name || order.nurseBureau?.name || "Care Nursing Bureau";
+    };
+
     const getStatusStyle = (status) => {
         switch (status) {
-            case 'Confirmed': return 'text-blue-600 bg-blue-50 border border-blue-100';
-            case 'Assigned': return 'text-indigo-600 bg-indigo-50 border border-indigo-100';
-            case 'On-The-Way': return 'text-violet-600 bg-violet-50 border border-violet-100';
-            case 'Arrived': return 'text-teal-600 bg-teal-50 border border-teal-100';
-            case 'Service-Started': return 'text-sky-600 bg-sky-50 border border-sky-100';
-            case 'Completed': return 'text-[#08B36A] bg-emerald-50 border border-emerald-100';
-            case 'Cancelled': return 'text-rose-600 bg-rose-50 border border-rose-100';
+            case 'Confirmed': return 'text-blue-700 bg-blue-50 border border-blue-200';
+            case 'Assigned': return 'text-indigo-700 bg-indigo-50 border border-indigo-200';
+            case 'On-The-Way': return 'text-violet-700 bg-violet-50 border border-violet-200';
+            case 'Arrived': return 'text-teal-700 bg-teal-50 border border-teal-200';
+            case 'Service-Started': return 'text-sky-700 bg-sky-50 border border-sky-200';
+            case 'Completed': return 'text-emerald-700 bg-emerald-50 border border-emerald-200';
+            case 'Cancelled': return 'text-rose-700 bg-rose-50 border border-rose-200';
             case 'Pending': 
-            default: return 'text-amber-600 bg-amber-50 border border-amber-100';
+            default: return 'text-amber-700 bg-amber-50 border border-amber-200';
         }
     };
 
     const filteredOrders = orders.filter(order =>
         order.bookingId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.nurseId?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+        getNurseBureauName(order).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.primaryPatientName?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     // --- DETAILS MODAL PORTAL ---
-    const NursingDetailsModal = ({ data, type, onClose }) => {
+    const NursingDetailsModal = ({ data, trackingData, type, onClose }) => {
         if (!mounted) return null;
 
-        const isCancellable = CANCELLABLE_STATUSES.includes(data.status);
-        const isHospital = data.assessmentLocation === "At Hospital" || Boolean(data.hospitalDetails);
+        const currentData = trackingData || data;
+        const isCancellable = Boolean(currentData.canCancel ?? ["Pending", "Confirmed", "Assigned", "On-The-Way", "Arrived"].includes(currentData.status));
+        const assignedStaff = currentData.assignedStaffId || currentData.assignedStaff;
+        const pendingPayment = Boolean(currentData.canPayOnline);
+        const isHospital = currentData.assessmentLocation === "At Hospital" || Boolean(currentData.hospitalDetails);
+        const activeTravelFee = currentData.deliveryCharge ?? currentData.travelFee ?? currentData.priceBreakdown?.deliveryCharge ?? currentData.priceBreakdown?.travelFee ?? 0;
 
         return createPortal(
             <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6">
@@ -399,8 +537,10 @@ function NursingOrders() {
                                 <MdOutlineMedicalServices size={20} />
                             </div>
                             <div>
-                                <h3 className="font-black text-slate-900 text-sm md:text-base tracking-tight uppercase">Case File: {data.bookingId}</h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nursing Service Record</p>
+                                <h3 className="font-black text-slate-900 text-sm md:text-base tracking-tight uppercase font-mono">#{currentData.bookingId}</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                    Patient: {currentData.primaryPatientName || currentData.patients?.[0]?.name || "Care File"}
+                                </p>
                             </div>
                         </div>
                         <button
@@ -415,215 +555,232 @@ function NursingOrders() {
                     {/* Content */}
                     <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar">
                         {type === 'details' ? (
-                            <div className="space-y-8">
-                                {/* Provider Profile */}
-                                <div className="flex flex-col md:flex-row gap-6 md:gap-10 items-center md:items-start">
-                                    <div className="relative shrink-0">
-                                        <img
-                                            src={getImageUrl(data.nurseId?.profileImage)}
-                                            className="w-32 h-32 md:w-40 md:h-40 rounded-[2.5rem] md:rounded-[3rem] object-cover ring-8 ring-slate-50 shadow-md"
-                                            onError={(e) => e.target.src = 'https://via.placeholder.com/200'}
-                                            alt=""
-                                        />
-                                        <div className="absolute -bottom-2 -right-2 bg-white shadow-xl p-2 rounded-2xl">
-                                            <div className="bg-[#08B36A] text-white p-2 rounded-xl text-sm"><FiActivity /></div>
+                            <div className="space-y-6">
+                                
+                                {/* Status Card & Live Timeline */}
+                                <div className="bg-slate-900 rounded-[2rem] p-6 md:p-8 text-white relative overflow-hidden">
+                                    <div className="flex flex-wrap justify-between items-start gap-2 mb-3">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Order Progress</p>
+                                            <h2 className="text-2xl md:text-3xl font-black mt-0.5">{currentData.status}</h2>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5 items-center">
+                                            <NurseModeBadge order={currentData} />
+                                            <NursePaymentBadge order={currentData} />
                                         </div>
                                     </div>
-                                    <div className="text-center md:text-left flex-1">
-                                        <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-2 leading-tight flex items-center gap-2 justify-center md:justify-start">
-                                            {data.nurseId?.name} <MdVerified className="text-[#08B36A]" />
-                                        </h2>
-                                        <p className="text-[#08B36A] font-black uppercase text-[10px] tracking-[0.2em] mb-6">Verified Healthcare Professional</p>
-                                        <div className="flex flex-wrap gap-3 justify-center md:justify-start">
-                                            <div className="bg-slate-50 px-4 py-2.5 rounded-2xl border border-slate-100">
-                                                <p className="text-[8px] font-black text-slate-400 uppercase mb-0.5 tracking-widest">Service Type</p>
-                                                <p className="text-xs font-black text-slate-900 uppercase">{data.serviceDetails?.title || "Care Session"}</p>
-                                            </div>
-                                            <div className="bg-slate-50 px-4 py-2.5 rounded-2xl border border-slate-100">
-                                                <p className="text-[8px] font-black text-slate-400 uppercase mb-0.5 tracking-widest">Session Duration</p>
-                                                <p className="text-xs font-black text-slate-900 uppercase">{data.serviceDetails?.duration || "Standard"}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
 
-                                {/* Live Progress Tracker */}
-                                <div className="pt-4">
-                                    <h4 className="font-black text-[10px] uppercase tracking-[0.25em] text-slate-400 mb-2 px-1">Live Tracking</h4>
-                                    <StatusStepper status={data.status} />
-                                </div>
+                                    {/* DUAL OTP HUB */}
+                                    {(currentData.serviceOTP || currentData.completionOTP) && (
+                                        <div className="my-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                            {currentData.serviceOTP && (
+                                                <div className="p-3.5 bg-indigo-500/20 rounded-2xl border border-indigo-400/30 flex items-center justify-between">
+                                                    <div>
+                                                        <p className="text-[9px] font-black uppercase text-indigo-300 tracking-wider">Start Service OTP</p>
+                                                        <p className="text-[11px] text-slate-300 font-semibold">Share upon nurse arrival</p>
+                                                    </div>
+                                                    <span className="text-2xl font-black text-white font-mono bg-black/50 px-3 py-1 rounded-xl border border-indigo-400/30">
+                                                        {currentData.serviceOTP}
+                                                    </span>
+                                                </div>
+                                            )}
 
-                                {/* Schedule & Location Details */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
-                                        <p className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest flex items-center gap-2"><FiClock className="text-[#08B36A]" /> Schedule Dates</p>
-                                        <div className="space-y-1.5 text-xs text-slate-700 font-semibold leading-relaxed">
-                                            <p className="font-black text-slate-900">
-                                                Start: {data.schedule?.startDate ? new Date(data.schedule.startDate).toLocaleDateString() : 'N/A'}
-                                            </p>
-                                            <p className="font-black text-slate-900">
-                                                End: {data.schedule?.endDate ? new Date(data.schedule.endDate).toLocaleDateString() : 'N/A'}
-                                            </p>
-                                            <p className="text-[10px] text-[#08B36A] font-bold uppercase tracking-wider">
-                                                Window: {data.schedule?.startTime} - {data.schedule?.endTime} ({data.schedule?.duration})
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
-                                        <p className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest flex items-center gap-2">
-                                            {isHospital ? <MdLocalHospital className="text-purple-600" /> : <FiMapPin className="text-[#08B36A]" />} 
-                                            Care Environment
-                                        </p>
-                                        <div className="space-y-1.5 text-xs text-slate-700 font-semibold leading-relaxed">
-                                            <p className="font-black text-slate-900 uppercase">{data.assessmentLocation || "At Home"}</p>
-                                            {isHospital && data.hospitalDetails ? (
-                                                <p className="text-slate-600 font-bold">
-                                                    {data.hospitalDetails.hospitalName} • {data.hospitalDetails.wardName} (Bed {data.hospitalDetails.bedNumber})
-                                                </p>
-                                            ) : (
-                                                <p className="text-[10px] text-slate-400 uppercase tracking-widest">Doorstep Clinical Service</p>
+                                            {currentData.completionOTP && (
+                                                <div className="p-3.5 bg-emerald-500/20 rounded-2xl border border-emerald-400/30 flex items-center justify-between">
+                                                    <div>
+                                                        <p className="text-[9px] font-black uppercase text-emerald-300 tracking-wider">Completion OTP</p>
+                                                        <p className="text-[11px] text-slate-300 font-semibold">Share when care finishes</p>
+                                                    </div>
+                                                    <span className="text-2xl font-black text-emerald-400 font-mono bg-black/50 px-3 py-1 rounded-xl border border-emerald-400/30">
+                                                        {currentData.completionOTP}
+                                                    </span>
+                                                </div>
                                             )}
                                         </div>
+                                    )}
+
+                                    {/* Stepper Timeline */}
+                                    <StatusStepper status={currentData.status} trackingTimeline={currentData.trackingTimeline} />
+
+                                    <div className="mt-4 flex flex-wrap gap-2 text-slate-300">
+                                        <div className="px-3 py-1.5 bg-white/10 rounded-lg text-[10px] font-bold flex items-center gap-1.5">
+                                            <FiClock size={12} /> {currentData.formattedScheduleDate || (currentData.schedule?.startDate ? new Date(currentData.schedule.startDate).toLocaleDateString() : 'Scheduled')} ({currentData.formattedScheduleTime || currentData.schedule?.startTime || '10:00 AM'})
+                                        </div>
+                                        <div className="px-3 py-1.5 bg-white/10 rounded-lg text-[10px] font-bold flex items-center gap-1.5">
+                                            {isHospital ? <MdLocalHospital size={12} /> : <FiMapPin size={12} />} {currentData.destinationLabel || currentData.assessmentLocation || 'At Home'}
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* Details Grid: Patients & Addresses */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-3">
-                                        <h4 className="font-black text-[10px] uppercase tracking-widest text-slate-400 flex items-center gap-2 px-1"><FiUser className="text-[#08B36A]" /> Patient Info</h4>
-                                        {data.patients?.map((patient, i) => (
-                                            <div key={i} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                                <p className="font-black text-slate-800 text-sm">{patient.name}</p>
-                                                <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">{patient.relation} • {patient.gender} • {patient.age} Yrs</p>
+                                {/* ASSIGNED STAFF NURSE PROFILE CARD (IF ASSIGNED) */}
+                                {assignedStaff && (
+                                    <div className="p-5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-[2rem] border border-emerald-100 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-2xl bg-[#08B36A] text-white flex items-center justify-center text-lg font-black shadow-md shadow-emerald-600/20 shrink-0 overflow-hidden">
+                                                {assignedStaff.profilePic ? (
+                                                    <img src={getImageUrl(assignedStaff.profilePic)} alt={assignedStaff.name} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <FiUser size={22} />
+                                                )}
                                             </div>
-                                        ))}
-                                    </div>
-                                    <div className="space-y-3">
-                                        <h4 className="font-black text-[10px] uppercase tracking-widest text-slate-400 flex items-center gap-2 px-1"><FiMapPin className="text-[#08B36A]" /> Service Location</h4>
-                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                            <p className="text-xs font-bold text-slate-600 leading-relaxed">
-                                                {data.address?.houseNo}, {data.address?.sector}, {data.address?.city}, {data.address?.state} - {data.address?.pincode}
-                                            </p>
+                                            <div>
+                                                <span className="text-[9px] font-black uppercase tracking-wider text-[#08B36A] flex items-center gap-1">
+                                                    <MdVerified /> Assigned Healthcare Staff
+                                                </span>
+                                                <h4 className="font-black text-slate-900 text-sm">{assignedStaff.name}</h4>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase">
+                                                    {assignedStaff.vehicleNumber ? `${assignedStaff.vehicleNumber} (${assignedStaff.vehicleType || "Vehicle"})` : 'Verified Clinical Staff'} • Status: {assignedStaff.status || 'Available'}
+                                                </p>
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
-
-                                {/* Consumed Medical Supplies */}
-                                {data.selectedConsumables && data.selectedConsumables.length > 0 && (
-                                    <div className="space-y-4 pt-4 border-t border-slate-100">
-                                        <h4 className="font-black text-[10px] uppercase tracking-widest text-slate-400 flex items-center gap-2 px-1">
-                                            <FiShoppingBag className="text-[#08B36A]" /> Consumed Supplies & Accessories
-                                        </h4>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            {data.selectedConsumables.map((item, i) => (
-                                                <div key={item._id || i} className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/40 flex justify-between items-center transition-all hover:border-emerald-200">
-                                                    <div>
-                                                        <p className="font-black text-slate-800 text-xs uppercase">{item.itemName}</p>
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">Quantity Type: {item.unitType}</p>
-                                                    </div>
-                                                    <p className="font-black text-sm text-slate-950">₹{item.price}</p>
-                                                </div>
-                                            ))}
-                                        </div>
+                                        {assignedStaff.phone && (
+                                            <a
+                                                href={`tel:${assignedStaff.phone}`}
+                                                className="p-3 bg-white text-[#08B36A] hover:bg-[#08B36A] hover:text-white rounded-xl border border-emerald-200 transition-colors shadow-sm flex items-center gap-1 text-xs font-black"
+                                            >
+                                                <FiPhone size={14} /> Call
+                                            </a>
+                                        )}
                                     </div>
                                 )}
 
-                                {/* Pricing Breakdown Panel */}
+                                {/* Bureau Profile & Schedule */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                                        <p className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">Fulfilling Bureau</p>
+                                        <div className="flex gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#08B36A] flex items-center justify-center font-black shrink-0">
+                                                <MdOutlineMedicalServices size={20} />
+                                            </div>
+                                            <div className="text-[12px] font-bold text-slate-600 leading-relaxed">
+                                                <p className="text-slate-900 font-black mb-0.5">{getNurseBureauName(currentData)}</p>
+                                                <p>{currentData.nurseId?.speciality || currentData.serviceDetails?.title || 'General Nursing Care'}</p>
+                                                <p>{currentData.nurseId?.city || 'Verified Health Provider'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                                        <p className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">Schedule Timing</p>
+                                        <div className="space-y-1 text-xs font-bold text-slate-700">
+                                            <p className="text-slate-900 font-black">Date: {currentData.formattedScheduleDate || (currentData.schedule?.startDate ? new Date(currentData.schedule.startDate).toLocaleDateString() : 'Today')}</p>
+                                            <p className="text-slate-500 font-semibold">Start Time: {currentData.formattedScheduleTime || currentData.schedule?.startTime || '10:00 AM'}</p>
+                                            <p className="text-[#08B36A] uppercase text-[10px] font-black">{currentData.serviceDetails?.duration || currentData.schedule?.duration || 'One day One Time'}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Financial Summary (Shows Travel / Delivery Fee) */}
                                 <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white space-y-6">
                                     <div className="flex items-center gap-2">
                                         <div className="p-2 bg-white/10 rounded-xl text-[#08B36A]">
                                             <FiDollarSign size={18} />
                                         </div>
-                                        <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Payment Invoice & Costing</h5>
+                                        <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Payment Invoice & Summary</h5>
                                     </div>
                                     <div className="space-y-3 text-xs font-bold border-b border-white/10 pb-6 mb-6">
                                         <div className="flex justify-between text-slate-400">
                                             <span>Base Service Fee</span>
-                                            <span>₹{data.priceBreakdown?.baseServicePrice ?? data.serviceDetails?.basePrice ?? 0}</span>
+                                            <span>₹{currentData.priceBreakdown?.baseServicePrice ?? currentData.serviceDetails?.basePrice ?? 0}</span>
                                         </div>
-                                        {data.priceBreakdown?.slotSurcharge > 0 && (
+                                        {activeTravelFee > 0 && (
                                             <div className="flex justify-between text-slate-400">
-                                                <span>Slot Surcharge</span>
-                                                <span>+ ₹{data.priceBreakdown.slotSurcharge}</span>
+                                                <span>Travel & Distance Fee</span>
+                                                <span>+ ₹{activeTravelFee}</span>
                                             </div>
                                         )}
-                                        {data.priceBreakdown?.consumableTotal > 0 && (
+                                        {currentData.priceBreakdown?.consumableTotal > 0 && (
                                             <div className="flex justify-between text-slate-400">
-                                                <span>Consumable Total</span>
-                                                <span>+ ₹{data.priceBreakdown.consumableTotal}</span>
+                                                <span>Medical Consumables</span>
+                                                <span>+ ₹{currentData.priceBreakdown.consumableTotal}</span>
                                             </div>
                                         )}
-                                        {data.priceBreakdown?.fasterServiceCharge > 0 && (
-                                            <div className="flex justify-between text-slate-400">
-                                                <span>Faster Service Surcharge</span>
-                                                <span>+ ₹{data.priceBreakdown.fasterServiceCharge}</span>
+                                        {currentData.priceBreakdown?.fasterServiceCharge > 0 && (
+                                            <div className="flex justify-between text-amber-400">
+                                                <span>Express Rush Surcharge</span>
+                                                <span>+ ₹{currentData.priceBreakdown.fasterServiceCharge}</span>
                                             </div>
                                         )}
-                                        {data.priceBreakdown?.taxAmount > 0 && (
+                                        {currentData.priceBreakdown?.taxAmount > 0 && (
                                             <div className="flex justify-between text-slate-400">
-                                                <span>Tax Surcharge</span>
-                                                <span>+ ₹{data.priceBreakdown.taxAmount}</span>
+                                                <span>Taxes & GST</span>
+                                                <span>+ ₹{currentData.priceBreakdown.taxAmount}</span>
                                             </div>
                                         )}
-                                        {data.priceBreakdown?.couponDiscount > 0 && (
+                                        {currentData.priceBreakdown?.couponDiscount > 0 && (
                                             <div className="flex justify-between text-rose-400">
                                                 <span>Coupon Discount</span>
-                                                <span>- ₹{data.priceBreakdown.couponDiscount}</span>
+                                                <span>- ₹{currentData.priceBreakdown.couponDiscount}</span>
                                             </div>
                                         )}
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <div>
-                                            <p className="text-[10px] font-black uppercase text-[#08B36A] tracking-widest">Grand Total</p>
-                                            <p className="text-3xl font-black">₹{data.priceBreakdown?.totalPrice ?? data.paymentDetails?.amount ?? 0}</p>
+                                            <p className="text-[10px] font-black uppercase text-[#08B36A] tracking-widest">Total Amount</p>
+                                            <p className="text-3xl font-black">₹{currentData.totalAmount ?? currentData.totalPrice ?? currentData.priceBreakdown?.totalPrice ?? 0}</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Paid via {data.paymentDetails?.method || data.paymentMethod || "Online"}</p>
+                                            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Payment Details</p>
                                             <p className="text-xs font-black text-[#08B36A] uppercase mt-1">
-                                                {data.paymentDetails?.status || data.paymentStatus || "Paid"}
+                                                {currentData.paymentDisplayLabel || `${currentData.paymentMethod || "Online"} (${currentData.paymentStatus || "Paid"})`}
                                             </p>
                                         </div>
                                     </div>
-                                    {data.paymentDetails?.razorpayPaymentId && (
-                                        <div className="pt-4 border-t border-white/5 text-[9px] font-bold text-slate-500 uppercase tracking-wider flex flex-col sm:flex-row justify-between gap-2">
-                                            <span>Txn Ref: {data.paymentDetails.razorpayPaymentId}</span>
-                                            <span>Paid: {new Date(data.paymentDetails.paidAt || Date.now()).toLocaleString()}</span>
-                                        </div>
-                                    )}
                                 </div>
 
                                 {/* Action Bar */}
-                                <div className="pt-8 border-t border-slate-100 flex flex-col sm:flex-row gap-4">
-                                    {data.status === "Completed" && (
+                                <div className="pt-4 border-t border-slate-100 flex flex-wrap gap-3 items-center">
+                                    {pendingPayment && (
+                                        <button 
+                                            disabled={retryingId === (currentData._id || currentData.bookingId)}
+                                            onClick={() => {
+                                                onClose();
+                                                handleRetryPayment(currentData);
+                                            }}
+                                            className="flex-1 py-3.5 px-6 bg-[#FF8A00] hover:bg-[#E67C00] text-white rounded-full font-black text-xs uppercase tracking-wider shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer border border-orange-400/30"
+                                        >
+                                            {retryingId === (currentData._id || currentData.bookingId) ? (
+                                                <FiLoader className="animate-spin" size={16} />
+                                            ) : (
+                                                <FiAlertCircle size={16} className="shrink-0" />
+                                            )}
+                                            <span>PAY NOW</span>
+                                        </button>
+                                    )}
+
+                                    {currentData.status === "Completed" && (
                                         <button
                                             onClick={() => setModal(prev => ({ ...prev, type: 'rating' }))}
-                                            className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-slate-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                            className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-amber-100 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
                                         >
-                                            <FiStar size={14} /> {existingReview ? "Edit Review & Rating" : "Rate Service"}
+                                            <FiStar size={14} /> {currentData.isReviewed ? "Edit Review" : "Rate Service"}
                                         </button>
                                     )}
 
                                     {isCancellable && (
                                         <button
-                                            onClick={() => openCancelDialog(data)}
-                                            className="flex-1 py-4 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                            onClick={() => {
+                                                onClose();
+                                                openCancelDialog(currentData);
+                                            }}
+                                            className="flex-1 py-4 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
                                         >
                                             <FiTrash2 size={14} />
-                                            <span>Cancel Booking</span>
+                                            <span>Cancel</span>
                                         </button>
                                     )}
 
                                     <button 
-                                        onClick={() => window.print()}
-                                        className="flex-1 py-4 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                        onClick={onClose}
+                                        className="flex-1 py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
                                     >
-                                        <FiDownload size={14} /> Download Receipt
+                                        Close
                                     </button>
                                 </div>
                             </div>
                         ) : (
                             <StarRating
-                                title={data?.nurseId?.name}
+                                title={getNurseBureauName(currentData)}
                                 onBack={() => setModal(prev => ({ ...prev, type: 'details' }))}
                                 onSubmit={handleReviewSubmit}
                                 rating={rating}
@@ -632,7 +789,6 @@ function NursingOrders() {
                                 setComment={setComment}
                                 existingReview={existingReview}
                                 submitting={submittingReview}
-                                loadingReview={loadingReview}
                             />
                         )}
                     </div>
@@ -647,14 +803,14 @@ function NursingOrders() {
             {/* Header */}
             <div className="p-5 md:p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h3 className="font-black text-slate-900 text-lg md:text-xl tracking-tight">Service Registry</h3>
-                    <p className="text-slate-400 text-[10px] md:text-xs font-bold uppercase tracking-widest mt-1">Nursing & Professional Care</p>
+                    <h3 className="font-black text-slate-900 text-lg md:text-xl tracking-tight">Nursing Registry</h3>
+                    <p className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest mt-1">Total {pagination.totalCount} Bookings</p>
                 </div>
                 <div className="relative w-full sm:w-72">
                     <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                         type="text"
-                        placeholder="Search provider or ID..."
+                        placeholder="Search Booking ID, Patient, or Bureau..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full bg-slate-50 border-none rounded-2xl py-3 pl-11 pr-4 text-xs md:text-sm font-semibold outline-none ring-1 ring-slate-100 focus:ring-[#08B36A] transition-all"
@@ -665,63 +821,134 @@ function NursingOrders() {
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-24 gap-4">
                     <FiLoader className="text-[#08B36A] animate-spin" size={28} />
-                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Syncing Records...</p>
+                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Loading Records...</p>
                 </div>
             ) : filteredOrders.length === 0 ? (
-                <div className="text-center py-16 text-slate-400 text-xs font-medium">No booking history recorded.</div>
+                <div className="text-center py-16 text-slate-400 text-xs font-medium">No nurse booking history recorded.</div>
             ) : (
                 <>
-                    {/* Desktop View */}
+                    {/* Desktop Table */}
                     <div className="hidden lg:block overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full text-left border-collapse table-auto">
                             <thead>
-                                <tr className="bg-slate-50/50">
-                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">ID</th>
-                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Provider</th>
-                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Service</th>
-                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Date</th>
-                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Cost</th>
-                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Action</th>
+                                <tr className="bg-slate-50/70 border-b border-slate-100">
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Booking ID</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Bureau & Service</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Schedule</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Payment</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {filteredOrders.map((order) => {
-                                    const isCancellable = CANCELLABLE_STATUSES.includes(order.status);
+                                    const isCancellable = Boolean(order.canCancel ?? ["Pending", "Confirmed", "Assigned", "On-The-Way", "Arrived"].includes(order.status));
+                                    const pendingPayment = Boolean(order.canPayOnline);
+                                    const isHospital = order.assessmentLocation === "At Hospital" || Boolean(order.hospitalDetails);
+
                                     return (
-                                        <tr key={order._id} className="hover:bg-slate-50/50 transition-colors group">
-                                            <td className="px-8 py-6 text-xs font-bold text-slate-400 tracking-tighter">#{order.bookingId}</td>
-                                            <td className="px-8 py-6">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden shrink-0 shadow-sm border-2 border-white">
-                                                        <img src={getImageUrl(order.nurseId?.profileImage)} className="w-full h-full object-cover" onError={(e) => e.target.src = 'https://via.placeholder.com/100'} alt="" />
-                                                    </div>
-                                                    <p className="text-sm font-black text-slate-800 leading-none">{order.nurseId?.name}</p>
+                                        <tr key={order._id || order.bookingId} className="hover:bg-slate-50/80 transition-colors">
+                                            {/* Column 1: Booking ID & Mode */}
+                                            <td className="px-6 py-5 align-middle">
+                                                <div className="flex flex-col gap-1 items-start">
+                                                    <span className="text-xs font-black text-slate-900 tracking-wider font-mono">
+                                                        #{order.bookingId}
+                                                    </span>
+                                                    <NurseModeBadge order={order} />
                                                 </div>
                                             </td>
-                                            <td className="px-8 py-6 text-xs font-bold text-slate-600">{order.serviceDetails?.title || "Daily Care Session"}</td>
-                                            <td className="px-8 py-6 text-xs font-bold text-slate-800">{order.schedule?.startDate ? new Date(order.schedule.startDate).toLocaleDateString() : 'N/A'}</td>
-                                            <td className="px-8 py-6 text-sm font-black text-slate-900">₹{order.priceBreakdown?.totalPrice ?? order.paymentDetails?.amount ?? 0}</td>
-                                            <td className="px-8 py-6">
-                                                <span className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${getStatusStyle(order.status)}`}>{order.status}</span>
+
+                                            {/* Column 2: Bureau & Staff */}
+                                            <td className="px-6 py-5 align-middle">
+                                                <div className="flex items-center gap-3.5">
+                                                    <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                                                        <img src={getImageUrl(order.nurseId?.profileImage || order.nurseBureau?.image)} className="w-full h-full object-cover" alt="" />
+                                                    </div>
+                                                    <div className="max-w-[210px]">
+                                                        <p className="text-xs font-black text-slate-800 truncate leading-snug">{getNurseBureauName(order)}</p>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight mt-0.5">
+                                                            {order.assignedStaffId ? `Staff: ${order.assignedStaffId.name}` : (order.serviceDetails?.title || 'Clinical Care')}
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             </td>
-                                            <td className="px-8 py-6 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <button 
-                                                        onClick={() => setModal({ isOpen: true, type: 'details', data: order })} 
-                                                        className="px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-white border border-slate-200 text-slate-600 hover:bg-slate-900 hover:text-white transition-all cursor-pointer"
-                                                    >
-                                                        Details
-                                                    </button>
+
+                                            {/* Column 3: Date, Time & Destination */}
+                                            <td className="px-6 py-5 align-middle">
+                                                <div className="flex flex-col text-xs font-bold text-slate-700">
+                                                    <span>{order.formattedScheduleDate || (order.schedule?.startDate ? new Date(order.schedule.startDate).toLocaleDateString() : 'Today')}</span>
+                                                    <span className="text-[10px] font-medium text-slate-400 mt-0.5">
+                                                        {order.formattedScheduleTime || order.schedule?.startTime || '10:00 AM'}
+                                                    </span>
+                                                    <span className="text-[9.5px] font-semibold text-slate-500 truncate max-w-[180px] flex items-center gap-1 mt-0.5">
+                                                        {isHospital ? <MdLocalHospital className="text-purple-600 shrink-0" size={10} /> : <FiMapPin className="text-emerald-600 shrink-0" size={10} />}
+                                                        {order.destinationLabel || order.assessmentLocation}
+                                                    </span>
+                                                </div>
+                                            </td>
+
+                                            {/* Column 4: Bill & Payment */}
+                                            <td className="px-6 py-5 align-middle">
+                                                <div className="flex flex-col gap-1 items-start">
+                                                    <span className="text-sm font-black text-slate-900">₹{order.totalAmount ?? order.totalPrice ?? 0}</span>
+                                                    <NursePaymentBadge order={order} />
+                                                </div>
+                                            </td>
+
+                                            {/* Column 5: Status */}
+                                            <td className="px-6 py-5 align-middle text-center">
+                                                <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border whitespace-nowrap ${getStatusStyle(order.status)}`}>
+                                                    {order.status}
+                                                </span>
+                                            </td>
+
+                                            {/* Column 6: Actions */}
+                                            <td className="px-6 py-5 align-middle text-right">
+                                                <div className="inline-flex items-center justify-end gap-2.5 whitespace-nowrap">
+                                                    {/* PAY NOW BUTTON */}
+                                                    {pendingPayment && (
+                                                        <button 
+                                                            disabled={retryingId === (order._id || order.bookingId)}
+                                                            onClick={() => handleRetryPayment(order)}
+                                                            className="h-8 px-4 rounded-full text-[11px] font-black uppercase tracking-wide bg-[#FF8A00] hover:bg-[#E67C00] text-white transition-all flex items-center gap-1.5 shadow-md shadow-orange-500/20 disabled:opacity-50 cursor-pointer active:scale-95 border border-orange-400/30"
+                                                            title="Pay Now"
+                                                        >
+                                                            {retryingId === (order._id || order.bookingId) ? (
+                                                                <FiLoader className="animate-spin" size={13} />
+                                                            ) : (
+                                                                <FiAlertCircle size={14} className="shrink-0" />
+                                                            )}
+                                                            <span>PAY NOW</span>
+                                                        </button>
+                                                    )}
+
+                                                    {order.status === "Completed" && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                setModal({ isOpen: true, type: 'rating', data: order, trackingData: null });
+                                                            }}
+                                                            className="h-8 px-3 rounded-xl text-[10px] font-black uppercase bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1 shadow-sm cursor-pointer"
+                                                        >
+                                                            <FiStar size={11} /> {order.isReviewed ? "Edit" : "Rate"}
+                                                        </button>
+                                                    )}
+
                                                     {isCancellable && (
                                                         <button 
                                                             onClick={() => openCancelDialog(order)}
-                                                            className="p-2 rounded-xl text-rose-500 bg-rose-50 hover:bg-rose-100 border border-rose-100 transition-all cursor-pointer"
+                                                            className="h-8 px-3 rounded-xl text-[10px] font-black uppercase bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all flex items-center gap-1 shadow-sm cursor-pointer"
                                                             title="Cancel Booking"
                                                         >
-                                                            <FiTrash2 size={12} />
+                                                            <FiTrash2 size={11} /> Cancel
                                                         </button>
                                                     )}
+
+                                                    <button 
+                                                        onClick={() => handleOpenDetails(order)} 
+                                                        className="h-8 px-3.5 rounded-xl text-[10px] font-black uppercase border border-slate-200 bg-white text-slate-700 hover:bg-slate-900 hover:text-white transition-all cursor-pointer"
+                                                    >
+                                                        Track / Details
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -731,37 +958,74 @@ function NursingOrders() {
                         </table>
                     </div>
 
-                    {/* Mobile View */}
+                    {/* Mobile Cards */}
                     <div className="block lg:hidden divide-y divide-slate-100 px-4">
                         {filteredOrders.map((order) => {
-                            const isCancellable = CANCELLABLE_STATUSES.includes(order.status);
+                            const isCancellable = Boolean(order.canCancel ?? ["Pending", "Confirmed", "Assigned", "On-The-Way", "Arrived"].includes(order.status));
+                            const pendingPayment = Boolean(order.canPayOnline);
+                            const isHospital = order.assessmentLocation === "At Hospital" || Boolean(order.hospitalDetails);
+
                             return (
-                                <div key={order._id} className="py-5 flex flex-col gap-3.5">
+                                <div key={order._id || order.bookingId} className="py-5 flex flex-col gap-3">
                                     <div className="flex justify-between items-start">
-                                        <div className="flex gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden shrink-0"><img src={getImageUrl(order.nurseId?.profileImage)} className="w-full h-full object-cover" onError={(e) => e.target.src = 'https://via.placeholder.com/100'} alt="" /></div>
-                                            <div>
-                                                <span className="text-[10px] font-black text-slate-400">#{order.bookingId}</span>
-                                                <h4 className="text-sm font-black text-slate-800 mt-0.5">{order.nurseId?.name}</h4>
-                                            </div>
+                                        <div>
+                                            <span className="text-[10px] font-black text-slate-400 tracking-wider">#{order.bookingId}</span>
+                                            <h4 className="text-sm font-black text-slate-800 line-clamp-1 mt-0.5">
+                                                {order.primaryPatientName ? `${order.primaryPatientName} • ` : ""}{getNurseBureauName(order)}
+                                            </h4>
                                         </div>
                                         <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${getStatusStyle(order.status)}`}>{order.status}</span>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button 
-                                            onClick={() => setModal({ isOpen: true, type: 'details', data: order })} 
-                                            className="flex-1 bg-white border border-slate-200 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center shadow-sm cursor-pointer"
-                                        >
-                                            Details
-                                        </button>
+
+                                    <div className="flex flex-wrap gap-1.5 items-center">
+                                        <NursePaymentBadge order={order} />
+                                        <NurseModeBadge order={order} />
+                                    </div>
+
+                                    <div className="flex justify-between items-center text-xs font-bold text-slate-600 bg-slate-50 p-2.5 rounded-xl">
+                                        <div className="flex flex-col">
+                                            <span>{order.formattedScheduleDate || (order.schedule?.startDate ? new Date(order.schedule.startDate).toLocaleDateString() : 'Today')} ({order.formattedScheduleTime || order.schedule?.startTime || '10:00 AM'})</span>
+                                            <span className="text-[10px] font-medium text-slate-500 truncate max-w-[200px] flex items-center gap-1 mt-0.5">
+                                                {isHospital ? <MdLocalHospital className="text-purple-600 shrink-0" size={10} /> : <FiMapPin className="text-emerald-600 shrink-0" size={10} />}
+                                                {order.destinationLabel || order.assessmentLocation}
+                                            </span>
+                                        </div>
+                                        <span className="text-sm font-black text-slate-900 shrink-0">₹{order.totalAmount ?? order.totalPrice ?? 0}</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 pt-1">
+                                        {pendingPayment && (
+                                            <button 
+                                                disabled={retryingId === (order._id || order.bookingId)}
+                                                onClick={() => handleRetryPayment(order)}
+                                                className="w-full bg-[#FF8A00] hover:bg-[#E67C00] py-3 rounded-full text-[11px] font-black uppercase tracking-wide text-center text-white flex items-center justify-center gap-2 shadow-md shadow-orange-500/25 disabled:opacity-50 col-span-2 cursor-pointer active:scale-95 border border-orange-400/30"
+                                            >
+                                                {retryingId === (order._id || order.bookingId) ? (
+                                                    <FiLoader className="animate-spin" size={14} />
+                                                ) : (
+                                                    <FiAlertCircle size={15} className="shrink-0" />
+                                                )}
+                                                <span>PAY NOW</span>
+                                            </button>
+                                        )}
+
                                         {isCancellable && (
                                             <button 
                                                 onClick={() => openCancelDialog(order)} 
-                                                className="px-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl text-[10px] font-black uppercase tracking-widest text-center shadow-sm cursor-pointer"
+                                                className="w-full bg-rose-50 hover:bg-rose-100 border border-rose-200 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center text-rose-600 flex items-center justify-center gap-1 shadow-sm cursor-pointer"
                                             >
-                                                Cancel
+                                                <FiTrash2 size={12} /> Cancel
                                             </button>
                                         )}
+
+                                        <button 
+                                            onClick={() => handleOpenDetails(order)} 
+                                            className={`w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center border border-slate-200 bg-white cursor-pointer ${
+                                                !isCancellable && !pendingPayment ? "col-span-2" : ""
+                                            }`}
+                                        >
+                                            Track / Details
+                                        </button>
                                     </div>
                                 </div>
                             );
@@ -770,12 +1034,22 @@ function NursingOrders() {
                 </>
             )}
 
+            {/* Pagination */}
+            <div className="p-4 md:p-6 border-t border-slate-100 flex items-center justify-between bg-slate-50/20">
+                <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Page {pagination.currentPage} of {pagination.totalPages}</p>
+                <div className="flex gap-2">
+                    <button disabled={pagination.currentPage === 1} onClick={() => fetchOrders(pagination.currentPage - 1)} className="p-2 rounded-lg border border-slate-200 bg-white disabled:opacity-30 cursor-pointer"><FiArrowLeft size={16} /></button>
+                    <button disabled={pagination.currentPage >= pagination.totalPages} onClick={() => fetchOrders(pagination.currentPage + 1)} className="p-2 rounded-lg border border-slate-200 bg-white disabled:opacity-30 cursor-pointer"><FiArrowLeft className="rotate-180" size={16} /></button>
+                </div>
+            </div>
+
             {/* --- Portal Details Modal --- */}
             {modal.isOpen && modal.data && (
                 <NursingDetailsModal
                     data={modal.data}
+                    trackingData={modal.trackingData}
                     type={modal.type}
-                    onClose={() => setModal({ isOpen: false, type: 'details', data: null })}
+                    onClose={() => setModal({ isOpen: false, type: 'details', data: null, trackingData: null })}
                 />
             )}
 
@@ -788,7 +1062,7 @@ function NursingOrders() {
                                 <span className="text-[10px] font-black text-rose-500 uppercase tracking-wider block">Cancel Request</span>
                                 <h3 className="text-xl font-black text-slate-900 mt-0.5">Cancel Nurse Booking?</h3>
                             </div>
-                            <button onClick={() => setCancelModal({ isOpen: false, booking: null })} className="text-slate-400 hover:text-slate-600 p-1">
+                            <button onClick={() => setCancelModal({ isOpen: false, booking: null })} className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
                                 <FiX size={20} />
                             </button>
                         </div>
@@ -798,11 +1072,10 @@ function NursingOrders() {
                                 <FiAlertTriangle /> Automated Refund & Benefit Policy
                             </p>
                             <p className="text-[11px] text-amber-800">
-                                Eligible refunds will be automatically credited to your original payment method, and free subscription visits will be restored.
+                                Eligible refunds will be automatically credited to your original payment method.
                             </p>
                         </div>
 
-                        {/* Reason Select */}
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Select Reason</label>
                             {COMMON_CANCEL_REASONS.map((r, idx) => (
@@ -821,7 +1094,6 @@ function NursingOrders() {
                             ))}
                         </div>
 
-                        {/* Custom Reason */}
                         <div>
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Other Reason (Optional)</label>
                             <textarea
@@ -833,13 +1105,12 @@ function NursingOrders() {
                             />
                         </div>
 
-                        {/* Action Buttons */}
                         <div className="flex gap-2 pt-2">
                             <button
                                 type="button"
                                 disabled={cancelling}
                                 onClick={() => setCancelModal({ isOpen: false, booking: null })}
-                                className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-xl text-xs uppercase tracking-wider transition-all"
+                                className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
                             >
                                 Back
                             </button>
@@ -847,7 +1118,7 @@ function NursingOrders() {
                                 type="button"
                                 disabled={cancelling}
                                 onClick={handleConfirmCancellation}
-                                className="flex-1 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20"
+                                className="flex-1 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20 cursor-pointer"
                             >
                                 {cancelling ? (
                                     <>
@@ -873,7 +1144,7 @@ function NursingOrders() {
                         </div>
                         <div>
                             <h3 className="text-xl font-black text-slate-900">Booking Cancelled</h3>
-                            <p className="text-xs text-slate-500 font-semibold mt-1">Ref: {cancellationResult.bookingId}</p>
+                            <p className="text-xs text-slate-500 font-semibold mt-1">Ref: #{cancellationResult.bookingId}</p>
                         </div>
 
                         <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-xs space-y-2 text-left">

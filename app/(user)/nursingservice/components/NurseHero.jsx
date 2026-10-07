@@ -3,49 +3,59 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  FaSearch, FaStar, FaHandHoldingHeart, FaUserMd,
-  FaCheckCircle, FaCloudUploadAlt, FaFilePrescription, FaTimesCircle, FaMapMarkerAlt, FaBriefcase, FaSpinner,
+  FaSearch, FaStar, FaHandHoldingHeart,
+  FaCloudUploadAlt, FaTimesCircle, FaSpinner,
   FaSyringe, FaBuilding, FaChevronRight
 } from "react-icons/fa";
 import { useGlobalContext } from "@/app/context/GlobalContext";
 import Link from "next/link";
 import UserAPI from "@/app/services/UserAPI";
 
-const STATIC_FALLBACK = {
-  headerTag: "Professional Home Healthcare",
-  mainTitle: "Expert Nursing Care \nin Your Own Home.",
-  description: "Skip the hospital stay. Access certified nursing professionals for personalized recovery, elderly care, and post-op assistance.",
-  searchPlaceholder: "Try searching 'Dressing', 'Bedridden', or 'Healing Hands'..."
-};
-
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://192.168.1.7:5002";
+// 4 High-Resolution Professional Nurse Portraits
+const NURSE_PHOTOS = [
+  {
+    id: 1,
+    image: "https://images.unsplash.com/photo-1594824813576-a192f15b5f25?auto=format&fit=crop&w=1200&h=1400&q=85",
+    alt: "Certified Nurse Care"
+  },
+  {
+    id: 2,
+    image: "https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?auto=format&fit=crop&w=1200&h=1400&q=85",
+    alt: "Elderly & Bedside Nurse"
+  },
+  {
+    id: 3,
+    image: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=1200&h=1400&q=85",
+    alt: "Post-Op Wound Nurse"
+  },
+  {
+    id: 4,
+    image: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=1200&h=1400&q=85",
+    alt: "IV & Injections Care"
+  }
+];
 
 const NurseHero = () => {
   const router = useRouter();
-  const { getNursePageData } = useGlobalContext();
   const dropdownRef = useRef(null);
 
-  // Component Internal State
-  const [pageData, setPageData] = useState(STATIC_FALLBACK);
   const [searchTerm, setSearchTerm] = useState("");
   const [suggestionsList, setSuggestionsList] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
-  // 1. Fetch Dynamic Page Content
-  useEffect(() => {
-    const fetchContent = async () => {
-      try {
-        const res = await getNursePageData();
-        if (res?.success && res?.data) setPageData(res.data);
-      } catch (err) {
-        console.error("NurseHero: API Fetch failed, using fallback.");
-      }
-    };
-    fetchContent();
-  }, [getNursePageData]);
+  // Auto-Rotating Multi-Photo Carousel State
+  const [currentSlide, setCurrentSlide] = useState(0);
 
-  // 2. Fetch Suggestions Logic based on updated contract: GET /user/nurse/search-suggestions?query=...
+  useEffect(() => {
+    const slideInterval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % NURSE_PHOTOS.length);
+    }, 4000);
+
+    return () => clearInterval(slideInterval);
+  }, []);
+
+  // Fetch Suggestions
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
       if (searchTerm.trim().length > 1) {
@@ -70,7 +80,7 @@ const NurseHero = () => {
     return () => clearTimeout(delayDebounceFn);
   }, [searchTerm]);
 
-  // 3. Handle Click Outside to close dropdown
+  // Click outside to close suggestions
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -82,7 +92,7 @@ const NurseHero = () => {
   }, []);
 
   const handleSearchNavigation = (customQuery = null) => {
-    const finalQuery = typeof customQuery === 'string' ? customQuery : searchTerm;
+    const finalQuery = typeof customQuery === "string" ? customQuery : searchTerm;
     if (finalQuery.trim()) {
       router.push(`/nursingservice/seeallservices?search=${encodeURIComponent(finalQuery)}`);
     } else {
@@ -102,212 +112,221 @@ const NurseHero = () => {
     setShowSuggestions(false);
   };
 
-  const getImageUrl = (path) => {
-    if (!path) return "https://img.freepik.com/free-photo/medical-specialist-taking-care-patient_23-2148962551.jpg";
-    if (path.startsWith("http")) return path;
-    return `${BASE_URL}/${path.replace(/^public\//, "")}`.replace(/([^:]\/)\/+/g, "$1");
-  };
-
-  // Segregate autocomplete results into Services & Providers
   const serviceResults = suggestionsList.filter((item) => item.type === "Service");
   const providerResults = suggestionsList.filter((item) => item.type === "Provider");
 
   return (
-    <section className="relative pt-8 sm:pt-12 pb-0 sm:pb-0 lg:pt-20 lg:pb-32 px-4 sm:px-6 overflow-hidden">
-      {/* Background Ambient Decor */}
-      <div className="absolute top-0 left-0 w-full h-full -z-10 overflow-hidden">
-        <div className="absolute top-[-10%] right-[-5%] w-[60%] sm:w-[40%] h-[60%] bg-emerald-50/50 rounded-full blur-[80px] sm:blur-[120px]" />
-        <div className="absolute bottom-0 left-[-5%] w-[50%] sm:w-[30%] h-[40%] bg-teal-50/50 rounded-full blur-[80px] sm:blur-[100px]" />
-      </div>
-
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-
-        {/* LEFT CONTENT */}
-        <div className="lg:col-span-7 space-y-6 sm:space-y-8">
-          <div className="flex flex-col space-y-3 sm:space-y-4">
-            <div className="inline-flex items-center gap-2 w-fit px-3 py-1 rounded-full bg-white border border-emerald-100 shadow-sm">
-              <span className="flex h-1.5 w-1.5 rounded-full bg-[#08B36A] animate-pulse" />
-              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-[#08B36A]">
-                {pageData.headerTag}
-              </span>
-            </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black text-slate-900 leading-[1.1] tracking-tight whitespace-pre-line">
-              {pageData.mainTitle}
-            </h1>
+    // 💡 REMOVED overflow-hidden and elevated z-index so dropdown renders above subsequent page sections
+    <section className="relative pt-6 sm:pt-10 pb-16 lg:pt-12 lg:pb-24 px-4 sm:px-8 max-w-7xl mx-auto bg-white font-sans z-30">
+      
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-14 items-center">
+        
+        {/* ========================================================= */}
+        {/* LEFT COLUMN: HERO CONTENT & SEARCH BAR                   */}
+        {/* ========================================================= */}
+        <div className="lg:col-span-7 space-y-7 sm:space-y-8 relative z-40">
+          
+          {/* Tagline Badge */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
+            <span className="w-2 h-2 rounded-full bg-[#08B36A]" />
+            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] text-[#08B36A]">
+              BOOK YOUR PERSONAL HOME SERVICES
+            </span>
           </div>
 
-          <p className="text-base sm:text-lg lg:text-xl text-slate-500 max-w-2xl leading-relaxed">
-            {pageData.description}
+          {/* Main Title */}
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-slate-950 tracking-tight flex items-center gap-3">
+            Find My Nurse! <span className="text-4xl sm:text-5xl lg:text-6xl">👩‍⚕️</span>
+          </h1>
+
+          {/* Description */}
+          <p className="text-base sm:text-lg text-slate-500 font-medium max-w-xl leading-relaxed">
+            Reliable, certified, and compassionate nursing care in the comfort of your home. Select from our verified specialty packages..
           </p>
 
-          <div className="relative max-w-2xl space-y-4" ref={dropdownRef}>
-            <div className="bg-white rounded-2xl sm:rounded-[2.5rem] p-1.5 sm:p-2 shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-slate-100 flex flex-col md:flex-row items-center gap-1 sm:gap-2 relative z-50">
-              <div className="relative flex-1 w-full group">
-                <FaSearch className="absolute left-5 sm:left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#08B36A] transition-colors" />
+          {/* Search Box & Dropdown */}
+          <div className="relative max-w-xl space-y-4 z-50" ref={dropdownRef}>
+            
+            {/* Main Pill Search Input */}
+            <div className="bg-white rounded-full p-2 pl-6 shadow-[0_10px_35px_rgba(0,0,0,0.06)] border border-slate-200 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                <FaSearch className="text-slate-400 text-sm shrink-0" />
                 <input
                   type="text"
-                  placeholder={pageData.searchPlaceholder}
+                  placeholder="Find Your Homecare"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearchNavigation()}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearchNavigation()}
                   onFocus={() => searchTerm.length > 1 && setShowSuggestions(true)}
-                  className="w-full pl-12 sm:pl-14 pr-4 sm:pr-6 py-4 sm:py-5 bg-transparent outline-none font-medium text-slate-700 placeholder:text-slate-300 text-sm sm:text-base"
+                  className="w-full bg-transparent outline-none font-semibold text-slate-800 placeholder:text-slate-400 text-sm sm:text-base"
                 />
-                {isSearching && <FaSpinner className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-[#08B36A]" />}
+                {isSearching && <FaSpinner className="animate-spin text-[#08B36A] text-sm shrink-0" />}
               </div>
+
               <button
                 onClick={() => handleSearchNavigation()}
-                className="w-full md:w-auto bg-slate-950 text-white px-8 py-4 sm:px-10 sm:py-5 rounded-xl sm:rounded-[2rem] font-bold hover:bg-[#08B36A] transition-all shadow-lg active:scale-95 text-sm sm:text-base"
+                className="bg-[#0B132B] hover:bg-black text-white px-7 py-3.5 rounded-full font-bold text-sm tracking-tight transition-all cursor-pointer shrink-0 shadow-md active:scale-95"
               >
                 Find Services
               </button>
             </div>
 
-            {/* AUTOCOMPLETE SUGGESTIONS DROPDOWN */}
+            {/* Suggestions Dropdown (Elevated with z-[9999] and isolated shadow) */}
             {showSuggestions && (
-              <div className="absolute top-full left-0 w-full bg-white mt-3 rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden z-[100] animate-in fade-in slide-in-from-top-3 duration-200">
-                <div className="max-h-[450px] overflow-y-auto p-4 custom-scrollbar space-y-4">
+              <div className="absolute top-full left-0 w-full bg-white mt-2 rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.25)] border border-slate-100 overflow-hidden z-[9999] animate-in fade-in duration-150">
+                <div className="max-h-[380px] overflow-y-auto p-3.5 space-y-3 custom-scrollbar">
                   
-                  {/* Master Services Section */}
                   {serviceResults.length > 0 && (
                     <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3 mb-2 flex items-center gap-1.5">
-                        <FaSyringe className="text-[#08B36A]" /> Clinical Services & Procedures
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-2 mb-1.5 flex items-center gap-1.5">
+                        <FaSyringe className="text-[#08B36A]" /> Clinical Services
                       </p>
-                      <div className="space-y-1.5">
+                      <div className="space-y-1">
                         {serviceResults.map((s) => (
-                          <div 
-                            key={s.id} 
+                          <div
+                            key={s.id || s._id}
                             onClick={() => handleSelectService(s)}
-                            className="flex items-center justify-between p-3 hover:bg-emerald-50/50 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-emerald-100 group"
+                            className="flex items-center justify-between p-2.5 hover:bg-slate-50 rounded-2xl cursor-pointer transition-colors"
                           >
-                            <div className="min-w-0 pr-4">
-                              <h6 className="text-sm font-black text-slate-800 group-hover:text-[#08B36A] truncate">
-                                {s.title}
-                              </h6>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
-                                {s.subtitle || s.category}
-                              </p>
+                            <div>
+                              <h6 className="text-sm font-bold text-slate-800">{s.title}</h6>
+                              <p className="text-[10px] text-slate-400 font-medium">{s.subtitle || s.category}</p>
                             </div>
-                            <div className="text-right shrink-0 flex items-center gap-3">
-                              {s.startingPrice && (
-                                <div>
-                                  <span className="text-[9px] font-bold text-slate-400 uppercase block">Starts</span>
-                                  <span className="text-xs font-black text-[#08B36A]">₹{s.startingPrice}</span>
-                                </div>
-                              )}
-                              <FaChevronRight size={10} className="text-slate-300 group-hover:text-[#08B36A]" />
-                            </div>
+                            <FaChevronRight size={10} className="text-slate-300" />
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Care Bureaus / Providers Section */}
                   {providerResults.length > 0 && (
                     <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3 mb-2 flex items-center gap-1.5">
-                        <FaBuilding className="text-blue-500" /> Nursing Bureaus & Agencies
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-2 mb-1.5 flex items-center gap-1.5">
+                        <FaBuilding className="text-blue-500" /> Verified Nursing Bureaus
                       </p>
-                      <div className="space-y-1.5">
+                      <div className="space-y-1">
                         {providerResults.map((p) => (
-                          <div 
-                            key={p.id} 
-                            onClick={() => handleSelectProvider(p.id)}
-                            className="flex items-center gap-3.5 p-3 hover:bg-slate-50 rounded-2xl cursor-pointer transition-all group"
+                          <div
+                            key={p.id || p._id}
+                            onClick={() => handleSelectProvider(p.id || p._id)}
+                            className="flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-2xl cursor-pointer transition-colors"
                           >
-                            <img 
-                              src={getImageUrl(p.image)} 
-                              className="w-11 h-11 rounded-xl object-cover border border-slate-100 shrink-0 shadow-xs" 
-                              alt={p.title} 
-                            />
+                            <img src={p.image || NURSE_PHOTOS[0].image} className="w-9 h-9 rounded-xl object-cover border" alt={p.title} />
                             <div className="flex-1 min-w-0">
-                              <h6 className="text-sm font-black text-slate-800 group-hover:text-[#08B36A] truncate">
-                                {p.title}
-                              </h6>
-                              <p className="text-[10px] font-bold text-slate-400 truncate mt-0.5">
-                                {p.subtitle}
-                              </p>
+                              <h6 className="text-sm font-bold text-slate-800 truncate">{p.title}</h6>
+                              <p className="text-[10px] text-slate-400 truncate">{p.subtitle}</p>
                             </div>
-                            <FaChevronRight size={10} className="text-slate-300 group-hover:text-slate-600 shrink-0" />
+                            <FaChevronRight size={10} className="text-slate-300" />
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Empty State */}
                   {searchTerm.length > 1 && !isSearching && suggestionsList.length === 0 && (
-                    <div className="p-8 text-center">
-                      <FaTimesCircle className="mx-auto text-slate-200 text-3xl mb-2" />
-                      <p className="text-slate-400 font-bold text-xs">No matching nursing services or bureaus found for "{searchTerm}"</p>
+                    <div className="p-6 text-center text-xs font-semibold text-slate-400">
+                      No matching nursing services found for "{searchTerm}"
                     </div>
                   )}
                 </div>
               </div>
             )}
 
-            <Link href="/nursingservice/prescriptionnurse" className="flex flex-col sm:flex-row items-center gap-3">
-              <button className="w-full sm:w-auto flex items-center justify-center gap-3 bg-emerald-50 text-emerald-800 border border-emerald-200 px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl sm:rounded-2xl font-bold hover:bg-emerald-100 transition-all active:scale-95 text-sm" >
-                <FaCloudUploadAlt className="text-lg sm:text-xl text-[#08B36A]" />
-                {"Upload Doctor's Prescription"}
-              </button>
-            </Link>
+            {/* Upload Prescription Button */}
+            <div className="pt-1">
+              <Link href="/nursingservice/prescriptionnurse">
+                <button className="flex items-center gap-2.5 bg-emerald-50/80 hover:bg-emerald-100 text-emerald-950 border border-emerald-200/80 px-6 py-3 rounded-2xl font-bold text-xs tracking-tight transition-all cursor-pointer shadow-xs active:scale-95">
+                  <FaCloudUploadAlt className="text-base text-[#08B36A]" />
+                  <span>Upload Doctor's Prescription</span>
+                </button>
+              </Link>
+            </div>
+
           </div>
 
-          {/* Trust Badges */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
-            <div className="flex -space-x-3">
-              {[1, 2, 3, 4].map(i => (
-                <img key={i} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 sm:border-4 border-white shadow-sm" src={`https://i.pravatar.cc/150?u=${i + 20}`} alt="user" />
-              ))}
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 sm:border-4 border-white bg-[#08B36A] flex items-center justify-center text-white text-[8px] sm:text-[10px] font-bold shadow-sm">+5k</div>
+          {/* Social Proof Stats */}
+          <div className="flex items-center gap-3.5 pt-2">
+            <div className="flex -space-x-2.5">
+              <img className="w-8 h-8 rounded-full border-2 border-white object-cover" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="Patient" />
+              <img className="w-8 h-8 rounded-full border-2 border-white object-cover" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" alt="Patient" />
+              <img className="w-8 h-8 rounded-full border-2 border-white object-cover" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" alt="Patient" />
+              <img className="w-8 h-8 rounded-full border-2 border-white object-cover" src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80" alt="Patient" />
+              <div className="w-8 h-8 rounded-full border-2 border-white bg-[#08B36A] text-white text-[9px] font-black flex items-center justify-center">
+                +5k
+              </div>
             </div>
-            <p className="text-xs sm:text-sm font-medium text-slate-500">Trusted by <span className="text-slate-900 font-black">5,000+ families</span> for home care</p>
+            <p className="text-xs text-slate-500 font-medium">
+              Trusted by <strong className="text-slate-900 font-bold">5,000+ families</strong> for home care
+            </p>
           </div>
+
         </div>
 
-        {/* RIGHT SIDE: IMAGE */}
-        <div className="hidden lg:block lg:col-span-5 relative">
-          <div className="relative z-10 bg-white p-4 rounded-[3.5rem] shadow-2xl border border-slate-50">
-            <img
-              src="https://img.freepik.com/free-photo/healthcare-workers-preventing-virus-quarantine-campaign-concept-cheerful-friendly-asian-female-physician-doctor-with-clipboard-daily-checkup-standing-white-background_1258-107867.jpg?semt=ais_hybrid&w=740&q=80"
-              alt="Nursing Care"
-              className="rounded-[2.5rem] w-full h-[500px] object-cover"
-            />
-            {/* Overlay Badges */}
-            <div className="absolute top-12 -left-8 bg-white/90 backdrop-blur-md p-5 rounded-3xl shadow-xl border border-white/50 flex items-center gap-4 animate-bounce-slow">
-              <div className="w-12 h-12 bg-[#08B36A] rounded-2xl flex items-center justify-center text-white text-xl shadow-lg shadow-emerald-200">
-                <FaHandHoldingHeart />
+        {/* ========================================================= */}
+        {/* RIGHT COLUMN: NURSE PHOTO SHOWCASE CARD                   */}
+        {/* ========================================================= */}
+        <div className="lg:col-span-5 relative flex justify-center lg:justify-end z-10">
+          
+          {/* Main Card Frame with Outer Shadow & Border */}
+          <div className="relative w-full max-w-[440px] rounded-[3.5rem] p-3.5 bg-white border border-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
+            
+            {/* TOP LEFT RESPONSE TIME BADGE */}
+            <div className="absolute -top-4 -left-6 z-30 bg-white/95 backdrop-blur-md rounded-2xl p-3 px-4 shadow-[0_10px_25px_rgba(0,0,0,0.1)] border border-slate-100 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-[#08B36A] text-white flex items-center justify-center shrink-0">
+                <FaHandHoldingHeart size={16} />
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase">Response Time</p>
-                <p className="text-xl font-black text-slate-900">Under 20 Min</p>
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
+                  RESPONSE TIME
+                </span>
+                <p className="text-sm font-black text-slate-900 leading-tight">
+                  Under 60 Min
+                </p>
               </div>
             </div>
-            <div className="absolute -bottom-6 -right-6 bg-slate-950 p-6 rounded-[2.5rem] shadow-2xl text-white">
-              <div className="flex items-center gap-4">
-                <div className="text-3xl font-black text-[#08B36A]">4.9</div>
-                <div className="h-8 w-px bg-white/20" />
-                <div>
-                  <div className="flex text-amber-400 text-xs"><FaStar /><FaStar /><FaStar /><FaStar /><FaStar /></div>
-                  <p className="text-[10px] font-bold uppercase opacity-60">Avg. Bureau Rating</p>
+
+            {/* Inner Nurse Photo Carousel Container */}
+            <div className="relative w-full h-[480px] sm:h-[520px] rounded-[2.8rem] overflow-hidden bg-[#F1F5F9]">
+              {NURSE_PHOTOS.map((slide, idx) => {
+                const isActive = idx === currentSlide;
+                return (
+                  <div
+                    key={slide.id}
+                    className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out ${
+                      isActive ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+                    }`}
+                  >
+                    <img
+                      src={slide.image}
+                      alt={slide.alt}
+                      className="w-full h-full object-cover object-[center_top]"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* BOTTOM RIGHT RATING BADGE */}
+            <div className="absolute -bottom-4 -right-4 z-30 bg-[#0B132B] text-white rounded-2xl p-3 px-5 shadow-[0_15px_35px_rgba(11,19,43,0.3)] flex items-center gap-3 border border-slate-800">
+              <span className="text-2xl font-black tracking-tight text-white">
+                4.9
+              </span>
+              <div className="border-l border-white/20 pl-3">
+                <div className="flex items-center gap-1 text-amber-400 text-xs">
+                  <FaStar /><FaStar /><FaStar /><FaStar /><FaStar />
                 </div>
+                <span className="text-[8px] font-black tracking-widest text-slate-400 uppercase block mt-0.5">
+                  AVG. BUREAU RATING
+                </span>
               </div>
             </div>
+
           </div>
+
         </div>
+
       </div>
 
-      <style jsx>{`
-        @keyframes bounce-slow { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-        .animate-bounce-slow { animation: bounce-slow 4s ease-in-out infinite; }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
-      `}</style>
     </section>
   );
 };

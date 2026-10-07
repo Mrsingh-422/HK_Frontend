@@ -126,31 +126,8 @@ const UserAPI = {
         const response = await publicApi.post(`/user/labs/${labId}/inventory-packages/search`, payload);
         return response.data;
     },
-    // getFemalePackages: async () => {
-    //     const response = await publicApi.get("/user/labs/standard-packages/female");
-    //     return response.data;
-    // },
-    // getFemaleTests: async () => {
-    //     const response = await publicApi.get("/user/labs/standard-tests/female");
-    //     return response.data;
-    // },
-    checkoutLab: async (checkoutData) => {
-        /**
-         * Expected checkoutData object:
-         * {
-         *   appointmentDate: "YYYY-MM-DD",
-         *   appointmentTime: "10:00 AM",
-         *   selectedPatientIds: ["id1", "id2"],
-         *   collectionType: "Home Collection" | "Visit Lab",
-         *   isRapid: boolean,
-         *   couponCode: string | null,
-         *   address: { ... },
-         *   paymentMethod: "COD"
-         * }
-         */
-        const response = await authApi.post("/user/labs/checkout", checkoutData);
-        return response.data;
-    },
+ 
+   
     // 8. Get service/delivery charges (Fixed fee, Express fee, etc.)
     getDeliveryCharges: async () => {
         const response = await authApi.get("/user/labs/delivery-charges");
@@ -673,6 +650,13 @@ validatePharmacyCoupon: async (couponCode, pharmacyId, totalAmount) => {
         const response = await authApi.get("/user/labs/delivery-charges", { params });
         return response.data;
     },
+    // --- UserAPI.js ---
+
+// Retry Payment for Pending Lab Booking
+retryPaymentLab: async (data) => {
+    const response = await authApi.post("/user/labs/retry-payment", data);
+    return response.data;
+},
 
 
     getPharmacyDeliveryCharges: async (params) => {
@@ -700,10 +684,7 @@ cancelPharmacyOrder: async (data) => {
         return response.data;
     },
 
-    checkoutLabBooking: async (checkoutData) => {
-        const response = await authApi.post("/user/labs/checkout", checkoutData);
-        return response.data;
-    },
+  
     checkoutPharmacyOrder: async (checkoutData) => {
         const response = await authApi.post("/user/pharmacy/checkout", checkoutData);
         return response.data;
@@ -825,20 +806,25 @@ cancelPharmacyOrder: async (data) => {
         const response = await publicApi.get(`/user/nurse/details/${id}`);
         return response.data;
     },
-    getNurseSlots: async (nurseId, query) => {
-        // query: ?serviceId=..&packageId=..&isPackage=true&type=Hourly
-        const response = await publicApi.get(`/user/nurse/availability/${nurseId}?${query}`);
-        return response.data;
-    },
+   // Availability Timings & Slot Generator (Pathway A - Step 4)
+getNurseAvailabilitySlots: async ({ nurseId, serviceId, packageId, isPackage, type, selectedDate }) => {
+    const response = await authApi.get(`/user/nurse/availability/${nurseId}`, {
+        params: {
+            serviceId: serviceId || undefined,
+            packageId: packageId || undefined,
+            isPackage: Boolean(isPackage),
+            type, // 'One day One Time' | 'For Multiple Days' | 'Acc. To Per/Hours'
+            selectedDate: selectedDate || undefined // 👈 ADD THIS LINE
+        }
+    });
+    return response.data;
+},
   // 5.1 Calculate Nurse Checkout Summary (POST /user/nurse/checkout)
     nurseCheckoutSummary: async (payload) => {
         const response = await authApi.post("/user/nurse/checkout", payload);
         return response.data;
     },
-    createNurseBooking: async (payload) => {
-        const response = await authApi.post("/user/nurse/checkout", payload);
-        return response.data;
-    },
+   
    // Inside UserAPI.js:
 
 getHospitalDropdown: async (searchQuery = "") => {
@@ -891,6 +877,16 @@ getHospitalDropdown: async (searchQuery = "") => {
         const response = await authApi.get("/user/nurse/my-appointments");
         return response.data
     },
+    // 4. Retry Payment
+retryPaymentNurse: async (data) => {
+    const response = await authApi.post("/user/nurse/retry-payment", data);
+    return response.data;
+},
+// 6. Live Track Nurse Session
+getNurseTracking: async (bookingId) => {
+    const response = await authApi.get(`/user/nurse/track/${bookingId}`);
+    return response.data;
+},
 
     // Fetches the global list of unique nursing services with their lowest starting prices [2]
    getGlobalNursingServices: async (params = {}) => {
@@ -901,6 +897,24 @@ getHospitalDropdown: async (searchQuery = "") => {
             ...(search && { search })
         }
     });
+    return response.data;
+    
+},
+// Add this inside your UserAPI object in UserAPI.js
+getHospitalDropdown: async (params = {}) => {
+    // Supports: search, city
+    const response = await authApi.get('/user/nurse/hospitals/dropdown', {
+        params: {
+            search: params.search || undefined,
+            city: params.city || undefined
+        }
+    });
+    return response.data;
+
+},
+validateNurseCoupon: async (data) => {
+    // data = { couponCode, nurseId, totalAmount }
+    const response = await authApi.post("/user/nurse/validate-coupon", data);
     return response.data;
 },
 

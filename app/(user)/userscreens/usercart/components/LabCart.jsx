@@ -7,7 +7,8 @@ import {
     FaPrescriptionBottleAlt, FaTag, FaSpinner, FaArrowLeft, FaCheckCircle,
     FaTicketAlt, FaUserCircle, FaWalking, FaHome, FaBolt, FaMapMarkerAlt,
     FaTrash, FaGem, FaCreditCard, FaMoneyBillWave, FaLock, FaCalendarAlt,
-    FaClock, FaReceipt, FaUsers, FaVial, FaExternalLinkAlt, FaTimes
+    FaClock, FaReceipt, FaUsers, FaVial, FaExternalLinkAlt, FaTimes,
+    FaExclamationTriangle, FaArrowRight, FaPercent, FaInfoCircle
 } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
@@ -18,7 +19,7 @@ import FamilyMemberModal from './FamilyMemberModal';
 // Dynamically load Razorpay SDK
 const loadRazorpayScript = () => {
     return new Promise((resolve) => {
-        if (window.Razorpay) {
+        if (typeof window !== 'undefined' && window.Razorpay) {
             resolve(true);
             return;
         }
@@ -34,9 +35,9 @@ const loadRazorpayScript = () => {
 const LabCart = () => {
     const router = useRouter();
     const cartContext = useCart();
-    const { cart, updateQuantity, removeItem, loading, clearCart, clearFullCart } = cartContext || {};
+    const { cart, removeItem, loading, clearCart, clearFullCart } = cartContext || {};
 
-    // Helper to safely clear cart across context or API
+    // Helper to safely clear cart
     const handleClearCart = async () => {
         try {
             if (typeof clearCart === 'function') {
@@ -58,12 +59,11 @@ const LabCart = () => {
     const [serverDiscount, setServerDiscount] = useState(0);
     const [isValidating, setIsValidating] = useState(false);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
+    const [showAllCoupons, setShowAllCoupons] = useState(false);
 
-    // Subscription & Plan State
-    const [subscriptionData, setSubscriptionData] = useState(null);
-    const [hasActivePlan, setHasActivePlan] = useState(false);
-    const [vipCodAccess, setVipCodAccess] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState("Online"); // 'Online' | 'COD'
+    // Server-side Checkout Summary & Subscription Engine State
+    const [serverSummary, setServerSummary] = useState(null);
+    const [isEvaluatingBill, setIsEvaluatingBill] = useState(false);
 
     // Collection Method State
     const [collectionMethod, setCollectionMethod] = useState('Home Collection'); // 'Home Collection' or 'Visit Lab'
@@ -73,9 +73,12 @@ const LabCart = () => {
     const [selectedAddress, setSelectedAddress] = useState(null);
     const [isAddressLoading, setIsAddressLoading] = useState(false);
 
-    // Delivery & Fast Report Config
-    const [deliveryConfig, setDeliveryConfig] = useState(null);
+    // Fast Report Option
     const [isFastDelivery, setIsFastDelivery] = useState(false);
+
+    // Payment Method & COD State
+    const [paymentMethod, setPaymentMethod] = useState("Online"); // 'Online' | 'COD'
+    const [isCodAvailable, setIsCodAvailable] = useState(true);
 
     // Patients & Slot Selection
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
@@ -103,7 +106,7 @@ const LabCart = () => {
 
     // Items Subtotal Calculation
     const baseSubtotal = useMemo(() => {
-        return labItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+        return labItems.reduce((acc, item) => acc + (item.price * (item.quantity || 1)), 0);
     }, [labItems]);
 
     const multiplier = useMemo(() => {
@@ -114,32 +117,22 @@ const LabCart = () => {
         return baseSubtotal * multiplier;
     }, [baseSubtotal, multiplier]);
 
-    // 1. Fetch Metadata (Coupons, Addresses, Delivery Config, Subscription Status)
+    // 1. Fetch Metadata (Addresses & Coupons)
     const fetchMetadata = useCallback(async () => {
         try {
             setIsAddressLoading(true);
-            const [couponRes, addrRes, subRes] = await Promise.all([
-                UserAPI.getCouponsForCart(),
-                UserAPI.getUserAddresses(),
-                UserAPI.getMySubscriptionStatus()
+            const [couponRes, addrRes] = await Promise.all([
+                UserAPI.getCouponsForCart?.(),
+                UserAPI.getUserAddresses?.()
             ]);
 
-            if (couponRes?.success) setAvailableCoupons(couponRes.data || []);
+            if (couponRes?.success) {
+                setAvailableCoupons(couponRes.data || []);
+            }
             if (addrRes?.success && addrRes.data?.length > 0) {
                 setAddresses(addrRes.data);
                 const defaultAddr = addrRes.data.find(a => a.isDefault) || addrRes.data[0];
                 setSelectedAddress(defaultAddr);
-            }
-
-            // Dynamic Subscription Check
-            if (subRes?.success && subRes.hasActivePlan) {
-                setHasActivePlan(true);
-                setVipCodAccess(Boolean(subRes.vipCodAccess || subRes.data?.planId?.benefits?.unlimitedCodAccess));
-                setSubscriptionData(subRes.data);
-            } else {
-                setHasActivePlan(false);
-                setVipCodAccess(false);
-                setSubscriptionData(null);
             }
         } catch (error) {
             console.error("Metadata fetch error:", error);
@@ -148,24 +141,70 @@ const LabCart = () => {
         }
     }, []);
 
-    const fetchDeliveryCharges = useCallback(async () => {
-        if (!currentLabId) return;
-        try {
-            const res = await UserAPI.getLabDeliveryCharges({ labId: currentLabId });
-            if (res?.success) setDeliveryConfig(res.data);
-        } catch (error) {
-            console.error("Error fetching delivery charges:", error);
-        }
-    }, [currentLabId]);
-
     useEffect(() => {
         if (labItems.length > 0) {
             fetchMetadata();
-            fetchDeliveryCharges();
         }
-    }, [labItems.length, fetchMetadata, fetchDeliveryCharges]);
+    }, [labItems.length, fetchMetadata]);
 
-    // 2. Coupon Validation
+    // 2. Evaluate Server-Side Lab Checkout (POST /user/labs/checkout)
+    const evaluateLabSummary = useCallback(async () => {
+        if (!currentLabId || labItems.length === 0) return;
+
+        try {
+            setIsEvaluatingBill(true);
+
+            const selectedPatients = selectedMembers.length > 0 
+                ? selectedMembers.map(m => ({
+                    patientId: m.relation === 'Self' ? 'Self' : (m._id || m.patientId || 'Self'),
+                    name: m.memberName || m.name || "Self",
+                    age: Number(m.age) || 28,
+                    gender: m.gender || "Male"
+                }))
+                : [{ patientId: "Self", name: selectedAddress?.name || "Self", age: 28, gender: "Male" }];
+
+            const payload = {
+                labId: String(currentLabId),
+                collectionType: collectionMethod,
+                isRapid: Boolean(isFastDelivery),
+                couponCode: appliedCouponName || "",
+                selectedPatients,
+                address: selectedAddress ? {
+                    name: selectedAddress.name || "Patient",
+                    phone: selectedAddress.phone || "",
+                    houseNo: selectedAddress.houseNo || "",
+                    sector: selectedAddress.sector || "",
+                    city: selectedAddress.city || "",
+                    state: selectedAddress.state || "",
+                    pincode: selectedAddress.pincode || "",
+                    addressType: selectedAddress.addressType || "Home"
+                } : undefined
+            };
+
+            const res = await UserAPI.checkoutLabCart(payload);
+            if (res?.success && res.data) {
+                setServerSummary(res.data);
+                
+                const codAllowed = Boolean(res.data.isCodAvailable ?? true);
+                setIsCodAvailable(codAllowed);
+                if (!codAllowed && paymentMethod === "COD") {
+                    setPaymentMethod("Online");
+                }
+            }
+        } catch (err) {
+            console.error("Error evaluating lab checkout summary:", err);
+        } finally {
+            setIsEvaluatingBill(false);
+        }
+    }, [currentLabId, labItems.length, selectedMembers, collectionMethod, isFastDelivery, appliedCouponName, selectedAddress, paymentMethod]);
+
+    useEffect(() => {
+        if (labItems.length > 0) {
+            evaluateLabSummary();
+        }
+    }, [evaluateLabSummary, labItems.length]);
+
+    // 3. Coupon Validation
     const handleApplyCoupon = async (name) => {
         const codeToApply = (name || couponCode).trim().toUpperCase();
         if (!codeToApply) return toast.error("Please enter a coupon code");
@@ -173,12 +212,12 @@ const LabCart = () => {
 
         setIsValidating(true);
         try {
-            const res = await UserAPI.validateCouponCart(codeToApply, currentLabId, subtotal);
+            const res = await UserAPI.validateCouponCart?.(codeToApply, currentLabId, subtotal);
             if (res?.success) {
                 setAppliedCouponName(codeToApply);
                 setServerDiscount(res.discount || res.data?.discount || 0);
                 setCouponCode("");
-                toast.success(`Coupon Applied! Saved ₹${res.discount || res.data?.discount}`);
+                toast.success(`Coupon "${codeToApply}" Applied! Saved ₹${res.discount || res.data?.discount || 0}`);
             } else {
                 setAppliedCouponName(null);
                 setServerDiscount(0);
@@ -197,46 +236,44 @@ const LabCart = () => {
         setAppliedCouponName(null);
         setServerDiscount(0);
         setCouponCode("");
+        toast.success("Coupon removed");
     };
 
-    // 3. Computed Bill Totals with Dynamic Subscription Benefit Resolution
+    // 4. Computed Bill Totals with Server-Side Sync
     const totals = useMemo(() => {
         const extraSlotFee = selectedAppointment?.slot?.extraFee || 0;
-        const discountedAmount = Math.max(0, subtotal - serverDiscount);
 
-        let homeVisitCharge = 0;
-        let rapidDeliveryCharge = 0;
-        let isSubscriptionApplied = false;
+        if (serverSummary?.billSummary) {
+            const b = serverSummary.billSummary;
+            const subBenefit = serverSummary.subscriptionBenefit || {};
 
-        const remainingFreeDeliveries = subscriptionData?.remainingBenefits?.freeLabDeliveriesCount ?? 0;
-
-        if (deliveryConfig) {
-            if (isFastDelivery) {
-                rapidDeliveryCharge = deliveryConfig.fastDeliveryExtra || 0;
-            }
-
-            if (collectionMethod === 'Home Collection') {
-                const threshold = deliveryConfig.freeDeliveryThreshold;
-                const isNaturallyFree = typeof threshold === 'number' && subtotal >= threshold;
-
-                if (isNaturallyFree) {
-                    // Natural lab order threshold met -> ₹0 free
-                    homeVisitCharge = 0;
-                } else if (hasActivePlan && remainingFreeDeliveries > 0) {
-                    // Waived using Subscription remaining benefits -> ₹0 free
-                    homeVisitCharge = 0;
-                    isSubscriptionApplied = true;
-                } else {
-                    // Charged dynamically from lab delivery config
-                    homeVisitCharge = deliveryConfig.fixedPrice || 0;
-                }
-            }
+            return {
+                baseSubtotal: b.baseTestsTotal ?? (subtotal / multiplier),
+                multiplier: b.patientMultiplier ?? multiplier,
+                subtotal: b.multipliedTotal ?? subtotal,
+                discount: b.couponDiscount ?? serverDiscount,
+                extraSlotFee,
+                homeSampleCollectionCharge: b.homeSampleCollectionCharge ?? 0,
+                originalHomeCollectionCharge: b.originalHomeCollectionCharge ?? b.homeSampleCollectionCharge ?? 0,
+                fastReportCharge: b.fastReportCharge ?? 0,
+                totalAmount: (b.totalAmount ?? subtotal) + extraSlotFee,
+                
+                subscriptionBenefit: {
+                    isApplied: Boolean(subBenefit.isApplied),
+                    hasActiveSubscription: Boolean(subBenefit.hasActiveSubscription),
+                    isBenefitExhausted: Boolean(subBenefit.isBenefitExhausted),
+                    remainingCount: subBenefit.remainingCount ?? 0,
+                    planName: subBenefit.planName || "",
+                    benefitField: subBenefit.benefitField || "freeLabDeliveriesCount",
+                    exhaustedMessage: subBenefit.exhaustedMessage || ""
+                },
+                isCodAvailable: Boolean(serverSummary.isCodAvailable ?? isCodAvailable)
+            };
         }
 
-        const totalAmount = discountedAmount + extraSlotFee + homeVisitCharge + rapidDeliveryCharge;
-
-        // Dynamic COD Availability
-        const isCodAvailable = Boolean(vipCodAccess || deliveryConfig?.isCodAvailable);
+        const fallbackDiscounted = Math.max(0, subtotal - serverDiscount);
+        const homeCharge = collectionMethod === 'Home Collection' ? 89 : 0;
+        const fastCharge = isFastDelivery ? 150 : 0;
 
         return {
             baseSubtotal,
@@ -244,26 +281,22 @@ const LabCart = () => {
             subtotal,
             discount: serverDiscount,
             extraSlotFee,
-            homeVisitCharge,
-            rapidDeliveryCharge,
-            totalAmount,
-            isSubscriptionApplied,
-            remainingFreeDeliveries,
-            isCodAvailable
+            homeSampleCollectionCharge: homeCharge,
+            originalHomeCollectionCharge: homeCharge,
+            fastReportCharge: fastCharge,
+            totalAmount: fallbackDiscounted + homeCharge + fastCharge + extraSlotFee,
+            subscriptionBenefit: {
+                isApplied: false,
+                hasActiveSubscription: false,
+                isBenefitExhausted: false,
+                remainingCount: 0,
+                planName: "",
+                benefitField: "freeLabDeliveriesCount",
+                exhaustedMessage: ""
+            },
+            isCodAvailable: true
         };
-    }, [
-        subtotal, 
-        baseSubtotal, 
-        multiplier, 
-        serverDiscount, 
-        selectedAppointment, 
-        collectionMethod, 
-        deliveryConfig, 
-        isFastDelivery, 
-        hasActivePlan, 
-        subscriptionData,
-        vipCodAccess
-    ]);
+    }, [serverSummary, subtotal, baseSubtotal, multiplier, serverDiscount, selectedAppointment, collectionMethod, isFastDelivery, isCodAvailable]);
 
     // Handle Slot & Patient Modals
     const onFamilyConfirm = (membersList) => {
@@ -278,10 +311,10 @@ const LabCart = () => {
         toast.success(`Slot selected: ${slot.time}`);
     };
 
-    // 4. Final Booking & Razorpay Flow
+    // 5. Final Booking & Razorpay Flow (POST /user/labs/book)
     const handleProceed = async () => {
         if (collectionMethod === 'Home Collection' && !selectedAddress) {
-            return toast.error("Please select a home collection address");
+            return toast.error("Please select a home sample collection address");
         }
         if (selectedMembers.length === 0) {
             return setIsFamilyModalOpen(true);
@@ -296,32 +329,34 @@ const LabCart = () => {
             const isZeroTotal = Math.round(totals.totalAmount) === 0;
             const finalPaymentMethod = isZeroTotal ? "COD" : paymentMethod;
 
-            const patientMappings = selectedMembers.map((member) => ({
-                patientId: member.relation === 'Self' ? 'Self' : member._id,
-                address: collectionMethod === 'Home Collection' ? {
+            const selectedPatients = selectedMembers.map((member) => ({
+                patientId: member.relation === 'Self' ? 'Self' : (member._id || member.patientId || 'Self'),
+                name: member.memberName || member.name || "Self",
+                age: Number(member.age) || 28,
+                gender: member.gender || "Male"
+            }));
+
+            const bookingPayload = {
+                collectionType: collectionMethod,
+                paymentMethod: finalPaymentMethod,
+                isRapid: Boolean(isFastDelivery),
+                appointmentDate: selectedAppointment.date,
+                appointmentTime: selectedAppointment.slot.time,
+                couponCode: appliedCouponName || "",
+                selectedPatients,
+                address: selectedAddress ? {
+                    name: selectedAddress.name || "Patient",
+                    phone: selectedAddress.phone || "",
                     houseNo: selectedAddress.houseNo || "",
                     sector: selectedAddress.sector || "",
                     city: selectedAddress.city || "",
                     state: selectedAddress.state || "",
-                    pincode: selectedAddress.pincode || ""
-                } : undefined,
-                items: labItems.map((item) => ({
-                    itemId: item.itemId || item._id,
-                    productType: item.productType || "LabTest"
-                }))
-            }));
-
-            const payload = {
-                collectionType: collectionMethod,
-                appointmentDate: selectedAppointment.date,
-                appointmentTime: selectedAppointment.slot.time,
-                isRapid: isFastDelivery,
-                paymentMethod: finalPaymentMethod,
-                couponCode: appliedCouponName || undefined,
-                patientMappings
+                    pincode: selectedAddress.pincode || "",
+                    addressType: selectedAddress.addressType || "Home"
+                } : undefined
             };
 
-            const res = await UserAPI.checkoutLabCart(payload);
+            const res = await UserAPI.bookLabTest(bookingPayload);
 
             if (!res?.success) {
                 toast.error(res?.message || "Failed to initiate booking");
@@ -329,16 +364,18 @@ const LabCart = () => {
                 return;
             }
 
-            // CASE A: Direct Confirmation for COD or Free Booking
-            if (isZeroTotal || finalPaymentMethod === "COD" || res.data?.paymentStatus === "Paid" || res.data?.paymentStatus === "Pending") {
+            // Direct Confirmation for COD or Free Booking
+            if (isZeroTotal || finalPaymentMethod === "COD" || res.data?.paymentStatus === "Paid" || res.status === "Confirmed") {
                 await handleClearCart();
                 setConfirmedBookingData({
                     ...(res.data || {}),
-                    bookingId: res.data?.bookingId || res.bookingId || "ORD-SUCCESS",
+                    bookingId: res.bookingId || res.data?.bookingId || "ORD-SUCCESS",
+                    pickupOtp: res.pickupOtp || res.data?.pickupOtp || res.data?.tracking?.otp,
                     appointmentDate: selectedAppointment.date,
                     appointmentTime: selectedAppointment.slot.time,
                     collectionType: collectionMethod,
                     paymentMethod: finalPaymentMethod,
+                    paymentStatus: res.data?.paymentStatus || (finalPaymentMethod === 'COD' ? 'Pending' : 'Paid'),
                     totalAmount: totals.totalAmount,
                     patients: selectedMembers,
                     tests: labItems,
@@ -348,7 +385,7 @@ const LabCart = () => {
                 return;
             }
 
-            // CASE B: Online Payment via Razorpay
+            // Online Payment via Razorpay
             const isScriptLoaded = await loadRazorpayScript();
             if (!isScriptLoaded) {
                 toast.error("Failed to load Razorpay SDK.");
@@ -356,34 +393,54 @@ const LabCart = () => {
                 return;
             }
 
-            const { key_id, amount, razorpayOrderId, appointmentId, orderId } = res;
+            let keyId = res.key_id || res.key || res.data?.key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY;
+            if (typeof keyId === 'string') {
+                keyId = keyId.trim();
+                if (keyId.startsWith("zp_")) keyId = "r" + keyId;
+            }
+
+            const rawAmount = res.amount || res.data?.amount || Math.round(totals.totalAmount * 100);
+            const razorpayOrderId = res.razorpayOrderId || res.data?.razorpayOrderId;
+            const bookingIdTarget = res.bookingId || res.data?.bookingId || res.bookingMongoId;
+
+            if (!keyId) {
+                toast.error("Payment gateway configuration missing. Please select Pay on Collection.");
+                setIsCheckingOut(false);
+                return;
+            }
 
             const options = {
-                key: key_id,
-                amount: amount,
+                key: keyId,
+                amount: rawAmount,
                 currency: "INR",
                 name: "Health Kangaroo Diagnostic Labs",
-                description: "Lab Test Booking Payment",
+                description: `Payment for Lab Booking #${bookingIdTarget}`,
                 order_id: razorpayOrderId,
                 prefill: {
-                    name: selectedMembers[0]?.memberName || "Patient",
+                    name: selectedMembers[0]?.memberName || selectedAddress?.name || "Patient",
                     contact: selectedAddress?.phone || ""
                 },
                 theme: { color: "#08B36A" },
                 modal: {
                     ondismiss: () => {
                         setIsCheckingOut(false);
-                        toast.error("Payment cancelled");
+                        toast("Payment cancelled or closed.");
                     }
                 },
                 handler: async function (response) {
                     try {
                         setIsCheckingOut(true);
+
                         const verificationPayload = {
-                            appointmentId: appointmentId || orderId || res.data?._id,
-                            razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
+                            bookingId: bookingIdTarget,
+                            appointmentId: res.bookingMongoId || bookingIdTarget,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id || razorpayOrderId,
+                            razorpay_signature: response.razorpay_signature,
                             razorpayPaymentId: response.razorpay_payment_id,
-                            razorpaySignature: response.razorpay_signature
+                            razorpayOrderId: response.razorpay_order_id || razorpayOrderId,
+                            razorpaySignature: response.razorpay_signature,
+                            paymentMethod: "Online"
                         };
 
                         const verificationRes = await UserAPI.verifyPaymentLab(verificationPayload);
@@ -392,12 +449,13 @@ const LabCart = () => {
                             await handleClearCart();
                             setConfirmedBookingData({
                                 ...(verificationRes.data || res.data || {}),
-                                bookingId: verificationRes.data?.bookingId || orderId || "ORD-SUCCESS",
+                                bookingId: verificationRes.bookingId || verificationRes.data?.bookingId || bookingIdTarget,
+                                pickupOtp: verificationRes.pickupOtp || verificationRes.data?.tracking?.otp || verificationRes.data?.pickupOtp,
                                 paymentStatus: "Paid",
+                                paymentMethod: "Online",
                                 appointmentDate: selectedAppointment.date,
                                 appointmentTime: selectedAppointment.slot.time,
                                 collectionType: collectionMethod,
-                                paymentMethod: "Online",
                                 totalAmount: totals.totalAmount,
                                 patients: selectedMembers,
                                 tests: labItems,
@@ -407,7 +465,8 @@ const LabCart = () => {
                             toast.error(verificationRes?.message || "Payment verification failed.");
                         }
                     } catch (e) {
-                        toast.error("Error verifying payment.");
+                        console.error("Payment verification error:", e);
+                        toast.error(e.response?.data?.message || "Error verifying payment with server.");
                     } finally {
                         setIsCheckingOut(false);
                     }
@@ -415,6 +474,9 @@ const LabCart = () => {
             };
 
             const rzpInstance = new window.Razorpay(options);
+            rzpInstance.on('payment.failed', function (response) {
+                toast.error(response.error?.description || "Payment failed. Please try again.");
+            });
             rzpInstance.open();
 
         } catch (error) {
@@ -451,25 +513,43 @@ const LabCart = () => {
                     {/* LEFT COLUMN */}
                     <div className="flex-1 w-full space-y-6">
                         
-                        {/* VIP Plan Active Benefit Banner */}
-                        {totals.isSubscriptionApplied && (
-                            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-4.5 rounded-2xl flex items-center justify-between shadow-xs">
+                        {/* 1. BENEFIT APPLIED BANNER */}
+                        {totals.subscriptionBenefit.isApplied && (
+                            <div className="bg-[#ECFDF5] border border-[#10B981] p-4.5 rounded-2xl flex items-center justify-between shadow-xs">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-white text-[#08B36A] flex items-center justify-center shadow-xs border border-emerald-100">
+                                    <div className="w-10 h-10 rounded-xl bg-white text-[#059669] flex items-center justify-center shadow-xs border border-emerald-100">
                                         <FaGem size={18} />
                                     </div>
                                     <div>
-                                        <p className="text-xs font-black text-emerald-950 uppercase tracking-tight">
-                                            {subscriptionData?.planId?.name || "VIP Plan"} Benefit Applied
+                                        <p className="text-xs font-black text-[#059669] uppercase tracking-tight">
+                                            ✨ Free Delivery ({totals.subscriptionBenefit.planName})
                                         </p>
-                                        <p className="text-[11px] font-semibold text-emerald-700 mt-0.5">
-                                            Free Home Sample Collection (₹0) automatically waived.
+                                        <p className="text-[11px] font-semibold text-emerald-800 mt-0.5">
+                                            Home sample collection fee (₹0) waived automatically.
                                         </p>
                                     </div>
                                 </div>
                                 <span className="bg-[#08B36A] text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase">
-                                    {totals.remainingFreeDeliveries} Free Left
+                                    {totals.subscriptionBenefit.remainingCount} Left
                                 </span>
+                            </div>
+                        )}
+
+                        {/* 2. UPSELL BANNER (WHEN NO SUBSCRIPTION) */}
+                        {!totals.subscriptionBenefit.hasActiveSubscription && (
+                            <div 
+                                onClick={() => router.push('/user/subscriptions/list')}
+                                className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 p-4 rounded-2xl flex items-center justify-between cursor-pointer hover:border-blue-400 transition-colors shadow-xs"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                                        <FaGem size={15} />
+                                    </div>
+                                    <p className="text-xs font-black text-blue-950">
+                                        Get Unlimited Free Deliveries & VIP COD with Health Kangaroo Care Plans ➔
+                                    </p>
+                                </div>
+                                <FaArrowRight className="text-blue-600 text-xs shrink-0" />
                             </div>
                         )}
 
@@ -546,26 +626,24 @@ const LabCart = () => {
                             )}
 
                             {/* FAST REPORT OPTION */}
-                            {deliveryConfig?.fastDeliveryExtra > 0 && (
-                                <div className="mt-4 pt-4 border-t border-slate-100">
-                                    <div
-                                        onClick={() => setIsFastDelivery(!isFastDelivery)}
-                                        className={`flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition-all
-                                            ${isFastDelivery ? 'border-amber-500 bg-amber-50/50' : 'border-slate-200 bg-white'}`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`p-2 rounded-xl ${isFastDelivery ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                                                <FaBolt size={13} />
-                                            </div>
-                                            <div>
-                                                <h4 className="text-xs font-bold text-slate-800">Fast Express Reporting</h4>
-                                                <p className="text-[10px] text-slate-400">Get verified digital reports 2x faster</p>
-                                            </div>
+                            <div className="mt-4 pt-4 border-t border-slate-100">
+                                <div
+                                    onClick={() => setIsFastDelivery(!isFastDelivery)}
+                                    className={`flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition-all
+                                        ${isFastDelivery ? 'border-amber-500 bg-amber-50/50' : 'border-slate-200 bg-white'}`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2 rounded-xl ${isFastDelivery ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                            <FaBolt size={13} />
                                         </div>
-                                        <span className="font-black text-xs text-slate-900">+₹{deliveryConfig.fastDeliveryExtra}</span>
+                                        <div>
+                                            <h4 className="text-xs font-bold text-slate-800">Fast Express Reporting</h4>
+                                            <p className="text-[10px] text-slate-400">Get verified digital reports 2x faster</p>
+                                        </div>
                                     </div>
+                                    <span className="font-black text-xs text-slate-900">+₹150</span>
                                 </div>
-                            )}
+                            </div>
                         </div>
 
                         {/* PATIENT & SLOT SELECTION STATUS */}
@@ -586,7 +664,7 @@ const LabCart = () => {
                                                 {selectedMembers.length > 0 ? `${selectedMembers.length} Patient(s) Selected` : "Select Patients *"}
                                             </p>
                                             <p className="text-[10px] text-slate-500 truncate max-w-[180px]">
-                                                {selectedMembers.length > 0 ? selectedMembers.map(m => m.memberName).join(", ") : "Click to choose"}
+                                                {selectedMembers.length > 0 ? selectedMembers.map(m => m.memberName || m.name).join(", ") : "Click to choose"}
                                             </p>
                                         </div>
                                     </div>
@@ -662,7 +740,7 @@ const LabCart = () => {
                         {/* REVIEW ITEMS */}
                         <div className="space-y-3">
                             {labItems.map((item) => (
-                                <div key={item._id} className="bg-white border border-slate-200/90 rounded-2xl p-4 flex items-center justify-between shadow-xs">
+                                <div key={item._id || item.itemId} className="bg-white border border-slate-200/90 rounded-2xl p-4 flex items-center justify-between shadow-xs">
                                     <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-[#08B36A]">
                                             <FaPrescriptionBottleAlt size={18} />
@@ -670,14 +748,14 @@ const LabCart = () => {
                                         <div>
                                             <h4 className="font-bold text-slate-900 text-xs">{item.name}</h4>
                                             <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 bg-slate-100 px-2 py-0.5 rounded mt-0.5 inline-block">
-                                                {item.productType}
+                                                {item.productType || "LabTest"}
                                             </span>
                                         </div>
                                     </div>
                                     <div className="text-right">
                                         <p className="font-black text-slate-900 text-sm">₹{(item.price * (selectedMembers.length || 1)).toLocaleString()}</p>
                                         <p className="text-[10px] text-slate-400">₹{item.price} × {selectedMembers.length || 1} Patient(s)</p>
-                                        <button onClick={() => removeItem(item.itemId)} className="text-[10px] text-rose-500 font-bold uppercase hover:underline mt-1 cursor-pointer">Remove</button>
+                                        <button onClick={() => removeItem(item.itemId || item._id)} className="text-[10px] text-rose-500 font-bold uppercase hover:underline mt-1 cursor-pointer">Remove</button>
                                     </div>
                                 </div>
                             ))}
@@ -685,18 +763,27 @@ const LabCart = () => {
 
                     </div>
 
-                    {/* RIGHT COLUMN: BILLING & SUMMARY */}
+                    {/* RIGHT COLUMN: BILLING & SUMMARY WITH AVAILABLE COUPONS LIST */}
                     <div className="w-full lg:w-[380px] space-y-6 lg:sticky lg:top-24">
 
-                        {/* Coupon Section */}
-                        <div className="bg-white border border-slate-200/90 rounded-[2rem] p-6 shadow-xs space-y-3">
-                            <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                                <FaTicketAlt className="text-[#08B36A]" /> Apply Coupon
-                            </h3>
+                        {/* COUPON INPUT & AVAILABLE LIST SECTION */}
+                        <div className="bg-white border border-slate-200/90 rounded-[2rem] p-6 shadow-xs space-y-4">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                                    <FaTicketAlt className="text-[#08B36A]" /> Apply Coupon
+                                </h3>
+                                {availableCoupons.length > 0 && (
+                                    <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-emerald-50 text-[#08B36A] rounded-full border border-emerald-100">
+                                        {availableCoupons.length} Available
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Manual Input Box */}
                             <div className="flex gap-2">
                                 <input
                                     type="text"
-                                    placeholder="COUPON CODE"
+                                    placeholder="ENTER CODE"
                                     value={couponCode}
                                     onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                                     disabled={!!appliedCouponName}
@@ -710,6 +797,79 @@ const LabCart = () => {
                                     </button>
                                 )}
                             </div>
+
+                            {/* DYNAMIC AVAILABLE COUPONS LIST */}
+                            {availableCoupons.length > 0 && (
+                                <div className="space-y-3 pt-3 border-t border-slate-100">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Available Offers</p>
+                                    
+                                    <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                                        {availableCoupons.map((coupon) => {
+                                            const isApplied = appliedCouponName === coupon.couponName;
+                                            const isApplicable = Boolean(coupon.isApplicable);
+
+                                            return (
+                                                <div 
+                                                    key={coupon._id}
+                                                    className={`p-3.5 rounded-2xl border transition-all ${
+                                                        isApplied 
+                                                            ? 'border-[#08B36A] bg-emerald-50/50 ring-1 ring-[#08B36A]/30'
+                                                            : isApplicable 
+                                                            ? 'border-slate-200/90 bg-white hover:border-emerald-300' 
+                                                            : 'border-slate-200/60 bg-slate-50/60 opacity-80'
+                                                    }`}
+                                                >
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-mono font-black text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider border border-slate-200">
+                                                                {coupon.couponName}
+                                                            </span>
+                                                            <span className="text-[10px] font-bold text-emerald-700">
+                                                                {coupon.discountPercentage}% OFF
+                                                            </span>
+                                                        </div>
+
+                                                        {isApplied ? (
+                                                            <button
+                                                                onClick={removeCoupon}
+                                                                className="text-[10px] font-black uppercase text-rose-500 hover:underline cursor-pointer"
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        ) : isApplicable ? (
+                                                            <button
+                                                                onClick={() => handleApplyCoupon(coupon.couponName)}
+                                                                disabled={isValidating}
+                                                                className="text-[10px] font-black uppercase bg-[#08B36A] hover:bg-[#079c5c] text-white px-3 py-1 rounded-lg shadow-xs cursor-pointer active:scale-95"
+                                                            >
+                                                                Apply
+                                                            </button>
+                                                        ) : (
+                                                            <span className="text-[9px] font-bold uppercase text-slate-400 bg-slate-200 px-2 py-0.5 rounded">
+                                                                Locked
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="mt-2 text-[10px] text-slate-600 font-medium leading-relaxed">
+                                                        <p>
+                                                            Save up to <strong className="text-slate-900">₹{coupon.maxDiscount || coupon.potentialDiscount || 0}</strong> on orders above ₹{coupon.minOrderAmount}.
+                                                        </p>
+                                                        
+                                                        {/* Validation / Shortfall Warning Callout */}
+                                                        {!isApplicable && coupon.validationMessage && (
+                                                            <p className="text-[9.5px] font-bold text-amber-700 mt-1 flex items-center gap-1 bg-amber-50 p-1.5 rounded-lg border border-amber-200/60">
+                                                                <FaInfoCircle size={10} className="shrink-0" />
+                                                                {coupon.validationMessage}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Cost Summary Box */}
@@ -732,26 +892,54 @@ const LabCart = () => {
 
                                 {totals.discount > 0 && (
                                     <div className="flex justify-between text-[#08B36A] font-bold">
-                                        <span>Coupon Discount</span>
+                                        <span>Coupon Discount ({appliedCouponName})</span>
                                         <span>-₹{totals.discount.toFixed(2)}</span>
                                     </div>
                                 )}
 
-                                <div className="flex justify-between text-slate-600">
-                                    <span>Home Sample Collection</span>
-                                    <span className="font-bold">
-                                        {totals.homeVisitCharge === 0 ? (
+                                {/* HOME COLLECTION FEE WITH BENEFIT APPLIED */}
+                                <div className="flex justify-between items-center text-slate-600">
+                                    <div>
+                                        <span>Home Sample Collection</span>
+                                        {totals.subscriptionBenefit.isApplied && (
+                                            <span className="block text-[10px] font-bold text-[#059669]">
+                                                ✨ Free Delivery ({totals.subscriptionBenefit.planName})
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="text-right font-bold">
+                                        {totals.subscriptionBenefit.isApplied ? (
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="line-through text-slate-400 text-[11px]">
+                                                    ₹{totals.originalHomeCollectionCharge.toFixed(2)}
+                                                </span>
+                                                <span className="text-[#08B36A] uppercase font-black text-[10px]">
+                                                    FREE
+                                                </span>
+                                            </div>
+                                        ) : totals.homeSampleCollectionCharge === 0 ? (
                                             <span className="text-[#08B36A] uppercase font-black text-[10px]">Free</span>
                                         ) : (
-                                            `₹${totals.homeVisitCharge.toFixed(2)}`
+                                            <span>₹{totals.homeSampleCollectionCharge.toFixed(2)}</span>
                                         )}
-                                    </span>
+                                    </div>
                                 </div>
 
-                                {totals.rapidDeliveryCharge > 0 && (
+                                {totals.fastReportCharge > 0 && (
                                     <div className="flex justify-between text-amber-600 font-bold">
                                         <span>Fast Report Charge</span>
-                                        <span>+₹${totals.rapidDeliveryCharge.toFixed(2)}</span>
+                                        <span>+₹{totals.fastReportCharge.toFixed(2)}</span>
+                                    </div>
+                                )}
+
+                                {/* AMBER WARNING CALLOUT IF QUOTA EXHAUSTED */}
+                                {totals.subscriptionBenefit.hasActiveSubscription && totals.subscriptionBenefit.isBenefitExhausted && (
+                                    <div className="bg-[#FFFBEB] border border-[#F59E0B] p-3 rounded-xl flex items-start gap-2 text-[#B45309]">
+                                        <FaExclamationTriangle className="mt-0.5 shrink-0" size={13} />
+                                        <p className="text-[10px] font-bold leading-relaxed">
+                                            {totals.subscriptionBenefit.exhaustedMessage || 
+                                                `Your ${totals.subscriptionBenefit.planName} quota for free delivery has been exhausted. Standard charges have been applied.`}
+                                        </p>
                                     </div>
                                 )}
 
@@ -808,7 +996,7 @@ const LabCart = () => {
                 onConfirm={onSlotConfirm}
             />
 
-            {/* CONFIRMATION MODAL */}
+            {/* CONFIRMATION MODAL WITH SAMPLE COLLECTION OTP */}
             {confirmedBookingData && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md animate-in fade-in duration-200">
                     <div className="bg-white rounded-[2.5rem] max-w-lg w-full border border-slate-100 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
@@ -840,16 +1028,16 @@ const LabCart = () => {
                         <div className="p-6 overflow-y-auto space-y-4 text-xs font-sans">
                             
                             {/* OTP Box */}
-                            {confirmedBookingData.tracking?.otp && (
+                            {confirmedBookingData.pickupOtp && (
                                 <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-dashed border-emerald-300 rounded-2xl p-4 text-center">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 block mb-1">
                                         Sample Collection Security OTP
                                     </span>
                                     <div className="text-3xl font-black tracking-[0.25em] text-[#08B36A] font-mono">
-                                        {confirmedBookingData.tracking.otp}
+                                        {confirmedBookingData.pickupOtp}
                                     </div>
                                     <p className="text-[10px] text-slate-500 font-medium mt-1">
-                                        Share this 4-digit verification code with your medical agent upon arrival.
+                                        Share this verification code with the phlebotomist upon doorstep sample collection.
                                     </p>
                                 </div>
                             )}
@@ -859,7 +1047,7 @@ const LabCart = () => {
                                 <div>
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Booking ID</span>
                                     <span className="text-xs font-black text-slate-900 font-mono">
-                                        {confirmedBookingData.bookingId || "ORD-SUCCESS"}
+                                        #{confirmedBookingData.bookingId || "ORD-SUCCESS"}
                                     </span>
                                 </div>
                                 <div className="text-right">
@@ -913,7 +1101,7 @@ const LabCart = () => {
                                 <div className="flex flex-wrap gap-1.5">
                                     {(confirmedBookingData.patients || selectedMembers).map((m, idx) => (
                                         <span key={idx} className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded-lg text-[11px] font-bold border border-slate-200/60">
-                                            {m.memberName || m.patientName}
+                                            {m.memberName || m.name || m.patientName}
                                         </span>
                                     ))}
                                 </div>
@@ -934,22 +1122,22 @@ const LabCart = () => {
                                 </div>
                             </div>
 
-                            {/* Total Amount Paid / Payable */}
+                            {/* Total Amount */}
                             <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl">
                                 <div>
-                                    <span className="text-[10px] font-black uppercase text-[#08B36A] tracking-widest block">
+                                    <span className="text-[10px] font-black uppercase text-emerald-400 tracking-widest block">
                                         Total Amount
                                     </span>
-                                    <span className="text-[10px] text-slate-400 font-medium">All charges & taxes included</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">Inclusive of all taxes & sample collection</span>
                                 </div>
-                                <span className="text-xl font-black text-[#08B36A]">
+                                <span className="text-xl font-black text-emerald-400">
                                     ₹{Math.round(confirmedBookingData.totalAmount ?? totals.totalAmount).toLocaleString()}
                                 </span>
                             </div>
 
                         </div>
 
-                        {/* Modal Footer Actions */}
+                        {/* Modal Actions */}
                         <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
                             <button
                                 onClick={() => {

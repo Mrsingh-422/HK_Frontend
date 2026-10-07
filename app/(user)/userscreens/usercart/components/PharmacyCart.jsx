@@ -8,7 +8,8 @@ import {
     FaCalendarAlt, FaChevronRight, FaCamera, FaTrash,
     FaCheckCircle, FaStore, FaShieldAlt, FaGift, FaTimes, FaGem,
     FaCreditCard, FaMoneyBillWave, FaLock, FaMapMarkerAlt,
-    FaExternalLinkAlt, FaReceipt, FaBoxOpen
+    FaExternalLinkAlt, FaReceipt, FaBoxOpen, FaExclamationTriangle,
+    FaArrowRight, FaTag, FaBolt, FaStar, FaCalendarDay
 } from 'react-icons/fa';
 import { useCart } from '@/app/context/CartContext';
 import toast from 'react-hot-toast';
@@ -53,15 +54,18 @@ const PharmacyCart = () => {
     const [selectedAddress, setSelectedAddress] = useState(null);
     const [isAddressLoading, setIsAddressLoading] = useState(false);
 
-    // Delivery & Slots
-    const [deliveryOption, setDeliveryOption] = useState('fast'); // 'fast' | 'standard' | 'slot'
+    // Delivery & Slots ('fast' = 1-hr Express | 'standard' = 3-hr Standard | 'slot' = Scheduled)
+    const [deliveryOption, setDeliveryOption] = useState('fast'); 
     const [selectedSlot, setSelectedSlot] = useState(null);
     const [rawSlotData, setRawSlotData] = useState(null);
     const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
 
-    // Payment Method & COD Availability
+    // Collection Type ('Home Delivery' | 'Self Pickup')
+    const [collectionType, setCollectionType] = useState('Home Delivery');
+
+    // Payment Method & COD
     const [paymentMethod, setPaymentMethod] = useState("Online"); // 'Online' | 'COD'
-    const [isCodAvailable, setIsCodAvailable] = useState(false);
+    const [isCodAvailable, setIsCodAvailable] = useState(true);
 
     // Server-side Checkout Summary
     const [serverCheckout, setServerCheckout] = useState(null);
@@ -76,14 +80,25 @@ const PharmacyCart = () => {
     const [orderConfirmedData, setOrderConfirmedData] = useState(null);
 
     const pharmacyItems = useMemo(() => pharmacyCart?.items || [], [pharmacyCart]);
-    const pharmacyId = useMemo(() => pharmacyCart?.pharmacyId?._id || pharmacyCart?.pharmacyId, [pharmacyCart]);
+    
+    // Safely resolve pharmacyId
+    const pharmacyId = useMemo(() => {
+        return (
+            pharmacyCart?.pharmacyId?._id || 
+            pharmacyCart?.pharmacyId || 
+            pharmacyCart?.vendorId || 
+            pharmacyCart?.items?.[0]?.pharmacyId?._id || 
+            pharmacyCart?.items?.[0]?.pharmacyId ||
+            pharmacyCart?.items?.[0]?.medicineId?.pharmacyId ||
+            ""
+        );
+    }, [pharmacyCart]);
 
-    // Check if client-side items require prescription
+    // Check if items require prescription
     const clientNeedsRx = useMemo(() => {
         return pharmacyItems.some(item => item.medicineId?.prescription_required === "YES");
     }, [pharmacyItems]);
 
-    // Prescription needed flag
     const isRxMandatory = useMemo(() => {
         return serverCheckout?.rxMandatory || serverCheckout?.orderRestrictions?.needsPrescription || clientNeedsRx;
     }, [serverCheckout, clientNeedsRx]);
@@ -94,9 +109,9 @@ const PharmacyCart = () => {
         if (prescriptionFiles.length + files.length > 5) {
             return toast.error("Maximum 5 prescription images allowed");
         }
-        const validFiles = files.filter(file => file.type.startsWith('image/'));
+        const validFiles = files.filter(file => file.type.startsWith('image/') || file.type === 'application/pdf');
         if (validFiles.length !== files.length) {
-            toast.error("Only image files are allowed");
+            toast.error("Only image or PDF files are allowed");
         }
         setPrescriptionFiles(prev => [...prev, ...validFiles]);
         e.target.value = null;
@@ -139,30 +154,27 @@ const PharmacyCart = () => {
 
     // 2. Fetch Server Checkout Summary (POST /user/pharmacy/checkout)
     const fetchPharmacySummary = useCallback(async () => {
-        if (!selectedAddress || pharmacyItems.length === 0) return;
+        if (pharmacyItems.length === 0) return;
 
         try {
             setIsFetchingSummary(true);
+
+            const isSlotMode = deliveryOption === 'slot' && Boolean(rawSlotData?.date);
+
             const payload = {
-                collectionType: "Home Delivery",
+                collectionType: collectionType,
                 isRapid: deliveryOption === 'fast',
-                appointmentTime: deliveryOption === 'slot' && rawSlotData ? rawSlotData.time : "Immediate",
-                appointmentDate: deliveryOption === 'slot' && rawSlotData ? rawSlotData.date : undefined,
-                couponCode: appliedCouponName || undefined,
-                address: {
-                    houseNo: selectedAddress.houseNo || "",
-                    sector: selectedAddress.sector || "",
-                    city: selectedAddress.city || "",
-                    state: selectedAddress.state || "",
-                    pincode: selectedAddress.pincode || ""
-                }
+                isSlotSelected: isSlotMode,
+                appointmentDate: isSlotMode ? rawSlotData.date : undefined,
+                appointmentTime: isSlotMode ? (rawSlotData.time || undefined) : undefined,
+                couponCode: appliedCouponName || ""
             };
 
             const res = await UserAPI.checkoutPharmacyOrder(payload);
 
             if (res?.success && res.data) {
                 setServerCheckout(res.data);
-                const codStatus = Boolean(res.data.orderRestrictions?.isCodAvailable);
+                const codStatus = Boolean(res.data.orderRestrictions?.isCodAvailable ?? true);
                 setIsCodAvailable(codStatus);
 
                 if (!codStatus && paymentMethod === "COD") {
@@ -174,7 +186,7 @@ const PharmacyCart = () => {
         } finally {
             setIsFetchingSummary(false);
         }
-    }, [selectedAddress, deliveryOption, rawSlotData, appliedCouponName, pharmacyItems.length, paymentMethod]);
+    }, [collectionType, deliveryOption, rawSlotData, appliedCouponName, pharmacyItems.length, paymentMethod]);
 
     useEffect(() => {
         fetchPharmacySummary();
@@ -225,46 +237,88 @@ const PharmacyCart = () => {
         toast.success("Coupon removed");
     };
 
-    // 4. Computed Final Bill Totals
+    // 4. Computed Final Bill Totals based on Costing Matrix
     const billSummary = useMemo(() => {
+        const subBenefit = serverCheckout?.subscriptionBenefit || {};
+        const isSlotMode = deliveryOption === 'slot';
+        const isRapid = deliveryOption === 'fast';
+
         if (serverCheckout?.billSummary) {
             const b = serverCheckout.billSummary;
             return {
                 itemTotal: b.itemTotal ?? 0,
                 originalItemTotal: b.originalItemTotal ?? b.itemTotal ?? 0,
                 comboSavings: b.comboSavings ?? 0,
-                taxableTotal: b.taxableTotal ?? 0,
-                cgstTotal: b.cgstTotal ?? 0,
-                sgstTotal: b.sgstTotal ?? 0,
                 couponDiscount: b.couponDiscount ?? couponDiscountAmount,
                 deliveryCharge: b.deliveryCharge ?? 0,
+                originalDeliveryCharge: b.originalDeliveryCharge ?? b.deliveryCharge ?? 50,
                 rapidDeliveryCharge: b.rapidDeliveryCharge ?? 0,
-                totalAmount: b.totalAmount ?? 0
+                slotCharge: b.slotCharge ?? 0,
+                totalAmount: b.totalAmount ?? 0,
+                selectedDeliveryMode: serverCheckout?.selectedDeliveryMode || (
+                    isRapid ? "1-Hour Express Delivery" : 
+                    isSlotMode ? `Scheduled Slot (${selectedSlot})` : 
+                    "Standard Delivery (3 Hours)"
+                ),
+                subscriptionBenefit: {
+                    isApplied: Boolean(subBenefit.isApplied),
+                    hasActiveSubscription: Boolean(subBenefit.hasActiveSubscription),
+                    isBenefitExhausted: Boolean(subBenefit.isBenefitExhausted),
+                    remainingCount: subBenefit.remainingCount ?? 0,
+                    planName: subBenefit.planName || "",
+                    benefitField: subBenefit.benefitField || "freePharmacyDeliveriesCount",
+                    exhaustedMessage: subBenefit.exhaustedMessage || ""
+                }
             };
         }
 
         const fallbackItemTotal = pharmacyItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+        let fallbackDelivery = 0;
+        let fallbackRapid = 0;
+        let fallbackSlot = 0;
+
+        if (collectionType === "Home Delivery") {
+            if (isRapid) {
+                fallbackRapid = 100;
+            } else if (isSlotMode) {
+                fallbackSlot = rawSlotData?.fee || 0;
+            } else {
+                fallbackDelivery = 50;
+            }
+        }
+
+        const fallbackTotal = Math.max(0, fallbackItemTotal - couponDiscountAmount + fallbackDelivery + fallbackRapid + fallbackSlot);
+
         return {
             itemTotal: fallbackItemTotal,
             originalItemTotal: fallbackItemTotal,
             comboSavings: 0,
-            taxableTotal: fallbackItemTotal,
-            cgstTotal: 0,
-            sgstTotal: 0,
             couponDiscount: couponDiscountAmount,
-            deliveryCharge: 0,
-            rapidDeliveryCharge: 0,
-            totalAmount: Math.max(0, fallbackItemTotal - couponDiscountAmount)
+            deliveryCharge: fallbackDelivery,
+            originalDeliveryCharge: 50,
+            rapidDeliveryCharge: fallbackRapid,
+            slotCharge: fallbackSlot,
+            totalAmount: fallbackTotal,
+            selectedDeliveryMode: isRapid ? "1-Hour Express Delivery" : isSlotMode ? `Scheduled Slot (${selectedSlot})` : "Standard Delivery (3 Hours)",
+            subscriptionBenefit: {
+                isApplied: false,
+                hasActiveSubscription: false,
+                isBenefitExhausted: false,
+                remainingCount: 0,
+                planName: "",
+                benefitField: "freePharmacyDeliveriesCount",
+                exhaustedMessage: ""
+            }
         };
-    }, [serverCheckout, pharmacyItems, couponDiscountAmount]);
+    }, [serverCheckout, pharmacyItems, couponDiscountAmount, deliveryOption, collectionType, rawSlotData, selectedSlot]);
 
-    // 5. Confirm Order & Payment Handler
+    // 5. Place Order & Razorpay Flow (POST /user/pharmacy/place-order)
     const onConfirmCheckout = async () => {
-        if (!selectedAddress) {
+        if (collectionType === "Home Delivery" && !selectedAddress) {
             return toast.error("Please select a delivery address");
         }
         if (isRxMandatory && prescriptionFiles.length === 0) {
-            return toast.error("One or more medicines require a prescription. Please upload it.");
+            return toast.error("Prescription is required for one or more medicines in your cart. Please upload prescription images.");
         }
 
         setIsSubmitting(true);
@@ -272,40 +326,41 @@ const PharmacyCart = () => {
         try {
             const isZeroTotal = Math.round(billSummary.totalAmount) === 0;
             const finalPaymentMethod = isZeroTotal ? "COD" : paymentMethod;
+            const isSlotMode = deliveryOption === 'slot' && Boolean(rawSlotData?.date);
 
             const formData = new FormData();
-            formData.append('pharmacyId', pharmacyId || "");
-            formData.append('collectionType', 'Home Delivery');
-            formData.append('paymentMethod', finalPaymentMethod);
-            formData.append('isRapid', String(deliveryOption === 'fast'));
+            formData.append("collectionType", collectionType);
+            formData.append("paymentMethod", finalPaymentMethod);
+            formData.append("isRapid", String(deliveryOption === 'fast'));
+            formData.append("isSlotSelected", String(isSlotMode));
 
             if (appliedCouponName) {
-                formData.append('couponCode', appliedCouponName);
+                formData.append("couponCode", appliedCouponName);
             }
 
-            if (deliveryOption === 'slot' && rawSlotData) {
-                formData.append('appointmentDate', rawSlotData.date);
-                formData.append('appointmentTime', rawSlotData.time);
-            } else {
-                formData.append('appointmentTime', 'Immediate');
+            if (isSlotMode && rawSlotData?.date) {
+                formData.append("appointmentDate", rawSlotData.date);
+                if (rawSlotData.time) {
+                    formData.append("appointmentTime", rawSlotData.time);
+                }
             }
 
-            // Address payload
-            const addressData = {
-                name: selectedAddress.name || "",
-                phone: selectedAddress.phone || "",
-                houseNo: selectedAddress.houseNo || "",
-                sector: selectedAddress.sector || "",
-                city: selectedAddress.city || "",
-                state: selectedAddress.state || "",
-                pincode: selectedAddress.pincode || "",
-                addressType: selectedAddress.addressType || "Home"
-            };
-            formData.append('address', JSON.stringify(addressData));
+            if (collectionType === "Home Delivery" && selectedAddress) {
+                const addressData = {
+                    name: selectedAddress.name || "Recipient",
+                    phone: selectedAddress.phone || "",
+                    houseNo: selectedAddress.houseNo || "",
+                    sector: selectedAddress.sector || "",
+                    city: selectedAddress.city || "",
+                    state: selectedAddress.state || "",
+                    pincode: selectedAddress.pincode || "",
+                    addressType: selectedAddress.addressType || "Home"
+                };
+                formData.append("address", JSON.stringify(addressData));
+            }
 
-            // Prescription Images
             prescriptionFiles.forEach((file) => {
-                formData.append('prescriptionImages', file);
+                formData.append("prescriptionImages", file);
             });
 
             const res = await UserAPI.placePharmacyOrder(formData);
@@ -316,20 +371,20 @@ const PharmacyCart = () => {
                 return;
             }
 
-            // Direct confirmation for COD / Free
-            if (isZeroTotal || finalPaymentMethod === "COD" || res.data?.paymentStatus === "Paid" || res.data?.paymentStatus === "Pending") {
+            // Direct Confirmation for COD or Free Booking
+            if (finalPaymentMethod === "COD" || isZeroTotal) {
                 await clearFullCart();
                 setOrderConfirmedData({
                     ...(res.data || {}),
-                    orderId: res.data?.orderId || res.orderId || "MED-SUCCESS",
+                    orderId: res.orderId || res.data?.orderId || "MED-SUCCESS",
                     status: res.data?.status || "Placed",
-                    paymentStatus: isZeroTotal ? "Paid" : (res.data?.paymentStatus || "Pending"),
+                    paymentStatus: isZeroTotal ? "Paid" : "Pending",
                     paymentMethod: finalPaymentMethod,
                     deliveryOTP: res.data?.deliveryOTP || res.deliveryOTP,
                     items: pharmacyItems,
                     address: selectedAddress,
-                    billSummary: billSummary,
-                    deliveryOption: deliveryOption === 'fast' ? 'Fast Express Delivery' : deliveryOption === 'slot' ? `Scheduled (${selectedSlot})` : 'Standard Delivery'
+                    billSummary: res.data?.billSummary || billSummary,
+                    deliveryOption: billSummary.selectedDeliveryMode
                 });
                 setIsSubmitting(false);
                 return;
@@ -343,10 +398,20 @@ const PharmacyCart = () => {
                 return;
             }
 
-            const keyId = res.key_id || res.data?.key_id;
-            const amount = res.amount || res.data?.amount;
+            let keyId = res.key_id || res.key || res.data?.key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+            if (typeof keyId === 'string' && keyId.startsWith("zp_")) {
+                keyId = "r" + keyId;
+            }
+
+            const amount = res.amount || res.data?.amount || Math.round(billSummary.totalAmount * 100);
             const razorpayOrderId = res.razorpayOrderId || res.data?.razorpayOrderId;
-            const appointmentId = res.appointmentId || res.orderId || res.data?._id;
+            const appointmentId = res.bookingId || res.orderId || res.data?._id;
+
+            if (!keyId) {
+                toast.error("Razorpay Key not found. Please try Pay on Delivery.");
+                setIsSubmitting(false);
+                return;
+            }
 
             const options = {
                 key: keyId,
@@ -382,15 +447,15 @@ const PharmacyCart = () => {
                             await clearFullCart();
                             setOrderConfirmedData({
                                 ...(verificationRes.data || res.data || {}),
-                                orderId: verificationRes.data?.orderId || res.orderId || "MED-SUCCESS",
+                                orderId: res.orderId || verificationRes.data?.orderId || "MED-SUCCESS",
                                 status: "Placed",
                                 paymentStatus: "Paid",
                                 paymentMethod: "Online",
                                 deliveryOTP: verificationRes.data?.deliveryOTP || res.deliveryOTP,
                                 items: pharmacyItems,
                                 address: selectedAddress,
-                                billSummary: billSummary,
-                                deliveryOption: deliveryOption === 'fast' ? 'Fast Express Delivery' : deliveryOption === 'slot' ? `Scheduled (${selectedSlot})` : 'Standard Delivery'
+                                billSummary: res.data?.billSummary || billSummary,
+                                deliveryOption: billSummary.selectedDeliveryMode
                             });
                         } else {
                             toast.error(verificationRes?.message || "Payment verification failed.");
@@ -414,7 +479,7 @@ const PharmacyCart = () => {
     };
 
     if (loading && pharmacyItems.length === 0) {
-        return <div className="p-20 text-center font-bold text-slate-400 animate-pulse">Syncing Cart...</div>;
+        return <div className="p-20 text-center font-bold text-slate-400 animate-pulse uppercase tracking-widest">Syncing Cart...</div>;
     }
 
     if (pharmacyItems.length === 0 && !orderConfirmedData) {
@@ -439,6 +504,28 @@ const PharmacyCart = () => {
                     
                     {/* LEFT COLUMN */}
                     <div className="flex-1 w-full space-y-6">
+
+                        {/* 1. BENEFIT APPLIED BANNER */}
+                        {billSummary.subscriptionBenefit?.isApplied && (
+                            <div className="bg-[#ECFDF5] border border-[#10B981] p-4.5 rounded-2xl flex items-center justify-between shadow-xs">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-white text-[#059669] flex items-center justify-center shadow-xs border border-emerald-100">
+                                        <FaGem size={18} />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-black text-[#059669] uppercase tracking-tight">
+                                            ✨ Free Delivery Applied via {billSummary.subscriptionBenefit.planName}
+                                        </p>
+                                        <p className="text-[11px] font-semibold text-emerald-800 mt-0.5">
+                                            Medicine delivery fee (₹0) waived automatically.
+                                        </p>
+                                    </div>
+                                </div>
+                                <span className="bg-[#08B36A] text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase">
+                                    {billSummary.subscriptionBenefit.remainingCount} Left
+                                </span>
+                            </div>
+                        )}
 
                         {/* COD Badge */}
                         {isCodAvailable && (
@@ -516,7 +603,7 @@ const PharmacyCart = () => {
                                         <p className="text-[11px] text-slate-400 font-medium mb-4">Please upload a valid prescription for regulated medicines.</p>
                                         <label className="inline-flex items-center justify-center px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer hover:bg-slate-800 transition-colors">
                                             <span>Select Prescription</span>
-                                            <input type="file" hidden accept="image/*" multiple onChange={handleFileChange} />
+                                            <input type="file" hidden accept="image/*,application/pdf" multiple onChange={handleFileChange} />
                                         </label>
                                         
                                         {prescriptionFiles.length > 0 && (
@@ -638,16 +725,19 @@ const PharmacyCart = () => {
                             onRemoveCoupon={handleRemoveCoupon}
                         />
 
-                        {/* Final Bill Box */}
+                        {/* Order Bill Summary Box Styled Strictly Per Guidelines */}
                         <div className="bg-white rounded-[2rem] p-6 border border-slate-200/90 shadow-xs space-y-4">
                             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Order Bill Summary</h3>
                             
-                            <div className="space-y-2.5 text-xs">
+                            <div className="space-y-3 text-xs">
+                                
+                                {/* 1. Base Item Total */}
                                 <div className="flex justify-between text-slate-600">
                                     <span>Item Total</span>
                                     <span className="font-bold text-slate-900">₹{billSummary.itemTotal.toFixed(2)}</span>
                                 </div>
 
+                                {/* 2. Combo / BOGO Savings */}
                                 {billSummary.comboSavings > 0 && (
                                     <div className="flex justify-between text-[#08B36A] font-bold">
                                         <span>Combo / BOGO Savings</span>
@@ -655,37 +745,86 @@ const PharmacyCart = () => {
                                     </div>
                                 )}
 
+                                {/* 3. Coupon Discount */}
                                 {billSummary.couponDiscount > 0 && (
                                     <div className="flex justify-between text-[#08B36A] font-bold">
-                                        <span>Coupon Discount</span>
+                                        <span className="flex items-center gap-1"><FaTag size={10} /> Promo Discount</span>
                                         <span>-₹{billSummary.couponDiscount.toFixed(2)}</span>
                                     </div>
                                 )}
 
-                                <div className="flex justify-between text-slate-600">
-                                    <span>Delivery Charges</span>
-                                    <span className="font-bold text-slate-900">
-                                        {billSummary.deliveryCharge === 0 ? (
-                                            <span className="text-[#08B36A] uppercase font-black text-[10px]">Free</span>
-                                        ) : (
-                                            `₹${billSummary.deliveryCharge.toFixed(2)}`
-                                        )}
-                                    </span>
-                                </div>
+                                {/* 4. Standard Delivery Charge (Only when No Slot & No Rapid) */}
+                                {billSummary.rapidDeliveryCharge === 0 && billSummary.slotCharge === 0 && deliveryOption !== 'slot' && (
+                                    <div className="flex justify-between items-center text-slate-600">
+                                        <div>
+                                            <span>Delivery Charge</span>
+                                            {billSummary.subscriptionBenefit?.isApplied && (
+                                                <span className="block text-[10px] font-bold text-[#059669]">
+                                                    ✨ Free Delivery Applied via {billSummary.subscriptionBenefit.planName}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="text-right font-bold text-slate-900">
+                                            {billSummary.subscriptionBenefit?.isApplied ? (
+                                                <div className="flex items-center gap-1.5 justify-end">
+                                                    <span className="line-through text-slate-400 text-[11px]">
+                                                        ₹{billSummary.originalDeliveryCharge.toFixed(2)}
+                                                    </span>
+                                                    <span className="text-[#08B36A] uppercase font-black text-[10px]">
+                                                        FREE
+                                                    </span>
+                                                </div>
+                                            ) : billSummary.deliveryCharge === 0 ? (
+                                                <span className="text-[#08B36A] uppercase font-black text-[10px]">FREE</span>
+                                            ) : (
+                                                <span>₹{billSummary.deliveryCharge.toFixed(2)}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
 
-                                {(billSummary.cgstTotal > 0 || billSummary.sgstTotal > 0) && (
-                                    <div className="flex justify-between text-[11px] text-slate-400 font-medium">
-                                        <span>Taxes (CGST + SGST)</span>
-                                        <span>₹{(billSummary.cgstTotal + billSummary.sgstTotal).toFixed(2)}</span>
+                                {/* 5. Express 1-Hour Charge */}
+                                {billSummary.rapidDeliveryCharge > 0 && (
+                                    <div className="flex justify-between text-amber-600 font-bold">
+                                        <span className="flex items-center gap-1.5"><FaBolt size={11} /> ⚡ 1-Hour Express Delivery</span>
+                                        <span>+₹{billSummary.rapidDeliveryCharge.toFixed(2)}</span>
+                                    </div>
+                                )}
+
+                                {/* 6. Premium Slot Charge */}
+                                {billSummary.slotCharge > 0 && (
+                                    <div className="flex justify-between text-purple-700 font-bold">
+                                        <span className="flex items-center gap-1.5"><FaStar size={11} /> ⭐ Premium Slot Charge</span>
+                                        <span>+₹{billSummary.slotCharge.toFixed(2)}</span>
+                                    </div>
+                                )}
+
+                                {/* 7. Regular Free Slot */}
+                                {billSummary.slotCharge === 0 && (billSummary.selectedDeliveryMode.includes('Scheduled Slot') || deliveryOption === 'slot') && (
+                                    <div className="flex justify-between text-[#08B36A] font-bold">
+                                        <span className="flex items-center gap-1.5"><FaCalendarDay size={11} /> 📅 Scheduled Slot</span>
+                                        <span>FREE (₹0)</span>
+                                    </div>
+                                )}
+
+                                {/* Quota Exhausted Warning Banner */}
+                                {billSummary.subscriptionBenefit?.hasActiveSubscription && billSummary.subscriptionBenefit?.isBenefitExhausted && (
+                                    <div className="bg-[#FFFBEB] border border-[#F59E0B] p-3 rounded-xl flex items-start gap-2 text-[#B45309]">
+                                        <FaExclamationTriangle className="mt-0.5 shrink-0" size={13} />
+                                        <p className="text-[10px] font-bold leading-relaxed">
+                                            {billSummary.subscriptionBenefit.exhaustedMessage || 
+                                                `Your ${billSummary.subscriptionBenefit.planName} quota for free delivery has been exhausted. Standard charges have been applied.`}
+                                        </p>
                                     </div>
                                 )}
 
                                 <div className="h-px bg-slate-100 my-2" />
 
+                                {/* Total Payable Amount */}
                                 <div className="flex justify-between items-end">
                                     <div>
-                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Total Amount</span>
-                                        <span className="text-[10px] text-slate-400 font-medium">Inclusive of all taxes</span>
+                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Total Payable</span>
+                                        <span className="text-[10px] text-slate-400 font-medium">Inclusive of all taxes & delivery</span>
                                     </div>
                                     <span className="text-2xl font-black text-[#08B36A]">
                                         ₹{billSummary.totalAmount.toFixed(2)}
@@ -724,7 +863,7 @@ const PharmacyCart = () => {
                 pharmacyId={pharmacyId}
                 onSelectSlot={(data) => {
                     setSelectedSlot(data.displayText);
-                    setRawSlotData({ date: data.apiDate, time: data.apiTime });
+                    setRawSlotData({ date: data.apiDate, time: data.apiTime, fee: data.fee });
                     setDeliveryOption('slot');
                     setIsSlotModalOpen(false);
                 }}
@@ -862,12 +1001,12 @@ const PharmacyCart = () => {
                             {/* Total Amount */}
                             <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl">
                                 <div>
-                                    <span className="text-[10px] font-black uppercase text-[#08B36A] tracking-widest block">
+                                    <span className="text-[10px] font-black uppercase text-emerald-400 tracking-widest block">
                                         Total Amount
                                     </span>
                                     <span className="text-[10px] text-slate-400 font-medium">Inclusive of all taxes & delivery</span>
                                 </div>
-                                <span className="text-xl font-black text-[#08B36A]">
+                                <span className="text-xl font-black text-emerald-400">
                                     ₹{Math.round(orderConfirmedData.billSummary?.totalAmount ?? billSummary.totalAmount).toLocaleString()}
                                 </span>
                             </div>

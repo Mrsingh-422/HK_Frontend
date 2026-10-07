@@ -1,12 +1,16 @@
 "use client";
-import React, { useState, useEffect } from "react";
+
+import React, { useState, useEffect, useMemo } from "react";
 import { 
-    FaBolt, FaTicketAlt, FaTimesCircle, FaPercentage, 
-    FaCheck, FaShieldAlt, FaSpinner, FaChevronRight 
+    FaTicketAlt, FaTimesCircle, FaPercentage, 
+    FaCheck, FaSpinner, FaChevronRight,
+    FaGem, FaExclamationTriangle, FaMoneyBillWave,
+    FaCreditCard, FaBolt, FaTags
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
+import CostoumPopup from "@/lib/CostoumPopup";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5002";
 
 export default function BookingSummary({ 
     bookingData, 
@@ -14,162 +18,281 @@ export default function BookingSummary({
     selectedAddress, 
     selectedConsumables = [], 
     onProceed,
-    isSubmitting = false 
+    isSubmitting = false,
+    subscriptionInfo,
+    paymentMethod = "Online",
+    onCouponApply
 }) {
     const [couponCode, setCouponCode] = useState("");
     const [appliedCoupon, setAppliedCoupon] = useState(null);
     const [availableCoupons, setAvailableCoupons] = useState([]);
     const [couponError, setCouponError] = useState("");
     const [isValidating, setIsValidating] = useState(false);
-    const [deliveryConfig, setDeliveryConfig] = useState(null);
-    const [isExpress, setIsExpress] = useState(false);
+    const [loadingCoupons, setLoadingCoupons] = useState(false);
 
-    // Get number of patients (default to 1 if not found)
+    // Express rush is strictly determined by whether the selected slot is in an express window
+    const isExpress = Boolean(slotInfo?.isExpressWindow);
     const patientCount = bookingData?.patients?.length || 1;
 
-    // Multiply total service price by number of patients
-    const serviceBaseTotal = (slotInfo?.totalPrice || 0) * patientCount;
-    const consumableTotal = selectedConsumables.reduce((sum, item) => sum + (item.price || 0), 0);
-    const expressCharge = isExpress ? (deliveryConfig?.fastDeliveryExtra || 0) : 0;
-    
-    const subTotal = serviceBaseTotal + consumableTotal + expressCharge;
-
+    // 1. Fetch Nurse Coupons via getNurseCoupon API
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchCoupons = async () => {
             if (!bookingData?.nurseId) return;
             try {
-                // 1. Fetch Coupons
-                const couponRes = await UserAPI.getNurseCoupon(bookingData.nurseId);
-                if (couponRes?.success) setAvailableCoupons(couponRes.data || []);
+                setLoadingCoupons(true);
+                const couponRes = await UserAPI.getNurseCoupon?.(bookingData.nurseId);
                 
-                // 2. Fetch Delivery Config using serviceId from session
-                const storedData = typeof window !== "undefined" ? sessionStorage.getItem('pendingNurseBooking') : null;
-                const parsedDetails = storedData ? JSON.parse(storedData) : {};
-                const serviceId = parsedDetails.serviceId;
-
-                if (serviceId) {
-                    const configRes = await UserAPI.nurseDeliveryConfig(serviceId);
-                    if (configRes?.success) setDeliveryConfig(configRes.data);
+                if (couponRes?.success && Array.isArray(couponRes.data)) {
+                    setAvailableCoupons(couponRes.data);
+                } else if (Array.isArray(couponRes)) {
+                    setAvailableCoupons(couponRes);
+                } else if (couponRes?.coupons && Array.isArray(couponRes.coupons)) {
+                    setAvailableCoupons(couponRes.coupons);
+                } else {
+                    setAvailableCoupons([]);
                 }
             } catch (err) {
-                console.error("Summary Init Error:", err);
+                console.error("❌ [BookingSummary] Error fetching nurse coupons:", err);
+            } finally {
+                setLoadingCoupons(false);
             }
         };
-        fetchData();
+        fetchCoupons();
     }, [bookingData?.nurseId]);
 
-    let discountAmount = 0;
-    if (appliedCoupon) {
-        discountAmount = (subTotal * appliedCoupon.discountPercentage) / 100;
-        if (appliedCoupon.maxDiscount && discountAmount > appliedCoupon.maxDiscount) {
-            discountAmount = appliedCoupon.maxDiscount;
+    // Comprehensive Line-Item Financial Summary
+    const summary = useMemo(() => {
+        const consumableTotal = selectedConsumables.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+        
+        if (subscriptionInfo) {
+            const isVisitFree = Boolean(subscriptionInfo.visitBenefit?.isApplied);
+            const isTravelFree = Boolean(subscriptionInfo.travelBenefit?.isApplied);
+            
+            const baseServicePrice = subscriptionInfo.baseServicePrice ?? 0;
+            const originalBasePrice = subscriptionInfo.originalBasePrice ?? (baseServicePrice || 500);
+            const slotSurcharge = Number(subscriptionInfo.slotSurcharge ?? slotInfo?.extraFee ?? 0);
+            
+            // Raw and active travel fee
+            const rawTravelFee = Number(subscriptionInfo.travelFee ?? 45);
+            const activeTravelFee = isTravelFree ? 0 : rawTravelFee;
+
+            // Raw and active express charge from server
+            const rawExpressCharge = Number(slotInfo?.expressExtraFee || subscriptionInfo.fasterServiceCharge || 0);
+            const activeExpressCharge = isTravelFree ? 0 : rawExpressCharge;
+
+            const couponDiscount = Number(appliedCoupon?.discountAmount ?? subscriptionInfo.couponDiscount ?? 0);
+            const taxAmount = Number(subscriptionInfo.taxAmount ?? 0);
+            
+            // Grand Total Calculation
+            const subtotal = (isVisitFree ? 0 : baseServicePrice) + consumableTotal + slotSurcharge + activeExpressCharge + activeTravelFee + taxAmount;
+            const totalPrice = Math.max(0, subtotal - couponDiscount);
+
+            return {
+                baseServicePrice,
+                originalBasePrice,
+                isVisitFree,
+                slotSurcharge,
+                consumableTotal,
+                rawTravelFee,
+                activeTravelFee,
+                rawExpressCharge,
+                activeExpressCharge,
+                isTravelFree,
+                couponDiscount,
+                taxAmount,
+                totalPrice: Math.round(totalPrice),
+                visitBenefit: subscriptionInfo.visitBenefit || {},
+                travelBenefit: subscriptionInfo.travelBenefit || {}
+            };
         }
-    }
 
-    const finalTotal = Math.max(0, subTotal - discountAmount);
+        // Fallback calculation
+        const fallbackBase = (slotInfo?.totalPrice || slotInfo?.basePrice || bookingData?.basePrice || 0) * patientCount;
+        const slotExpressFee = Number(slotInfo?.expressExtraFee || 0);
+        const fallbackExpress = isExpress ? slotExpressFee : 0;
+        const fallbackTravel = 45;
+        const discountAmount = appliedCoupon?.discountAmount ?? (appliedCoupon ? Math.min(appliedCoupon.maxDiscount || 9999, (fallbackBase * (appliedCoupon.discountPercentage || 0)) / 100) : 0);
+        const total = Math.max(0, fallbackBase + consumableTotal + (slotInfo?.extraFee || 0) + fallbackExpress + fallbackTravel - discountAmount);
 
+        return {
+            baseServicePrice: fallbackBase,
+            originalBasePrice: fallbackBase,
+            isVisitFree: false,
+            slotSurcharge: slotInfo?.extraFee || 0,
+            consumableTotal,
+            rawTravelFee: fallbackTravel,
+            activeTravelFee: fallbackTravel,
+            rawExpressCharge: fallbackExpress,
+            activeExpressCharge: fallbackExpress,
+            isTravelFree: false,
+            couponDiscount: discountAmount,
+            taxAmount: 0,
+            totalPrice: Math.round(total),
+            visitBenefit: {},
+            travelBenefit: {}
+        };
+    }, [subscriptionInfo, selectedConsumables, slotInfo, bookingData, patientCount, isExpress, appliedCoupon]);
+
+    // Handle Apply Coupon with limit-exceeded alert popup
     const handleApplyCoupon = async (codeToApply) => {
-        const targetCode = codeToApply || couponCode;
+        const targetCode = (codeToApply || couponCode).trim().toUpperCase();
         if (!targetCode) return;
+
         try {
             setIsValidating(true);
             setCouponError("");
-            const res = await UserAPI.validateNurseCoupon({
+
+            const validateApi = UserAPI.validateNurseCoupon || UserAPI.validateDoctorCoupon;
+            const res = await validateApi({
                 couponCode: targetCode,
-                nurseId: bookingData.nurseId,
-                totalAmount: subTotal
+                nurseId: String(bookingData.nurseId),
+                totalAmount: Number(summary.totalPrice + (summary.couponDiscount || 0))
             });
-            if (res?.success) {
-                const couponData = Array.isArray(res.data) ? res.data[0] : res.data;
-                if (subTotal < couponData.minOrderAmount) {
-                    setCouponError(`Min. order is ₹${couponData.minOrderAmount}`);
-                    return;
-                }
+
+            if (res?.success && res.data) {
+                const couponData = res.data;
                 setAppliedCoupon(couponData);
-                setCouponCode(couponData.couponName);
+                setCouponCode(couponData.couponName || targetCode);
+
+                if (typeof onCouponApply === "function") {
+                    onCouponApply(couponData.couponName || targetCode);
+                }
+                if (typeof CostoumPopup === "function") {
+                    CostoumPopup("Coupon applied successfully!", "success", 3000);
+                }
             } else {
-                setCouponError(res?.message || "Invalid Coupon");
+                const errorMsg = res?.message || "Coupon limit reached or invalid.";
+                if (typeof CostoumPopup === "function") {
+                    CostoumPopup(errorMsg, "warning", 4000);
+                } else {
+                    alert(errorMsg);
+                }
+                setAppliedCoupon(null);
             }
         } catch (err) {
-            setCouponError("Validation Failed");
+            console.error("❌ [BookingSummary] Coupon Validation Error:", err);
+            const serverMessage = err?.response?.data?.message || err?.message || "Coupon usage limit reached. You can only use this coupon 1 time(s).";
+            
+            // 💡 Show friendly alert popup instead of breaking UI
+            if (typeof CostoumPopup === "function") {
+                CostoumPopup(serverMessage, "warning", 4000);
+            } else {
+                alert(serverMessage);
+            }
+            setAppliedCoupon(null);
         } finally {
             setIsValidating(false);
         }
     };
 
+    const handleRemoveCoupon = () => {
+        setAppliedCoupon(null);
+        setCouponCode("");
+        setCouponError("");
+        if (typeof onCouponApply === "function") {
+            onCouponApply("");
+        }
+    };
+
     const isSelectionValid = () => {
         if (!selectedAddress) return false;
-        if (slotInfo.mode === "One day One Time") return slotInfo.startDate && slotInfo.startTime;
-        if (slotInfo.mode === "Acc. To Per/Hours") return slotInfo.startDate && slotInfo.startTime && slotInfo.endTime;
-        if (slotInfo.mode === "For Multiple Days") return slotInfo.startDate && slotInfo.endDate && slotInfo.startDate !== slotInfo.endDate;
-        return false;
+        if (slotInfo?.mode === "One day One Time") return Boolean(slotInfo.startDate && slotInfo.startTime);
+        if (slotInfo?.mode === "Acc. To Per/Hours") return Boolean(slotInfo.startDate && slotInfo.startTime && slotInfo.endTime);
+        if (slotInfo?.mode === "For Multiple Days") return Boolean(slotInfo.startDate && slotInfo.endDate);
+        return Boolean(slotInfo?.startDate && slotInfo?.startTime);
     };
 
     const getImageUrl = (path) => {
-        if (!path) return "https://images.unsplash.com/photo-1576091160550-2173dba999ef?q=80&w=2070&auto=format&fit=crop";
+        if (!path) return "https://images.unsplash.com/photo-1594824813576-a192f15b5f25?auto=format&fit=crop&w=400&q=80";
         if (path.startsWith("http")) return path;
         return `${BASE_URL}/${path.replace(/^public\//, "")}`.replace(/([^:]\/)\/+/g, "$1");
     };
 
     return (
-        <div className="bg-slate-900 rounded-[2.5rem] p-6 md:p-7 text-white shadow-2xl border border-slate-800 space-y-5">
-            {/* Header: Care Professional Info */}
+        <div className="bg-slate-900 rounded-[2.5rem] p-6 md:p-7 text-white shadow-2xl border border-slate-800 space-y-5 font-sans">
+            
+            {/* 1. Header: Assigned Healthcare Provider */}
             <div className="flex items-center gap-3.5 pb-4 border-b border-slate-800">
                 <img 
                     src={getImageUrl(bookingData?.nurseImage)} 
-                    className="w-13 h-13 rounded-2xl object-cover border border-white/10 ring-2 ring-[#08B36A]/20" 
-                    alt="Nurse" 
+                    className="w-13 h-13 rounded-2xl object-cover border border-white/10 ring-2 ring-[#08B36A]/20 shrink-0" 
+                    alt="Nurse Provider" 
                 />
                 <div className="flex-1 min-w-0">
                     <span className="text-[10px] font-black uppercase text-[#08B36A] tracking-wider block">
-                        Assigned Professional
+                        Assigned Healthcare Provider
                     </span>
                     <h3 className="font-bold text-sm text-white truncate">
-                        {bookingData?.nurseName || "Verified Nursing Officer"}
+                        {bookingData?.nurseName || "Verified Nursing Bureau"}
                     </h3>
-                    <p className="text-[10px] text-slate-400 font-medium">
-                        {bookingData?.serviceDetails?.title || "Home Clinical Visit"}
+                    <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                        {bookingData?.serviceDetails?.title || "Clinical Nursing Care"}
                     </p>
                 </div>
             </div>
 
-            {/* REDESIGNED EXPRESS SERVICE TOGGLE BUTTON */}
+            {/* 2. Free Visit Membership Benefit Callout */}
+            {summary.isVisitFree && (
+                <div className="bg-gradient-to-r from-emerald-900/40 to-slate-900 border border-emerald-500/40 p-3.5 rounded-2xl flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-[#08B36A] text-white flex items-center justify-center shrink-0">
+                            <FaGem size={14} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-black text-emerald-400 uppercase tracking-tight">
+                                ✨ Free Consultation ({summary.visitBenefit?.planName || "VIP Plan"})
+                            </p>
+                            <p className="text-[10px] text-slate-300 font-medium">
+                                Base consultation fee waived automatically.
+                            </p>
+                        </div>
+                    </div>
+                    <span className="bg-[#08B36A] text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
+                        {summary.visitBenefit?.remainingCount} Left
+                    </span>
+                </div>
+            )}
+
+            {/* 3. Express Service Status Card */}
             <div 
-                onClick={() => setIsExpress(!isExpress)}
-                className={`relative overflow-hidden p-4 rounded-2xl border transition-all duration-300 cursor-pointer select-none ${
-                    isExpress 
-                        ? "border-[#08B36A] bg-gradient-to-r from-[#08B36A]/15 via-emerald-900/20 to-slate-900 ring-2 ring-[#08B36A]/30" 
-                        : "border-slate-800 bg-slate-800/50 hover:border-slate-700 hover:bg-slate-800/80"
+                className={`relative overflow-hidden p-4 rounded-2xl border-2 transition-all duration-300 pointer-events-none select-none bg-white text-slate-900 shadow-md ${
+                    isExpress
+                        ? "border-[#08B36A] ring-2 ring-[#08B36A]/25" 
+                        : "border-slate-200 opacity-80"
                 }`}
             >
                 <div className="flex items-center justify-between gap-3 relative z-10">
                     <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                            isExpress ? "bg-[#08B36A] text-white shadow-lg shadow-[#08B36A]/40" : "bg-slate-800 text-amber-400"
+                            isExpress 
+                                ? "bg-[#08B36A] text-white shadow-md shadow-[#08B36A]/30" 
+                                : "bg-amber-50 text-amber-600 border border-amber-200"
                         }`}>
-                            <FaBolt className={isExpress ? "text-white animate-pulse" : "text-amber-400"} size={16} />
+                            <FaBolt className={isExpress ? "text-white animate-pulse" : "text-amber-500"} size={16} />
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <p className="text-xs font-black text-white tracking-tight">Express Arrival</p>
+                                <p className="text-xs font-black text-slate-900 tracking-tight">Express Arrival</p>
                                 <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider ${
-                                    isExpress ? "bg-[#08B36A] text-white" : "bg-slate-700 text-slate-300"
+                                    isExpress ? "bg-[#08B36A] text-white" : "bg-slate-100 text-slate-700"
                                 }`}>
-                                    60 Mins
+                                    1-4h Rush
                                 </span>
                             </div>
-                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                                Priority nursing dispatch to your doorstep
+                            <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                                {isExpress ? "Emergency 1-4h rush window active" : "Standard scheduled dispatch window"}
                             </p>
                         </div>
                     </div>
 
                     <div className="text-right">
-                        <span className={`text-xs font-black block ${isExpress ? "text-[#08B36A]" : "text-slate-300"}`}>
-                            {deliveryConfig ? `+₹${deliveryConfig.fastDeliveryExtra}` : "+₹0"}
+                        <span className={`text-xs font-black block ${
+                            summary.isTravelFree ? "text-[#08B36A]" : isExpress ? "text-[#08B36A]" : "text-slate-600"
+                        }`}>
+                            {summary.isTravelFree ? "FREE" : summary.rawExpressCharge > 0 ? `+₹${summary.rawExpressCharge}` : "Standard"}
                         </span>
-                        <div className={`w-5 h-5 ml-auto mt-1 rounded-full border flex items-center justify-center transition-all ${
-                            isExpress ? "bg-[#08B36A] border-[#08B36A]" : "border-slate-600 bg-slate-800"
+                        <div className={`w-5 h-5 ml-auto mt-1 rounded-full border-2 flex items-center justify-center transition-all ${
+                            isExpress ? "bg-[#08B36A] border-[#08B36A]" : "border-slate-300 bg-slate-50"
                         }`}>
                             {isExpress && <FaCheck className="text-white text-[9px]" />}
                         </div>
@@ -177,14 +300,24 @@ export default function BookingSummary({
                 </div>
             </div>
 
-            {/* Coupons Section */}
+            {/* 4. Free Delivery / Travel Quota Exhaustion Warning */}
+            {summary.travelBenefit?.hasActiveSubscription && summary.travelBenefit?.isBenefitExhausted && (
+                <div className="bg-amber-950/40 border border-amber-500/40 p-3 rounded-xl flex items-start gap-2 text-amber-300">
+                    <FaExclamationTriangle className="mt-0.5 shrink-0 text-amber-400" size={12} />
+                    <p className="text-[10px] font-bold leading-relaxed">
+                        {summary.travelBenefit?.exhaustedMessage || "Your quota for free travel delivery has been exhausted."}
+                    </p>
+                </div>
+            )}
+
+            {/* 5. Coupons Section (Input & Live Available Coupons) */}
             <div className="space-y-3 bg-slate-800/40 p-4 rounded-2xl border border-slate-800">
                 <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                        Apply Promo Code
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                        <FaTags className="text-[#08B36A]" /> Apply Promo Code
                     </span>
                     {couponError && (
-                        <span className="text-[10px] font-bold text-rose-400 truncate max-w-[140px]">
+                        <span className="text-[10px] font-bold text-rose-400 truncate max-w-[150px]">
                             {couponError}
                         </span>
                     )}
@@ -203,28 +336,49 @@ export default function BookingSummary({
                             <button 
                                 type="button"
                                 onClick={() => handleApplyCoupon()} 
-                                disabled={isValidating || !couponCode} 
+                                disabled={isValidating || !couponCode.trim()} 
                                 className="bg-[#08B36A] hover:bg-[#079c5c] text-white px-4 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                             >
                                 {isValidating ? <FaSpinner className="animate-spin" /> : "Apply"}
                             </button>
                         </div>
 
-                        {availableCoupons.length > 0 && (
-                            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-                                {availableCoupons.map((cp) => (
-                                    <button 
-                                        key={cp._id} 
-                                        type="button"
-                                        onClick={() => handleApplyCoupon(cp.couponName)} 
-                                        className="flex-shrink-0 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-[#08B36A]/50 p-2.5 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
-                                    >
-                                        <FaPercentage className="text-[#08B36A] text-[10px]" />
-                                        <span className="text-[10px] font-black text-slate-200">{cp.couponName}</span>
-                                    </button>
-                                ))}
+                        {/* Available Coupons List */}
+                        {loadingCoupons ? (
+                            <div className="flex items-center gap-2 py-1 text-slate-400 text-[11px]">
+                                <FaSpinner className="animate-spin text-[#08B36A]" />
+                                <span>Loading available coupons...</span>
                             </div>
-                        )}
+                        ) : availableCoupons.length > 0 ? (
+                            <div className="space-y-1.5 pt-1">
+                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                    Available Coupons ({availableCoupons.length})
+                                </span>
+                                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                                    {availableCoupons.map((cp, idx) => {
+                                        const codeName = cp.couponName || cp.code || cp.couponCode;
+                                        const discountText = cp.discountPercentage ? `${cp.discountPercentage}% OFF` : cp.discountAmount ? `₹${cp.discountAmount} OFF` : "PROMO";
+                                        
+                                        return (
+                                            <button 
+                                                key={cp._id || idx} 
+                                                type="button"
+                                                onClick={() => handleApplyCoupon(codeName)} 
+                                                className="flex-shrink-0 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-[#08B36A] p-2.5 rounded-xl flex items-center gap-2.5 cursor-pointer transition-all group"
+                                            >
+                                                <div className="w-6 h-6 rounded-lg bg-[#08B36A]/10 group-hover:bg-[#08B36A] text-[#08B36A] group-hover:text-white flex items-center justify-center transition-colors">
+                                                    <FaPercentage size={10} />
+                                                </div>
+                                                <div className="text-left">
+                                                    <span className="text-[10px] font-black text-white block leading-none">{codeName}</span>
+                                                    <span className="text-[8.5px] font-bold text-[#08B36A] block mt-0.5 leading-none">{discountText}</span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ) : null}
                     </div>
                 ) : (
                     <div className="flex items-center justify-between bg-[#08B36A]/10 border border-[#08B36A]/30 p-3 rounded-xl">
@@ -233,14 +387,16 @@ export default function BookingSummary({
                                 <FaTicketAlt size={11} />
                             </div>
                             <div>
-                                <p className="text-xs font-black text-[#08B36A]">{appliedCoupon.couponName}</p>
-                                <p className="text-[9px] text-slate-400 font-medium">Coupon applied successfully</p>
+                                <p className="text-xs font-black text-[#08B36A]">{appliedCoupon.couponName || couponCode}</p>
+                                <p className="text-[9px] text-slate-400 font-medium">
+                                    {appliedCoupon.discountAmount ? `Saved ₹${appliedCoupon.discountAmount} successfully` : "Coupon applied successfully"}
+                                </p>
                             </div>
                         </div>
                         <button 
                             type="button"
-                            onClick={() => setAppliedCoupon(null)}
-                            className="text-slate-400 hover:text-rose-400 transition-colors p-1"
+                            onClick={handleRemoveCoupon}
+                            className="text-slate-400 hover:text-rose-400 transition-colors p-1 cursor-pointer"
                         >
                             <FaTimesCircle size={16} />
                         </button>
@@ -248,58 +404,120 @@ export default function BookingSummary({
                 )}
             </div>
 
-            {/* Price Breakdown Bill */}
+            {/* 6. Comprehensive Breakdown of All Fees & Charges */}
             <div className="bg-slate-800/40 p-4 rounded-2xl border border-slate-800 space-y-2.5">
-                <div className="flex justify-between text-xs">
+                
+                {/* Base Service / Consultation Fee */}
+                <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-400 font-medium">
-                        {slotInfo?.mode === "For Multiple Days" ? "Multi-Day Fee" : 
-                         slotInfo?.mode === "Acc. To Per/Hours" ? "Hourly Fee" : "Service Fee"}
+                        {slotInfo?.mode === "For Multiple Days" ? "Multi-Day Service Fee" : 
+                         slotInfo?.mode === "Acc. To Per/Hours" ? "Hourly Service Fee" : "Base Consultation Fee"}
                         {patientCount > 1 && ` (x${patientCount} Patients)`}
                     </span>
-                    <span className="font-bold text-slate-200">₹{serviceBaseTotal}</span>
+                    <div className="text-right font-bold">
+                        {summary.isVisitFree ? (
+                            <div className="flex items-center gap-1.5">
+                                <span className="line-through text-slate-500 text-[11px]">₹{summary.originalBasePrice}</span>
+                                <span className="text-[#08B36A] uppercase text-[10px] font-black">FREE</span>
+                            </div>
+                        ) : (
+                            <span className="text-slate-200">₹{summary.baseServicePrice}</span>
+                        )}
+                    </div>
                 </div>
-                
-                {consumableTotal > 0 && (
-                    <div className="flex justify-between text-xs text-[#08B36A]">
-                        <span className="font-medium">Medical Consumables</span>
-                        <span className="font-bold">+ ₹{consumableTotal}</span>
+
+                {/* Base Travel & Distance Fee */}
+                {summary.rawTravelFee > 0 && (
+                    <div className="flex justify-between items-center text-xs text-slate-400">
+                        <span>Base Travel & Distance Fee</span>
+                        <div className="text-right font-bold">
+                            {summary.isTravelFree ? (
+                                <div className="flex items-center gap-1.5">
+                                    <span className="line-through text-slate-500 text-[11px]">₹{summary.rawTravelFee}</span>
+                                    <span className="text-[#08B36A] uppercase text-[10px] font-black">FREE</span>
+                                </div>
+                            ) : (
+                                <span className="text-slate-200">+ ₹{summary.activeTravelFee}</span>
+                            )}
+                        </div>
                     </div>
                 )}
                 
-                {isExpress && (
+                {/* Slot Premium Surcharge */}
+                {summary.slotSurcharge > 0 && (
+                    <div className="flex justify-between text-xs text-slate-400">
+                        <span>Time Slot Premium Surcharge</span>
+                        <span className="font-bold text-slate-200">+ ₹{summary.slotSurcharge}</span>
+                    </div>
+                )}
+
+                {/* Express Rush Surcharge */}
+                {isExpress && summary.rawExpressCharge > 0 && (
+                    <div className="flex justify-between items-center text-xs text-amber-400">
+                        <span className="font-medium">1-4h Express Rush Surcharge</span>
+                        <div className="text-right font-bold">
+                            {summary.isTravelFree ? (
+                                <span className="text-[#08B36A] uppercase text-[10px] font-black">FREE</span>
+                            ) : (
+                                <span>+ ₹{summary.rawExpressCharge}</span>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Medical Supplies & Consumables */}
+                {summary.consumableTotal > 0 && (
                     <div className="flex justify-between text-xs text-[#08B36A]">
-                        <span className="font-medium">Express Dispatch</span>
-                        <span className="font-bold">+ ₹{expressCharge}</span>
+                        <span className="font-medium">Medical Supplies & Consumables</span>
+                        <span className="font-bold">+ ₹{summary.consumableTotal}</span>
+                    </div>
+                )}
+
+                {/* Taxes / GST */}
+                {summary.taxAmount > 0 && (
+                    <div className="flex justify-between text-xs text-slate-400">
+                        <span>GST & Taxes</span>
+                        <span className="font-bold text-slate-200">+ ₹{summary.taxAmount}</span>
+                    </div>
+                )}
+
+                {/* Coupon Discount */}
+                {summary.couponDiscount > 0 && (
+                    <div className="flex justify-between text-xs text-rose-400">
+                        <span className="font-medium">Promo Coupon Discount</span>
+                        <span className="font-bold">- ₹{Math.round(summary.couponDiscount)}</span>
                     </div>
                 )}
                 
-                {appliedCoupon && (
-                    <div className="flex justify-between text-xs text-[#08B36A]">
-                        <span className="font-medium">Promo Discount ({appliedCoupon.discountPercentage}%)</span>
-                        <span className="font-bold">- ₹{Math.round(discountAmount)}</span>
-                    </div>
-                )}
-                
+                {/* Grand Total Row */}
                 <div className="pt-3 border-t border-slate-700/60 flex justify-between items-end">
                     <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Payable</p>
-                        <span className="text-2xl font-black text-[#08B36A]">₹{Math.round(finalTotal)}</span>
+                        <span className="text-2xl font-black text-[#08B36A]">₹{summary.totalPrice}</span>
                     </div>
-                    <span className="text-[10px] text-slate-500 font-semibold mb-1">Taxes inclusive</span>
+                    <div className="text-right">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Payment Mode</span>
+                        <span className="text-xs font-black text-white flex items-center gap-1 justify-end">
+                            {paymentMethod === "COD" ? <><FaMoneyBillWave className="text-amber-400" /> Pay on Arrival</> : <><FaCreditCard className="text-emerald-400" /> Online Payment</>}
+                        </span>
+                    </div>
                 </div>
             </div>
 
-            {/* Confirm & Book CTA */}
+            {/* 7. Confirm & Book CTA */}
             <button
                 type="button"
-                onClick={() => onProceed({
-                    isExpress,
-                    expressCharge,
-                    appliedCoupon,
-                    discountAmount,
-                    finalTotal,
-                    subTotal
-                })}
+                onClick={() => {
+                    onProceed({
+                        isExpress,
+                        expressCharge: summary.activeExpressCharge,
+                        travelFee: summary.activeTravelFee,
+                        appliedCoupon,
+                        discountAmount: summary.couponDiscount,
+                        finalTotal: summary.totalPrice,
+                        subTotal: summary.totalPrice + summary.couponDiscount
+                    });
+                }}
                 disabled={!isSelectionValid() || isSubmitting}
                 className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
                     !isSelectionValid() || isSubmitting

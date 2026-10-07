@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, useState, Suspense, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { 
     FaArrowLeft, 
@@ -11,11 +11,26 @@ import {
     FaShieldAlt,
     FaStore,
     FaRoute,
-    FaRegCommentDots
+    FaRegCommentDots,
+    FaTag,
+    FaCheckCircle,
+    FaFire
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://192.168.1.7:5002";
+
+// Helper to determine the minimum price of a provider for accurate sorting
+const getProviderMinPrice = (provider) => {
+    const p = provider.pricing;
+    const candidates = [];
+    if (typeof p?.oneDay?.final === "number" && p.oneDay.final > 0) candidates.push(p.oneDay.final);
+    if (typeof p?.hourly?.final === "number" && p.hourly.final > 0) candidates.push(p.hourly.final);
+    if (typeof p?.multipleDays?.final === "number" && p.multipleDays.final > 0) candidates.push(p.multipleDays.final);
+    if (typeof provider.basePrice === "number" && provider.basePrice > 0) candidates.push(provider.basePrice);
+    
+    return candidates.length > 0 ? Math.min(...candidates) : (p?.oneDay?.base || 999999);
+};
 
 function ProvidersListContent() {
     const router = useRouter();
@@ -40,7 +55,7 @@ function ProvidersListContent() {
                     });
                 },
                 (err) => {
-                    console.log("Geolocation permission denied/unavailable:", err.message);
+                    console.log("Geolocation permission unavailable:", err.message);
                 },
                 { timeout: 5000 }
             );
@@ -59,7 +74,12 @@ function ProvidersListContent() {
                     userLng: userCoords.lng
                 });
                 if (res?.success) {
-                    setProviders(res.data || []);
+                    const rawData = res.data || [];
+                    // Sort providers so the cheapest provider is at the top (ascending order)
+                    const sortedProviders = [...rawData].sort((a, b) => {
+                        return getProviderMinPrice(a) - getProviderMinPrice(b);
+                    });
+                    setProviders(sortedProviders);
                 }
             } catch (err) {
                 console.error("Error fetching providers for nursing service:", err);
@@ -69,6 +89,12 @@ function ProvidersListContent() {
         };
         fetchProviders();
     }, [serviceId, subCategory, userCoords.lat, userCoords.lng]);
+
+    // Find the minimum price among all providers to highlight the cheapest
+    const lowestPrice = useMemo(() => {
+        if (!providers || providers.length === 0) return 0;
+        return Math.min(...providers.map(p => getProviderMinPrice(p)));
+    }, [providers]);
 
     const handleSelectProvider = (provider) => {
         const bookingInitiation = {
@@ -121,7 +147,7 @@ function ProvidersListContent() {
                 <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-4">
                     <button 
                         onClick={() => router.back()} 
-                        className="text-slate-900 p-2.5 hover:bg-slate-50 rounded-full transition-colors"
+                        className="text-slate-900 p-2.5 hover:bg-slate-50 rounded-full transition-colors cursor-pointer"
                     >
                         <FaArrowLeft />
                     </button>
@@ -138,11 +164,14 @@ function ProvidersListContent() {
 
             <div className="max-w-5xl mx-auto px-6 mt-8">
                 
-                {/* Providers Count Banner */}
-                <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-slate-500 mb-6">
+                {/* Providers Count & Sorting Indicator */}
+                <div className="flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm font-bold text-slate-500 mb-6">
                     <p>
-                        Found <span className="text-slate-900 font-black">{providers.length}</span> Verified Bureau(s) for this service
+                        Found <span className="text-slate-900 font-black">{providers.length}</span> Verified Bureau(s)
                     </p>
+                    <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-[#08B36A] rounded-full border border-emerald-100 text-[11px] font-black uppercase">
+                        <FaTag size={10} /> Sorted by Lowest Price First
+                    </div>
                 </div>
 
                 {providers.length > 0 ? (
@@ -157,11 +186,25 @@ function ProvidersListContent() {
                             const distance = provider.distance;
                             const pricing = provider.pricing || {};
 
+                            const providerMinPrice = getProviderMinPrice(provider);
+                            const isCheapest = index === 0 || (providerMinPrice === lowestPrice && lowestPrice > 0);
+
                             return (
                                 <div 
                                     key={provider.serviceId || provider._id || index}
-                                    className="group relative bg-white rounded-[2.5rem] p-6 md:p-8 border border-slate-100 shadow-xl shadow-slate-200/20 hover:shadow-2xl hover:shadow-[#08B36A]/10 hover:-translate-y-1.5 transition-all duration-500 flex flex-col xl:flex-row gap-8 justify-between"
+                                    className={`group relative bg-white rounded-[2.5rem] p-6 md:p-8 border transition-all duration-500 flex flex-col xl:flex-row gap-8 justify-between ${
+                                        isCheapest 
+                                            ? "border-[#08B36A] shadow-2xl shadow-emerald-600/10 ring-2 ring-[#08B36A]/20" 
+                                            : "border-slate-100 shadow-xl shadow-slate-200/20 hover:shadow-2xl hover:shadow-[#08B36A]/10 hover:-translate-y-1"
+                                    }`}
                                 >
+                                    {/* CHEAPEST / BEST VALUE FLOATING BADGE */}
+                                    {isCheapest && (
+                                        <div className="absolute -top-3.5 left-8 bg-gradient-to-r from-[#08B36A] to-emerald-600 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-md shadow-emerald-600/20 flex items-center gap-1.5 z-20">
+                                            <FaFire size={11} className="text-amber-300 fill-amber-300" />
+                                            <span>Cheapest Rate • Best Price</span>
+                                        </div>
+                                    )}
                                     
                                     {/* Left Side: Agency/Provider Details */}
                                     <div className="flex-1 flex flex-col sm:flex-row gap-6">
@@ -246,7 +289,11 @@ function ProvidersListContent() {
                                         {/* Booking Action */}
                                         <button
                                             onClick={() => handleSelectProvider(provider)}
-                                            className="w-full bg-slate-900 hover:bg-[#08B36A] text-white py-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2 shadow-lg active:scale-95"
+                                            className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2 shadow-lg active:scale-95 cursor-pointer ${
+                                                isCheapest 
+                                                    ? "bg-[#08B36A] hover:bg-[#079c5c] text-white shadow-emerald-600/20"
+                                                    : "bg-slate-900 hover:bg-[#08B36A] text-white shadow-slate-900/10"
+                                            }`}
                                         >
                                             <span>Select & Continue</span>
                                             <FaChevronRight size={10} className="group-hover:translate-x-0.5 transition-transform duration-300" />
