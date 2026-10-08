@@ -276,7 +276,7 @@ export default function BookingSummary({
                                 <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider ${
                                     isExpress ? "bg-[#08B36A] text-white" : "bg-slate-100 text-slate-700"
                                 }`}>
-                                    1-4h Rush
+                                    1-3h Rush
                                 </span>
                             </div>
                             <p className="text-[10px] text-slate-500 font-medium mt-0.5">
@@ -310,14 +310,23 @@ export default function BookingSummary({
                 </div>
             )}
 
-            {/* 5. Coupons Section (Input & Live Available Coupons) */}
-            <div className="space-y-3 bg-slate-800/40 p-4 rounded-2xl border border-slate-800">
+            {/* ========================================================= */}
+            {/* 5. COUPONS SECTION (HIGH CONTRAST VOUCHER THEME)         */}
+            {/* ========================================================= */}
+            <div className="bg-white text-slate-900 p-4.5 rounded-2xl shadow-xl border-2 border-amber-300/80 space-y-3.5 relative overflow-hidden">
+                
+                {/* Header */}
                 <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                        <FaTags className="text-[#08B36A]" /> Apply Promo Code
-                    </span>
+                    <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                            <FaTags size={12} />
+                        </div>
+                        <span className="text-[11px] font-black uppercase text-slate-900 tracking-wider">
+                            Apply Promo Code
+                        </span>
+                    </div>
                     {couponError && (
-                        <span className="text-[10px] font-bold text-rose-400 truncate max-w-[150px]">
+                        <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md truncate max-w-[160px]">
                             {couponError}
                         </span>
                     )}
@@ -325,19 +334,20 @@ export default function BookingSummary({
 
                 {!appliedCoupon ? (
                     <div className="space-y-3">
+                        {/* High-Contrast Crisp Input & Button */}
                         <div className="flex gap-2">
                             <input 
                                 type="text" 
                                 placeholder="ENTER CODE" 
                                 value={couponCode}
                                 onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                                className="flex-1 bg-slate-800/90 border border-slate-700 rounded-xl py-2.5 px-3.5 text-xs font-black text-white placeholder-slate-500 focus:outline-none focus:border-[#08B36A]"
+                                className="flex-1 bg-slate-50 border-2 border-slate-200 focus:border-[#08B36A] focus:bg-white rounded-xl py-2.5 px-3.5 text-xs font-black text-slate-900 placeholder-slate-400 tracking-wider focus:outline-none transition-all shadow-inner"
                             />
                             <button 
                                 type="button"
                                 onClick={() => handleApplyCoupon()} 
                                 disabled={isValidating || !couponCode.trim()} 
-                                className="bg-[#08B36A] hover:bg-[#079c5c] text-white px-4 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                className="bg-[#08B36A] hover:bg-[#079c5c] text-white px-5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-md shadow-[#08B36A]/20 active:scale-95"
                             >
                                 {isValidating ? <FaSpinner className="animate-spin" /> : "Apply"}
                             </button>
@@ -345,16 +355,19 @@ export default function BookingSummary({
 
                         {/* Available Coupons List */}
                         {loadingCoupons ? (
-                            <div className="flex items-center gap-2 py-1 text-slate-400 text-[11px]">
-                                <FaSpinner className="animate-spin text-[#08B36A]" />
+                            <div className="flex items-center gap-2 py-1 text-slate-500 text-[11px]">
+                                <FaSpinner className="animate-spin text-amber-500" />
                                 <span>Loading available coupons...</span>
                             </div>
                         ) : availableCoupons.length > 0 ? (
                             <div className="space-y-1.5 pt-1">
-                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                                    Available Coupons ({availableCoupons.length})
-                                </span>
-                                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                        <FaTicketAlt className="text-amber-500" size={9} /> Available Coupons ({availableCoupons.length})
+                                    </span>
+                                    <span className="text-[8.5px] text-slate-400 font-bold">Tap to apply</span>
+                                </div>
+                                <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none">
                                     {availableCoupons.map((cp, idx) => {
                                         const codeName = cp.couponName || cp.code || cp.couponCode;
                                         const discountText = cp.discountPercentage ? `${cp.discountPercentage}% OFF` : cp.discountAmount ? `₹${cp.discountAmount} OFF` : "PROMO";
@@ -364,14 +377,18 @@ export default function BookingSummary({
                                                 key={cp._id || idx} 
                                                 type="button"
                                                 onClick={() => handleApplyCoupon(codeName)} 
-                                                className="flex-shrink-0 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-[#08B36A] p-2.5 rounded-xl flex items-center gap-2.5 cursor-pointer transition-all group"
+                                                className="flex-shrink-0 bg-amber-50/70 hover:bg-amber-100 border border-amber-300 hover:border-amber-500 p-2.5 rounded-xl flex items-center gap-2.5 cursor-pointer transition-all duration-200 group active:scale-95 shadow-xs"
                                             >
-                                                <div className="w-6 h-6 rounded-lg bg-[#08B36A]/10 group-hover:bg-[#08B36A] text-[#08B36A] group-hover:text-white flex items-center justify-center transition-colors">
+                                                <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center transition-colors shadow-xs">
                                                     <FaPercentage size={10} />
                                                 </div>
                                                 <div className="text-left">
-                                                    <span className="text-[10px] font-black text-white block leading-none">{codeName}</span>
-                                                    <span className="text-[8.5px] font-bold text-[#08B36A] block mt-0.5 leading-none">{discountText}</span>
+                                                    <span className="text-[11px] font-black text-slate-900 block tracking-wide leading-tight">
+                                                        {codeName}
+                                                    </span>
+                                                    <span className="text-[9px] font-black text-amber-800 bg-amber-200/60 px-1.5 py-0.5 rounded inline-block mt-0.5 leading-tight">
+                                                        {discountText}
+                                                    </span>
                                                 </div>
                                             </button>
                                         );
@@ -381,24 +398,31 @@ export default function BookingSummary({
                         ) : null}
                     </div>
                 ) : (
-                    <div className="flex items-center justify-between bg-[#08B36A]/10 border border-[#08B36A]/30 p-3 rounded-xl">
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-lg bg-[#08B36A] text-white flex items-center justify-center">
-                                <FaTicketAlt size={11} />
+                    /* Applied Coupon State Card */
+                    <div className="flex items-center justify-between bg-emerald-50 border-2 border-[#08B36A] p-3 sm:p-3.5 rounded-xl shadow-xs">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-[#08B36A] text-white flex items-center justify-center shadow-xs">
+                                <FaTicketAlt size={13} />
                             </div>
                             <div>
-                                <p className="text-xs font-black text-[#08B36A]">{appliedCoupon.couponName || couponCode}</p>
-                                <p className="text-[9px] text-slate-400 font-medium">
-                                    {appliedCoupon.discountAmount ? `Saved ₹${appliedCoupon.discountAmount} successfully` : "Coupon applied successfully"}
+                                <div className="flex items-center gap-2">
+                                    <p className="text-xs font-black text-slate-900 tracking-wide">{appliedCoupon.couponName || couponCode}</p>
+                                    <span className="bg-[#08B36A] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider">
+                                        APPLIED
+                                    </span>
+                                </div>
+                                <p className="text-[10px] text-emerald-800 font-bold mt-0.5">
+                                    {appliedCoupon.discountAmount ? `Saved ₹${appliedCoupon.discountAmount} successfully!` : "Coupon applied successfully!"}
                                 </p>
                             </div>
                         </div>
                         <button 
                             type="button"
                             onClick={handleRemoveCoupon}
-                            className="text-slate-400 hover:text-rose-400 transition-colors p-1 cursor-pointer"
+                            className="text-slate-400 hover:text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-all cursor-pointer"
+                            title="Remove Coupon"
                         >
-                            <FaTimesCircle size={16} />
+                            <FaTimesCircle size={18} />
                         </button>
                     </div>
                 )}

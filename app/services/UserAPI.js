@@ -737,7 +737,51 @@ cancelPharmacyOrder: async (data) => {
         const response = await authApi.post(`/user/nurse/prescription/accept`, data);
         return response.data;
     },
+    // ==========================================
+// 📦 NURSE PACKAGES API
+// ==========================================
+// ==========================================
+    // 📦 NURSE PACKAGES API
+    // ==========================================
+    getUserCatalogPackages: async (params = {}) => {
+        try {
+            const queryParams = new URLSearchParams();
+            if (params.nurseId) queryParams.append("nurseId", params.nurseId);
+            if (params.search) queryParams.append("search", params.search);
+            if (params.page) queryParams.append("page", params.page);
+            if (params.limit) queryParams.append("limit", params.limit);
 
+            const queryString = queryParams.toString();
+            const url = `/user/nurse/packages/list${queryString ? `?${queryString}` : ""}`;
+            
+            const response = await authApi.get(url);
+            return response.data;
+        } catch (error) {
+            console.error("Error fetching nurse packages:", error);
+            throw error;
+        }
+    },
+/**
+     * Get Nearby Vendors / Providers for a specific Care Package
+     * @param {string} packageId - The MongoDB ID of the package
+     * @param {Object} params - Query params like { lat, lng, radius }
+     */
+    async getNursePackageVendors(packageId, params = {}) {
+        try {
+            const queryParams = new URLSearchParams();
+            if (params.lat) queryParams.append("lat", params.lat);
+            if (params.lng) queryParams.append("lng", params.lng);
+            if (params.radius) queryParams.append("radius", params.radius);
+
+            const queryString = queryParams.toString() ? `?${queryParams.toString()}` : "";
+            
+            const response = await authApi.get(`/user/nurse/packages/vendors/${packageId}${queryString}`);
+            return response.data;
+        } catch (error) {
+            console.error("Error fetching package vendors:", error);
+            throw error;
+        }
+    },
 
 
     // --- Cart Management ---
@@ -845,7 +889,20 @@ getHospitalDropdown: async (searchQuery = "") => {
         }
     }
 },
-
+/**
+     * Get Package Details by ID
+     * Endpoint: GET /user/nurse/packages/details/:packageId
+     * @param {string} packageId - The MongoDB ID of the package
+     */
+    getUserPackageDetails: async (packageId) => {
+        try {
+            const response = await authApi.get(`/user/nurse/packages/details/${packageId}`);
+            return response.data;
+        } catch (error) {
+            console.error("Error fetching package details:", error);
+            throw error;
+        }
+    },
     // 5.2 Place Nurse Booking (POST /user/nurse/book)
     bookNurseAppointment: async (payload) => {
         const response = await authApi.post("/user/nurse/book", payload);
@@ -887,6 +944,19 @@ getNurseTracking: async (bookingId) => {
     const response = await authApi.get(`/user/nurse/track/${bookingId}`);
     return response.data;
 },
+/**
+     * Cancel Prescription Inquiry
+     * @param {string} requestId - The ID of the prescription inquiry/broadcast
+     */
+    async cancelPrescriptionInquiry(requestId) {
+        try {
+            const response = await authApi.patch(`/user/nurse/prescription/cancel/${requestId}`);
+            return response.data;
+        } catch (error) {
+            console.error("Error cancelling prescription inquiry:", error);
+            throw error;
+        }
+    },
 
     // Fetches the global list of unique nursing services with their lowest starting prices [2]
    getGlobalNursingServices: async (params = {}) => {

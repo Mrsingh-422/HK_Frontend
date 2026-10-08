@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { 
     FaClock, FaChevronLeft, FaChevronRight, FaSpinner, 
-    FaBolt, FaCalendarAlt
+    FaBolt, FaCalendarAlt, FaCrown
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
@@ -91,12 +91,12 @@ export default function SlotPicker({
                             return {
                                 time: s.time,
                                 displayTime: s.displayTime || formatTimeToAMPM(s.time),
-                                surcharge: s.slotPremiumFee || 0,
+                                surcharge: s.slotPremiumFee || s.surcharge || 0,
                                 expressExtraFee: s.expressExtraFee || 0,
                                 totalSlotPriceWithExpress: s.totalSlotPriceWithExpress || 0,
                                 isExpressWindow: Boolean(s.isExpressWindow),
                                 isDisabled: isUnavailable,
-                                statusLabel: s.statusLabel || (isUnavailable ? "Closed" : s.isExpressWindow ? "1-4h Express Rush" : "Standard"),
+                                statusLabel: s.statusLabel || (isUnavailable ? "Closed" : s.isExpressWindow ? "Express Rush" : "Standard"),
                                 hourlyBasePrice: s.hourlyBasePrice || 0,
                                 totalHourlyPrice: s.totalHourlyPrice || 0,
                                 isAvailable: !isUnavailable
@@ -271,7 +271,6 @@ export default function SlotPicker({
         };
     }, [pricingRates, initialBasePrice, selectedMode, startDate, endDate, selectedSlot, hourlyStartSlot, hourlyEndSlot, computedHoursCount, calendarDaysList]);
 
-    // 💡 Dispatch selection up to parent with exact string comparison to prevent infinite loops
     const emitSelection = useCallback((newSlot, newMode = selectedMode, newStart = startDate, newEnd = endDate) => {
         if (typeof onSlotSelectRef.current !== "function") return;
 
@@ -563,7 +562,7 @@ export default function SlotPicker({
                         <span className="text-xs font-bold uppercase tracking-wider">Loading Slots...</span>
                     </div>
                 ) : timeSlotsList.length > 0 ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         {timeSlotsList.map((slot, idx) => {
                             const isHourlyStart = selectedMode === "Acc. To Per/Hours" && hourlyStartSlot?.time === slot.time;
                             const isHourlyEnd = selectedMode === "Acc. To Per/Hours" && hourlyEndSlot?.time === slot.time;
@@ -571,6 +570,9 @@ export default function SlotPicker({
 
                             const isRegularSelected = selectedMode !== "Acc. To Per/Hours" && selectedSlot?.time === slot.time;
                             const isSelected = isRegularSelected || isHourlyStart || isHourlyEnd;
+
+                            const extraCharge = Number(slot.expressExtraFee || slot.surcharge || 0);
+                            const isPremiumOrRush = slot.isExpressWindow || extraCharge > 0;
 
                             if (slot.isDisabled) {
                                 return (
@@ -599,34 +601,59 @@ export default function SlotPicker({
                                             handleRegularSlotClick(slot);
                                         }
                                     }}
-                                    className={`p-3.5 rounded-2xl border text-center transition-all cursor-pointer relative flex flex-col items-center justify-center ${
+                                    className={`p-3.5 pt-4 rounded-2xl border text-center transition-all cursor-pointer relative flex flex-col items-center justify-center ${
                                         isSelected
                                             ? "border-[#08B36A] bg-[#08B36A] text-white shadow-lg shadow-emerald-600/30 scale-[1.03] z-10"
                                             : isInHourlyRange
                                             ? "border-emerald-300 bg-emerald-50 text-emerald-950 font-bold"
-                                            : slot.isExpressWindow
-                                            ? "border-amber-300 bg-amber-50/60 hover:border-amber-400 text-slate-900 hover:shadow-xs"
+                                            : isPremiumOrRush
+                                            ? "border-amber-300 bg-amber-50/70 hover:border-amber-400 text-slate-900 shadow-xs"
                                             : "border-slate-200 bg-white hover:border-[#08B36A] text-slate-900 hover:shadow-xs"
                                     }`}
                                 >
+                                    {/* FLOATING PREMIUM / RUSH TAG */}
+                                    {isPremiumOrRush && (
+                                        <div className={`absolute -top-2.5 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs border ${
+                                            isSelected 
+                                                ? "bg-amber-400 text-amber-950 border-amber-300" 
+                                                : "bg-amber-100 text-amber-900 border-amber-300"
+                                        }`}>
+                                            {slot.isExpressWindow ? <FaBolt size={7} /> : <FaCrown size={7} />}
+                                            <span>{slot.isExpressWindow ? "Rush Express" : "Premium"}</span>
+                                        </div>
+                                    )}
+
                                     <p className={`text-xs sm:text-sm font-black ${
                                         isSelected ? "text-white" : isInHourlyRange ? "text-emerald-950" : "text-slate-900"
                                     }`}>
                                         {slot.displayTime || slot.time}
                                     </p>
                                     
-                                    <span className={`text-[9px] sm:text-[10px] font-bold block mt-0.5 flex items-center justify-center gap-1 ${
-                                        isSelected 
-                                            ? "text-emerald-100" 
-                                            : isInHourlyRange 
-                                            ? "text-emerald-800" 
-                                            : slot.isExpressWindow 
-                                            ? "text-amber-700" 
-                                            : "text-slate-500"
-                                    }`}>
-                                        {slot.isExpressWindow && !isSelected && <FaBolt size={8} className="text-amber-500" />}
-                                        {isHourlyStart ? "Start Time" : isHourlyEnd ? "End Time" : slot.statusLabel}
-                                    </span>
+                                    {/* Sub-label & Extra Pricing Badge */}
+                                    <div className="flex flex-col items-center gap-0.5 mt-1">
+                                        <span className={`text-[9px] font-bold block ${
+                                            isSelected 
+                                                ? "text-emerald-100" 
+                                                : isInHourlyRange 
+                                                ? "text-emerald-800" 
+                                                : slot.isExpressWindow 
+                                                ? "text-amber-800" 
+                                                : "text-slate-500"
+                                        }`}>
+                                            {isHourlyStart ? "Start Time" : isHourlyEnd ? "End Time" : slot.statusLabel}
+                                        </span>
+
+                                        {/* EXTRA SURCHARGE / RUSH PRICE BADGE */}
+                                        {extraCharge > 0 && (
+                                            <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-md ${
+                                                isSelected 
+                                                    ? "bg-emerald-700/80 text-white" 
+                                                    : "bg-amber-200/70 text-amber-900 border border-amber-300/60"
+                                            }`}>
+                                                +₹{extraCharge} Rush
+                                            </span>
+                                        )}
+                                    </div>
                                 </button>
                             );
                         })}

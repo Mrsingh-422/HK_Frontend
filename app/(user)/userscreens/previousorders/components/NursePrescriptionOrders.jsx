@@ -1,17 +1,15 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom'; // Required for screen centering
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
-import UserAPI from '@/app/services/UserAPI'; // Adjust this path to match your project structure
+import UserAPI from '@/app/services/UserAPI';
 import {
-    FiX, FiActivity, FiLayers, FiHome,
-    FiSearch, FiRefreshCw, FiChevronLeft, FiChevronRight,
-    FiUser, FiMapPin, FiClock, FiCreditCard, FiStar, FiCheckCircle
+    FiX, FiActivity, FiSearch, FiRefreshCw, FiChevronLeft, FiChevronRight,
+    FiMapPin, FiClock, FiCreditCard, FiLoader, FiTrash2, FiAlertTriangle
 } from 'react-icons/fi';
 import { HiStar } from 'react-icons/hi';
-import { MdOutlineRateReview, MdPayment } from 'react-icons/md';
-import { FaMoneyBillWave, FaFlask, FaFileMedical, FaTimes, FaCheck, FaArrowLeft, FaHistory, FaUserNurse } from 'react-icons/fa';
+import { FaFileMedical, FaUserNurse } from 'react-icons/fa';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -26,7 +24,7 @@ const getReportFileUrl = (path) => {
 };
 
 function NursePrescriptionOrders() {
-    const themeColor = "#08B36A"; // Indigo accent color to match LabOrders style
+    const themeColor = "#08B36A";
 
     // ==========================================
     // 🌟 LOADING & DATA STATES
@@ -43,6 +41,8 @@ function NursePrescriptionOrders() {
     // ==========================================
     const [detailsModal, setDetailsModal] = useState({ isOpen: false, data: null });
     const [proposalsModal, setProposalsModal] = useState({ isOpen: false, data: null, proposals: [] });
+    const [cancelModal, setCancelModal] = useState({ isOpen: false, data: null });
+    const [cancelling, setCancelling] = useState(false);
     const [mounted, setMounted] = useState(false);
 
     // 1. Handle Mounting for Portals (Next.js SSR safety)
@@ -53,21 +53,20 @@ function NursePrescriptionOrders() {
 
     // 2. Prevent body scroll when modals are open
     useEffect(() => {
-        if (detailsModal.isOpen || proposalsModal.isOpen) {
+        if (detailsModal.isOpen || proposalsModal.isOpen || cancelModal.isOpen) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [detailsModal.isOpen, proposalsModal.isOpen]);
+    }, [detailsModal.isOpen, proposalsModal.isOpen, cancelModal.isOpen]);
 
     // Fetch Broadcast History List
     const loadRequestsHistory = useCallback(async (page = 1) => {
         setLoading(true);
         try {
             const response = await UserAPI.getNurseProposals();
-            if (response.success) {
-                // response.data contains requests history array as per your schema
+            if (response && response.success) {
                 setOrders(response.data || []);
                 setPagination({
                     currentPage: response.currentPage || 1,
@@ -87,13 +86,14 @@ function NursePrescriptionOrders() {
         loadRequestsHistory();
     }, [loadRequestsHistory]);
 
-    // --- API 1.3: VIEW INCOMING PROPOSALS ---
+    // --- VIEW INCOMING PROPOSALS ---
     const handleViewProposals = async (request) => {
+        const reqId = request.requestId || request._id;
         setProposalsModal({ isOpen: true, data: request, proposals: [] });
         setProposalsLoading(true);
         try {
-            const response = await UserAPI.viewNurseProposalDetail(request.requestId);
-            if (response.success) {
+            const response = await UserAPI.viewNurseProposalDetail(reqId);
+            if (response && response.success) {
                 setProposalsModal(prev => ({
                     ...prev,
                     proposals: response.proposals || []
@@ -107,98 +107,136 @@ function NursePrescriptionOrders() {
         }
     };
 
+    // --- CANCEL PRESCRIPTION INQUIRY ---
+    const handleCancelPrescriptionInquiry = async () => {
+        const reqId = cancelModal.data?.requestId || cancelModal.data?._id;
+        if (!reqId) return;
+
+        setCancelling(true);
+        try {
+            const res = await UserAPI.cancelPrescriptionInquiry(reqId);
+            if (res && res.success) {
+                toast.success(res.message || "Prescription inquiry cancelled successfully.");
+                setCancelModal({ isOpen: false, data: null });
+                setDetailsModal({ isOpen: false, data: null });
+                loadRequestsHistory();
+            } else {
+                toast.error(res?.message || "Failed to cancel inquiry.");
+            }
+        } catch (err) {
+            console.error("Cancellation error:", err);
+            toast.error(err.response?.data?.message || "Could not process cancellation.");
+        } finally {
+            setCancelling(false);
+        }
+    };
+
     // --- DYNAMIC RAZORPAY SCRIPT LOADER ---
     const loadRazorpayScript = () => {
         return new Promise((resolve) => {
-            if (window.Razorpay) {
+            if (typeof window !== "undefined" && window.Razorpay) {
                 resolve(true);
                 return;
             }
             const script = document.createElement("script");
             script.src = "https://checkout.razorpay.com/v1/checkout.js";
+            script.async = true;
             script.onload = () => resolve(true);
             script.onerror = () => resolve(false);
             document.body.appendChild(script);
         });
     };
 
-    // --- API 1.4: ACCEPT PROPOSAL (COD vs ONLINE Checkouts) ---
-    const handleAcceptProposal = async (proposal, method) => {
+    // --- ACCEPT PROPOSAL (POST /user/nurse/prescription/accept) ---
+    const handleAcceptProposal = async (proposal) => {
         const activeRequest = proposalsModal.data;
-        if (!activeRequest?.requestId || !proposal?._id) return;
+        const targetRequestId = activeRequest?.requestId || activeRequest?._id;
+        const targetProposalId = proposal?._id || proposal?.proposalId;
+
+        if (!targetRequestId || !targetProposalId) {
+            toast.error("Invalid request or proposal information.");
+            return;
+        }
 
         setActionLoading(true);
+
         const payload = {
-            requestId: activeRequest.requestId,
-            proposalId: proposal._id,
-            paymentMethod: method // "COD" | "Online"
+            requestId: targetRequestId,
+            proposalId: targetProposalId
         };
 
         try {
             const response = await UserAPI.acceptNurseProposal(payload);
 
-            if (method === "COD") {
-                if (response.success) {
-                    toast.success("Proposal accepted! Booking generated under COD.");
-                    setProposalsModal({ isOpen: false, data: null, proposals: [] });
-                    loadRequestsHistory(); // Refresh table
+            if (response && response.success && response.razorpayOrderId) {
+                const loaded = await loadRazorpayScript();
+                if (!loaded) {
+                    toast.error("Razorpay SDK failed to load. Please check your internet connection.");
+                    setActionLoading(false);
+                    return;
                 }
-            } else {
-                // Online payment handling with Razorpay
-                if (response.success && response.razorpayOrderId) {
-                    const loaded = await loadRazorpayScript();
-                    if (!loaded) {
-                        toast.error("Razorpay SDK failed to load. Are you online?");
-                        return;
-                    }
 
-                    const options = {
-                        key: response.key_id,
-                        amount: response.amount,
-                        currency: "INR",
-                        name: "Nurse Care Booking",
-                        description: `Booking Ref: ${response.bookingId}`,
-                        order_id: response.razorpayOrderId,
-                        handler: async function (paymentResponse) {
-                            // --- API 1.5: VERIFY PRESCRIPTION PAYMENT ---
-                            const verificationPayload = {
-                                appointmentId: response.appointmentId,
-                                requestId: response.requestId,
-                                proposalId: response.proposalId,
-                                razorpayOrderId: response.razorpayOrderId,
-                                razorpayPaymentId: paymentResponse.razorpay_payment_id,
-                                razorpaySignature: paymentResponse.razorpay_signature
-                            };
+                let keyId = response.key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+                if (typeof keyId === 'string' && keyId.startsWith("zp_")) {
+                    keyId = "r" + keyId;
+                }
 
-                            setLoading(true);
-                            try {
-                                const verifyRes = await UserAPI.verifyPaymentPriscription(verificationPayload);
-                                if (verifyRes.success) {
-                                    toast.success("Payment verified! Booking confirmed successfully.");
-                                    setProposalsModal({ isOpen: false, data: null, proposals: [] });
-                                    loadRequestsHistory();
-                                }
-                            } catch (verifyErr) {
-                                toast.error("Payment verification failed. Contact clinical support.");
-                            } finally {
-                                setLoading(false);
+                const options = {
+                    key: keyId,
+                    amount: response.amount,
+                    currency: response.currency || "INR",
+                    name: "Health Kangaroo Nursing Care",
+                    description: `Booking Ref: ${response.bookingId || targetRequestId}`,
+                    order_id: response.razorpayOrderId,
+                    handler: async function (paymentResponse) {
+                        const verificationPayload = {
+                            appointmentId: response.appointmentId,
+                            requestId: response.requestId || targetRequestId,
+                            proposalId: response.proposalId || targetProposalId,
+                            razorpayOrderId: response.razorpayOrderId,
+                            razorpayPaymentId: paymentResponse.razorpay_payment_id,
+                            razorpaySignature: paymentResponse.razorpay_signature
+                        };
+
+                        setLoading(true);
+                        try {
+                            const verifyApi = UserAPI.verifyPaymentPriscription || UserAPI.verifyPaymentNursePriscription || UserAPI.verifyPaymentNurse;
+                            const verifyRes = await verifyApi(verificationPayload);
+                            if (verifyRes && verifyRes.success) {
+                                toast.success(verifyRes.message || "Payment verified! Booking confirmed successfully.");
+                                setProposalsModal({ isOpen: false, data: null, proposals: [] });
+                                loadRequestsHistory();
+                            } else {
+                                toast.error(verifyRes?.message || "Payment verification failed.");
                             }
-                        },
-                        prefill: {
-                            name: "User",
-                            email: "user@gmail.com"
-                        },
-                        theme: {
-                            color: themeColor
+                        } catch (verifyErr) {
+                            console.error("Verification error:", verifyErr);
+                            toast.error(verifyErr?.response?.data?.message || "Payment verification failed. Contact support.");
+                        } finally {
+                            setLoading(false);
                         }
-                    };
+                    },
+                    prefill: {
+                        name: "Patient",
+                        email: "patient@healthkangaroo.com"
+                    },
+                    theme: {
+                        color: themeColor
+                    }
+                };
 
-                    const rzp = new window.Razorpay(options);
-                    rzp.open();
-                }
+                const rzp = new window.Razorpay(options);
+                rzp.on('payment.failed', function (resp) {
+                    toast.error(resp.error?.description || "Payment failed or was cancelled.");
+                    setActionLoading(false);
+                });
+                rzp.open();
+            } else {
+                toast.error(response?.message || "Failed to generate payment order.");
             }
         } catch (err) {
-            toast.error(err.response?.data?.message || "Action processed with failure.");
+            console.error("Accept proposal error:", err);
+            toast.error(err.response?.data?.message || err.message || "Action processed with failure.");
         } finally {
             setActionLoading(false);
         }
@@ -210,9 +248,9 @@ function NursePrescriptionOrders() {
     };
 
     const getStatusStyles = (status) => {
-        if (['Completed', 'Confirmed'].includes(status)) return 'text-emerald-600 bg-emerald-50';
-        if (status === 'Cancelled') return 'text-rose-500 bg-rose-50';
-        return 'text-indigo-600 bg-indigo-50';
+        if (['Completed', 'Confirmed'].includes(status)) return 'text-emerald-700 bg-emerald-50 border border-emerald-200';
+        if (status === 'Cancelled') return 'text-rose-700 bg-rose-50 border border-rose-200';
+        return 'text-amber-700 bg-amber-50 border border-amber-200';
     };
 
     // Filter requests list locally based on search
@@ -222,9 +260,14 @@ function NursePrescriptionOrders() {
         return idMatch || statusMatch;
     });
 
+    const handleOpenDetails = (data) => {
+        setDetailsModal({ isOpen: true, data });
+    };
+
     // --- MODAL PORTAL COMPONENT: REQUEST DETAILS VIEW ---
     const NurseRequestDetailsModal = ({ data, onClose }) => {
-        if (!mounted) return null;
+        if (!mounted || !data) return null;
+        const isCancellable = data.status !== 'Cancelled' && data.status !== 'Completed';
 
         return createPortal(
             <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6">
@@ -235,17 +278,19 @@ function NursePrescriptionOrders() {
                     {/* Header */}
                     <div className="p-6 md:p-8 border-b flex justify-between items-center bg-slate-50/30 shrink-0">
                         <div className="flex items-center gap-3">
-                            <span className="bg-indigo-600 text-white p-2.5 rounded-2xl shrink-0 shadow-lg shadow-indigo-100">
+                            <span className="bg-[#08B36A] text-white p-2.5 rounded-2xl shrink-0 shadow-lg shadow-emerald-600/20">
                                 <FiActivity size={20} />
                             </span>
                             <div>
-                                <h3 className="font-black text-slate-900 text-sm md:text-base uppercase tracking-widest">Broadcast #{data.requestId.slice(-8).toUpperCase()}</h3>
+                                <h3 className="font-black text-slate-900 text-sm md:text-base uppercase tracking-widest font-mono">
+                                    Broadcast #{data.requestId ? data.requestId.slice(-8).toUpperCase() : "CARE"}
+                                </h3>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Details Summary</p>
                             </div>
                         </div>
                         <button
                             onClick={onClose}
-                            className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 hover:border-rose-100 transition-all shrink-0 shadow-sm"
+                            className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 hover:border-rose-100 transition-all shrink-0 shadow-sm cursor-pointer"
                         >
                             <FiX size={20} />
                         </button>
@@ -260,7 +305,7 @@ function NursePrescriptionOrders() {
                                 {data.prescriptionImage && (
                                     <div className="space-y-2">
                                         <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Prescription Image</p>
-                                        <div className="border border-slate-100 rounded-[2rem] overflow-hidden max-h-48 bg-slate-50 flex items-center justify-center p-2">
+                                        <div className="border border-slate-150 rounded-[2rem] overflow-hidden max-h-48 bg-slate-50 flex items-center justify-center p-2">
                                             <img
                                                 src={getReportFileUrl(data.prescriptionImage)}
                                                 alt="Prescription"
@@ -279,7 +324,7 @@ function NursePrescriptionOrders() {
                                 <p className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest">Address & Expiry</p>
                                 <div className="space-y-3">
                                     <div className="flex items-center gap-3 text-xs font-bold text-slate-700">
-                                        <FiMapPin className="text-indigo-500" size={16} />
+                                        <FiMapPin className="text-[#08B36A] shrink-0" size={16} />
                                         <span>
                                             House {data.location?.address?.houseNo}, {data.location?.address?.city}, {data.location?.address?.state} - {data.location?.address?.pincode}
                                         </span>
@@ -288,14 +333,14 @@ function NursePrescriptionOrders() {
                                         <p className="pl-7 text-[11px] text-slate-400 font-bold uppercase">Landmark: {data.location.address.landmark}</p>
                                     )}
                                     <div className="flex items-center gap-3 text-xs font-bold text-slate-700">
-                                        <FiClock className="text-indigo-500" size={16} />
+                                        <FiClock className="text-slate-400 shrink-0" size={16} />
                                         <span>Created: {new Date(data.createdAt).toLocaleDateString()}</span>
                                     </div>
-                                    <div className="flex items-center gap-3 text-xs font-bold text-red-500">
-                                        <FiClock className="text-red-500" size={16} />
+                                    <div className="flex items-center gap-3 text-xs font-bold text-rose-500">
+                                        <FiClock className="text-rose-500 shrink-0" size={16} />
                                         <span>Expires: {new Date(data.expiresAt).toLocaleTimeString()}</span>
                                     </div>
-                                    <div className="flex justify-between items-center text-xs font-bold text-slate-700 border-t pt-2 mt-2">
+                                    <div className="flex justify-between items-center text-xs font-bold text-slate-700 border-t border-slate-200/60 pt-2.5 mt-2">
                                         <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Status:</span>
                                         <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest ${getStatusStyles(data.status)}`}>
                                             {data.status}
@@ -312,11 +357,11 @@ function NursePrescriptionOrders() {
                                 {data.services?.map((svc, i) => (
                                     <div key={svc._id || i} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
                                         <div className="flex justify-between items-center">
-                                            <span className="font-bold text-slate-700 text-sm">{svc.title}</span>
+                                            <span className="font-bold text-slate-800 text-sm">{svc.title}</span>
                                         </div>
                                         <p className="text-[10px] text-slate-400 font-bold uppercase">{svc.description}</p>
                                         {svc.notes && (
-                                            <p className="text-xs text-indigo-600 font-semibold italic border-t pt-1.5 mt-1.5">Note: "{svc.notes}"</p>
+                                            <p className="text-xs text-[#08B36A] font-semibold italic border-t border-slate-200/60 pt-1.5 mt-1.5">Note: "{svc.notes}"</p>
                                         )}
                                     </div>
                                 ))}
@@ -326,16 +371,27 @@ function NursePrescriptionOrders() {
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="p-6 md:p-8 bg-slate-50/50 border-t flex gap-3 shrink-0">
+                    <div className="p-6 md:p-8 bg-slate-50/50 border-t flex flex-wrap gap-3 shrink-0">
                         <button
                             onClick={() => {
                                 onClose();
                                 handleViewProposals(data);
                             }}
-                            className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                            className="flex-1 py-4 bg-[#08B36A] hover:bg-[#079c5c] text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer"
                         >
                             <FaUserNurse size={14} /> Check Proposals
                         </button>
+                        {isCancellable && (
+                            <button
+                                onClick={() => {
+                                    onClose();
+                                    setCancelModal({ isOpen: true, data });
+                                }}
+                                className="py-4 px-6 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer"
+                            >
+                                <FiTrash2 size={14} /> Cancel Inquiry
+                            </button>
+                        )}
                     </div>
 
                 </div>
@@ -357,17 +413,19 @@ function NursePrescriptionOrders() {
                     {/* Header */}
                     <div className="p-6 md:p-8 border-b flex justify-between items-center bg-slate-50/30 shrink-0">
                         <div className="flex items-center gap-3">
-                            <span className="bg-indigo-600 text-white p-2.5 rounded-2xl shrink-0 shadow-lg shadow-indigo-100">
+                            <span className="bg-[#08B36A] text-white p-2.5 rounded-2xl shrink-0 shadow-lg shadow-emerald-600/20">
                                 <FaUserNurse size={20} />
                             </span>
                             <div>
-                                <h3 className="font-black text-slate-900 text-sm md:text-base uppercase tracking-widest">Offers For #{data.requestId.slice(-8).toUpperCase()}</h3>
+                                <h3 className="font-black text-slate-900 text-sm md:text-base uppercase tracking-widest font-mono">
+                                    Offers For #{data.requestId ? data.requestId.slice(-8).toUpperCase() : "CARE"}
+                                </h3>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Nurse Proposals Queue</p>
                             </div>
                         </div>
                         <button
                             onClick={onClose}
-                            className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 hover:border-rose-100 transition-all shrink-0 shadow-sm"
+                            className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-400 hover:text-rose-500 hover:border-rose-100 transition-all shrink-0 shadow-sm cursor-pointer"
                         >
                             <FiX size={20} />
                         </button>
@@ -387,7 +445,7 @@ function NursePrescriptionOrders() {
                                         <div key={svc._id || i} className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs space-y-1">
                                             <p className="font-bold text-slate-800">{svc.title}</p>
                                             <p className="text-[10px] text-slate-400 font-semibold">{svc.description}</p>
-                                            {svc.notes && <p className="text-[9px] text-indigo-600 italic font-bold">Note: "{svc.notes}"</p>}
+                                            {svc.notes && <p className="text-[9px] text-[#08B36A] italic font-bold">Note: "{svc.notes}"</p>}
                                         </div>
                                     ))}
                                 </div>
@@ -396,18 +454,18 @@ function NursePrescriptionOrders() {
 
                         {proposalsLoading ? (
                             <div className="flex flex-col items-center justify-center py-20 text-slate-400 font-bold text-xs uppercase tracking-wider gap-3">
-                                <FiRefreshCw className="animate-spin text-indigo-600" size={24} />
+                                <FiRefreshCw className="animate-spin text-[#08B36A]" size={24} />
                                 <span>Syncing live nurse offers...</span>
                             </div>
                         ) : proposalsList && proposalsList.length > 0 ? (
                             <div className="space-y-6">
                                 {proposalsList.map((proposal) => (
-                                    <div key={proposal._id} className="bg-white border border-gray-150 rounded-[2rem] shadow-xs p-6 space-y-5 animate-in slide-in-from-top-4 duration-200">
+                                    <div key={proposal._id} className="bg-white border border-slate-200 rounded-[2rem] shadow-sm p-6 space-y-5 animate-in slide-in-from-top-4 duration-200">
 
                                         {/* Nurse Header */}
-                                        <div className="flex items-center justify-between border-b pb-4 border-gray-100">
+                                        <div className="flex items-center justify-between border-b pb-4 border-slate-100">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-xl border overflow-hidden shrink-0">
+                                                <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-[#08B36A] font-black text-xl border border-emerald-100 overflow-hidden shrink-0">
                                                     {proposal.nurseId?.profileImage || proposal.nurse?.profileImage ? (
                                                         <img
                                                             src={getReportFileUrl(proposal.nurseId?.profileImage || proposal.nurse?.profileImage)}
@@ -429,8 +487,8 @@ function NursePrescriptionOrders() {
                                             </div>
 
                                             {/* Rating stars */}
-                                            <div className="flex items-center gap-1 bg-amber-50 border border-amber-100 text-amber-600 px-2 py-1 rounded-lg text-xs font-black">
-                                                <HiStar size={12} className="text-amber-400 fill-amber-400" /> {proposal.nurseId?.rating || proposal.nurse?.rating || "4.5"}
+                                            <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-700 px-2.5 py-1 rounded-lg text-xs font-black">
+                                                <HiStar size={13} className="text-amber-500 fill-amber-500" /> {proposal.nurseId?.rating || proposal.nurse?.rating || "4.8"}
                                             </div>
                                         </div>
 
@@ -439,12 +497,12 @@ function NursePrescriptionOrders() {
 
                                             {/* Services pricing */}
                                             <div className="space-y-2">
-                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Services Billing</p>
-                                                <div className="space-y-1 bg-[#fafafa] p-3 rounded-xl border border-gray-100">
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Services Billing</p>
+                                                <div className="space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                                     {proposal.servicesPricing?.map((svc, i) => (
-                                                        <div key={svc._id || i} className="flex justify-between items-center text-2xs py-1">
+                                                        <div key={svc._id || i} className="flex justify-between items-center text-xs py-1">
                                                             <span className="text-slate-700 truncate max-w-[140px]">{svc.title}</span>
-                                                            <span className="font-bold text-slate-800">₹{svc.price}</span>
+                                                            <span className="font-bold text-slate-900">₹{svc.price}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -452,17 +510,17 @@ function NursePrescriptionOrders() {
 
                                             {/* Consumables pricing */}
                                             <div className="space-y-2">
-                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Used Consumables</p>
-                                                <div className="space-y-1 bg-[#fafafa] p-3 rounded-xl border border-gray-100">
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Used Consumables</p>
+                                                <div className="space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                                     {proposal.consumablesUsed && proposal.consumablesUsed.length > 0 ? (
                                                         proposal.consumablesUsed.map((con, i) => (
-                                                            <div key={i} className="flex justify-between items-center text-2xs py-1">
+                                                            <div key={i} className="flex justify-between items-center text-xs py-1">
                                                                 <span className="text-slate-700 truncate max-w-[140px]">{con.name}</span>
-                                                                <span className="font-bold text-slate-800">₹{con.price}</span>
+                                                                <span className="font-bold text-slate-900">₹{con.price}</span>
                                                             </div>
                                                         ))
                                                     ) : (
-                                                        <div className="text-2xs text-gray-400 py-2.5 font-semibold italic text-center">No materials required</div>
+                                                        <div className="text-xs text-slate-400 py-2.5 font-semibold italic text-center">No materials required</div>
                                                     )}
                                                 </div>
                                             </div>
@@ -472,33 +530,41 @@ function NursePrescriptionOrders() {
                                         {/* Financial Summary card */}
                                         <div className="bg-slate-900 text-white rounded-2xl p-5 flex items-center justify-between text-xs">
                                             <div className="flex items-center gap-2">
-                                                <FiCreditCard className="text-indigo-400" />
+                                                <FiCreditCard className="text-[#08B36A]" size={16} />
                                                 <div>
                                                     <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Est. Invoice Price</p>
-                                                    <p className="text-2xs text-slate-500 font-medium">Includes tax & packaging</p>
+                                                    <p className="text-[10px] text-slate-500 font-medium">Includes tax & packaging</p>
                                                 </div>
                                             </div>
-                                            <span className="text-base font-black text-indigo-400">₹{proposal.priceBreakdown?.totalPrice || 1400}</span>
+                                            <span className="text-base font-black text-[#08B36A]">
+                                                ₹{proposal.priceBreakdown?.totalPrice || proposal.totalPrice || 1400}
+                                            </span>
                                         </div>
 
-                                        {/* Action buttons (COD vs Online) */}
-                                        <div className="flex gap-2">
-                                            <button
-                                                disabled={actionLoading}
-                                                onClick={() => handleAcceptProposal(proposal, "Online")}
-                                                className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-xl uppercase tracking-widest shadow-lg shadow-indigo-100 transition"
-                                            >
-                                                <span className="flex items-center justify-center gap-1.5">
-                                                    <FiCreditCard /> Pay Online
-                                                </span>
-                                            </button>
-                                        </div>
+                                        {/* Accept & Pay Action */}
+                                        <button
+                                            disabled={actionLoading}
+                                            onClick={() => handleAcceptProposal(proposal)}
+                                            className="w-full py-4 bg-[#08B36A] hover:bg-[#079c5c] text-white text-xs font-black rounded-xl uppercase tracking-widest shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer active:scale-95"
+                                        >
+                                            {actionLoading ? (
+                                                <>
+                                                    <FiLoader className="animate-spin" size={16} />
+                                                    <span>Generating Razorpay Order...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <FiCreditCard size={15} />
+                                                    <span>Accept & Pay Online</span>
+                                                </>
+                                            )}
+                                        </button>
 
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <div className="p-12 text-center text-gray-400 font-medium text-[14px]">
+                            <div className="p-12 text-center text-slate-400 font-medium text-sm">
                                 No proposals submitted for this request yet.
                             </div>
                         )}
@@ -512,7 +578,7 @@ function NursePrescriptionOrders() {
     };
 
     return (
-        <div className="bg-white border border-slate-200 rounded-[24px] md:rounded-[32px] overflow-hidden shadow-sm animate-fadeIn">
+        <div className="bg-white border border-slate-200 rounded-[24px] md:rounded-[32px] overflow-hidden shadow-sm animate-fadeIn w-full">
             {/* Header with Search */}
             <div className="p-5 md:p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -526,7 +592,7 @@ function NursePrescriptionOrders() {
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         placeholder="Search by request ID or status..."
-                        className="w-full bg-slate-50 border-none rounded-2xl py-3 pl-11 pr-4 text-xs md:text-sm font-semibold outline-none ring-1 ring-slate-100 focus:ring-indigo-500 transition-all"
+                        className="w-full bg-slate-50 border-none rounded-2xl py-3 pl-11 pr-4 text-xs md:text-sm font-semibold outline-none ring-1 ring-slate-100 focus:ring-[#08B36A] transition-all"
                     />
                 </div>
             </div>
@@ -535,103 +601,126 @@ function NursePrescriptionOrders() {
             <div>
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-24 gap-4">
-                        <FiRefreshCw className="animate-spin text-indigo-600" size={26} />
+                        <FiRefreshCw className="animate-spin text-[#08B36A]" size={26} />
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Loading records...</p>
                     </div>
                 ) : filteredRequests.length === 0 ? (
                     <div className="text-center py-16 text-slate-400 text-xs font-medium">No nurse broadcasts available.</div>
                 ) : (
                     <>
-                        {/* Desktop Table View */}
-                        <div className="hidden lg:block overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                        {/* Desktop Table View with Protected Min-Width and Scroll */}
+                        <div className="hidden lg:block w-full overflow-x-auto custom-scrollbar">
+                            <table className="w-full min-w-[960px] text-left border-collapse table-auto">
                                 <thead>
-                                    <tr className="bg-slate-50/50">
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Broadcast ID</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Care Modules</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Address</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Broadcast Date</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Expiry Limit</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center font-bold">Actions</th>
+                                    <tr className="bg-slate-50/70 border-b border-slate-100">
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-16">#</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Broadcast ID</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Address</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Date</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Expiry</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody className="text-[14px] text-gray-700">
-                                    {filteredRequests.map((req, index) => (
-                                        <tr
-                                            key={req.requestId}
-                                            className="border-b border-gray-50 hover:bg-[#f8fcf9] transition-colors group cursor-pointer"
-                                            onClick={() => handleOpenDetails(req)}
-                                        >
-                                            <td className="p-5 font-medium text-gray-500 w-16">
-                                                {index + 1}
-                                            </td>
-                                            <td className="p-5 font-mono text-xs font-bold text-slate-800">
-                                                {req.requestId}
-                                            </td>
-                                            <td className="p-5 text-xs font-medium text-gray-600 truncate max-w-xs">
-                                                {req.location?.address?.houseNo && `House ${req.location.address.houseNo}, `}
-                                                {req.location?.address?.city && `${req.location.address.city}, `}
-                                                {req.location?.address?.state && `${req.location.address.state}`}
-                                            </td>
-                                            <td className="p-5 text-center text-xs font-semibold text-slate-500">
-                                                {req.createdAt ? new Date(req.createdAt).toLocaleDateString() : 'N/A'}
-                                            </td>
-                                            <td className="p-5 text-center text-xs font-bold text-red-500">
-                                                {req.expiresAt ? new Date(req.expiresAt).toLocaleTimeString() : 'N/A'}
-                                            </td>
-                                            <td className="p-5 text-center">
-                                                <span className={`inline-block px-3 py-1 rounded-lg text-[9px] font-black uppercase ${req.status === 'Completed' || req.status === 'Confirmed'
-                                                        ? 'bg-green-50 text-green-600 border border-green-100'
-                                                        : 'bg-amber-50 text-amber-600 border border-amber-100'
-                                                    }`}>
-                                                    {req.status || "Broadcasted"}
-                                                </span>
-                                            </td>
+                                <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
+                                    {filteredRequests.map((req, index) => {
+                                        const isCancellable = req.status !== 'Cancelled' && req.status !== 'Completed';
 
-                                            <td className="p-5 text-center" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex justify-center gap-2">
-                                                    <button
-                                                        onClick={() => handleViewProposals(req)}
-                                                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[12px] font-bold rounded-xl shadow-md shadow-indigo-100 transition-all"
-                                                    >
-                                                        <FaUserNurse size={12} /> Proposals
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                        return (
+                                            <tr
+                                                key={req.requestId || req._id || index}
+                                                className="hover:bg-slate-50/70 transition-colors group cursor-pointer"
+                                                onClick={() => handleOpenDetails(req)}
+                                            >
+                                                <td className="px-6 py-4 font-bold text-slate-400 text-xs">
+                                                    {index + 1}
+                                                </td>
+                                                <td className="px-6 py-4 font-mono text-xs font-black text-slate-900">
+                                                    #{req.requestId}
+                                                </td>
+                                                <td className="px-6 py-4 text-xs font-medium text-slate-600 truncate max-w-xs">
+                                                    {req.location?.address?.houseNo && `House ${req.location.address.houseNo}, `}
+                                                    {req.location?.address?.city && `${req.location.address.city}, `}
+                                                    {req.location?.address?.state && `${req.location.address.state}`}
+                                                </td>
+                                                <td className="px-6 py-4 text-center text-xs font-bold text-slate-600">
+                                                    {req.createdAt ? new Date(req.createdAt).toLocaleDateString() : 'N/A'}
+                                                </td>
+                                                <td className="px-6 py-4 text-center text-xs font-bold text-rose-500">
+                                                    {req.expiresAt ? new Date(req.expiresAt).toLocaleTimeString() : 'N/A'}
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${getStatusStyles(req.status)}`}>
+                                                        {req.status || "Broadcasted"}
+                                                    </span>
+                                                </td>
+
+                                                <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="inline-flex justify-end gap-2 whitespace-nowrap items-center">
+                                                        <button
+                                                            onClick={() => handleViewProposals(req)}
+                                                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#08B36A] hover:bg-[#079c5c] text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+                                                        >
+                                                            <FaUserNurse size={12} /> View Proposals
+                                                        </button>
+                                                        {isCancellable && (
+                                                            <button
+                                                                onClick={() => setCancelModal({ isOpen: true, data: req })}
+                                                                className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl border border-rose-200 transition-colors cursor-pointer"
+                                                                title="Cancel Inquiry"
+                                                            >
+                                                                <FiTrash2 size={14} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
 
                         {/* Mobile Cards View */}
                         <div className="block lg:hidden divide-y divide-slate-100 px-4">
-                            {filteredRequests.map((req) => (
-                                <div key={req.requestId} className="py-5 flex flex-col gap-3.5">
-                                    <div className="flex justify-between items-start" onClick={() => handleOpenDetails(req)}>
-                                        <div>
-                                            <p className="text-[10px] font-black text-slate-400 tracking-wider">#{req.requestId.slice(-8).toUpperCase()}</p>
-                                            <h4 className="text-sm font-black text-slate-800 line-clamp-1">{getServicesSummary(req.services)}</h4>
+                            {filteredRequests.map((req) => {
+                                const isCancellable = req.status !== 'Cancelled' && req.status !== 'Completed';
+
+                                return (
+                                    <div key={req.requestId || req._id} className="py-5 flex flex-col gap-3.5">
+                                        <div className="flex justify-between items-start" onClick={() => handleOpenDetails(req)}>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 tracking-wider">#{req.requestId ? req.requestId.slice(-8).toUpperCase() : "CARE"}</p>
+                                                <h4 className="text-sm font-black text-slate-800 line-clamp-1">{getServicesSummary(req.services)}</h4>
+                                            </div>
+                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${getStatusStyles(req.status)}`}>{req.status}</span>
                                         </div>
-                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${getStatusStyles(req.status)}`}>{req.status}</span>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                onClick={() => handleViewProposals(req)}
+                                                className="w-full bg-[#08B36A] hover:bg-[#079c5c] py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center text-white flex items-center justify-center gap-1 shadow-md shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer"
+                                            >
+                                                <FaUserNurse /> View Proposals
+                                            </button>
+                                            {isCancellable ? (
+                                                <button
+                                                    onClick={() => setCancelModal({ isOpen: true, data: req })}
+                                                    className="py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-1"
+                                                >
+                                                    <FiTrash2 size={12} /> Cancel
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleOpenDetails(req)}
+                                                    className="py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer active:scale-95 transition-all"
+                                                >
+                                                    View Details
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <button
-                                            onClick={() => handleViewProposals(req)}
-                                            className="w-full bg-indigo-600 hover:bg-indigo-700 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center text-white flex items-center justify-center gap-1 shadow-md shadow-indigo-100"
-                                        >
-                                            <FaUserNurse /> View Proposals
-                                        </button>
-                                        <button
-                                            onClick={() => handleOpenDetails(req)}
-                                            className="py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center border border-slate-200 bg-white"
-                                        >
-                                            View Details
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </>
                 )}
@@ -641,8 +730,8 @@ function NursePrescriptionOrders() {
             <div className="p-4 md:p-6 border-t border-slate-100 flex items-center justify-between bg-slate-50/20">
                 <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Page {pagination.currentPage} of {pagination.totalPages}</p>
                 <div className="flex gap-2">
-                    <button disabled={pagination.currentPage === 1} className="p-2 rounded-lg border border-slate-200 bg-white disabled:opacity-30"><FiChevronLeft size={16} /></button>
-                    <button disabled={pagination.currentPage >= pagination.totalPages} className="p-2 rounded-lg border border-slate-200 bg-white disabled:opacity-30"><FiChevronRight size={16} /></button>
+                    <button disabled={pagination.currentPage === 1} className="p-2 rounded-lg border border-slate-200 bg-white disabled:opacity-30 cursor-pointer"><FiChevronLeft size={16} /></button>
+                    <button disabled={pagination.currentPage >= pagination.totalPages} className="p-2 rounded-lg border border-slate-200 bg-white disabled:opacity-30 cursor-pointer"><FiChevronRight size={16} /></button>
                 </div>
             </div>
 
@@ -663,10 +752,56 @@ function NursePrescriptionOrders() {
                 />
             )}
 
+            {/* --- CANCELLATION CONFIRMATION MODAL --- */}
+            {cancelModal.isOpen && cancelModal.data && mounted && createPortal(
+                <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-6 sm:p-8 shadow-2xl border border-slate-100 text-center space-y-5">
+                        <div className="w-16 h-16 mx-auto bg-rose-50 rounded-2xl flex items-center justify-center text-rose-500 border border-rose-100">
+                            <FiAlertTriangle size={32} />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black text-slate-900">Cancel Prescription Inquiry?</h3>
+                            <p className="text-xs text-slate-500 font-semibold mt-1">Ref: #{cancelModal.data.requestId ? cancelModal.data.requestId.slice(-8).toUpperCase() : "CARE"}</p>
+                        </div>
+
+                        <p className="text-xs text-slate-600 font-medium">
+                            This will cancel your broadcasted prescription request and notify all associated nursing bureaus.
+                        </p>
+
+                        <div className="flex gap-2 pt-2">
+                            <button
+                                type="button"
+                                disabled={cancelling}
+                                onClick={() => setCancelModal({ isOpen: false, data: null })}
+                                className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
+                            >
+                                Back
+                            </button>
+                            <button
+                                type="button"
+                                disabled={cancelling}
+                                onClick={handleCancelPrescriptionInquiry}
+                                className="flex-1 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20 cursor-pointer"
+                            >
+                                {cancelling ? (
+                                    <>
+                                        <FiLoader className="animate-spin" size={14} />
+                                        <span>Cancelling...</span>
+                                    </>
+                                ) : (
+                                    <span>Confirm Cancel</span>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
             <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+                .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
                 @keyframes fadeIn {
                     from { opacity: 0; transform: translateY(10px); }
                     to { opacity: 1; transform: translateY(0); }

@@ -8,7 +8,8 @@ import {
     FiX, FiStar, FiArrowLeft, FiClock,
     FiUser, FiSearch, FiMapPin, FiLoader,
     FiCheck, FiDollarSign, FiTrash2, FiCheckCircle,
-    FiPhone, FiZap, FiAlertTriangle, FiAlertCircle
+    FiPhone, FiZap, FiAlertTriangle, FiAlertCircle,
+    FiCalendar, FiImage, FiFileText
 } from 'react-icons/fi';
 import { MdVerified, MdOutlineMedicalServices, MdLocalHospital } from 'react-icons/md';
 
@@ -75,7 +76,7 @@ const NurseModeBadge = ({ order }) => {
     );
 };
 
-// --- SUB-COMPONENT: PAYMENT STATUS BADGE (STRICTLY FROM CHECKLIST) ---
+// --- SUB-COMPONENT: PAYMENT STATUS BADGE ---
 const NursePaymentBadge = ({ order }) => {
     if (order.isCod === true || order.paymentMethod === 'COD') {
         return (
@@ -299,7 +300,7 @@ function NursingOrders() {
         return () => { document.body.style.overflow = 'unset'; };
     }, [modal.isOpen, cancelModal.isOpen, cancellationResult]);
 
-    // 1. Fetch Orders Data (GET /user/nurse/my-appointments)
+    // 1. Fetch Orders Data
     const fetchOrders = useCallback(async (page = 1) => {
         try {
             setLoading(true);
@@ -323,7 +324,7 @@ function NursingOrders() {
         fetchOrders();
     }, [fetchOrders]);
 
-    // 2. Open Live Details & Tracking Modal (GET /user/nurse/track/:id)
+    // 2. Open Live Details & Tracking Modal
     const handleOpenDetails = async (order) => {
         setModal({ isOpen: true, type: 'details', data: order, trackingData: null });
         try {
@@ -337,7 +338,7 @@ function NursingOrders() {
         }
     };
 
-    // 3. Retry Payment Handler (POST /user/nurse/retry-payment & POST /user/nurse/verify-payment)
+    // 3. Retry Payment Handler
     const handleRetryPayment = async (order) => {
         const appointmentId = order._id || order.appointmentId;
         const targetBookingId = order.bookingId || order._id;
@@ -520,6 +521,7 @@ function NursingOrders() {
         const pendingPayment = Boolean(currentData.canPayOnline);
         const isHospital = currentData.assessmentLocation === "At Hospital" || Boolean(currentData.hospitalDetails);
         const activeTravelFee = currentData.deliveryCharge ?? currentData.travelFee ?? currentData.priceBreakdown?.deliveryCharge ?? currentData.priceBreakdown?.travelFee ?? 0;
+        const dailySessions = currentData.dailySessions || [];
 
         return createPortal(
             <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6">
@@ -612,7 +614,7 @@ function NursingOrders() {
                                     </div>
                                 </div>
 
-                                {/* ASSIGNED STAFF NURSE PROFILE CARD (IF ASSIGNED) */}
+                                {/* ASSIGNED STAFF NURSE PROFILE CARD */}
                                 {assignedStaff && (
                                     <div className="p-5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-[2rem] border border-emerald-100 flex items-center justify-between">
                                         <div className="flex items-center gap-3">
@@ -644,6 +646,90 @@ function NursingOrders() {
                                     </div>
                                 )}
 
+                                {/* DAILY SESSIONS & CARE LOGS SECTION */}
+                                {dailySessions.length > 0 && (
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                                <FiCalendar className="text-[#08B36A]" /> Daily Sessions & Clinical Notes ({dailySessions.length})
+                                            </h4>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {dailySessions.map((session, sIdx) => (
+                                                <div key={sIdx} className="p-5 bg-slate-50 rounded-[2rem] border border-slate-200/80 space-y-3">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="px-2.5 py-1 bg-[#08B36A]/10 text-[#08B36A] font-black text-[10px] rounded-lg">
+                                                                Session #{session.sessionNumber}
+                                                            </span>
+                                                            <span className="text-xs font-black text-slate-800">
+                                                                {session.sessionDate ? new Date(session.sessionDate).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : `Visit #${session.sessionNumber}`}
+                                                            </span>
+                                                        </div>
+                                                        {session.staffName && (
+                                                            <span className="text-[10px] font-bold text-slate-500 bg-white px-2.5 py-1 rounded-md border border-slate-200">
+                                                                Nurse: <strong className="text-slate-800">{session.staffName}</strong>
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Timings */}
+                                                    <div className="flex flex-wrap gap-4 text-[11px] font-bold text-slate-600">
+                                                        {session.startedAt && (
+                                                            <div className="flex items-center gap-1 text-emerald-700">
+                                                                <FiClock size={12} /> Started: {new Date(session.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                            </div>
+                                                        )}
+                                                        {session.completedAt && (
+                                                            <div className="flex items-center gap-1 text-slate-500">
+                                                                <FiClock size={12} /> Ended: {new Date(session.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                            </div>
+                                                        )}
+                                                        {session.extraConsumablesCharges > 0 && (
+                                                            <div className="flex items-center gap-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                                                Consumables: ₹{session.extraConsumablesCharges}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Service Notes */}
+                                                    {session.serviceNotes && (
+                                                        <div className="p-3.5 bg-white rounded-xl border border-slate-200/60 text-xs font-medium text-slate-700 leading-relaxed flex items-start gap-2">
+                                                            <FiFileText className="text-[#08B36A] shrink-0 mt-0.5" size={14} />
+                                                            <div>
+                                                                <strong className="text-slate-900 block text-[10px] uppercase tracking-wider mb-0.5">Clinical Remarks:</strong>
+                                                                {session.serviceNotes}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Progress Photos */}
+                                                    {session.progressPhotos && session.progressPhotos.length > 0 && (
+                                                        <div className="space-y-1.5 pt-1">
+                                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                                                                <FiImage size={12} /> Progress Photos Uploaded ({session.progressPhotos.length})
+                                                            </p>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {session.progressPhotos.map((photo, pIdx) => (
+                                                                    <a 
+                                                                        key={pIdx} 
+                                                                        href={getImageUrl(photo)} 
+                                                                        target="_blank" 
+                                                                        rel="noopener noreferrer"
+                                                                        className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 bg-white block shadow-xs hover:scale-105 transition-transform"
+                                                                    >
+                                                                        <img src={getImageUrl(photo)} alt="Session Progress" className="w-full h-full object-cover" />
+                                                                    </a>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Bureau Profile & Schedule */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
@@ -670,7 +756,7 @@ function NursingOrders() {
                                     </div>
                                 </div>
 
-                                {/* Financial Summary (Shows Travel / Delivery Fee) */}
+                                {/* Financial Summary */}
                                 <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white space-y-6">
                                     <div className="flex items-center gap-2">
                                         <div className="p-2 bg-white/10 rounded-xl text-[#08B36A]">
@@ -799,7 +885,7 @@ function NursingOrders() {
     };
 
     return (
-        <div className="bg-white border border-slate-200 rounded-[24px] md:rounded-[32px] overflow-hidden shadow-sm animate-fadeIn">
+        <div className="bg-white border border-slate-200 rounded-[24px] md:rounded-[32px] overflow-hidden shadow-sm animate-fadeIn w-full">
             {/* Header */}
             <div className="p-5 md:p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -827,17 +913,17 @@ function NursingOrders() {
                 <div className="text-center py-16 text-slate-400 text-xs font-medium">No nurse booking history recorded.</div>
             ) : (
                 <>
-                    {/* Desktop Table */}
-                    <div className="hidden lg:block overflow-x-auto">
-                        <table className="w-full text-left border-collapse table-auto">
+                    {/* Desktop Table with Fixed Horizontal Scroll & Guaranteed Minimum Width */}
+                    <div className="hidden lg:block w-full overflow-x-auto custom-scrollbar">
+                        <table className="w-full min-w-[1060px] text-left border-collapse table-auto">
                             <thead>
                                 <tr className="bg-slate-50/70 border-b border-slate-100">
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Booking ID</th>
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Bureau & Service</th>
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Schedule</th>
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Payment</th>
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                                    <th className="px-4 xl:px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[150px]">Booking ID</th>
+                                    <th className="px-4 xl:px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 min-w-[220px]">Bureau & Service</th>
+                                    <th className="px-4 xl:px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 min-w-[180px]">Schedule</th>
+                                    <th className="px-4 xl:px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 min-w-[140px]">Payment</th>
+                                    <th className="px-4 xl:px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center w-[120px]">Status</th>
+                                    <th className="px-4 xl:px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right min-w-[250px]">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -849,7 +935,7 @@ function NursingOrders() {
                                     return (
                                         <tr key={order._id || order.bookingId} className="hover:bg-slate-50/80 transition-colors">
                                             {/* Column 1: Booking ID & Mode */}
-                                            <td className="px-6 py-5 align-middle">
+                                            <td className="px-4 xl:px-6 py-5 align-middle">
                                                 <div className="flex flex-col gap-1 items-start">
                                                     <span className="text-xs font-black text-slate-900 tracking-wider font-mono">
                                                         #{order.bookingId}
@@ -859,14 +945,14 @@ function NursingOrders() {
                                             </td>
 
                                             {/* Column 2: Bureau & Staff */}
-                                            <td className="px-6 py-5 align-middle">
-                                                <div className="flex items-center gap-3.5">
+                                            <td className="px-4 xl:px-6 py-5 align-middle">
+                                                <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
                                                         <img src={getImageUrl(order.nurseId?.profileImage || order.nurseBureau?.image)} className="w-full h-full object-cover" alt="" />
                                                     </div>
-                                                    <div className="max-w-[210px]">
+                                                    <div className="max-w-[200px]">
                                                         <p className="text-xs font-black text-slate-800 truncate leading-snug">{getNurseBureauName(order)}</p>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight mt-0.5">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight mt-0.5 truncate">
                                                             {order.assignedStaffId ? `Staff: ${order.assignedStaffId.name}` : (order.serviceDetails?.title || 'Clinical Care')}
                                                         </p>
                                                     </div>
@@ -874,13 +960,13 @@ function NursingOrders() {
                                             </td>
 
                                             {/* Column 3: Date, Time & Destination */}
-                                            <td className="px-6 py-5 align-middle">
+                                            <td className="px-4 xl:px-6 py-5 align-middle">
                                                 <div className="flex flex-col text-xs font-bold text-slate-700">
                                                     <span>{order.formattedScheduleDate || (order.schedule?.startDate ? new Date(order.schedule.startDate).toLocaleDateString() : 'Today')}</span>
                                                     <span className="text-[10px] font-medium text-slate-400 mt-0.5">
                                                         {order.formattedScheduleTime || order.schedule?.startTime || '10:00 AM'}
                                                     </span>
-                                                    <span className="text-[9.5px] font-semibold text-slate-500 truncate max-w-[180px] flex items-center gap-1 mt-0.5">
+                                                    <span className="text-[9.5px] font-semibold text-slate-500 truncate max-w-[170px] flex items-center gap-1 mt-0.5">
                                                         {isHospital ? <MdLocalHospital className="text-purple-600 shrink-0" size={10} /> : <FiMapPin className="text-emerald-600 shrink-0" size={10} />}
                                                         {order.destinationLabel || order.assessmentLocation}
                                                     </span>
@@ -888,7 +974,7 @@ function NursingOrders() {
                                             </td>
 
                                             {/* Column 4: Bill & Payment */}
-                                            <td className="px-6 py-5 align-middle">
+                                            <td className="px-4 xl:px-6 py-5 align-middle">
                                                 <div className="flex flex-col gap-1 items-start">
                                                     <span className="text-sm font-black text-slate-900">₹{order.totalAmount ?? order.totalPrice ?? 0}</span>
                                                     <NursePaymentBadge order={order} />
@@ -896,27 +982,27 @@ function NursingOrders() {
                                             </td>
 
                                             {/* Column 5: Status */}
-                                            <td className="px-6 py-5 align-middle text-center">
+                                            <td className="px-4 xl:px-6 py-5 align-middle text-center">
                                                 <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border whitespace-nowrap ${getStatusStyle(order.status)}`}>
                                                     {order.status}
                                                 </span>
                                             </td>
 
-                                            {/* Column 6: Actions */}
-                                            <td className="px-6 py-5 align-middle text-right">
-                                                <div className="inline-flex items-center justify-end gap-2.5 whitespace-nowrap">
+                                            {/* Column 6: Actions (Protected against wrapping and clipping) */}
+                                            <td className="px-4 xl:px-6 py-5 align-middle text-right">
+                                                <div className="inline-flex items-center justify-end gap-2 whitespace-nowrap">
                                                     {/* PAY NOW BUTTON */}
                                                     {pendingPayment && (
                                                         <button 
                                                             disabled={retryingId === (order._id || order.bookingId)}
                                                             onClick={() => handleRetryPayment(order)}
-                                                            className="h-8 px-4 rounded-full text-[11px] font-black uppercase tracking-wide bg-[#FF8A00] hover:bg-[#E67C00] text-white transition-all flex items-center gap-1.5 shadow-md shadow-orange-500/20 disabled:opacity-50 cursor-pointer active:scale-95 border border-orange-400/30"
+                                                            className="h-8 px-3.5 rounded-full text-[10px] font-black uppercase tracking-wide bg-[#FF8A00] hover:bg-[#E67C00] text-white transition-all flex items-center gap-1.5 shadow-md shadow-orange-500/20 disabled:opacity-50 cursor-pointer active:scale-95 border border-orange-400/30"
                                                             title="Pay Now"
                                                         >
                                                             {retryingId === (order._id || order.bookingId) ? (
-                                                                <FiLoader className="animate-spin" size={13} />
+                                                                <FiLoader className="animate-spin" size={12} />
                                                             ) : (
-                                                                <FiAlertCircle size={14} className="shrink-0" />
+                                                                <FiAlertCircle size={13} className="shrink-0" />
                                                             )}
                                                             <span>PAY NOW</span>
                                                         </button>
@@ -945,7 +1031,7 @@ function NursingOrders() {
 
                                                     <button 
                                                         onClick={() => handleOpenDetails(order)} 
-                                                        className="h-8 px-3.5 rounded-xl text-[10px] font-black uppercase border border-slate-200 bg-white text-slate-700 hover:bg-slate-900 hover:text-white transition-all cursor-pointer"
+                                                        className="h-8 px-3 rounded-xl text-[10px] font-black uppercase border border-slate-200 bg-white text-slate-700 hover:bg-slate-900 hover:text-white transition-all cursor-pointer whitespace-nowrap"
                                                     >
                                                         Track / Details
                                                     </button>
@@ -1175,9 +1261,10 @@ function NursingOrders() {
             )}
 
             <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
                 @keyframes fadeIn {
                     from { opacity: 0; transform: translateY(10px); }
                     to { opacity: 1; transform: translateY(0); }

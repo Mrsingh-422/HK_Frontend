@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   MdOutlineMedicalServices, 
   MdOutlineLocalPharmacy, 
@@ -7,7 +8,8 @@ import {
   MdHistory,
   MdOutlineBiotech,
   MdOutlineAssignment,
-  MdReceiptLong
+  MdReceiptLong,
+  MdArrowBack
 } from 'react-icons/md';
 
 // Components (Preserving your exact architecture)
@@ -19,6 +21,8 @@ import NursePrescriptionOrders from './components/NursePrescriptionOrders';
 import LabPrescription from './components/LabPrescription';
 
 function PreviousOrders() {
+    const router = useRouter();
+
     // Categorized distinct icons for each operational tab
     const tabs = [
         { id: 'pharmacy', label: 'Pharmacy', icon: MdOutlineLocalPharmacy },
@@ -59,6 +63,16 @@ function PreviousOrders() {
 
                 {/* --- HEADER --- */}
                 <header className="mb-8 md:mb-12 relative">
+                    
+                    {/* Modern Interactive Back Button */}
+                    <button
+                        onClick={() => router.back()}
+                        className="group inline-flex items-center gap-2 mb-4 px-3.5 py-1.5 rounded-xl bg-white border border-slate-200/80 hover:border-slate-300 text-slate-600 hover:text-slate-900 text-xs font-semibold shadow-xs hover:shadow-sm transition-all duration-200 cursor-pointer active:scale-95"
+                    >
+                        <MdArrowBack className="text-sm transition-transform duration-200 group-hover:-translate-x-1 text-slate-400 group-hover:text-slate-800" />
+                        <span>Back</span>
+                    </button>
+
                     <div className="flex items-center gap-3 mb-2 md:mb-3">
                         <div className="h-5 w-1 bg-emerald-500 rounded-full" />
                         <p className="text-[10px] md:text-[12px] font-bold text-emerald-600 uppercase tracking-[0.25em]">
@@ -79,7 +93,7 @@ function PreviousOrders() {
                         className="flex items-center p-1.5 bg-slate-100 border border-slate-200/40 rounded-2xl w-full md:w-max backdrop-blur-sm overflow-x-auto no-scrollbar scroll-smooth relative"
                         role="tablist"
                     >
-                        {/* Dynamic Sliding Background Indicator (Active on Desktop & Mobile Scroll) */}
+                        {/* Dynamic Sliding Background Indicator */}
                         <div
                             className="absolute bg-white rounded-xl shadow-xs transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] border border-slate-200/50"
                             style={{
@@ -96,7 +110,7 @@ function PreviousOrders() {
                             return (
                                 <button
                                     key={tab.id}
-                                    ref={(el) => { tabsRef.current[idx] = el; }} // Store ref for dynamic dimensions measurement
+                                    ref={(el) => { tabsRef.current[idx] = el; }}
                                     role="tab"
                                     aria-selected={isActive}
                                     onClick={() => setActiveTab(tab.id)}

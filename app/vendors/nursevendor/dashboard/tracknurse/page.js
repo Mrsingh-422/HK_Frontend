@@ -4,7 +4,8 @@ import {
     FaSearch, FaMapMarkerAlt, FaTimes, 
     FaUserCircle, FaCheckCircle, FaUserNurse, FaExchangeAlt, 
     FaPhoneAlt, FaReceipt, FaRoute, FaClipboardList, FaMapPin,
-    FaHospital, FaBed, FaSyncAlt, FaFileMedical, FaClock
+    FaHospital, FaBed, FaSyncAlt, FaFileMedical, FaClock,
+    FaMoneyBillWave, FaMotorcycle, FaTag
 } from 'react-icons/fa'
 import { toast, Toaster } from 'react-hot-toast'
 import NurseAPI from '@/app/services/NurseAPI'
@@ -69,6 +70,7 @@ export default function TrackNursePage() {
         const filtered = bookings.filter(b => 
             (b.bookingId && b.bookingId.toLowerCase().includes(val.toLowerCase())) ||
             (b.bookingIdCustom && b.bookingIdCustom.toLowerCase().includes(val.toLowerCase())) ||
+            (b.primaryPatientName && b.primaryPatientName.toLowerCase().includes(val.toLowerCase())) ||
             (b.assignedStaffId && b.assignedStaffId.name && b.assignedStaffId.name.toLowerCase().includes(val.toLowerCase())) ||
             (b.assignedStaff && b.assignedStaff.name && b.assignedStaff.name.toLowerCase().includes(val.toLowerCase())) ||
             (b.assignedStaff && b.assignedStaff.staffName && b.assignedStaff.staffName.toLowerCase().includes(val.toLowerCase()))
@@ -76,7 +78,7 @@ export default function TrackNursePage() {
         setFilteredBookings(filtered);
     };
 
-    // Open Live Tracker (API 5.3)
+    // Open Live Tracker (API 5.3 / track/:id)
     const openLiveTracker = async (bookingId) => {
         setTrackingLoading(true);
         setLiveTracking(null);
@@ -150,9 +152,9 @@ export default function TrackNursePage() {
     const handleReassignFromTrackerModal = (trackerData) => {
         setIsTrackModalOpen(false);
         openReassignment({
-            _id: trackerData.bookingId,
+            _id: trackerData._id || trackerData.bookingId,
             bookingId: trackerData.bookingIdCustom || trackerData.bookingId,
-            assignedStaff: trackerData.assignedStaff
+            assignedStaff: trackerData.assignedStaffId || trackerData.assignedStaff
         });
     };
 
@@ -214,23 +216,31 @@ export default function TrackNursePage() {
                                     <th className="px-7 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">#</th>
                                     <th className="px-7 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Booking ID</th>
                                     <th className="px-7 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Assigned Staff</th>
-                                    <th className="px-7 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Location Type</th>
+                                    <th className="px-7 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Location / Destination</th>
                                     <th className="px-7 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Schedule</th>
                                     <th className="px-7 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right">Action</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-xs">
                                 {filteredBookings.map((item, idx) => {
-                                    const assignedNurseName = item.assignedStaff?.name || item.assignedStaff?.staffName || item.assignedStaffId?.name || "Unassigned";
-                                    const assignedNursePhone = item.assignedStaff?.phone || item.assignedStaff?.staffPhone || item.assignedStaffId?.phone || "No phone";
-                                    const assignedNursePic = item.assignedStaff?.profilePic || item.assignedStaff?.staffProfilePic || item.assignedStaffId?.profilePic || null;
+                                    const staffObj = item.assignedStaffId || item.assignedStaff;
+                                    const assignedNurseName = staffObj?.name || staffObj?.staffName || "Unassigned";
+                                    const assignedNursePhone = staffObj?.phone || staffObj?.staffPhone || "No phone";
+                                    const assignedNursePic = staffObj?.profilePic || staffObj?.staffProfilePic || null;
                                     const isHospital = item.assessmentLocation === "At Hospital" || !!item.hospitalDetails;
                                     
                                     return (
                                         <tr key={item._id} className="hover:bg-slate-50/60 transition-colors">
                                             <td className="px-7 py-5 text-slate-400 font-bold">{idx + 1}</td>
-                                            <td className="px-7 py-5 font-mono font-bold text-slate-900">
-                                                {item.bookingIdCustom || item.bookingId || "N/A"}
+                                            <td className="px-7 py-5">
+                                                <div className="font-mono font-bold text-slate-900">
+                                                    {item.bookingIdCustom || item.bookingId || "N/A"}
+                                                </div>
+                                                {item.paymentDisplayLabel && (
+                                                    <span className="text-[10px] font-bold text-emerald-700 block mt-0.5">
+                                                        {item.paymentDisplayLabel}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-7 py-5">
                                                 <div className="flex items-center gap-3">
@@ -252,25 +262,32 @@ export default function TrackNursePage() {
                                                 </div>
                                             </td>
                                             <td className="px-7 py-5">
-                                                <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase px-2.5 py-1 rounded-full border ${
-                                                    isHospital 
-                                                        ? 'bg-purple-50 text-purple-700 border-purple-200' 
-                                                        : 'bg-emerald-50 text-[#08B36A] border-emerald-200'
-                                                }`}>
-                                                    {isHospital ? <FaHospital size={9} /> : <FaMapMarkerAlt size={9} />}
-                                                    {isHospital ? "Hospital Care" : "Home Care"}
-                                                </span>
+                                                <div className="max-w-[260px]">
+                                                    <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full border mb-1 ${
+                                                        isHospital 
+                                                            ? 'bg-purple-50 text-purple-700 border-purple-200' 
+                                                            : 'bg-emerald-50 text-[#08B36A] border-emerald-200'
+                                                    }`}>
+                                                        {isHospital ? <FaHospital size={8} /> : <FaMapMarkerAlt size={8} />}
+                                                        {isHospital ? "Hospital Bedside" : "Home Care"}
+                                                    </span>
+                                                    <p className="font-bold text-slate-800 text-[11px] truncate">
+                                                        {item.destinationLabel || `${item.address?.houseNo || ''}, ${item.address?.city || ''}`}
+                                                    </p>
+                                                </div>
                                             </td>
                                             <td className="px-7 py-5 font-medium text-slate-600">
                                                 <span className="font-bold text-slate-800 block">
-                                                    {item.schedule?.startDate ? new Date(item.schedule.startDate).toLocaleDateString() : 'N/A'}
+                                                    {item.formattedScheduleDate || (item.schedule?.startDate ? new Date(item.schedule.startDate).toLocaleDateString() : 'N/A')}
                                                 </span>
-                                                <span className="text-[10px] text-slate-400 font-bold uppercase">{item.schedule?.duration || ''}</span>
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase">
+                                                    {item.formattedScheduleTime || item.schedule?.startTime || item.schedule?.duration || ''}
+                                                </span>
                                             </td>
                                             <td className="px-7 py-5 text-right">
                                                 <button 
                                                     type="button"
-                                                    onClick={() => openLiveTracker(item._id)}
+                                                    onClick={() => openLiveTracker(item._id || item.bookingId)}
                                                     className="inline-flex items-center gap-1.5 bg-[#08B36A] hover:bg-[#079c5c] text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm shadow-emerald-600/20 active:scale-95 cursor-pointer"
                                                 >
                                                     <FaMapMarkerAlt size={10} /> Track Live
@@ -335,45 +352,83 @@ export default function TrackNursePage() {
                                                 Dispatched Nursing Officer
                                             </span>
 
-                                            {liveTracking.assignedStaff ? (
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-3.5">
-                                                        <div className="w-13 h-13 bg-white rounded-2xl flex items-center justify-center text-slate-300 border border-slate-200 shadow-xs overflow-hidden shrink-0">
-                                                            {liveTracking.assignedStaff.profilePic || liveTracking.assignedStaff.staffProfilePic ? (
-                                                                <img 
-                                                                    src={formatImagePath(liveTracking.assignedStaff.profilePic || liveTracking.assignedStaff.staffProfilePic)} 
-                                                                    className="w-full h-full object-cover" 
-                                                                    alt="Staff"
-                                                                />
-                                                            ) : (
-                                                                <FaUserCircle size={36} />
-                                                            )}
+                                            {(() => {
+                                                const staff = liveTracking.assignedStaffId || liveTracking.assignedStaff;
+                                                return staff ? (
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-3.5">
+                                                            <div className="w-13 h-13 bg-white rounded-2xl flex items-center justify-center text-slate-300 border border-slate-200 shadow-xs overflow-hidden shrink-0">
+                                                                {staff.profilePic || staff.staffProfilePic ? (
+                                                                    <img 
+                                                                        src={formatImagePath(staff.profilePic || staff.staffProfilePic)} 
+                                                                        className="w-full h-full object-cover" 
+                                                                        alt="Staff"
+                                                                    />
+                                                                ) : (
+                                                                    <FaUserCircle size={36} />
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-black text-slate-900 text-sm">{staff.name || staff.staffName}</p>
+                                                                <p className="text-slate-500 text-xs font-semibold">{staff.phone || staff.staffPhone || 'No Phone Registered'}</p>
+                                                                {staff.vehicleNumber && (
+                                                                    <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1 mt-0.5">
+                                                                        <FaMotorcycle size={11} className="text-[#08B36A]" /> {staff.vehicleNumber} ({staff.vehicleType || "Scooter"})
+                                                                    </p>
+                                                                )}
+                                                                <span className="inline-block text-[9px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded-full uppercase tracking-wider mt-1">
+                                                                    {staff.status || staff.staffStatus || 'On Job'}
+                                                                </span>
+                                                            </div>
                                                         </div>
+                                                        {staff.phone && (
+                                                            <a 
+                                                                href={`tel:${staff.phone}`}
+                                                                className="p-3 bg-white hover:bg-emerald-50 text-[#08B36A] rounded-2xl border border-emerald-200 shadow-xs transition-colors flex items-center gap-1 text-xs font-bold"
+                                                            >
+                                                                <FaPhoneAlt size={12} /> Call
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center justify-between gap-3">
                                                         <div>
-                                                            <p className="font-black text-slate-900 text-sm">{liveTracking.assignedStaff.name || liveTracking.assignedStaff.staffName}</p>
-                                                            <p className="text-slate-500 text-xs font-semibold">{liveTracking.assignedStaff.phone || liveTracking.assignedStaff.staffPhone || 'No Phone Registered'}</p>
-                                                            <span className="inline-block text-[9px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded-full uppercase tracking-wider mt-1">
-                                                                {liveTracking.assignedStaff.status || liveTracking.assignedStaff.staffStatus || 'On Job'}
-                                                            </span>
+                                                            <p className="font-black text-amber-700 text-xs">No Staff Assigned</p>
+                                                            <p className="text-[10px] text-slate-400">Allocate a nurse to initiate live tracking.</p>
+                                                        </div>
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => handleReassignFromTrackerModal(liveTracking)}
+                                                            className="bg-[#08B36A] text-white font-black px-3.5 py-2 rounded-xl text-[10px] uppercase tracking-wider hover:bg-[#079c5c] transition-all cursor-pointer"
+                                                        >
+                                                            Assign Staff
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+
+                                        {/* Security OTP Hub */}
+                                        {(liveTracking.serviceOTP || liveTracking.completionOTP) && (
+                                            <div className="grid grid-cols-2 gap-3">
+                                                {liveTracking.serviceOTP && (
+                                                    <div className="bg-indigo-50 border border-indigo-200 p-3 rounded-2xl flex items-center justify-between">
+                                                        <div>
+                                                            <span className="text-[9px] font-black uppercase text-indigo-500 block">Service Start OTP</span>
+                                                            <span className="text-xl font-mono font-black text-indigo-900">{liveTracking.serviceOTP}</span>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <div>
-                                                        <p className="font-black text-amber-700 text-xs">No Staff Assigned</p>
-                                                        <p className="text-[10px] text-slate-400">Allocate a nurse to initiate live tracking.</p>
+                                                )}
+                                                {liveTracking.completionOTP && (
+                                                    <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-2xl flex items-center justify-between">
+                                                        <div>
+                                                            <span className="text-[9px] font-black uppercase text-emerald-600 block">Completion OTP</span>
+                                                            <span className="text-xl font-mono font-black text-emerald-900">{liveTracking.completionOTP}</span>
+                                                        </div>
                                                     </div>
-                                                    <button 
-                                                        type="button"
-                                                        onClick={() => handleReassignFromTrackerModal(liveTracking)}
-                                                        className="bg-[#08B36A] text-white font-black px-3.5 py-2 rounded-xl text-[10px] uppercase tracking-wider hover:bg-[#079c5c] transition-all cursor-pointer"
-                                                    >
-                                                        Assign Staff
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
+                                                )}
+                                            </div>
+                                        )}
 
                                         {/* Tracking Distance / Duration Metrics */}
                                         {liveTracking.trackingMetrics && (
@@ -406,28 +461,28 @@ export default function TrackNursePage() {
                                                 <TimelineItem 
                                                     title="Nurse Assigned" 
                                                     desc="Staff allocation verified and confirmed." 
-                                                    isCompleted={!!liveTracking.progress?.isAssigned || !!liveTracking.assignedStaff} 
+                                                    isCompleted={Boolean(liveTracking.trackingTimeline?.isAssigned || liveTracking.progress?.isAssigned || liveTracking.assignedStaffId || liveTracking.assignedStaff)} 
                                                 />
                                                 <TimelineItem 
                                                     title="On the Way" 
                                                     desc="Nurse is in transit to patient destination." 
-                                                    isCompleted={!!liveTracking.progress?.isOnWay || liveTracking.status === "On the way"} 
+                                                    isCompleted={Boolean(liveTracking.trackingTimeline?.isOnWay || liveTracking.progress?.isOnWay || liveTracking.status === "On-The-Way" || liveTracking.status === "On the way")} 
                                                 />
                                                 <TimelineItem 
                                                     title="Arrived at Location" 
                                                     desc="Staff reached bedside / address." 
-                                                    isCompleted={!!liveTracking.progress?.isArrived || liveTracking.status === "Arrived"} 
+                                                    isCompleted={Boolean(liveTracking.trackingTimeline?.isArrived || liveTracking.progress?.isArrived || liveTracking.status === "Arrived")} 
                                                     showBadge={liveTracking.status === "Arrived"}
                                                 />
                                                 <TimelineItem 
                                                     title="Service Commenced" 
                                                     desc="Clinical procedure in progress." 
-                                                    isCompleted={!!liveTracking.progress?.isStarted || liveTracking.status === "Service-Started" || liveTracking.status === "In Progress"} 
+                                                    isCompleted={Boolean(liveTracking.trackingTimeline?.isStarted || liveTracking.progress?.isStarted || liveTracking.status === "Service-Started" || liveTracking.status === "In Progress")} 
                                                 />
                                                 <TimelineItem 
                                                     title="Service Completed" 
                                                     desc="Care session safely completed and closed." 
-                                                    isCompleted={!!liveTracking.progress?.isCompleted || liveTracking.status === "Completed"} 
+                                                    isCompleted={Boolean(liveTracking.trackingTimeline?.isCompleted || liveTracking.progress?.isCompleted || liveTracking.status === "Completed")} 
                                                     isLast={true} 
                                                 />
                                             </div>
@@ -481,6 +536,12 @@ export default function TrackNursePage() {
                                                         Floor: <span className="font-bold">{liveTracking.hospitalDetails.floorNumber}</span> • {liveTracking.hospitalDetails.hospitalAddress || ''}
                                                     </p>
                                                 )}
+                                                
+                                                {liveTracking.destinationLabel && (
+                                                    <p className="text-[10px] text-purple-800 font-bold bg-white/60 p-2 rounded-lg">
+                                                        Destination: {liveTracking.destinationLabel}
+                                                    </p>
+                                                )}
                                             </div>
                                         ) : (
                                             <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 space-y-2">
@@ -489,12 +550,13 @@ export default function TrackNursePage() {
                                                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Home Service Destination</span>
                                                 </div>
                                                 <p className="text-xs font-bold text-slate-800 leading-relaxed">
-                                                    {liveTracking.address?.houseNo}, {liveTracking.address?.sector}
-                                                    {liveTracking.address?.landmark && `, Landmark: ${liveTracking.address.landmark}`}
+                                                    {liveTracking.destinationLabel || `${liveTracking.address?.houseNo || ''}, ${liveTracking.address?.sector || ''}`}
                                                 </p>
-                                                <p className="text-[11px] text-slate-500 font-medium">
-                                                    {liveTracking.address?.city}, {liveTracking.address?.state} - {liveTracking.address?.pincode}
-                                                </p>
+                                                {liveTracking.address?.city && (
+                                                    <p className="text-[11px] text-slate-500 font-medium">
+                                                        {liveTracking.address.city}, {liveTracking.address.state} - {liveTracking.address.pincode}
+                                                    </p>
+                                                )}
                                             </div>
                                         )}
 
@@ -514,13 +576,13 @@ export default function TrackNursePage() {
                                                 </div>
                                                 <div>
                                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Patient Name</span>
-                                                    <p className="text-sm font-black text-slate-900">{liveTracking.patientDetails?.patientName || 'Registered Patient'}</p>
-                                                    <p className="text-xs text-slate-500 font-semibold">{liveTracking.patientDetails?.patientPhone || 'No Contact Record'}</p>
+                                                    <p className="text-sm font-black text-slate-900">{liveTracking.primaryPatientName || liveTracking.patientDetails?.patientName || 'Registered Patient'}</p>
+                                                    <p className="text-xs text-slate-500 font-semibold">{liveTracking.patientDetails?.patientPhone || liveTracking.address?.phone || 'No Contact Record'}</p>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* Service Details Card */}
+                                        {/* Service & Price Details Card with Delivery Fee */}
                                         <div className="bg-slate-900 text-white rounded-2xl p-5 space-y-3 border border-slate-800">
                                             <div>
                                                 <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-[#08B36A] border border-white/10">
@@ -529,10 +591,25 @@ export default function TrackNursePage() {
                                                 <h4 className="font-black text-sm text-white mt-1.5">{liveTracking.serviceDetails?.title || 'Clinical Care Visit'}</h4>
                                                 <p className="text-[11px] text-slate-400 mt-0.5">Mode: {liveTracking.serviceDetails?.type || liveTracking.serviceDetails?.duration || 'Standard Session'}</p>
                                             </div>
+
+                                            {/* Travel Fee if present */}
+                                            {(liveTracking.travelFee > 0 || liveTracking.deliveryCharge > 0) && (
+                                                <div className="flex justify-between items-center text-xs text-slate-400 pt-2 border-t border-slate-800">
+                                                    <span>Travel / Delivery Fee:</span>
+                                                    <span className="font-bold text-white">₹{liveTracking.travelFee || liveTracking.deliveryCharge}</span>
+                                                </div>
+                                            )}
                                             
-                                            <div className="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
-                                                <span className="text-slate-400">Total Booking Value</span>
-                                                <span className="font-black text-base text-[#08B36A]">₹{liveTracking.serviceDetails?.basePrice || liveTracking.totalPrice || 0}</span>
+                                            <div className="pt-2 border-t border-slate-800 flex justify-between items-center text-xs">
+                                                <div>
+                                                    <span className="text-slate-400 block text-[10px]">Total Booking Value</span>
+                                                    <span className="text-[10px] text-emerald-400 font-bold">
+                                                        {liveTracking.paymentDisplayLabel || (liveTracking.isPaid ? 'Paid Online' : 'Payment Pending')}
+                                                    </span>
+                                                </div>
+                                                <span className="font-black text-lg text-[#08B36A]">
+                                                    ₹{liveTracking.totalAmount || liveTracking.totalPrice || liveTracking.serviceDetails?.basePrice || 0}
+                                                </span>
                                             </div>
                                         </div>
 
@@ -547,7 +624,7 @@ export default function TrackNursePage() {
 
                         {/* Modal Footer */}
                         <div className="p-6 sm:p-8 pt-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50 shrink-0">
-                            {liveTracking?.assignedStaff && (
+                            {(liveTracking?.assignedStaffId || liveTracking?.assignedStaff) && (
                                 <button 
                                     type="button"
                                     onClick={() => handleReassignFromTrackerModal(liveTracking)}

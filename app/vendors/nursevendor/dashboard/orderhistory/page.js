@@ -4,9 +4,29 @@ import {
     FaUser, FaPhone, FaMapMarkerAlt, FaCalendarAlt, 
     FaClock, FaEye, FaTimesCircle, FaHashtag, FaHistory, FaSyncAlt, FaStethoscope, FaWallet,
     FaTag, FaBoxes, FaLanguage, FaNotesMedical, FaCheck, FaClipboardList,
-    FaChevronLeft, FaChevronRight, FaUserNurse, FaStickyNote
+    FaChevronLeft, FaChevronRight, FaUserNurse, FaStickyNote, FaUserCircle
 } from 'react-icons/fa'
 import NurseAPI from '@/app/services/NurseAPI';
+
+// Helper to safely render objects with {_id, title} or primitive strings
+const getSafeString = (val, fallback = 'N/A') => {
+    if (!val) return fallback;
+    if (typeof val === 'string' || typeof val === 'number') return String(val);
+    if (typeof val === 'object') {
+        return val.title || val.name || val.label || val._id || fallback;
+    }
+    return fallback;
+};
+
+// Helper to safely render IDs from populated objects
+const getSafeId = (val, fallback = 'N/A') => {
+    if (!val) return fallback;
+    if (typeof val === 'string' || typeof val === 'number') return String(val);
+    if (typeof val === 'object') {
+        return val._id || val.id || val.title || fallback;
+    }
+    return fallback;
+};
 
 export default function OrderHistoryPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -127,7 +147,9 @@ export default function OrderHistoryPage() {
                                                     <div className="font-bold text-gray-800">
                                                         {order.patients?.[0]?.name || order.userId?.name || "N/A"}
                                                     </div>
-                                                    <div className="text-[10px] font-bold text-gray-400">{order.serviceDetails?.title}</div>
+                                                    <div className="text-[10px] font-bold text-gray-400">
+                                                        {getSafeString(order.serviceDetails?.title || order.serviceDetails || order.serviceId)}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>
@@ -279,13 +301,15 @@ export default function OrderHistoryPage() {
                                     </div>
                                     <div className="flex-1">
                                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Requested Service</label>
-                                        <div className="text-sm font-black text-[#1e5a91]">{selectedOrder.serviceDetails?.title}</div>
+                                        <div className="text-sm font-black text-[#1e5a91]">
+                                            {getSafeString(selectedOrder.serviceDetails?.title || selectedOrder.serviceDetails || selectedOrder.serviceId)}
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-blue-100/50 text-[11px] font-bold text-blue-800">
-                                    <div>Type: <span className="text-gray-700">{selectedOrder.serviceDetails?.type}</span></div>
-                                    <div>Duration: <span className="text-gray-700">{selectedOrder.serviceDetails?.duration}</span></div>
-                                    <div>Base Price: <span className="text-gray-700">₹{selectedOrder.serviceDetails?.basePrice}</span></div>
+                                    <div>Type: <span className="text-gray-700">{getSafeString(selectedOrder.serviceDetails?.type)}</span></div>
+                                    <div>Duration: <span className="text-gray-700">{getSafeString(selectedOrder.serviceDetails?.duration)}</span></div>
+                                    <div>Base Price: <span className="text-gray-700">₹{getSafeString(selectedOrder.serviceDetails?.basePrice, '0')}</span></div>
                                     <div>Assessment: <span className="text-gray-700">{selectedOrder.assessmentLocation || 'At Home'}</span></div>
                                 </div>
                             </div>
@@ -361,11 +385,11 @@ export default function OrderHistoryPage() {
                                         <div className="flex-1 grid grid-cols-2 gap-2">
                                             <div>
                                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Patient Name</label>
-                                                <div className="text-sm font-black text-gray-700">{patient.name}</div>
+                                                <div className="text-sm font-black text-gray-700">{getSafeString(patient.name)}</div>
                                             </div>
                                             <div>
                                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Relation</label>
-                                                <div className="text-sm font-black text-gray-700 uppercase tracking-tight">{patient.relation}</div>
+                                                <div className="text-sm font-black text-gray-700 uppercase tracking-tight">{getSafeString(patient.relation)}</div>
                                             </div>
                                         </div>
                                     </div>
@@ -377,10 +401,10 @@ export default function OrderHistoryPage() {
                                 <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 space-y-2">
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Booked By Account</label>
                                     <div className="flex justify-between text-xs text-gray-700 font-bold">
-                                        <span>Name: <span className="text-gray-900">{selectedOrder.userId.name}</span></span>
-                                        <span>Phone: <span className="text-gray-900">{selectedOrder.userId.phone}</span></span>
+                                        <span>Name: <span className="text-gray-900">{getSafeString(selectedOrder.userId.name)}</span></span>
+                                        <span>Phone: <span className="text-gray-900">{getSafeString(selectedOrder.userId.phone)}</span></span>
                                     </div>
-                                    <div className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">User ID: {selectedOrder.userId._id}</div>
+                                    <div className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">User ID: {getSafeId(selectedOrder.userId)}</div>
                                 </div>
                             )}
 
@@ -406,8 +430,8 @@ export default function OrderHistoryPage() {
                                             House/Flat No. {selectedOrder.address?.houseNo}, {selectedOrder.address?.city} {selectedOrder.address?.pincode ? `- ${selectedOrder.address.pincode}` : ''}
                                         </div>
                                         <div className="flex items-center gap-4 mt-2 text-[10px] font-black uppercase text-gray-400 tracking-widest">
-                                            <span>Type: <span className="text-gray-600">{selectedOrder.address?.addressType || 'N/A'}</span></span>
-                                            <span>Address Recipient: <span className="text-gray-600">{selectedOrder.address?.name || 'N/A'}</span></span>
+                                            <span>Type: <span className="text-gray-600">{getSafeString(selectedOrder.address?.addressType)}</span></span>
+                                            <span>Address Recipient: <span className="text-gray-600">{getSafeString(selectedOrder.address?.name)}</span></span>
                                         </div>
                                     </div>
                                 </div>
@@ -449,7 +473,7 @@ export default function OrderHistoryPage() {
                                             <span className="block text-[9px] font-black text-emerald-400 uppercase tracking-wider">Selected Consumable Items:</span>
                                             {selectedOrder.selectedConsumables.map((item, i) => (
                                                 <div key={i} className="flex justify-between items-center text-xs text-gray-700 font-medium">
-                                                    <span>• {item.itemName} {item.unitType ? `(${item.unitType})` : ''}</span>
+                                                    <span>• {getSafeString(item.itemName)} {item.unitType ? `(${item.unitType})` : ''}</span>
                                                     {item.price !== undefined && <span className="font-bold text-gray-900">₹{item.price}</span>}
                                                 </div>
                                             ))}
@@ -501,10 +525,10 @@ export default function OrderHistoryPage() {
                                 </div>
                             </div>
 
-                            {/* Additional Metadata / IDs */}
+                            {/* Additional Metadata / IDs (Safely rendered) */}
                             <div className="pt-2 text-[9px] text-gray-400 font-bold space-y-1 border-t border-gray-100">
-                                <div>Nurse Assignee ID: {selectedOrder.nurseId}</div>
-                                <div>Service Config ID: {selectedOrder.serviceId}</div>
+                                <div>Nurse Assignee ID: {getSafeId(selectedOrder.nurseId)}</div>
+                                <div>Service Config ID: {getSafeId(selectedOrder.serviceId)}</div>
                                 <div>Created Date/Time: {new Date(selectedOrder.createdAt).toLocaleString()}</div>
                                 <div>Last System Update: {new Date(selectedOrder.updatedAt).toLocaleString()}</div>
                             </div>
@@ -513,7 +537,7 @@ export default function OrderHistoryPage() {
 
                         {/* Footer Controls */}
                         <div className="p-6 border-t border-gray-50 bg-gray-50 flex justify-end shrink-0">
-                            <button onClick={() => setIsModalOpen(false)} className="px-10 py-3 rounded-2xl bg-gray-200 text-gray-600 font-black text-xs hover:bg-gray-300 transition-all uppercase tracking-widest">
+                            <button onClick={() => setIsModalOpen(false)} className="px-10 py-3 rounded-2xl bg-gray-200 text-gray-600 font-black text-xs hover:bg-gray-300 transition-all uppercase tracking-widest cursor-pointer">
                                 Close
                             </button>
                         </div>

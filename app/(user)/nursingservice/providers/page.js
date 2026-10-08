@@ -20,16 +20,25 @@ import UserAPI from "@/app/services/UserAPI";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://192.168.1.7:5002";
 
-// Helper to determine the minimum price of a provider for accurate sorting
+// Helper to determine the minimum final price of a provider across oneDay, hourly, and multipleDays for accurate sorting
 const getProviderMinPrice = (provider) => {
-    const p = provider.pricing;
+    // Supports both direct pricing object and vendor nested pricing object
+    const p = provider.pricing || {};
     const candidates = [];
+    
     if (typeof p?.oneDay?.final === "number" && p.oneDay.final > 0) candidates.push(p.oneDay.final);
+    else if (typeof p?.oneDay?.base === "number" && p.oneDay.base > 0) candidates.push(p.oneDay.base);
+
     if (typeof p?.hourly?.final === "number" && p.hourly.final > 0) candidates.push(p.hourly.final);
+    else if (typeof p?.hourly?.base === "number" && p.hourly.base > 0) candidates.push(p.hourly.base);
+
     if (typeof p?.multipleDays?.final === "number" && p.multipleDays.final > 0) candidates.push(p.multipleDays.final);
+    else if (typeof p?.multipleDays?.base === "number" && p.multipleDays.base > 0) candidates.push(p.multipleDays.base);
+
+    if (typeof provider.oneDayPrice === "number" && provider.oneDayPrice > 0) candidates.push(provider.oneDayPrice);
     if (typeof provider.basePrice === "number" && provider.basePrice > 0) candidates.push(provider.basePrice);
     
-    return candidates.length > 0 ? Math.min(...candidates) : (p?.oneDay?.base || 999999);
+    return candidates.length > 0 ? Math.min(...candidates) : 999999;
 };
 
 function ProvidersListContent() {
@@ -38,11 +47,13 @@ function ProvidersListContent() {
 
     // Query parameters matching updated routing
     const serviceId = searchParams.get("serviceId") || "";
+    const packageId = searchParams.get("packageId") || "";
     const subCategory = searchParams.get("subCategory") || searchParams.get("title") || "Nursing Care";
 
     const [providers, setProviders] = useState([]);
+    const [packageName, setPackageName] = useState("");
     const [loading, setLoading] = useState(true);
-    const [userCoords, setUserCoords] = useState({ lat: null, lng: null });
+    const [userCoords, setUserCoords] = useState({ lat: 30.7046, lng: 76.7179 }); // Default fallback (e.g. Mohali/Chandigarh)
 
     // Optional: Get user coordinates for accurate distance calculation
     useEffect(() => {
@@ -64,22 +75,42 @@ function ProvidersListContent() {
 
     useEffect(() => {
         const fetchProviders = async () => {
-            if (!serviceId && !subCategory) return;
+            if (!serviceId && !packageId && !subCategory) return;
             try {
                 setLoading(true);
-                const res = await UserAPI.getProvidersForService({
-                    serviceId,
-                    subCategory,
-                    userLat: userCoords.lat,
-                    userLng: userCoords.lng
-                });
-                if (res?.success) {
-                    const rawData = res.data || [];
-                    // Sort providers so the cheapest provider is at the top (ascending order)
-                    const sortedProviders = [...rawData].sort((a, b) => {
-                        return getProviderMinPrice(a) - getProviderMinPrice(b);
+                let res;
+
+                if (packageId) {
+                    // Call GET /user/nurse/packages/vendors/:packageId?lat=..&lng=..&radius=50
+                    res = await UserAPI.getNursePackageVendors(packageId, {
+                        lat: userCoords.lat,
+                        lng: userCoords.lng,
+                        radius: 50
                     });
-                    setProviders(sortedProviders);
+                    if (res?.success) {
+                        setPackageName(res.selectedPackageName || "Care Package");
+                        // Map response data where each item contains { vendor, pricing, packageId, ... }
+                        const rawData = (res.data || []).map(item => ({
+                            ...item.vendor,
+                            pricing: item.pricing,
+                            packageId: item.packageId,
+                            packageName: item.packageName
+                        }));
+                        const sorted = [...rawData].sort((a, b) => getProviderMinPrice(a) - getProviderMinPrice(b));
+                        setProviders(sorted);
+                    }
+                } else {
+                    res = await UserAPI.getProvidersForService({
+                        serviceId,
+                        subCategory,
+                        userLat: userCoords.lat,
+                        userLng: userCoords.lng
+                    });
+                    if (res?.success) {
+                        const rawData = res.data || [];
+                        const sorted = [...rawData].sort((a, b) => getProviderMinPrice(a) - getProviderMinPrice(b));
+                        setProviders(sorted);
+                    }
                 }
             } catch (err) {
                 console.error("Error fetching providers for nursing service:", err);
@@ -88,7 +119,7 @@ function ProvidersListContent() {
             }
         };
         fetchProviders();
-    }, [serviceId, subCategory, userCoords.lat, userCoords.lng]);
+    }, [serviceId, packageId, subCategory, userCoords.lat, userCoords.lng]);
 
     // Find the minimum price among all providers to highlight the cheapest
     const lowestPrice = useMemo(() => {
@@ -98,23 +129,24 @@ function ProvidersListContent() {
 
     const handleSelectProvider = (provider) => {
         const bookingInitiation = {
-            nurseId: provider.nurseId || provider.nurseDetails?._id,
-            serviceId: provider.serviceId || provider._id,
-            masterServiceId: provider.masterServiceId || serviceId,
+            nurseId: provider.nurseId || provider.nurseDetails?._id || provider._id,
+            serviceId: packageId || serviceId,
+            masterServiceId: serviceId || packageId,
+            packageId: packageId || undefined,
             serviceDetails: {
-                title: provider.serviceTitle || subCategory,
-                description: provider.serviceDescription || "",
-                type: "Service",
+                title: packageName || provider.serviceTitle || subCategory,
+                description: provider.description || provider.serviceDescription || "",
+                type: packageId ? "Package" : "Service",
                 duration: "Per Visit",
-                basePrice: provider.pricing?.oneDay?.final || provider.pricing?.oneDay?.base || 0,
+                basePrice: provider.pricing?.oneDay?.final ?? provider.pricing?.oneDay?.base ?? 0,
                 procedureIncluded: "Standard Clinical Care Procedure"
             },
             pricing: provider.pricing,
-            basePrice: provider.pricing?.oneDay?.final || 0,
-            nurseName: provider.nurseName || provider.nurseDetails?.name,
+            basePrice: provider.pricing?.oneDay?.final ?? provider.pricing?.oneDay?.base ?? 0,
+            nurseName: provider.name || provider.nurseName || provider.nurseDetails?.name,
             nurseImage: provider.profileImage || provider.nurseDetails?.profileImage,
-            nurseCity: provider.nurseCity || provider.nurseDetails?.city,
-            nurseAddress: provider.nurseAddress || provider.nurseDetails?.address
+            nurseCity: provider.city || provider.nurseCity || provider.nurseDetails?.city,
+            nurseAddress: provider.address || provider.nurseAddress || provider.nurseDetails?.address
         };
 
         sessionStorage.setItem("pendingNurseBooking", JSON.stringify(bookingInitiation));
@@ -124,7 +156,8 @@ function ProvidersListContent() {
     const getImageUrl = (path) => {
         if (!path) return "https://img.freepik.com/free-photo/medical-specialist-taking-care-patient_23-2148962551.jpg";
         if (path.startsWith("http")) return path;
-        return `${BASE_URL}/${path.replace(/^public\//, "")}`.replace(/([^:]\/)\/+/g, "$1");
+        const cleanPath = path.replace(/^public\//, "");
+        return `${BASE_URL}/${cleanPath}`.replace(/([^:]\/)\/+/g, "$1");
     };
 
     if (loading) {
@@ -153,10 +186,10 @@ function ProvidersListContent() {
                     </button>
                     <div>
                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest block leading-none mb-1">
-                            Available Care Providers
+                            {packageId ? "Package Nearby Providers" : "Available Care Providers"}
                         </span>
                         <h1 className="text-base sm:text-lg font-black tracking-tight uppercase text-transparent bg-clip-text bg-gradient-to-r from-[#08B36A] to-emerald-800">
-                            {subCategory}
+                            {packageName || subCategory}
                         </h1>
                     </div>
                 </div>
@@ -177,10 +210,10 @@ function ProvidersListContent() {
                 {providers.length > 0 ? (
                     <div className="grid grid-cols-1 gap-6">
                         {providers.map((provider, index) => {
-                            const name = provider.nurseName || provider.nurseDetails?.name || "Verified Nursing Bureau";
-                            const city = provider.nurseCity || provider.nurseDetails?.city || "Mohali";
-                            const address = provider.nurseAddress || provider.nurseDetails?.address || "Clinical Facility";
-                            const rating = provider.nurseRating || provider.nurseDetails?.rating || 4.9;
+                            const name = provider.name || provider.nurseName || provider.nurseDetails?.name || "Verified Nursing Bureau";
+                            const city = provider.city || provider.nurseCity || provider.nurseDetails?.city || "Mohali";
+                            const address = provider.address || provider.nurseAddress || provider.nurseDetails?.address || "Clinical Facility";
+                            const rating = provider.rating || provider.nurseRating || provider.nurseDetails?.rating || 4.9;
                             const totalReviews = provider.totalReviews || provider.nurseDetails?.totalReviews || 0;
                             const profileImg = provider.profileImage || provider.nurseDetails?.profileImage;
                             const distance = provider.distance;
@@ -191,7 +224,7 @@ function ProvidersListContent() {
 
                             return (
                                 <div 
-                                    key={provider.serviceId || provider._id || index}
+                                    key={provider.nurseId || provider.serviceId || provider._id || index}
                                     className={`group relative bg-white rounded-[2.5rem] p-6 md:p-8 border transition-all duration-500 flex flex-col xl:flex-row gap-8 justify-between ${
                                         isCheapest 
                                             ? "border-[#08B36A] shadow-2xl shadow-emerald-600/10 ring-2 ring-[#08B36A]/20" 
@@ -235,7 +268,7 @@ function ProvidersListContent() {
                                                 </span>
                                                 {distance !== undefined && distance !== null && (
                                                     <span className="flex items-center gap-1 text-emerald-700 font-extrabold bg-emerald-50 px-2 py-0.5 rounded-md">
-                                                        <FaRoute size={10} /> {distance} km away
+                                                        <FaRoute size={10} /> {Number(distance).toFixed(2)} km away
                                                     </span>
                                                 )}
                                             </div>
@@ -264,21 +297,21 @@ function ProvidersListContent() {
                                             <div className="grid grid-cols-3 gap-2 bg-slate-50 p-4 rounded-3xl border border-slate-100/60 text-center">
                                                 <div className="border-r border-slate-200/80 px-1">
                                                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">1 Day</span>
-                                                    <span className="text-sm font-black text-slate-800 block">₹{pricing.oneDay?.final ?? 0}</span>
+                                                    <span className="text-sm font-black text-slate-800 block">₹{pricing.oneDay?.final ?? pricing.oneDay?.base ?? 0}</span>
                                                     {pricing.oneDay?.discount > 0 && (
                                                         <span className="text-[9px] font-bold text-slate-300 line-through">₹{pricing.oneDay?.base}</span>
                                                     )}
                                                 </div>
                                                 <div className="border-r border-slate-200/80 px-1">
                                                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">Multi-Day</span>
-                                                    <span className="text-sm font-black text-slate-800 block">₹{pricing.multipleDays?.final ?? 0}</span>
+                                                    <span className="text-sm font-black text-slate-800 block">₹{pricing.multipleDays?.final ?? pricing.multipleDays?.base ?? 0}</span>
                                                     {pricing.multipleDays?.discount > 0 && (
                                                         <span className="text-[9px] font-bold text-slate-300 line-through">₹{pricing.multipleDays?.base}</span>
                                                     )}
                                                 </div>
                                                 <div className="px-1">
                                                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">Hourly</span>
-                                                    <span className="text-sm font-black text-slate-800 block">₹{pricing.hourly?.final ?? 0}</span>
+                                                    <span className="text-sm font-black text-slate-800 block">₹{pricing.hourly?.final ?? pricing.hourly?.base ?? 0}</span>
                                                     {pricing.hourly?.discount > 0 && (
                                                         <span className="text-[9px] font-bold text-slate-300 line-through">₹{pricing.hourly?.base}</span>
                                                     )}
@@ -308,7 +341,7 @@ function ProvidersListContent() {
                     <div className="py-24 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200">
                         <FaStore className="text-slate-200 text-5xl mx-auto mb-3" />
                         <h3 className="text-slate-800 font-bold text-sm tracking-wide">No Providers Available</h3>
-                        <p className="text-slate-400 text-xs mt-1">There are no approved active bureaus offering this specific procedure right now.</p>
+                        <p className="text-slate-400 text-xs mt-1">There are no approved active bureaus offering this specific package right now.</p>
                     </div>
                 )}
             </div>

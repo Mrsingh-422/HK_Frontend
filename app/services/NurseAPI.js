@@ -429,6 +429,91 @@ const NurseAPI = {
   trackIssue: (issueId) => {
     return nurseVendorApi.get(`/api/user-vendor/issues/track/${issueId}`);
   },
+  /**
+     * Fetch Consumables for Package Checklist
+     * @param {Object} params - { search, category, page, limit }
+     */
+    async getPackageConsumables(params = {}) {
+        try {
+            const queryParams = new URLSearchParams();
+            if (params.search) queryParams.append("search", params.search);
+            if (params.category) queryParams.append("category", params.category);
+            if (params.page) queryParams.append("page", params.page);
+            if (params.limit) queryParams.append("limit", params.limit);
+
+            const queryString = queryParams.toString() ? `?${queryParams.toString()}` : "";
+            const response = await nurseVendorApi.get(`/provider/nurse/package/consumables${queryString}`);
+            return response.data;
+        } catch (error) {
+            console.error("Error fetching package consumables:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Create New Package
+     * @param {FormData} formData - FormData containing packageName, description, includedServices, pricing, consumablesUsed, prescriptionRequired, photos
+     */
+    async createPackage(formData) {
+        try {
+            const response = await nurseVendorApi.post(`/provider/nurse/package/manage`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error creating nurse package:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Update Existing Package
+     * @param {string} id - Package ID
+     * @param {FormData} formData - Updated package FormData
+     */
+    async updatePackage(id, formData) {
+        try {
+            const response = await nurseVendorApi.put(`/provider/nurse/package/manage/${id}`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error updating nurse package:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Get Package Details for Edit Form
+     * @param {string} id - Package ID
+     */
+    async getPackageDetails(id) {
+        try {
+            const response = await nurseVendorApi.get(`/provider/nurse/package/details/${id}`);
+            return response.data;
+        } catch (error) {
+            console.error("Error fetching package details:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Delete Package
+     * @param {string} id - Package ID
+     */
+    async deletePackage(id) {
+        try {
+            const response = await nurseVendorApi.delete(`/provider/nurse/package/delete/${id}`);
+            return response.data;
+        } catch (error) {
+            console.error("Error deleting nurse package:", error);
+            throw error;
+        }
+    },
  
 };
  

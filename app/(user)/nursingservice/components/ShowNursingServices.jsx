@@ -8,16 +8,25 @@ import {
     FaHeartbeat, 
     FaShieldAlt, 
     FaUserCheck, 
-    FaStethoscope,
-    FaUserNurse,
-    FaArrowRight,
-    FaThLarge,
-    FaUsers,
-    FaCheckCircle,
-    FaRegHospital,
-    FaCertificate
+    FaStethoscope, 
+    FaUserNurse, 
+    FaArrowRight, 
+    FaThLarge, 
+    FaUsers, 
+    FaCheckCircle, 
+    FaRegHospital, 
+    FaBoxOpen
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
+
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+
+const getReportFileUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith("http://") || path.startsWith("https://")) return path;
+    const cleanedPath = path.replace(/^\/+/, "").replace(/^public\//, "");
+    return `${BASE_URL}/${cleanedPath}`;
+};
 
 // Fallback configuration mapping icons to global service categories
 const SERVICE_ICONS = {
@@ -27,16 +36,43 @@ const SERVICE_ICONS = {
     "HOME ATTENDANT": <FaUserCheck className="text-[#08B36A]" />
 };
 
+// Helper function to extract the lowest starting rate from the package pricing object
+const getPackageMinPrice = (pricing) => {
+    if (!pricing) return 0;
+    const prices = [];
+    ['oneDay', 'multipleDays', 'hourly'].forEach(type => {
+        const item = pricing[type];
+        if (item) {
+            const val = Number(item.final ?? item.base);
+            if (!isNaN(val) && val > 0) {
+                prices.push(val);
+            }
+        }
+    });
+    return prices.length > 0 ? Math.min(...prices) : 0;
+};
+
 export default function ShowNursingServices() {
     const router = useRouter();
+    
+    // Tab State: "services" or "packages"
+    const [activeTab, setActiveTab] = useState("services");
+
+    // Services States
     const [services, setServices] = useState([]);
     const [totalCount, setTotalCount] = useState(0);
-    const [loading, setLoading] = useState(true);
+    const [loadingServices, setLoadingServices] = useState(true);
 
+    // Packages States
+    const [packages, setPackages] = useState([]);
+    const [totalPackagesCount, setTotalPackagesCount] = useState(0);
+    const [loadingPackages, setLoadingPackages] = useState(false);
+
+    // Fetch Services
     useEffect(() => {
         const fetchTopServices = async () => {
             try {
-                setLoading(true);
+                setLoadingServices(true);
                 const res = await UserAPI.getGlobalNursingServices({
                     page: 1,
                     limit: 6,
@@ -49,15 +85,41 @@ export default function ShowNursingServices() {
             } catch (error) {
                 console.error("Error fetching global nursing services:", error);
             } finally {
-                setLoading(false);
+                setLoadingServices(false);
             }
         };
         fetchTopServices();
     }, []);
 
+    // Fetch Packages
+    useEffect(() => {
+        const fetchPackages = async () => {
+            try {
+                setLoadingPackages(true);
+                const res = await UserAPI.getUserCatalogPackages({
+                    page: 1,
+                    limit: 6
+                });
+                if (res?.success) {
+                    setPackages(res.data || []);
+                    setTotalPackagesCount(res.pagination?.totalItems || res.count || res.data?.length || 0);
+                }
+            } catch (error) {
+                console.error("Error fetching catalog packages:", error);
+            } finally {
+                setLoadingPackages(false);
+            }
+        };
+        fetchPackages();
+    }, []);
+
     const handleServiceClick = (service) => {
         const subCategory = service.subCategory || service.title;
         router.push(`/nursingservice/providers?serviceId=${service._id}&subCategory=${encodeURIComponent(subCategory)}`);
+    };
+
+    const handlePackageClick = (pkg) => {
+        router.push(`/nursingservice/providers?packageId=${pkg._id}`);
     };
 
     const handleSeeAllRedirection = () => {
@@ -66,15 +128,9 @@ export default function ShowNursingServices() {
 
     // Strictly enforce maximum 6 items on this home section
     const displayedServices = services.slice(0, 6);
+    const displayedPackages = packages.slice(0, 6);
 
-    if (loading) {
-        return (
-            <div className="min-h-[50vh] flex flex-col items-center justify-center bg-[#F8FAFC]">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#08B36A] mb-3" />
-                <p className="text-xs text-slate-400 font-black uppercase tracking-widest">Loading Clinical Care...</p>
-            </div>
-        );
-    }
+    const loading = activeTab === "services" ? loadingServices : loadingPackages;
 
     return (
         <div className="bg-[#F8FAFC] font-sans text-slate-900 pb-16 overflow-x-hidden relative selection:bg-[#08B36A]/20 selection:text-[#08B36A]">
@@ -96,7 +152,7 @@ export default function ShowNursingServices() {
                             Certified In-Home <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#08B36A] via-emerald-600 to-teal-700">Nursing Services.</span>
                         </h2>
                         <p className="text-slate-500 text-xs sm:text-sm font-medium leading-relaxed">
-                            Choose from our verified clinical procedures below to compare certified nursing providers, caregiver ratings, and hourly/day rates directly.
+                            Choose from our verified clinical procedures and bundles below to compare certified nursing providers, caregiver ratings, and rates directly.
                         </p>
                     </div>
 
@@ -105,123 +161,254 @@ export default function ShowNursingServices() {
                         onClick={handleSeeAllRedirection}
                         className="flex items-center gap-3 font-black text-slate-900 hover:text-[#08B36A] transition-all text-xs sm:text-sm group shrink-0 cursor-pointer"
                     >
-                        <span className="uppercase tracking-wider">Explore All Services</span>
+                        <span className="uppercase tracking-wider">Explore All {activeTab === "services" ? "Services" : "Packages"}</span>
                         <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border-2 border-slate-900 group-hover:border-[#08B36A] flex items-center justify-center group-hover:bg-[#08B36A] group-hover:text-white transition-all shadow-xs">
                             <FaArrowRight className="text-xs sm:text-sm group-hover:translate-x-0.5 transition-transform" />
                         </div>
                     </button>
                 </div>
 
-                {/* Grid Section (Max 6 Items) */}
-                {displayedServices.length > 0 ? (
-                    <div className="space-y-10">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
-                            {displayedServices.map((service) => {
-                                const serviceTitle = service.subCategory || service.title || "Clinical Nursing Care";
-                                const serviceCategory = service.category || service.servicesOffered || "General";
-                                const startingPrice = service.minPrice ?? service.defaultOneDayPrice ?? service.startingPrice ?? 0;
-                                const providerCount = service.providerCount ?? 0;
-                                const hasActive = service.hasActiveVendors || providerCount > 0;
-                                const iconElement = SERVICE_ICONS[serviceCategory] || <FaStethoscope className="text-[#08B36A]" />;
+                {/* TABS SWITCHER */}
+                <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
+                    <button
+                        onClick={() => setActiveTab("services")}
+                        className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                            activeTab === "services"
+                                ? "bg-[#08B36A] text-white shadow-lg shadow-[#08B36A]/20"
+                                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                        }`}
+                    >
+                        <FaStethoscope />
+                        <span>Individual Services ({totalCount})</span>
+                    </button>
 
-                                return (
-                                    <div
-                                        key={service._id}
-                                        onClick={() => handleServiceClick(service)}
-                                        className="group relative cursor-pointer bg-white border border-slate-200/80 hover:border-[#08B36A] rounded-[2.25rem] p-6.5 pl-7.5 shadow-sm hover:shadow-2xl hover:shadow-emerald-950/10 transition-all duration-300 flex flex-col justify-between overflow-hidden hover:-translate-y-1"
-                                    >
-                                        {/* 🟢 SOLID BRAND COLOR ACCENT LINE ON THE LEFT */}
-                                        <div className="absolute left-0 top-0 bottom-0 w-2 bg-[#08B36A] rounded-l-[2.25rem] group-hover:w-2.5 transition-all duration-300" />
+                    <button
+                        onClick={() => setActiveTab("packages")}
+                        className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                            activeTab === "packages"
+                                ? "bg-[#08B36A] text-white shadow-lg shadow-[#08B36A]/20"
+                                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                        }`}
+                    >
+                        <FaBoxOpen />
+                        <span>Care Packages ({totalPackagesCount})</span>
+                    </button>
+                </div>
 
-                                        {/* Ambient Top Right Glow */}
-                                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors pointer-events-none" />
-
-                                        <div className="space-y-4 relative z-10">
-                                            {/* Card Top Row: Icon + Category Badge */}
-                                            <div className="flex items-center justify-between">
-                                                <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-emerald-50/50 border border-emerald-100 flex items-center justify-center text-xl shrink-0 text-[#08B36A] shadow-xs group-hover:scale-105 group-hover:bg-[#08B36A] group-hover:text-white transition-all duration-300 ring-2 ring-emerald-50">
-                                                    {iconElement}
-                                                </div>
-
-                                                <span className="text-[10px] font-black uppercase tracking-wider bg-slate-100/80 group-hover:bg-emerald-50 group-hover:text-[#08B36A] text-slate-600 px-3 py-1 rounded-full border border-slate-200/60 transition-colors">
-                                                    {serviceCategory}
-                                                </span>
-                                            </div>
-
-                                            {/* Service Title & Description */}
-                                            <div>
-                                                <h3 className="font-black text-base text-slate-900 group-hover:text-[#08B36A] transition-colors line-clamp-2 leading-snug">
-                                                    {serviceTitle}
-                                                </h3>
-                                                <p className="text-slate-500 text-xs font-medium line-clamp-2 leading-relaxed mt-2">
-                                                    {service.description || service.procedureIncluded || "Certified clinical procedure with sanitized supplies and licensed nursing care."}
-                                                </p>
-                                            </div>
-
-                                            {/* Feature Pills */}
-                                            <div className="flex items-center gap-2 pt-1 flex-wrap">
-                                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-slate-50 text-slate-600 px-2.5 py-1 rounded-lg border border-slate-100">
-                                                    <FaCheckCircle className="text-[#08B36A] text-[10px]" /> Verified
-                                                </span>
-                                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-slate-50 text-slate-600 px-2.5 py-1 rounded-lg border border-slate-100">
-                                                    <FaRegHospital className="text-slate-400 text-[10px]" /> Home & Hospital
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Card Footer: Starting Price & Provider CTA */}
-                                        <div className="pt-5 mt-5 border-t border-slate-100 flex items-center justify-between relative z-10">
-                                            <div>
-                                                <div className="flex items-center gap-1 text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
-                                                    <span>Starts From</span>
-                                                    {hasActive ? (
-                                                        <span className="text-[#08B36A] bg-emerald-50 px-1.5 py-0.5 rounded font-black flex items-center gap-1">
-                                                            <FaUsers size={9} /> {providerCount} Providers Available
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded font-bold">
-                                                            Standard Rate
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-baseline gap-1">
-                                                    <span className="text-2xl font-black text-slate-900 group-hover:text-[#08B36A] transition-colors">
-                                                        ₹{startingPrice}
-                                                    </span>
-                                                    <span className="text-[10px] text-slate-400 font-bold uppercase">/ visit</span>
-                                                </div>
-                                            </div>
-
-                                            {/* Explore Button */}
-                                            <div className="h-10 px-4 rounded-xl bg-slate-100 text-slate-700 group-hover:bg-[#08B36A] group-hover:text-white flex items-center gap-2 text-xs font-black uppercase tracking-wider transition-all duration-300 shadow-xs shrink-0 group-hover:shadow-md group-hover:shadow-[#08B36A]/20">
-                                                <span>Providers</span>
-                                                <FaArrowRight size={10} className="group-hover:translate-x-1 transition-transform" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* Bottom Redirect Button */}
-                        <div className="flex justify-center pt-4">
-                            <button
-                                type="button"
-                                onClick={handleSeeAllRedirection}
-                                className="px-8 sm:px-10 py-4 bg-white hover:bg-[#08B36A] text-slate-900 hover:text-white border-2 border-slate-200 hover:border-[#08B36A] rounded-2xl font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-[#08B36A]/20 flex items-center gap-3 active:scale-95 cursor-pointer"
-                            >
-                                <FaThLarge size={12} />
-                                <span>See All {totalCount > 0 ? `(${totalCount})` : ""} Services</span>
-                                <FaArrowRight size={11} />
-                            </button>
-                        </div>
+                {/* LOADING STATE */}
+                {loading ? (
+                    <div className="min-h-[30vh] flex flex-col items-center justify-center bg-white rounded-[2.5rem] border border-slate-200/80 shadow-xs">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#08B36A] mb-3" />
+                        <p className="text-xs text-slate-400 font-black uppercase tracking-widest">Loading Clinical {activeTab}...</p>
                     </div>
                 ) : (
-                    <div className="py-24 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200 shadow-xs">
-                        <FaStethoscope className="text-slate-300 text-5xl mx-auto mb-3" />
-                        <h3 className="text-slate-800 font-black text-sm tracking-wide">No Nursing Services Configured</h3>
-                        <p className="text-slate-400 text-xs mt-1">There are no operational nursing categories available right now.</p>
-                    </div>
+                    <>
+                        {/* TAB 1: SERVICES GRID */}
+                        {activeTab === "services" && (
+                            <>
+                                {displayedServices.length > 0 ? (
+                                    <div className="space-y-10">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
+                                            {displayedServices.map((service) => {
+                                                const serviceTitle = service.subCategory || service.title || "Clinical Nursing Care";
+                                                const serviceCategory = service.category || service.servicesOffered || "General";
+                                                const startingPrice = service.minPrice ?? service.defaultOneDayPrice ?? service.startingPrice ?? 0;
+                                                const providerCount = service.providerCount ?? 0;
+                                                const hasActive = service.hasActiveVendors || providerCount > 0;
+                                                const iconElement = SERVICE_ICONS[serviceCategory] || <FaStethoscope className="text-[#08B36A]" />;
+
+                                                return (
+                                                    <div
+                                                        key={service._id}
+                                                        onClick={() => handleServiceClick(service)}
+                                                        className="group relative cursor-pointer bg-white border border-slate-200/80 hover:border-[#08B36A] rounded-[2.25rem] p-6.5 pl-7.5 shadow-sm hover:shadow-2xl hover:shadow-emerald-950/10 transition-all duration-300 flex flex-col justify-between overflow-hidden hover:-translate-y-1"
+                                                    >
+                                                        <div className="absolute left-0 top-0 bottom-0 w-2 bg-[#08B36A] rounded-l-[2.25rem] group-hover:w-2.5 transition-all duration-300" />
+                                                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors pointer-events-none" />
+
+                                                        <div className="space-y-4 relative z-10">
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-emerald-50/50 border border-emerald-100 flex items-center justify-center text-xl shrink-0 text-[#08B36A] shadow-xs group-hover:scale-105 group-hover:bg-[#08B36A] group-hover:text-white transition-all duration-300 ring-2 ring-emerald-50">
+                                                                    {iconElement}
+                                                                </div>
+                                                                <span className="text-[10px] font-black uppercase tracking-wider bg-slate-100/80 group-hover:bg-emerald-50 group-hover:text-[#08B36A] text-slate-600 px-3 py-1 rounded-full border border-slate-200/60 transition-colors">
+                                                                    {serviceCategory}
+                                                                </span>
+                                                            </div>
+
+                                                            <div>
+                                                                <h3 className="font-black text-base text-slate-900 group-hover:text-[#08B36A] transition-colors line-clamp-2 leading-snug">
+                                                                    {serviceTitle}
+                                                                </h3>
+                                                                <p className="text-slate-500 text-xs font-medium line-clamp-2 leading-relaxed mt-2">
+                                                                    {service.description || service.procedureIncluded || "Certified clinical procedure with sanitized supplies and licensed nursing care."}
+                                                                </p>
+                                                            </div>
+
+                                                            <div className="flex items-center gap-2 pt-1 flex-wrap">
+                                                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-slate-50 text-slate-600 px-2.5 py-1 rounded-lg border border-slate-100">
+                                                                    <FaCheckCircle className="text-[#08B36A] text-[10px]" /> Verified
+                                                                </span>
+                                                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-slate-50 text-slate-600 px-2.5 py-1 rounded-lg border border-slate-100">
+                                                                    <FaRegHospital className="text-slate-400 text-[10px]" /> Home & Hospital
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="pt-5 mt-5 border-t border-slate-100 flex items-center justify-between relative z-10">
+                                                            <div>
+                                                                <div className="flex items-center gap-1 text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                                                                    <span>Starts From</span>
+                                                                    {hasActive ? (
+                                                                        <span className="text-[#08B36A] bg-emerald-50 px-1.5 py-0.5 rounded font-black flex items-center gap-1">
+                                                                            <FaUsers size={9} /> {providerCount} Providers Available
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded font-bold">Standard Rate</span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex items-baseline gap-1">
+                                                                    <span className="text-2xl font-black text-slate-900 group-hover:text-[#08B36A] transition-colors">
+                                                                        ₹{startingPrice}
+                                                                    </span>
+                                                                    <span className="text-[10px] text-slate-400 font-bold uppercase">/ visit</span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="h-10 px-4 rounded-xl bg-slate-100 text-slate-700 group-hover:bg-[#08B36A] group-hover:text-white flex items-center gap-2 text-xs font-black uppercase tracking-wider transition-all duration-300 shadow-xs shrink-0 group-hover:shadow-md group-hover:shadow-[#08B36A]/20">
+                                                                <span>Providers</span>
+                                                                <FaArrowRight size={10} className="group-hover:translate-x-1 transition-transform" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="flex justify-center pt-4">
+                                            <button
+                                                type="button"
+                                                onClick={handleSeeAllRedirection}
+                                                className="px-8 sm:px-10 py-4 bg-white hover:bg-[#08B36A] text-slate-900 hover:text-white border-2 border-slate-200 hover:border-[#08B36A] rounded-2xl font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-[#08B36A]/20 flex items-center gap-3 active:scale-95 cursor-pointer"
+                                            >
+                                                <FaThLarge size={12} />
+                                                <span>See All {totalCount > 0 ? `(${totalCount})` : ""} Services</span>
+                                                <FaArrowRight size={11} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="py-24 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200 shadow-xs">
+                                        <FaStethoscope className="text-slate-300 text-5xl mx-auto mb-3" />
+                                        <h3 className="text-slate-800 font-black text-sm tracking-wide">No Nursing Services Configured</h3>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* TAB 2: PACKAGES GRID (with Price Display) */}
+                        {activeTab === "packages" && (
+                            <>
+                                {displayedPackages.length > 0 ? (
+                                    <div className="space-y-10">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
+                                            {displayedPackages.map((pkg) => {
+                                                const packagePrice = getPackageMinPrice(pkg.pricing);
+
+                                                return (
+                                                    <div
+                                                        key={pkg._id}
+                                                        onClick={() => handlePackageClick(pkg)}
+                                                        className="group relative cursor-pointer bg-white border border-slate-200/80 hover:border-[#08B36A] rounded-[2.25rem] p-6.5 pl-7.5 shadow-sm hover:shadow-2xl hover:shadow-emerald-950/10 transition-all duration-300 flex flex-col justify-between overflow-hidden hover:-translate-y-1"
+                                                    >
+                                                        <div className="absolute left-0 top-0 bottom-0 w-2 bg-[#08B36A] rounded-l-[2.25rem] group-hover:w-2.5 transition-all duration-300" />
+                                                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors pointer-events-none" />
+
+                                                        <div className="space-y-4 relative z-10">
+                                                            {/* Thumbnail or Fallback Icon */}
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-emerald-50/50 border border-emerald-100 flex items-center justify-center text-xl shrink-0 text-[#08B36A] shadow-xs group-hover:scale-105 group-hover:bg-[#08B36A] group-hover:text-white transition-all duration-300 overflow-hidden">
+                                                                    {pkg.thumbnail ? (
+                                                                        <img src={getReportFileUrl(pkg.thumbnail)} alt={pkg.packageName} className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        <FaBoxOpen />
+                                                                    )}
+                                                                </div>
+
+                                                                <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-[#08B36A] px-3 py-1 rounded-full border border-emerald-200/60">
+                                                                    {pkg.totalServicesCount || 0} Included Services
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Package Name & Description */}
+                                                            <div>
+                                                                <h3 className="font-black text-base text-slate-900 group-hover:text-[#08B36A] transition-colors line-clamp-2 leading-snug">
+                                                                    {pkg.packageName}
+                                                                </h3>
+                                                                <p className="text-slate-500 text-xs font-medium line-clamp-2 leading-relaxed mt-2">
+                                                                    {pkg.description || "Comprehensive clinical care package bundle tailored for specialized recovery."}
+                                                                </p>
+                                                            </div>
+
+                                                            {/* Feature Badge */}
+                                                            <div className="flex items-center gap-2 pt-1 flex-wrap">
+                                                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-slate-50 text-slate-600 px-2.5 py-1 rounded-lg border border-slate-100">
+                                                                    <FaCheckCircle className="text-[#08B36A] text-[10px]" /> Verified Bundle
+                                                                </span>
+                                                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-slate-50 text-slate-600 px-2.5 py-1 rounded-lg border border-slate-100">
+                                                                    <FaRegHospital className="text-slate-400 text-[10px]" /> In-Home Care
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Footer: Price & CTA */}
+                                                        <div className="pt-5 mt-5 border-t border-slate-100 flex items-center justify-between relative z-10">
+                                                            <div>
+                                                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                                                                    <span>Starts From</span>
+                                                                </div>
+                                                                <div className="flex items-baseline gap-1">
+                                                                    <span className="text-2xl font-black text-slate-900 group-hover:text-[#08B36A] transition-colors">
+                                                                        {packagePrice > 0 ? `₹${packagePrice}` : "Best Rate"}
+                                                                    </span>
+                                                                    {packagePrice > 0 && (
+                                                                        <span className="text-[10px] text-slate-400 font-bold uppercase">/ session</span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="h-10 px-4 rounded-xl bg-slate-100 text-slate-700 group-hover:bg-[#08B36A] group-hover:text-white flex items-center gap-2 text-xs font-black uppercase tracking-wider transition-all duration-300 shadow-xs shrink-0">
+                                                                <span>View Details</span>
+                                                                <FaArrowRight size={10} className="group-hover:translate-x-1 transition-transform" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="flex justify-center pt-4">
+                                            <button
+                                                type="button"
+                                                onClick={handleSeeAllRedirection}
+                                                className="px-8 sm:px-10 py-4 bg-white hover:bg-[#08B36A] text-slate-900 hover:text-white border-2 border-slate-200 hover:border-[#08B36A] rounded-2xl font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-[#08B36A]/20 flex items-center gap-3 active:scale-95 cursor-pointer"
+                                            >
+                                                <FaBoxOpen size={12} />
+                                                <span>See All {totalPackagesCount > 0 ? `(${totalPackagesCount})` : ""} Packages</span>
+                                                <FaArrowRight size={11} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="py-24 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200 shadow-xs">
+                                        <FaBoxOpen className="text-slate-300 text-5xl mx-auto mb-3" />
+                                        <h3 className="text-slate-800 font-black text-sm tracking-wide">No Care Packages Available</h3>
+                                        <p className="text-slate-400 text-xs mt-1">There are no nursing packages published right now.</p>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </>
                 )}
 
                 {/* Trust Signals */}

@@ -23,7 +23,10 @@ import {
     FaAward,
     FaChevronRight,
     FaChevronLeft,
-    FaUser
+    FaUser,
+    FaTag,
+    FaCheckCircle,
+    FaMoneyBillWave
 } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import NurseAPI from '@/app/services/NurseAPI';
@@ -93,7 +96,7 @@ export default function AssignNurseTable() {
     const loadData = async () => {
         setIsLoading(true);
         try {
-            // 1. Fetch Confirmed Bookings
+            // 1. Fetch Confirmed Bookings (GET /provider/nurse/dash/bookings?status=Confirmed)
             const confirmedRes = await NurseAPI.getBookings('Confirmed');
             if (confirmedRes?.success) {
                 setConfirmedBookings(confirmedRes.data || []);
@@ -188,11 +191,12 @@ export default function AssignNurseTable() {
                     nurse.bookingId;
 
         if (job && typeof job === 'object' && (job._id || job.bookingId || job.serviceDetails || job.address)) {
-            const patientName = job.userId?.name || job.patients?.[0]?.name || job.address?.name || 'Patient Details On File';
+            const patientName = job.primaryPatientName || job.userId?.name || job.patients?.[0]?.name || job.address?.name || 'Patient Details On File';
             const patientPhone = job.address?.phone || job.userId?.phone || 'N/A';
             const bookingId = job.bookingId || (job._id ? job._id.slice(-8).toUpperCase() : 'N/A');
             const serviceTitle = job.serviceDetails?.title || job.serviceDetails?.type || 'Nursing Care';
-            const totalPrice = job.priceBreakdown?.totalPrice || job.totalPrice || 0;
+            const totalPrice = job.totalAmount || job.priceBreakdown?.totalPrice || job.totalPrice || 0;
+            const travelFee = job.travelFee ?? job.deliveryCharge ?? job.priceBreakdown?.travelFee ?? job.priceBreakdown?.deliveryCharge ?? 0;
             
             const house = job.address?.houseNo ? `House No. ${job.address.houseNo}` : '';
             const sector = job.address?.sector ? `Sector ${job.address.sector}` : '';
@@ -201,11 +205,11 @@ export default function AssignNurseTable() {
             const state = job.address?.state || '';
             const pincode = job.address?.pincode ? `- ${job.address.pincode}` : '';
 
-            const location = city || landmark || 'Service Location On File';
-            const fullAddress = [house, sector, landmark, city, state, pincode].filter(Boolean).join(', ');
+            const location = job.destinationLabel || city || landmark || 'Service Location On File';
+            const fullAddress = job.destinationLabel || [house, sector, landmark, city, state, pincode].filter(Boolean).join(', ');
 
-            const startDate = job.schedule?.startDate ? new Date(job.schedule.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
-            const timeSlot = job.schedule?.startTime ? `${job.schedule.startTime} - ${job.schedule.endTime || ''}` : '';
+            const startDate = job.formattedScheduleDate || (job.schedule?.startDate ? new Date(job.schedule.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
+            const timeSlot = job.formattedScheduleTime || (job.schedule?.startTime ? `${job.schedule.startTime} - ${job.schedule.endTime || ''}` : '');
 
             return {
                 patientName,
@@ -215,6 +219,8 @@ export default function AssignNurseTable() {
                 location,
                 fullAddress,
                 totalPrice,
+                travelFee,
+                paymentDisplayLabel: job.paymentDisplayLabel || (job.isPaid ? 'Paid Online' : job.isCod ? 'Cash on Delivery' : 'Payment Pending'),
                 startDate,
                 timeSlot,
                 patientsList: job.patients || [],
@@ -237,6 +243,8 @@ export default function AssignNurseTable() {
                 location: 'Service Address On File',
                 fullAddress: 'Assigned Service Location',
                 totalPrice: 0,
+                travelFee: 0,
+                paymentDisplayLabel: 'In Progress',
                 startDate: '',
                 timeSlot: '',
                 patientsList: [],
@@ -344,7 +352,7 @@ export default function AssignNurseTable() {
                                 <thead>
                                     <tr className="border-b border-gray-100 bg-gray-50/50">
                                         <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Prescription</th>
-                                        <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Patient Details</th>
+                                        <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Patient & Location</th>
                                         <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest text-center">Service Fee</th>
                                         <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest text-right">Action</th>
                                     </tr>
@@ -379,7 +387,7 @@ export default function AssignNurseTable() {
                                                 </td>
                                                 <td className="px-8 py-6">
                                                     <div className="font-bold text-gray-900 text-base group-hover:text-[#08B36A] transition-colors">
-                                                        {item.userId?.name || item.patients?.[0]?.name || item.address?.name || 'N/A'}
+                                                        {item.primaryPatientName || item.userId?.name || item.patients?.[0]?.name || item.address?.name || 'N/A'}
                                                     </div>
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md font-mono">
@@ -390,11 +398,22 @@ export default function AssignNurseTable() {
                                                             {item.serviceDetails?.title || 'Prescription Support'}
                                                         </span>
                                                     </div>
+                                                    {item.destinationLabel && (
+                                                        <p className="text-[11px] font-semibold text-gray-500 mt-1 flex items-center gap-1">
+                                                            <FaMapMarkerAlt size={9} className="text-[#08B36A] shrink-0" />
+                                                            <span className="truncate max-w-[280px]">{item.destinationLabel}</span>
+                                                        </p>
+                                                    )}
                                                 </td>
                                                 <td className="px-8 py-6 text-center">
                                                     <span className="text-lg font-black text-gray-900">
-                                                        ₹{item.priceBreakdown?.totalPrice || item.totalPrice}
+                                                        ₹{item.totalAmount || item.priceBreakdown?.totalPrice || item.totalPrice}
                                                     </span>
+                                                    {item.paymentDisplayLabel && (
+                                                        <span className="block text-[10px] font-bold text-emerald-700 mt-0.5">
+                                                            {item.paymentDisplayLabel}
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-8 py-6" onClick={(e) => e.stopPropagation()}>
                                                     <div className="flex items-center justify-end gap-3">
@@ -466,6 +485,11 @@ export default function AssignNurseTable() {
                                                                         <FaMapMarkerAlt size={9} className="text-red-400" /> {caseDetails.location}
                                                                     </span>
                                                                 </div>
+                                                                {caseDetails.totalPrice > 0 && (
+                                                                    <span className="text-[11px] font-black text-[#08B36A]">
+                                                                        ₹{caseDetails.totalPrice} ({caseDetails.paymentDisplayLabel})
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         ) : (
                                                             <div className="flex items-center gap-1.5 text-xs text-orange-600 font-bold bg-orange-50 px-3 py-1.5 rounded-xl border border-orange-100 w-fit">
@@ -612,7 +636,7 @@ export default function AssignNurseTable() {
                                 <div>
                                     <h2 className="text-2xl font-black text-gray-900">Select Nurse</h2>
                                     <p className="text-[11px] text-gray-400 font-bold uppercase tracking-[2px] mt-1">
-                                        FOR: {selectedAppointment?.userId?.name || selectedAppointment?.patients?.[0]?.name}
+                                        FOR: {selectedAppointment?.primaryPatientName || selectedAppointment?.userId?.name || selectedAppointment?.patients?.[0]?.name}
                                     </p>
                                 </div>
                                 <button onClick={() => setIsAssignModalOpen(false)} className="w-10 h-10 flex items-center justify-center bg-white rounded-full text-gray-400 hover:text-red-500 shadow-sm border border-gray-100 transition-all"><FaTimes size={18} /></button>
@@ -747,7 +771,6 @@ export default function AssignNurseTable() {
                                                             </span>
                                                         </div>
 
-                                                        {/* Patients List (if available) */}
                                                         {activeCase.patientsList?.length > 0 && (
                                                             <div className="bg-white/80 p-3.5 rounded-2xl border border-orange-100/80 space-y-1 text-xs">
                                                                 <p className="text-[10px] font-black text-orange-600 uppercase tracking-wider">Patient Specs</p>
@@ -760,7 +783,7 @@ export default function AssignNurseTable() {
                                                             </div>
                                                         )}
 
-                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-3 border-t border-orange-200/60 text-xs">
+                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-3 border-orange-200/60 text-xs">
                                                             <div>
                                                                 <p className="text-[10px] font-bold text-gray-400 uppercase">Service Title</p>
                                                                 <p className="font-black text-gray-800 mt-0.5">
@@ -828,7 +851,7 @@ export default function AssignNurseTable() {
                                         <div className="bg-gray-50 p-6 rounded-[32px] border border-gray-100 space-y-4">
                                             <div className="flex justify-between border-b border-gray-200/50 pb-3">
                                                 <span className="text-xs font-bold text-gray-400 uppercase">Patient Name</span> 
-                                                <span className="font-black text-gray-900">{selectedItem.userId?.name || selectedItem.patients?.[0]?.name || selectedItem.address?.name}</span>
+                                                <span className="font-black text-gray-900">{selectedItem.primaryPatientName || selectedItem.userId?.name || selectedItem.patients?.[0]?.name || selectedItem.address?.name}</span>
                                             </div>
                                             <div className="flex justify-between border-b border-gray-200/50 pb-3">
                                                 <span className="text-xs font-bold text-gray-400 uppercase">Relation / Gender</span> 
@@ -857,14 +880,14 @@ export default function AssignNurseTable() {
                                                 </div>
                                                 <div>
                                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Fee</p>
-                                                    <p className="text-xl font-black text-[#08B36A]">₹{selectedItem.priceBreakdown?.totalPrice || selectedItem.totalPrice}</p>
+                                                    <p className="text-xl font-black text-[#08B36A]">₹{selectedItem.totalAmount || selectedItem.priceBreakdown?.totalPrice || selectedItem.totalPrice}</p>
                                                 </div>
                                             </div>
                                         </div>
                                         <div className="bg-gray-50 p-6 rounded-[32px] border border-gray-100">
                                             <div className="flex items-center gap-2 text-gray-900 font-black text-[10px] uppercase mb-3 tracking-widest"><FaMapMarkerAlt className="text-red-500" /> SERVICE LOCATION</div>
                                             <p className="text-sm text-gray-600 font-bold leading-relaxed">
-                                                {selectedItem.address?.houseNo}, {selectedItem.address?.landmark ? `${selectedItem.address.landmark}, ` : ''}{selectedItem.address?.city} ({selectedItem.address?.pincode || 'N/A'})
+                                                {selectedItem.destinationLabel || `${selectedItem.address?.houseNo || ''}, ${selectedItem.address?.landmark ? `${selectedItem.address.landmark}, ` : ''}${selectedItem.address?.city || ''} (${selectedItem.address?.pincode || 'N/A'})`}
                                             </p>
                                         </div>
                                     </div>
@@ -895,7 +918,7 @@ export default function AssignNurseTable() {
                 </div>
             )}
 
-            {/* Custom CSS for hiding scrollbar but keeping functionality */}
+            {/* Custom CSS for scrollbar */}
             <style jsx global>{`
                 .custom-scrollbar::-webkit-scrollbar {
                     width: 6px;

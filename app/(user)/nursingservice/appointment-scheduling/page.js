@@ -83,7 +83,7 @@ function AppointmentSchedulingContent() {
         bedNumber: ""
     });
 
-    // Slot & Schedule (Starts empty - NO AUTO-SELECTION)
+    // Slot & Schedule
     const [slotInfo, setSlotInfo] = useState({
         mode: "One day One Time",
         startDate: "",
@@ -159,7 +159,20 @@ function AppointmentSchedulingContent() {
                     fetchHospitals("", parsedData.city || "");
                 }
 
-                if (parsedData.nurseId && parsedData.nurseId !== "undefined") {
+                // If this is a package, fetch details using getUserPackageDetails
+                if (parsedData.packageId) {
+                    try {
+                        setConsumablesLoading(true);
+                        const pkgRes = await UserAPI.getUserPackageDetails(parsedData.packageId);
+                        if (pkgRes?.success && pkgRes.data?.consumablesUsed) {
+                            setAvailableConsumables(pkgRes.data.consumablesUsed);
+                        }
+                    } catch (err) {
+                        console.error("Error loading package consumables:", err);
+                    } finally {
+                        setConsumablesLoading(false);
+                    }
+                } else if (parsedData.nurseId && parsedData.nurseId !== "undefined") {
                     try {
                         setConsumablesLoading(true);
                         const detailsRes = await UserAPI.nurseServiceDetail(parsedData.nurseId);
@@ -168,13 +181,6 @@ function AppointmentSchedulingContent() {
                             if (parsedData.serviceId && detailsRes.data.services) {
                                 const selectedService = detailsRes.data.services.find(s => s._id === parsedData.serviceId);
                                 if (selectedService?.consumablesUsed) consumables = selectedService.consumablesUsed;
-                            } else if (parsedData.packageId && detailsRes.data.packages) {
-                                const selectedPackage = detailsRes.data.packages.find(p => p._id === parsedData.packageId);
-                                if (selectedPackage?.includedServices && detailsRes.data.services) {
-                                    const packageServices = detailsRes.data.services.filter(s => selectedPackage.includedServices.includes(s.title));
-                                    packageServices.forEach(s => { if (s.consumablesUsed) consumables.push(...s.consumablesUsed); });
-                                    consumables = consumables.filter((item, index, self) => index === self.findIndex(i => i.masterItemId?._id === item.masterItemId?._id));
-                                }
                             }
                             setAvailableConsumables(consumables);
                         }
@@ -193,7 +199,7 @@ function AppointmentSchedulingContent() {
         initData();
     }, [router, fetchHospitals]);
 
-    // 3. Fetch Server-Side Checkout Summary
+    // 3. Fetch Server-Side Checkout Summary (POST /user/nurse/checkout)
     const fetchCheckoutSummary = useCallback(async (couponCode = "") => {
         if (!bookingData?.nurseId || !slotInfo.startDate || !slotInfo.startTime) return;
 
@@ -201,26 +207,30 @@ function AppointmentSchedulingContent() {
             setIsFetchingSummary(true);
             const isPackage = Boolean(bookingData.packageId);
             const cleanStartDate = slotInfo.startDate.split('T')[0];
-            const cleanEndDate = (slotInfo.endDate || slotInfo.startDate).split('T')[0];
 
+            // Payload strictly matching documentation for both regular services and packages
             const payload = {
                 nurseId: String(bookingData.nurseId),
-                serviceId: isPackage ? null : (bookingData.serviceId || null),
-                packageId: isPackage ? (bookingData.packageId || null) : null,
-                isPackage: isPackage,
+                ...(isPackage
+                    ? {
+                        packageId: String(bookingData.packageId),
+                        isPackage: true
+                    }
+                    : {
+                        serviceId: String(bookingData.serviceId || ""),
+                        isPackage: false
+                    }
+                ),
                 selectedType: slotInfo.mode || "One day One Time",
                 startDate: cleanStartDate,
-                endDate: cleanEndDate,
                 startTime: slotInfo.startTime,
-                endTime: slotInfo.endTime || slotInfo.startTime,
-                isFasterService: Boolean(slotInfo.isExpressWindow),
                 patientCount: Number(bookingData.patients?.length || 1),
                 selectedConsumables: selectedConsumables.map(c => ({
                     consumableId: String(c.consumableId),
                     itemName: c.itemName || "Medical Consumable",
                     price: Number(c.price) || 0
                 })),
-                couponCode: couponCode || appliedCouponCode || undefined
+                couponCode: couponCode || appliedCouponCode || ""
             };
 
             const res = await UserAPI.nurseCheckoutSummary(payload);
@@ -352,7 +362,7 @@ function AppointmentSchedulingContent() {
         }
     };
 
-    // 5. Final Booking Handler (STRICT paymentMethod: "COD" | "Online")
+    // 5. Final Booking Handler (POST /user/nurse/book)
     const handleFinalBooking = async (summaryData) => {
         const isHospitalCare = bookingData.assessmentLocation === "At Hospital";
 
@@ -392,33 +402,27 @@ function AppointmentSchedulingContent() {
             const { appliedCoupon, finalTotal } = summaryData;
             const computedFinalPrice = Math.round(typeof finalTotal === "number" ? finalTotal : pricing.totalPrice);
             const isZeroTotal = computedFinalPrice === 0;
-            
-            // 💡 Enforce exact paymentMethod string ('COD' or 'Online')
             const finalPaymentMethod = isZeroTotal ? "COD" : (paymentMethod === "COD" ? "COD" : "Online");
 
             const isPackage = Boolean(bookingData.packageId);
             const cleanStartDate = slotInfo.startDate.split('T')[0];
-            const cleanEndDate = (slotInfo.endDate || slotInfo.startDate).split('T')[0];
 
+            // Build payload exactly as specified in the Book Package Documentation
             const bookingPayload = {
                 nurseId: String(bookingData.nurseId),
-                serviceId: isPackage ? null : (bookingData.serviceId || null),
-                isPackage: isPackage,
-                assessmentLocation: isHospitalCare ? "At Hospital" : "At Home",
-                hospitalDetails: isHospitalCare ? {
-                    isHKHospital: Boolean(hospitalInfo.hospitalId && !isManualHospital),
-                    hospitalId: (hospitalInfo.hospitalId && !isManualHospital) ? hospitalInfo.hospitalId : null,
-                    hospitalName: hospitalInfo.hospitalName,
-                    hospitalAddress: hospitalInfo.hospitalAddress || "Hospital Attendant Desk",
-                    city: hospitalInfo.city || "Mohali",
-                    wardName: hospitalInfo.wardName,
-                    floorNumber: hospitalInfo.floorNumber || "1st Floor",
-                    bedNumber: hospitalInfo.bedNumber
-                } : undefined,
+                ...(isPackage
+                    ? {
+                        packageId: String(bookingData.packageId),
+                        isPackage: true
+                    }
+                    : {
+                        serviceId: String(bookingData.serviceId || ""),
+                        isPackage: false
+                    }
+                ),
                 schedule: {
                     duration: slotInfo.mode || "One day One Time",
                     startDate: cleanStartDate,
-                    endDate: cleanEndDate,
                     startTime: slotInfo.startTime
                 },
                 patients: (bookingData.patients || []).map(p => ({
@@ -437,17 +441,30 @@ function AppointmentSchedulingContent() {
                     pincode: isHospitalCare ? "160071" : (selectedAddress?.pincode || "160071"),
                     addressType: isHospitalCare ? "Other" : (selectedAddress?.addressType || "Home")
                 },
-                selectedConsumables: selectedConsumables.map(c => ({
-                    consumableId: String(c.consumableId),
-                    itemName: c.itemName || "Medical Consumable",
-                    price: Number(c.price) || 0
-                })),
+                assessmentLocation: isHospitalCare ? "At Hospital" : "At Home",
                 paymentMethod: finalPaymentMethod,
+                ...(selectedConsumables.length > 0 && {
+                    selectedConsumables: selectedConsumables.map(c => ({
+                        consumableId: String(c.consumableId),
+                        itemName: c.itemName || "Medical Consumable",
+                        price: Number(c.price) || 0
+                    }))
+                }),
+                ...(hospitalInfo.hospitalId && isHospitalCare && {
+                    hospitalDetails: {
+                        isHKHospital: !isManualHospital,
+                        hospitalId: !isManualHospital ? hospitalInfo.hospitalId : null,
+                        hospitalName: hospitalInfo.hospitalName,
+                        hospitalAddress: hospitalInfo.hospitalAddress || "Hospital Attendant Desk",
+                        city: hospitalInfo.city || "Mohali",
+                        wardName: hospitalInfo.wardName,
+                        floorNumber: hospitalInfo.floorNumber || "1st Floor",
+                        bedNumber: hospitalInfo.bedNumber
+                    }
+                }),
                 isFasterService: Boolean(slotInfo.isExpressWindow),
                 couponCode: appliedCoupon?.couponName || appliedCouponCode || undefined
             };
-
-            console.log("📤 [POST /user/nurse/book] Request Payload:", bookingPayload);
 
             const res = await UserAPI.bookNurseAppointment(bookingPayload);
 
@@ -643,18 +660,7 @@ function AppointmentSchedulingContent() {
                             </div>
                         )}
 
-                        {/* Travel Quota Exhaustion */}
-                        {pricing.travelBenefit.hasActiveSubscription && pricing.travelBenefit.isBenefitExhausted && (
-                            <div className="bg-[#FFFBEB] border border-[#F59E0B] p-4 rounded-2xl flex items-start gap-3 text-[#B45309] shadow-xs">
-                                <FaExclamationTriangle className="mt-0.5 shrink-0" size={14} />
-                                <p className="text-xs font-bold leading-relaxed">
-                                    {pricing.travelBenefit.exhaustedMessage ||
-                                        `Your ${pricing.travelBenefit.planName} quota for free delivery/travel has been exhausted. Standard charges have been applied.`}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* Location Selector (Partner Dropdown Search + Manual Entry Toggle) */}
+                        {/* Location Selector */}
                         {isHospitalCare ? (
                             <div className="bg-white border border-slate-200/80 rounded-[2rem] p-6 shadow-xs space-y-4">
                                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -852,7 +858,7 @@ function AppointmentSchedulingContent() {
                             </div>
                         )}
 
-                        {/* Certified Care */}
+                        {/* Certified Care Guarantee */}
                         <div className="bg-white border border-slate-200/80 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
                             <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-[#08B36A] flex-shrink-0 border border-emerald-100">
                                 <FaShieldAlt size={18} />
