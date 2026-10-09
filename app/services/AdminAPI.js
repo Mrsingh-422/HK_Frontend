@@ -575,11 +575,40 @@ getHospitalApprovals: (params = {}) => {
         return response.data;
     },
 
-    getNursingBookings: async (page = 1, limit = 10) => {
-        const response = await api.get("/admin/nurse/bookings", {
-            params: { page, limit }
-        });
-        return response.data;
+  // ==========================================
+    // 🩺 ADMIN NURSE BOOKINGS APIs
+    // ==========================================
+    getNursingBookings: async (params = {}) => {
+        try {
+            // Supports both (page, limit) signature and object params { page, limit, status, search }
+            const queryParams = typeof params === "object" ? params : { page: arguments[0] || 1, limit: arguments[1] || 10 };
+            
+            const response = await api.get("/admin/nurse/bookings", {
+                params: {
+                    page: queryParams.page || 1,
+                    limit: queryParams.limit || 10,
+                    status: queryParams.status !== "All" ? queryParams.status : undefined,
+                    search: queryParams.search || undefined,
+                    nurseId: queryParams.nurseId || undefined
+                }
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error fetching admin nurse bookings:", error);
+            throw error;
+        }
+    },
+
+    getParticularNurseOrders: async (nurseId, page = 1, limit = 25) => {
+        try {
+            const response = await api.get("/admin/nurse/bookings", {
+                params: { nurseId, page, limit }
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error fetching particular nurse orders:", error);
+            throw error;
+        }
     },
 
     //Api for manage orders by vendors 
@@ -617,12 +646,7 @@ getHospitalApprovals: (params = {}) => {
         }); return response.data;
     },
 
-    getParticularNurseOrders: async (nurseId, page = 1, limit = 25) => {
-        const response = await api.get(`/admin/nurse/bookings/`, {
-            params: { nurseId, page, limit }
-        });
-        return response.data;
-    },
+   
 
     getHospitalsInAdmin: async (page = 1, limit = 25) => {
         const response = await api.get("/admin/hospital/approved-list", {

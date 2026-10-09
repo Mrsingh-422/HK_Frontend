@@ -9,9 +9,10 @@ import {
     FiUser, FiSearch, FiMapPin, FiLoader,
     FiCheck, FiDollarSign, FiTrash2, FiCheckCircle,
     FiPhone, FiZap, FiAlertTriangle, FiAlertCircle,
-    FiCalendar, FiImage, FiFileText
+    FiCalendar, FiImage, FiFileText, FiExternalLink,
+    FiKey
 } from 'react-icons/fi';
-import { MdVerified, MdOutlineMedicalServices, MdLocalHospital } from 'react-icons/md';
+import { MdVerified, MdOutlineMedicalServices, MdLocalHospital, MdReceipt } from 'react-icons/md';
 
 // Dynamic image path builder
 const getImageUrl = (imagePath) => {
@@ -43,6 +44,7 @@ const COMMON_CANCEL_REASONS = [
     "Emergency resolved / Patient recovered",
     "Booked by mistake / Change of plans",
     "Nurse delayed / Timing conflict",
+    "Patient discharged from home care early",
     "Other personal reasons"
 ];
 
@@ -78,7 +80,19 @@ const NurseModeBadge = ({ order }) => {
 
 // --- SUB-COMPONENT: PAYMENT STATUS BADGE ---
 const NursePaymentBadge = ({ order }) => {
-    if (order.isCod === true || order.paymentMethod === 'COD') {
+    const isCod = order.isCod === true || order.paymentMethod === 'COD';
+    const isPaid = order.isPaid === true || order.paymentStatus === 'Paid';
+    const isRefundInitiated = order.paymentStatus === 'Refund-Initiated';
+
+    if (isRefundInitiated) {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold rounded-md text-[10px] whitespace-nowrap">
+                <FiDollarSign size={11} className="shrink-0 text-indigo-600" /> Refund Initiated
+            </span>
+        );
+    }
+
+    if (isCod) {
         return (
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 font-bold rounded-md text-[10px] whitespace-nowrap">
                 💵 {order.paymentDisplayLabel || "Cash on Delivery (Pay on Visit)"}
@@ -86,7 +100,7 @@ const NursePaymentBadge = ({ order }) => {
         );
     }
 
-    if (order.isPaid === true || order.paymentStatus === 'Paid') {
+    if (isPaid) {
         return (
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold rounded-md text-[10px] whitespace-nowrap">
                 <FiCheckCircle size={11} className="shrink-0 text-emerald-600" /> {order.paymentDisplayLabel || "Paid Online"}
@@ -271,6 +285,7 @@ function NursingOrders() {
     const [searchTerm, setSearchTerm] = useState("");
     const [modal, setModal] = useState({ isOpen: false, type: 'details', data: null, trackingData: null });
     const [retryingId, setRetryingId] = useState(null);
+    const [previewImage, setPreviewImage] = useState(null);
     const [mounted, setMounted] = useState(false);
 
     // Review & Ratings States
@@ -292,13 +307,13 @@ function NursingOrders() {
     }, []);
 
     useEffect(() => {
-        if (modal.isOpen || cancelModal.isOpen || cancellationResult) {
+        if (modal.isOpen || cancelModal.isOpen || cancellationResult || previewImage) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [modal.isOpen, cancelModal.isOpen, cancellationResult]);
+    }, [modal.isOpen, cancelModal.isOpen, cancellationResult, previewImage]);
 
     // 1. Fetch Orders Data
     const fetchOrders = useCallback(async (page = 1) => {
@@ -324,7 +339,7 @@ function NursingOrders() {
         fetchOrders();
     }, [fetchOrders]);
 
-    // 2. Open Live Details & Tracking Modal
+    // 2. Open Live Details & Tracking Modal (Calls GET /user/nurse/track/:id)
     const handleOpenDetails = async (order) => {
         setModal({ isOpen: true, type: 'details', data: order, trackingData: null });
         try {
@@ -454,6 +469,7 @@ function NursingOrders() {
         setCustomCancelReason("");
     };
 
+    // 4. Cancellation Handler (Aligned with PATCH /user/nurse/cancel/:id)
     const handleConfirmCancellation = async () => {
         if (!cancelModal.booking?._id) return;
         const finalReason = customCancelReason.trim() || cancelReason;
@@ -463,16 +479,35 @@ function NursingOrders() {
             const response = await UserAPI.cancelNurseBooking(cancelModal.booking._id, finalReason);
             
             if (response?.success) {
-                setCancellationResult(response.data || {
-                    bookingId: cancelModal.booking.bookingId,
-                    status: "Cancelled",
-                    cancellationFee: 0,
-                    refundAmount: cancelModal.booking.totalAmount || cancelModal.booking.totalPrice || 0
+                const resData = response.data || {};
+                const bookingObj = resData.booking || {};
+
+                setCancellationResult({
+                    message: response.message || "Booking cancelled successfully.",
+                    bookingId: bookingObj.bookingId || cancelModal.booking.bookingId,
+                    status: bookingObj.status || "Cancelled",
+                    paymentStatus: bookingObj.paymentStatus || "Refund-Initiated",
+                    cancellationFee: resData.cancellationFee ?? 0,
+                    refundAmount: resData.refundAmount ?? (cancelModal.booking.totalAmount || cancelModal.booking.totalPrice || 0),
+                    completedSessionsCount: resData.completedSessionsCount ?? 0
                 });
 
-                setOrders(prev => prev.map(o => o._id === cancelModal.booking._id ? { ...o, status: 'Cancelled' } : o));
+                // Update orders state
+                setOrders(prev => prev.map(o => o._id === cancelModal.booking._id ? { 
+                    ...o, 
+                    status: 'Cancelled',
+                    paymentStatus: bookingObj.paymentStatus || 'Refund-Initiated'
+                } : o));
+
                 if (modal.data?._id === cancelModal.booking._id) {
-                    setModal(prev => ({ ...prev, data: { ...prev.data, status: 'Cancelled' } }));
+                    setModal(prev => ({ 
+                        ...prev, 
+                        data: { 
+                            ...prev.data, 
+                            status: 'Cancelled',
+                            paymentStatus: bookingObj.paymentStatus || 'Refund-Initiated'
+                        } 
+                    }));
                 }
 
                 setCancelModal({ isOpen: false, booking: null });
@@ -521,7 +556,17 @@ function NursingOrders() {
         const pendingPayment = Boolean(currentData.canPayOnline);
         const isHospital = currentData.assessmentLocation === "At Hospital" || Boolean(currentData.hospitalDetails);
         const activeTravelFee = currentData.deliveryCharge ?? currentData.travelFee ?? currentData.priceBreakdown?.deliveryCharge ?? currentData.priceBreakdown?.travelFee ?? 0;
+        
+        const progressPhotos = currentData.progressPhotos || [];
+        const hasProgressPhotos = Boolean(currentData.hasProgressPhotos || progressPhotos.length > 0);
+        const handmadeInvoice = currentData.handmadeInvoice;
+        const hasHandmadeInvoice = Boolean(currentData.hasHandmadeInvoice || handmadeInvoice);
         const dailySessions = currentData.dailySessions || [];
+        const serviceNotes = currentData.serviceNotes;
+
+        const status = currentData.status;
+        const startOTP = currentData.serviceOTP;
+        const endOTP = currentData.completionOTP;
 
         return createPortal(
             <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6">
@@ -572,32 +617,62 @@ function NursingOrders() {
                                         </div>
                                     </div>
 
-                                    {/* DUAL OTP HUB */}
-                                    {(currentData.serviceOTP || currentData.completionOTP) && (
-                                        <div className="my-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                                            {currentData.serviceOTP && (
-                                                <div className="p-3.5 bg-indigo-500/20 rounded-2xl border border-indigo-400/30 flex items-center justify-between">
-                                                    <div>
-                                                        <p className="text-[9px] font-black uppercase text-indigo-300 tracking-wider">Start Service OTP</p>
-                                                        <p className="text-[11px] text-slate-300 font-semibold">Share upon nurse arrival</p>
-                                                    </div>
-                                                    <span className="text-2xl font-black text-white font-mono bg-black/50 px-3 py-1 rounded-xl border border-indigo-400/30">
-                                                        {currentData.serviceOTP}
-                                                    </span>
-                                                </div>
-                                            )}
+                                    {/* DYNAMIC OTP DISPLAY */}
+                                    {status === "Arrived" && startOTP && (
+                                        <div className="my-4 p-4 bg-gradient-to-r from-emerald-500/30 to-teal-500/30 rounded-2xl border-2 border-dashed border-[#08B36A] flex items-center justify-between">
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase text-emerald-300 tracking-wider">Start Service OTP</p>
+                                                <p className="text-xs text-white font-bold">Share OTP with nurse to start session</p>
+                                            </div>
+                                            <span className="text-3xl font-black text-[#08B36A] bg-white px-4 py-1 rounded-xl shadow-md font-mono tracking-widest">
+                                                {startOTP}
+                                            </span>
+                                        </div>
+                                    )}
 
-                                            {currentData.completionOTP && (
-                                                <div className="p-3.5 bg-emerald-500/20 rounded-2xl border border-emerald-400/30 flex items-center justify-between">
+                                    {status === "Service-Started" && (
+                                        <div className="my-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                            <div className="p-3 bg-white/10 rounded-2xl border border-white/20 flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-[9px] font-black uppercase text-slate-300">Start OTP Verified</p>
+                                                    <p className="text-xs font-bold text-[#08B36A]">Session in Progress</p>
+                                                </div>
+                                                <span className="text-lg font-black font-mono text-slate-300">
+                                                    {startOTP || "Done"}
+                                                </span>
+                                            </div>
+                                            {endOTP && (
+                                                <div className="p-3 bg-emerald-500/20 rounded-2xl border border-emerald-400/30 flex items-center justify-between">
                                                     <div>
-                                                        <p className="text-[9px] font-black uppercase text-emerald-300 tracking-wider">Completion OTP</p>
-                                                        <p className="text-[11px] text-slate-300 font-semibold">Share when care finishes</p>
+                                                        <p className="text-[9px] font-black uppercase text-emerald-300">Completion OTP</p>
+                                                        <p className="text-[11px] text-slate-300 font-semibold">Share once finished</p>
                                                     </div>
-                                                    <span className="text-2xl font-black text-emerald-400 font-mono bg-black/50 px-3 py-1 rounded-xl border border-emerald-400/30">
-                                                        {currentData.completionOTP}
+                                                    <span className="text-xl font-black text-emerald-400 font-mono bg-black/50 px-3 py-1 rounded-xl border border-emerald-400/30">
+                                                        {endOTP}
                                                     </span>
                                                 </div>
                                             )}
+                                        </div>
+                                    )}
+
+                                    {["Assigned", "On-The-Way"].includes(status) && (
+                                        <div className="my-3 p-3 bg-white/10 rounded-2xl border border-white/10 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-2.5 h-2.5 rounded-full bg-[#08B36A] animate-ping" />
+                                                <p className="text-xs font-bold text-slate-200">Nurse is on the way to your location</p>
+                                            </div>
+                                            {startOTP && (
+                                                <span className="text-xs font-bold font-mono text-slate-400">
+                                                    OTP: <strong className="text-white">{startOTP}</strong>
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {["Pending", "Confirmed"].includes(status) && (
+                                        <div className="my-3 p-3 bg-white/10 rounded-2xl border border-white/10 flex items-center gap-2">
+                                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                                            <p className="text-xs font-bold text-slate-300">Waiting for clinical nurse assignment</p>
                                         </div>
                                     )}
 
@@ -613,6 +688,68 @@ function NursingOrders() {
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* HANDMADE INVOICE CARD */}
+                                {hasHandmadeInvoice && handmadeInvoice && (
+                                    <div className="p-5 bg-gradient-to-r from-amber-50 to-orange-50 rounded-[2rem] border border-amber-200 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-xl shadow-md shadow-amber-500/20 shrink-0">
+                                                <MdReceipt size={24} />
+                                            </div>
+                                            <div>
+                                                <span className="text-[9px] font-black uppercase tracking-wider text-amber-700">Official Nurse Slip</span>
+                                                <h4 className="font-black text-slate-900 text-sm">Handwritten Medical Invoice Slip</h4>
+                                                <p className="text-[10px] font-bold text-slate-500">Issued directly by nurse on-site for consumables & services</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPreviewImage(getImageUrl(handmadeInvoice))}
+                                            className="px-4 py-2.5 bg-white hover:bg-amber-500 hover:text-white text-amber-800 rounded-xl border border-amber-300 font-black text-xs uppercase tracking-wider transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                        >
+                                            <FiExternalLink size={12} /> View Slip
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* CLINICAL PROGRESS PHOTOS GRID */}
+                                {hasProgressPhotos && progressPhotos.length > 0 && (
+                                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                                                <FiImage className="text-[#08B36A]" /> Care Session Photos ({progressPhotos.length})
+                                            </h4>
+                                            <span className="text-[10px] text-slate-400 font-bold">Tap photo to enlarge</span>
+                                        </div>
+                                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                                            {progressPhotos.map((photoUrl, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => setPreviewImage(getImageUrl(photoUrl))}
+                                                    className="w-full h-24 rounded-2xl overflow-hidden border-2 border-white shadow-sm hover:scale-105 transition-transform bg-white relative group cursor-pointer"
+                                                >
+                                                    <img src={getImageUrl(photoUrl)} alt={`Session photo ${idx + 1}`} className="w-full h-full object-cover" />
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                                        <FiExternalLink size={16} />
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* GENERAL SERVICE NOTES */}
+                                {serviceNotes && (
+                                    <div className="p-5 bg-emerald-50/50 rounded-[2rem] border border-emerald-100 space-y-1">
+                                        <h4 className="text-[10px] font-black uppercase tracking-wider text-[#08B36A] flex items-center gap-1.5">
+                                            <FiFileText /> Nurse Remarks & Notes
+                                        </h4>
+                                        <p className="text-xs font-medium text-slate-700 leading-relaxed italic">
+                                            "{serviceNotes}"
+                                        </p>
+                                    </div>
+                                )}
 
                                 {/* ASSIGNED STAFF NURSE PROFILE CARD */}
                                 {assignedStaff && (
@@ -631,7 +768,7 @@ function NursingOrders() {
                                                 </span>
                                                 <h4 className="font-black text-slate-900 text-sm">{assignedStaff.name}</h4>
                                                 <p className="text-[10px] font-bold text-slate-500 uppercase">
-                                                    {assignedStaff.vehicleNumber ? `${assignedStaff.vehicleNumber} (${assignedStaff.vehicleType || "Vehicle"})` : 'Verified Clinical Staff'} • Status: {assignedStaff.status || 'Available'}
+                                                    {assignedStaff.phone ? `Phone: ${assignedStaff.phone}` : 'Verified Clinical Staff'} • Status: {assignedStaff.status || 'Active'}
                                                 </p>
                                             </div>
                                         </div>
@@ -703,23 +840,22 @@ function NursingOrders() {
                                                         </div>
                                                     )}
 
-                                                    {/* Progress Photos */}
+                                                    {/* Session Photos */}
                                                     {session.progressPhotos && session.progressPhotos.length > 0 && (
                                                         <div className="space-y-1.5 pt-1">
                                                             <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
-                                                                <FiImage size={12} /> Progress Photos Uploaded ({session.progressPhotos.length})
+                                                                <FiImage size={12} /> Session Photos ({session.progressPhotos.length})
                                                             </p>
                                                             <div className="flex flex-wrap gap-2">
                                                                 {session.progressPhotos.map((photo, pIdx) => (
-                                                                    <a 
+                                                                    <button 
                                                                         key={pIdx} 
-                                                                        href={getImageUrl(photo)} 
-                                                                        target="_blank" 
-                                                                        rel="noopener noreferrer"
-                                                                        className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 bg-white block shadow-xs hover:scale-105 transition-transform"
+                                                                        type="button"
+                                                                        onClick={() => setPreviewImage(getImageUrl(photo))}
+                                                                        className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 bg-white block shadow-xs hover:scale-105 transition-transform cursor-pointer"
                                                                     >
                                                                         <img src={getImageUrl(photo)} alt="Session Progress" className="w-full h-full object-cover" />
-                                                                    </a>
+                                                                    </button>
                                                                 ))}
                                                             </div>
                                                         </div>
@@ -988,10 +1124,9 @@ function NursingOrders() {
                                                 </span>
                                             </td>
 
-                                            {/* Column 6: Actions (Protected against wrapping and clipping) */}
+                                            {/* Column 6: Actions */}
                                             <td className="px-4 xl:px-6 py-5 align-middle text-right">
                                                 <div className="inline-flex items-center justify-end gap-2 whitespace-nowrap">
-                                                    {/* PAY NOW BUTTON */}
                                                     {pendingPayment && (
                                                         <button 
                                                             disabled={retryingId === (order._id || order.bookingId)}
@@ -1139,6 +1274,27 @@ function NursingOrders() {
                 />
             )}
 
+            {/* --- Image Lightbox Preview Modal --- */}
+            {previewImage && mounted && createPortal(
+                <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="relative max-w-3xl max-h-[90vh] w-full flex flex-col items-center justify-center">
+                        <button
+                            type="button"
+                            onClick={() => setPreviewImage(null)}
+                            className="absolute -top-12 right-0 w-10 h-10 rounded-full bg-white/20 hover:bg-white text-white hover:text-slate-900 flex items-center justify-center transition-all cursor-pointer"
+                        >
+                            <FiX size={20} />
+                        </button>
+                        <img 
+                            src={previewImage} 
+                            alt="Full Screen Preview" 
+                            className="max-h-[85vh] max-w-full rounded-2xl object-contain shadow-2xl border border-white/20" 
+                        />
+                    </div>
+                </div>,
+                document.body
+            )}
+
             {/* --- CANCELLATION REASON MODAL --- */}
             {cancelModal.isOpen && cancelModal.booking && mounted && createPortal(
                 <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
@@ -1155,10 +1311,10 @@ function NursingOrders() {
 
                         <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl text-xs space-y-1">
                             <p className="font-bold text-amber-900 flex items-center gap-1.5">
-                                <FiAlertTriangle /> Automated Refund & Benefit Policy
+                                <FiAlertTriangle /> Partial Multi-Day Refund Policy
                             </p>
                             <p className="text-[11px] text-amber-800">
-                                Eligible refunds will be automatically credited to your original payment method.
+                                Unserved days will be refunded automatically to your original payment method. Completed sessions are deducted as per policy.
                             </p>
                         </div>
 
@@ -1221,7 +1377,7 @@ function NursingOrders() {
                 document.body
             )}
 
-            {/* --- CANCELLATION REFUND SUMMARY MODAL --- */}
+            {/* --- CANCELLATION REFUND SUMMARY MODAL (Enhanced with Partial Multi-Day Metrics) --- */}
             {cancellationResult && mounted && createPortal(
                 <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
                     <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-6 sm:p-8 shadow-2xl border border-slate-100 text-center space-y-5">
@@ -1231,9 +1387,20 @@ function NursingOrders() {
                         <div>
                             <h3 className="text-xl font-black text-slate-900">Booking Cancelled</h3>
                             <p className="text-xs text-slate-500 font-semibold mt-1">Ref: #{cancellationResult.bookingId}</p>
+                            {cancellationResult.message && (
+                                <p className="text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl mt-2 leading-relaxed">
+                                    {cancellationResult.message}
+                                </p>
+                            )}
                         </div>
 
                         <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-xs space-y-2 text-left">
+                            {cancellationResult.completedSessionsCount > 0 && (
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400 font-medium">Completed Sessions:</span>
+                                    <span className="font-bold text-slate-800">{cancellationResult.completedSessionsCount} Days</span>
+                                </div>
+                            )}
                             <div className="flex justify-between">
                                 <span className="text-slate-400 font-medium">Cancellation Fee:</span>
                                 <span className="font-bold text-slate-800">₹{cancellationResult.cancellationFee || 0}</span>
@@ -1243,8 +1410,8 @@ function NursingOrders() {
                                 <span className="font-black text-[#08B36A] text-sm">₹{cancellationResult.refundAmount || 0}</span>
                             </div>
                             <div className="flex justify-between border-t border-slate-200/60 pt-2">
-                                <span className="text-slate-400 font-medium">Status:</span>
-                                <span className="font-black text-rose-600 uppercase">Cancelled</span>
+                                <span className="text-slate-400 font-medium">Payment Status:</span>
+                                <span className="font-black text-indigo-600 uppercase">{cancellationResult.paymentStatus || "Refund-Initiated"}</span>
                             </div>
                         </div>
 

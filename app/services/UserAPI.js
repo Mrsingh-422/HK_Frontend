@@ -1414,23 +1414,23 @@ retryPharmacyPayment: async (data) => {
         return response.data;
     },
 
-    // 4. Cancellation & Benefit Restores
-    // These ensure that if a "Free" booking is cancelled, the benefit count is restored (+1)
-   
-cancelNurseBooking: async (bookingId, reason = "") => {
-    try {
-        const response = await authApi.patch(`/user/nurse/cancel/${bookingId}`, {
-            reason: reason || "Cancelled by patient"
-        });
-        return response.data;
-    } catch (error) {
-        console.error("Cancel Nurse Booking API Error:", error);
-        return {
-            success: false,
-            message: error.response?.data?.message || error.message || "Failed to cancel booking"
-        };
-    }
-},
+  /**
+     * Cancel Nurse Booking (Multi-Day Partial Refund Cancellation)
+     * Endpoint: PATCH /user/nurse/cancel/:id
+     * @param {string} id - Booking MongoDB ID
+     * @param {string} reason - Cancellation reason
+     */
+    async cancelNurseBooking(id, reason) {
+        try {
+            const response = await authApi.patch(`/user/nurse/cancel/${id}`, {
+                reason: reason || "User requested cancellation"
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error cancelling nurse booking:", error);
+            throw error;
+        }
+    },
     // Add this to your UserAPI object
    // 3. Autocomplete Search Suggestions (Both Services and Care Providers)
 // Endpoint: GET /user/nurse/search-suggestions?query=...
@@ -1608,6 +1608,83 @@ cancelAmbulanceBooking: async (bookingId, cancelData = {}) => {
 
     cancelAmbulanceBooking: async (bookingId, cancelData = {}) => {
         const response = await authApi.patch(`/user/ambulance/cancel/${bookingId}`, cancelData || {});
+        return response.data;
+    },
+    //new ipd system//
+
+  // ==========================================
+// AUTH HEADERS HELPER (Client & SSR Safe)
+// ==========================================
+
+// ... inside UserAPI object:
+// ==========================================
+    // HOSPITAL OPD & IPD SYSTEM APIS
+    // ==========================================
+
+    // Existing hospital details endpoint (uses publicApi with fallback)
+    getHospitalDetail: async (hospitalId) => {
+        try {
+            const response = await publicApi.get(`/user/hospital/details/${hospitalId}`);
+            return response.data;
+        } catch (err) {
+            if (err.response?.status === 404) {
+                const fallback = await publicApi.get(`/user/hospital/${hospitalId}`);
+                return fallback.data;
+            }
+            throw err;
+        }
+    },
+
+    // 1. GET Hospital Doctors with OPD Fee & Cabin Room
+    // Endpoint: GET /user/hospital/doctors/:hospitalId?department=...&search=...
+    getHospitalDoctors: async (hospitalId, params = {}) => {
+        const response = await authApi.get(`/user/hospital/doctors/${hospitalId}`, { params });
+        return response.data;
+    },
+
+    // 2. GET Doctor OPD Time Slots
+    // Endpoint: GET /user/hospital/doctors/:doctorId/opd-slots?hospitalId=...&date=YYYY-MM-DD
+    getDoctorOpdSlots: async (doctorId, hospitalId, date) => {
+        const response = await publicApi.get(`/user/hospital/doctors/${doctorId}/opd-slots`, {
+            params: { hospitalId, date },
+        });
+        return response.data;
+    },
+
+    // 3. POST OPD Checkout Summary (Coupons, baseFee, totalPayable)
+    // Endpoint: POST /user/hospital/opd/checkout-summary
+    getOpdCheckoutSummary: async (payload) => {
+        const response = await authApi.post('/user/hospital/opd/checkout-summary', payload);
+        return response.data;
+    },
+
+    // 4. POST Confirm OPD Consultation (Generates Daily Token)
+    // Endpoint: POST /user/hospital/opd/book
+    bookOpdAppointment: async (payload) => {
+        const response = await authApi.post('/user/hospital/opd/book', payload);
+        return response.data;
+    },
+
+    // 5. GET Live Token Counter (Queue tracker)
+    // Endpoint: GET /user/hospital/opd/live-queue/:appointmentId
+    getLiveQueueStatus: async (appointmentId) => {
+        const response = await authApi.get(`/user/hospital/opd/live-queue/${appointmentId}`);
+        return response.data;
+    },
+
+    // 6. GET My Hospital Bookings (OPD / Admission)
+    // Endpoint: GET /user/hospital/my-bookings?bookingType=...&tab=...
+    getMyHospitalBookings: async (bookingType = "OPD", tab = "Upcoming") => {
+        const response = await authApi.get('/user/hospital/my-bookings', {
+            params: { bookingType, tab },
+        });
+        return response.data;
+    },
+
+    // 7. PATCH Cancel Booking
+    // Endpoint: PATCH /user/hospital/cancel/:id
+    cancelHospitalBooking: async (id, reason) => {
+        const response = await authApi.patch(`/user/hospital/cancel/${id}`, { reason });
         return response.data;
     },
 

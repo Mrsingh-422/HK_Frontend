@@ -4,17 +4,16 @@ import {
   FaTrashAlt, 
   FaPlus, 
   FaStethoscope, 
-  FaLink, 
   FaBoxOpen,
   FaSearch,
   FaSyncAlt,
   FaListUl,
   FaCheckCircle,
-  FaClock,
-  FaCalendarDay,
   FaLayerGroup,
   FaArrowLeft,
-  FaInfoCircle
+  FaInfoCircle,
+  FaCamera,
+  FaTimes
 } from 'react-icons/fa'
 import { toast } from 'react-hot-toast'
 import NurseAPI from '@/app/services/NurseAPI'
@@ -22,7 +21,7 @@ import NurseAPI from '@/app/services/NurseAPI'
 export default function NurseServiceListingPage() {
   const [loading, setLoading] = useState(false);
   const [fetchingList, setFetchingList] = useState(true);
-  const [showForm, setShowForm] = useState(false); // Toggle state for the form
+  const [showForm, setShowForm] = useState(false);
   
   // Data Lists from API
   const [categories, setCategories] = useState([]);
@@ -33,8 +32,11 @@ export default function NurseServiceListingPage() {
   // Form State
   const [category, setCategory] = useState('');
   const [serviceTitle, setServiceTitle] = useState('');
+  const [serviceType, setServiceType] = useState('Daily Care'); // 'Daily Care' or 'Package'
   const [careSubCategoryId, setCareSubCategoryId] = useState('');
   const [description, setDescription] = useState('');
+  const [prescriptionRequired, setPrescriptionRequired] = useState(false);
+  const [photos, setPhotos] = useState([]); // File objects for upload
   const [extraTemplateDetails, setExtraTemplateDetails] = useState(null);
   
   // Pricing State
@@ -49,12 +51,11 @@ export default function NurseServiceListingPage() {
   const [tempConsDisc, setTempConsDisc] = useState('');
   const [linkedConsumables, setLinkedConsumables] = useState([]);
 
-  // 1. Load Data on Mount - Using the Approved status API
+  // 1. Load Data on Mount
   useEffect(() => {
     const initFetch = async () => {
       try {
         setFetchingList(true);
-        // This calls /provider/nurse/dash/service/list?status=Approved
         const [catRes, listRes] = await Promise.all([
           NurseAPI.getNurseCsvCategories(),
           NurseAPI.getMyServicesList('Approved') 
@@ -89,7 +90,7 @@ export default function NurseServiceListingPage() {
     }
   };
 
-  // 3. Handle Service Change -> Fetch Details (GET /provider/nurse/dash/care-details)
+  // 3. Handle Service Change -> Fetch Details
   const handleServiceChange = async (e) => {
     const val = e.target.value;
     setServiceTitle(val);
@@ -97,7 +98,6 @@ export default function NurseServiceListingPage() {
 
     setLoading(true);
     try {
-      // Calls care details API matching the new specification
       const res = NurseAPI.getNurseCareDetails 
         ? await NurseAPI.getNurseCareDetails(category, val)
         : await NurseAPI.getNurseCsvServiceDetails(category, val);
@@ -108,6 +108,7 @@ export default function NurseServiceListingPage() {
         
         setCareSubCategoryId(template._id);
         setDescription(template.description || '');
+        setPrescriptionRequired(template.prescriptionStatus === 'YES' || template.prescriptionStatus === true);
         setExtraTemplateDetails({
           procedureIncluded: template.procedureIncluded,
           prescriptionStatus: template.prescriptionStatus,
@@ -132,7 +133,6 @@ export default function NurseServiceListingPage() {
           }
         });
 
-        // Resolve consumables list from resolvedConsumables or allConsumables
         const consumables = payloadData.resolvedConsumables || payloadData.allConsumables || template.resolvedConsumables || [];
         setMasterConsumables(consumables);
       }
@@ -183,35 +183,68 @@ export default function NurseServiceListingPage() {
     setLinkedConsumables(linkedConsumables.filter(c => c.masterItemId !== id));
   };
 
-  // 6. Submit Logic
+  // Handle Photo File Selection
+  const handlePhotoUpload = (e) => {
+    const files = Array.from(e.target.files);
+    setPhotos(prev => [...prev, ...files]);
+  };
+
+  const removePhoto = (index) => {
+    setPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // 6. Submit Logic via multipart/form-data
   const handleSubmit = async () => {
-    if (!careSubCategoryId) return toast.error("Please select a service first");
+    if (!serviceTitle) return toast.error("Please enter/select a service title");
     
     setLoading(true);
-    const payload = {
-        careSubCategoryId: careSubCategoryId,
-        careCategoryId: category,
-        title: serviceTitle,
-        description: description,
-        pricing: {
-            oneDay: { base: pricing.oneDay.base, discount: pricing.oneDay.discount },
-            multipleDays: { base: pricing.multiDay.base, discount: pricing.multiDay.discount },
-            hourly: { base: pricing.hourly.base, discount: pricing.hourly.discount }
-        },
-        consumablesUsed: linkedConsumables.map(c => ({
-            masterItemId: c.masterItemId,
-            discountPercentage: c.discountPercentage
-        })),
-        status: 'Approved'
-    };
 
     try {
-      const res = await NurseAPI.manageNurseService(payload);
-      if (res.success) {
-        toast.success("Service listed successfully!");
-        window.location.reload();
+      const data = new FormData();
+      data.append('title', serviceTitle);
+      data.append('description', description);
+      data.append('type', serviceType);
+      data.append('prescriptionRequired', prescriptionRequired);
+      
+      if (careSubCategoryId) {
+        data.append('careSubCategoryId', careSubCategoryId);
+      }
+      if (category) {
+        data.append('careCategoryId', category);
+      }
+
+      // JSON stringified pricing structure matching documentation
+      const pricingPayload = {
+        oneDay: { base: Number(pricing.oneDay.base) || 0, discount: Number(pricing.oneDay.discount) || 0 },
+        multipleDays: { base: Number(pricing.multiDay.base) || 0, discount: Number(pricing.multiDay.discount) || 0 },
+        hourly: { base: Number(pricing.hourly.base) || 0, discount: Number(pricing.hourly.discount) || 0 }
+      };
+      data.append('pricing', JSON.stringify(pricingPayload));
+
+      // JSON stringified consumables array matching documentation
+      const consumablesPayload = linkedConsumables.map(c => ({
+        masterItemId: c.masterItemId,
+        discountPercentage: Number(c.discountPercentage) || 0
+      }));
+      data.append('consumablesUsed', JSON.stringify(consumablesPayload));
+
+      // Append Photos
+      photos.forEach((file) => {
+        data.append('photos', file);
+      });
+
+      const res = await NurseAPI.manageNurseService(data);
+      if (res?.success) {
+        toast.success(res.message || "Service listed successfully.");
+        setShowForm(false);
+        // Refresh listed services
+        const listRes = await NurseAPI.getMyServicesList('Approved');
+        if (listRes?.success) setMyServices(listRes.data || []);
+      } else {
+        toast.error(res?.message || "Failed to list service");
       }
     } catch (err) {
+      console.error("Submission error:", err);
       toast.error(err.response?.data?.message || "Submission failed");
     } finally {
       setLoading(false);
@@ -222,7 +255,7 @@ export default function NurseServiceListingPage() {
     <div className="w-full pb-20 bg-[#F8FAFC] min-h-screen font-sans">
       
       {/* --- PAGE HEADER --- */}
-      <div className="max-w-5xl mx-auto mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="max-w-5xl mx-auto mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6 pt-6">
         <h1 className="text-4xl font-[900] text-[#1e3a8a] tracking-tighter flex items-center gap-4">
           <div className="p-4 bg-[#08B36A] text-white rounded-[1.5rem] shadow-xl">
             <FaStethoscope size={28}/>
@@ -232,6 +265,7 @@ export default function NurseServiceListingPage() {
 
         {!showForm && (
             <button 
+                type="button"
                 onClick={() => setShowForm(true)}
                 className="bg-[#08B36A] hover:bg-[#069e5d] text-white px-8 py-4 rounded-[1.2rem] font-black text-sm shadow-lg shadow-green-100 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
             >
@@ -246,6 +280,7 @@ export default function NurseServiceListingPage() {
         {showForm ? (
             <div className="animate-in fade-in slide-in-from-top-4 duration-500">
                 <button 
+                    type="button"
                     onClick={() => setShowForm(false)}
                     className="mb-6 flex items-center gap-2 text-gray-500 font-bold text-sm hover:text-[#08B36A] transition-colors cursor-pointer"
                 >
@@ -264,7 +299,7 @@ export default function NurseServiceListingPage() {
                     )}
                     
                     {/* 1. SELECTION ROW */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
                             <label className="label-style">Category</label>
                             <select className="input-style" value={category} onChange={handleCategoryChange}>
@@ -288,6 +323,17 @@ export default function NurseServiceListingPage() {
                                 ))}
                             </select>
                         </div>
+                        <div>
+                            <label className="label-style">Service Type</label>
+                            <select 
+                                className="input-style" 
+                                value={serviceType} 
+                                onChange={(e) => setServiceType(e.target.value)}
+                            >
+                                <option value="Daily Care">Daily Care</option>
+                                <option value="Package">Package</option>
+                            </select>
+                        </div>
                     </div>
 
                     {/* Procedure & Prescription Metadata Tag */}
@@ -299,13 +345,11 @@ export default function NurseServiceListingPage() {
                             <span><strong>Procedures Included:</strong> {extraTemplateDetails.procedureIncluded}</span>
                           </div>
                         )}
-                        {extraTemplateDetails.prescriptionStatus && (
-                          <div className="flex items-center gap-1.5 text-slate-700">
-                            <span className="font-bold uppercase text-[10px] bg-white px-2 py-0.5 rounded border border-emerald-200">
-                              Prescription Required: {extraTemplateDetails.prescriptionStatus}
-                            </span>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-1.5 text-slate-700">
+                          <span className="font-bold uppercase text-[10px] bg-white px-2 py-0.5 rounded border border-emerald-200">
+                            Prescription Status: {extraTemplateDetails.prescriptionStatus || "NO"}
+                          </span>
+                        </div>
                       </div>
                     )}
 
@@ -314,11 +358,25 @@ export default function NurseServiceListingPage() {
                         <label className="label-style">Description (Editable)</label>
                         <textarea 
                             rows={3}
-                            placeholder="Description..."
+                            placeholder="Sterile surgical dressing and antiseptic hygiene..."
                             className="input-style min-h-[100px] py-4"
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                         />
+                    </div>
+
+                    {/* Prescription Required Checkbox */}
+                    <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-100 w-fit">
+                      <input 
+                        type="checkbox"
+                        id="prescriptionReq"
+                        checked={prescriptionRequired}
+                        onChange={(e) => setPrescriptionRequired(e.target.checked)}
+                        className="w-4 h-4 accent-[#08B36A] rounded cursor-pointer"
+                      />
+                      <label htmlFor="prescriptionReq" className="text-xs font-bold text-gray-700 cursor-pointer">
+                        Prescription Required for Booking
+                      </label>
                     </div>
 
                     {/* 3. PRICING CONFIGURATION */}
@@ -334,7 +392,7 @@ export default function NurseServiceListingPage() {
                                 <h4 className="text-[10px] font-black text-[#08B36A] uppercase mb-4 tracking-widest">One Day Price</h4>
                                 <div className="space-y-2">
                                     <input type="number" readOnly value={pricing.oneDay.base} className="w-full py-2 px-4 rounded-lg bg-gray-50 border border-gray-100 text-center font-bold text-xs outline-none" />
-                                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1 block mt-1 tracking-wider">Discount</label>
+                                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1 block mt-1 tracking-wider">Discount %</label>
                                     <input type="number" placeholder="Disc %" value={pricing.oneDay.discount} onChange={(e) => updatePrice('oneDay', 'discount', e.target.value)} className="w-full py-3 px-4 rounded-lg border border-gray-200 text-center font-bold focus:border-[#08B36A] outline-none" />
                                 </div>
                                 <div className="mt-3 text-[11px] font-black text-gray-400">Final: <span className="text-[#08B36A]">₹{pricing.oneDay.final}</span></div>
@@ -345,7 +403,7 @@ export default function NurseServiceListingPage() {
                                 <h4 className="text-[10px] font-black text-[#08B36A] uppercase mb-4 tracking-widest">Multi Day Price</h4>
                                 <div className="space-y-2">
                                     <input type="number" readOnly value={pricing.multiDay.base} className="w-full py-2 px-4 rounded-lg bg-gray-50 border border-gray-100 text-center font-bold text-xs outline-none" />
-                                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1 block mt-1 tracking-wider">Discount</label>
+                                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1 block mt-1 tracking-wider">Discount %</label>
                                     <input type="number" placeholder="Disc %" value={pricing.multiDay.discount} onChange={(e) => updatePrice('multiDay', 'discount', e.target.value)} className="w-full py-3 px-4 rounded-lg border border-gray-200 text-center font-bold focus:border-[#08B36A] outline-none" />
                                 </div>
                                 <div className="mt-3 text-[11px] font-black text-gray-400">Final: <span className="text-[#08B36A]">₹{pricing.multiDay.final}</span></div>
@@ -356,7 +414,7 @@ export default function NurseServiceListingPage() {
                                 <h4 className="text-[10px] font-black text-[#08B36A] uppercase mb-4 tracking-widest">Hourly Price</h4>
                                 <div className="space-y-2">
                                     <input type="number" readOnly value={pricing.hourly.base} className="w-full py-2 px-4 rounded-lg bg-gray-50 border border-gray-100 text-center font-bold text-xs outline-none" />
-                                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1 block mt-1 tracking-wider">Discount</label>
+                                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1 block mt-1 tracking-wider">Discount %</label>
                                     <input type="number" placeholder="Disc %" value={pricing.hourly.discount} onChange={(e) => updatePrice('hourly', 'discount', e.target.value)} className="w-full py-3 px-4 rounded-lg border border-gray-200 text-center font-bold focus:border-[#08B36A] outline-none" />
                                 </div>
                                 <div className="mt-3 text-[11px] font-black text-gray-400">Final: <span className="text-[#08B36A]">₹{pricing.hourly.final}</span></div>
@@ -395,7 +453,7 @@ export default function NurseServiceListingPage() {
                                     onChange={(e) => setTempConsDisc(e.target.value)}
                                 />
                             </div>
-                            <button onClick={linkConsumable} className="w-full md:w-32 bg-[#08B36A] text-white rounded-xl font-black text-sm h-[54px] cursor-pointer">Link</button>
+                            <button type="button" onClick={linkConsumable} className="w-full md:w-32 bg-[#08B36A] text-white rounded-xl font-black text-sm h-[54px] cursor-pointer">Link</button>
                         </div>
 
                         {/* TABLE */}
@@ -418,7 +476,7 @@ export default function NurseServiceListingPage() {
                                             <td className="px-6 py-4 text-center text-orange-500">{item.discountPercentage}%</td>
                                             <td className="px-6 py-4 text-right font-black text-[#08B36A]">₹{item.final}</td>
                                             <td className="px-6 py-4 text-right">
-                                                <button onClick={() => removeConsumable(item.masterItemId)} className="text-gray-300 hover:text-red-500 cursor-pointer">
+                                                <button type="button" onClick={() => removeConsumable(item.masterItemId)} className="text-gray-300 hover:text-red-500 cursor-pointer">
                                                     <FaTrashAlt size={12} />
                                                 </button>
                                             </td>
@@ -432,8 +490,48 @@ export default function NurseServiceListingPage() {
                         </div>
                     </div>
 
+                    {/* 5. PHOTOS UPLOAD */}
+                    <div className="space-y-4 pt-4 border-t border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <FaCamera className="text-[#08B36A]" />
+                        <h3 className="text-sm font-bold text-gray-600 uppercase tracking-tight">Banner Photos (Optional)</h3>
+                      </div>
+
+                      <div className="flex flex-wrap gap-3 items-center">
+                        <label className="h-24 w-24 rounded-2xl border-2 border-dashed border-gray-200 hover:border-[#08B36A] flex flex-col items-center justify-center text-gray-400 hover:text-[#08B36A] cursor-pointer transition-colors bg-gray-50">
+                          <FaPlus size={16} />
+                          <span className="text-[9px] font-bold mt-1 uppercase">Add Photo</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            multiple 
+                            onChange={handlePhotoUpload} 
+                            className="hidden" 
+                          />
+                        </label>
+
+                        {photos.map((file, idx) => (
+                          <div key={idx} className="relative h-24 w-24 rounded-2xl overflow-hidden border border-gray-200 group bg-slate-100">
+                            <img 
+                              src={URL.createObjectURL(file)} 
+                              alt="Upload preview" 
+                              className="w-full h-full object-cover" 
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removePhoto(idx)}
+                              className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-80 hover:opacity-100 transition-opacity cursor-pointer shadow-sm"
+                            >
+                              <FaTimes size={10} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
                     <div className="pt-6">
                         <button 
+                            type="button"
                             onClick={handleSubmit}
                             disabled={loading}
                             className="w-full py-5 bg-[#08B36A] text-white rounded-xl font-black text-sm shadow-xl uppercase tracking-wider transition-all cursor-pointer"
@@ -444,7 +542,7 @@ export default function NurseServiceListingPage() {
                 </div>
             </div>
         ) : (
-            /* --- DEFAULT VIEW: MY LISTED SERVICES (Fetched via ?status=Approved) --- */
+            /* --- DEFAULT VIEW: MY LISTED SERVICES --- */
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <h2 className="text-2xl font-black text-gray-800 flex items-center gap-3">
                     <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-100">
@@ -466,7 +564,7 @@ export default function NurseServiceListingPage() {
                                     <div>
                                         <h3 className="font-black text-gray-800 text-lg group-hover:text-[#08B36A] transition-colors">{svc.title}</h3>
                                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1 mt-1">
-                                            <FaLayerGroup /> {svc.careCategoryId}
+                                            <FaLayerGroup /> {svc.careCategoryId || svc.type || "Daily Care"}
                                         </p>
                                     </div>
                                     <span className="bg-green-50 text-[#08B36A] text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter flex items-center gap-1">

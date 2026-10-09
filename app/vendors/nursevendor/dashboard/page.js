@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FaSpinner, FaSyncAlt } from 'react-icons/fa';
+import { FaSpinner, FaSyncAlt, FaExclamationCircle } from 'react-icons/fa';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
@@ -15,7 +15,7 @@ const StatsGraph = ({ earnings }) => {
     
     const chartData = mockDays.map((day, idx) => ({
         day,
-        yield: Math.round((earnings || 12500) * distributionFactors[idx])
+        yield: Math.round((earnings || 0) * distributionFactors[idx])
     }));
 
     return (
@@ -26,7 +26,7 @@ const StatsGraph = ({ earnings }) => {
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Tracking daily yield rates over the current cycle</p>
                 </div>
                 <span className="text-[#08B36A] font-black text-sm bg-green-50 px-4 py-2 rounded-xl border border-green-100">
-                    Cycle Total: ₹{earnings?.toLocaleString()}
+                    Cycle Total: ₹{(earnings || 0).toLocaleString('en-IN')}
                 </span>
             </div>
             
@@ -44,6 +44,7 @@ const StatsGraph = ({ earnings }) => {
                         <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
                         <Tooltip 
                             contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.05)'}} 
+                            formatter={(value) => [`₹${value.toLocaleString('en-IN')}`, 'Yield']}
                         />
                         <Area type="monotone" dataKey="yield" stroke="#08B36A" strokeWidth={3} fillOpacity={1} fill="url(#colorNurse)" name="Daily Yield" />
                     </AreaChart>
@@ -68,8 +69,14 @@ export default function NurseDashboardPage() {
         try {
             setFetching(true);
             const statsRes = await NurseAPI.getDashboardStats();
-            if (statsRes.success) {
-                setStats(statsRes.data);
+            if (statsRes?.success && statsRes?.data) {
+                setStats({
+                    pendingRequests: statsRes.data.pendingRequests ?? 0,
+                    priorityRequests: statsRes.data.priorityRequests ?? 0,
+                    activeJobs: statsRes.data.activeJobs ?? 0,
+                    completedJobs: statsRes.data.completedJobs ?? 0,
+                    totalEarnings: statsRes.data.totalEarnings ?? 0
+                });
             }
         } catch (error) {
             console.error("Error loading nurse dashboard analytics:", error);
@@ -98,7 +105,7 @@ export default function NurseDashboardPage() {
                 <div className="text-left">
                     <h1 className="text-3xl font-black text-gray-900 tracking-tight">Overview Dashboard</h1>
                     <p className="text-gray-500 text-sm mt-1 font-medium italic">
-                        Real-time parameters, summary operational logs, and cyclical analysis curves.
+                        Real-time parameters, operational counters, and cyclical revenue curve.
                     </p>
                 </div>
             </div>
@@ -108,40 +115,52 @@ export default function NurseDashboardPage() {
                 <div className="flex justify-between items-center mb-6">
                     <p className="text-gray-800 font-bold text-lg">Daily Summary</p>
                     <div className="flex items-center gap-3">
-                        <button onClick={loadData} className="text-gray-400 hover:text-gray-600 transition-colors p-1" title="Refresh Dashboard">
+                        <button 
+                            type="button"
+                            onClick={loadData} 
+                            className="text-gray-400 hover:text-gray-600 transition-colors p-1 cursor-pointer" 
+                            title="Refresh Dashboard"
+                        >
                             <FaSyncAlt size={14} />
                         </button>
                         <span className="bg-gray-100 text-gray-500 px-4 py-1 rounded-full text-xs font-bold tracking-wide uppercase">
-                            {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long' })}
+                            {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
                         </span>
                     </div>
                 </div>
                 
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+                    {/* Pending Requests */}
                     <div className="bg-[#FFF1F1] p-5 rounded-3xl flex flex-col justify-center min-h-[120px] border border-red-50">
                         <p className="text-gray-400 font-extrabold text-[10px] uppercase text-center tracking-wider leading-tight">Requests</p>
                         <p className="text-[#FF4D4D] text-3xl font-black text-center mt-2">{stats.pendingRequests}</p>
                     </div>
 
+                    {/* Priority Express Requests */}
                     <div className="bg-[#FFF1F1] p-5 rounded-3xl flex flex-col justify-center min-h-[120px] border border-red-50 relative overflow-hidden">
-                        <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                        {stats.priorityRequests > 0 && (
+                            <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                        )}
                         <p className="text-gray-400 font-extrabold text-[10px] uppercase text-center tracking-wider leading-tight">Priority Requests</p>
-                        <p className="text-red-500 text-3xl font-black text-center mt-2">{stats.priorityRequests || 0}</p>
+                        <p className="text-red-500 text-3xl font-black text-center mt-2">{stats.priorityRequests}</p>
                     </div>
 
+                    {/* Active Jobs */}
                     <div className="bg-[#FFF8F1] p-5 rounded-3xl flex flex-col justify-center min-h-[120px] border border-orange-50">
-                        <p className="text-gray-400 font-extrabold text-[10px] uppercase text-center tracking-wider leading-tight">Accepted</p>
+                        <p className="text-gray-400 font-extrabold text-[10px] uppercase text-center tracking-wider leading-tight">Active Jobs</p>
                         <p className="text-[#FF9933] text-3xl font-black text-center mt-2">{stats.activeJobs}</p>
                     </div>
 
+                    {/* Completed Jobs */}
                     <div className="bg-[#F1FFF8] p-5 rounded-3xl flex flex-col justify-center min-h-[120px] border border-green-50">
                         <p className="text-gray-400 font-extrabold text-[10px] uppercase text-center tracking-wider leading-tight">Completed</p>
                         <p className="text-[#08B36A] text-3xl font-black text-center mt-2">{stats.completedJobs}</p>
                     </div>
 
+                    {/* Total Revenue */}
                     <div className="bg-[#08B36A] p-5 rounded-3xl flex flex-col justify-center min-h-[120px] shadow-lg shadow-green-100 border border-green-600 col-span-2 md:col-span-1">
-                        <p className="text-white/80 font-extrabold text-[10px] uppercase text-center tracking-wider leading-tight">Earnings</p>
-                        <p className="text-white text-3xl font-black text-center mt-2 truncate">₹{stats.totalEarnings?.toLocaleString()}</p>
+                        <p className="text-white/80 font-extrabold text-[10px] uppercase text-center tracking-wider leading-tight">Total Earnings</p>
+                        <p className="text-white text-3xl font-black text-center mt-2 truncate">₹{stats.totalEarnings?.toLocaleString('en-IN')}</p>
                     </div>
                 </div>
             </div>

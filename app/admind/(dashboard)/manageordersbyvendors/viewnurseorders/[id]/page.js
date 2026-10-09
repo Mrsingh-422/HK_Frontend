@@ -9,14 +9,18 @@ import {
   FaBoxes,
   FaBriefcaseMedical,
   FaMapMarkerAlt,
-  FaFileInvoiceDollar
+  FaFileInvoiceDollar,
+  FaHospital,
+  FaUserNurse,
+  FaCar,
+  FaPhoneAlt
 } from 'react-icons/fa';
 import AdminAPI from '@/app/services/AdminAPI';
 
 function ViewNurseOrders({ params }) {
   const router = useRouter();
   
-  // Safely unwrap dynamic route token using React.use() wrapper per Next.js conventions
+  // Safely unwrap dynamic route token using React.use()
   const { id: nurseId } = React.use(params);
 
   // Core Data States
@@ -86,20 +90,22 @@ function ViewNurseOrders({ params }) {
         return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       case 'pending':
         return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'cancelled':
+        return 'bg-rose-50 text-rose-700 border-rose-200';
       default:
         return 'bg-slate-50 text-slate-600 border-slate-200';
     }
   };
 
   return (
-    <div className="bg-[#FAFBFD] min-h-screen text-slate-600 antialiased p-4 md:p-8">
+    <div className="bg-[#FAFBFD] min-h-screen text-slate-600 antialiased p-4 md:p-8 font-sans">
       
       {/* Return Control & Identity Context header */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <button 
             onClick={() => router.back()}
-            className="group flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors mb-3 bg-white px-3 py-1.5 rounded-lg border border-slate-200/60 shadow-sm"
+            className="group flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors mb-3 bg-white px-3 py-1.5 rounded-lg border border-slate-200/60 shadow-sm cursor-pointer"
           >
             <FaChevronLeft className="text-[10px] transform group-hover:-translate-x-0.5 transition-transform" />
             Back to Nurse Directory
@@ -108,7 +114,7 @@ function ViewNurseOrders({ params }) {
             {nurseProfile ? `${nurseProfile.name} — Activity Ledger` : 'Nurse Job Bookings'}
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Overview and status matrix of assigned medical home-care bundles and custom configurations.
+            Audit log of assigned clinical home-care services, hospital bedside sessions, and dispatched staff.
           </p>
         </div>
         
@@ -140,122 +146,172 @@ function ViewNurseOrders({ params }) {
           {/* Table Container Matrix */}
           <div className="bg-white rounded-2xl shadow-[0_4px_25px_rgba(15,23,42,0.02)] border border-slate-200/70 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[1000px]">
+              <table className="w-full text-left border-collapse min-w-[1100px]">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-100 text-slate-500 text-xs font-bold tracking-wider uppercase">
                     <th className="p-4 pl-6 w-32">Booking ID</th>
-                    <th className="p-4 w-52">
+                    <th className="p-4 w-48">
                       <span className="flex items-center gap-1.5"><FaBriefcaseMedical className="text-[10px]" /> Service Details</span>
                     </th>
                     <th className="p-4 w-44">
-                      <span className="flex items-center gap-1.5"><FaRegCalendarAlt className="text-[10px]" /> Schedule Period</span>
+                      <span className="flex items-center gap-1.5"><FaRegCalendarAlt className="text-[10px]" /> Schedule</span>
+                    </th>
+                    <th className="p-4 w-44">
+                      <span className="flex items-center gap-1.5"><FaUserNurse className="text-[10px]" /> Field Staff</span>
                     </th>
                     <th className="p-4">
                       <span className="flex items-center gap-1.5"><FaUser className="text-[10px]" /> Patient Profile</span>
                     </th>
                     <th className="p-4">
-                      <span className="flex items-center gap-1.5"><FaMapMarkerAlt className="text-[10px]" /> Delivery Address</span>
+                      <span className="flex items-center gap-1.5"><FaMapMarkerAlt className="text-[10px]" /> Location / Hospital</span>
                     </th>
-                    <th className="p-4 text-center w-32">
-                      <span className="flex items-center justify-center gap-1.5"><FaFileInvoiceDollar className="text-[10px]" /> Financial Net</span>
+                    <th className="p-4 text-center w-36">
+                      <span className="flex items-center justify-center gap-1.5"><FaFileInvoiceDollar className="text-[10px]" /> Payment Net</span>
                     </th>
                     <th className="p-4 text-center w-28 pr-6">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm text-slate-600">
-                  {bookings.map((booking) => (
-                    <tr key={booking._id} className="hover:bg-slate-50/40 transition-colors group">
-                      
-                      {/* Booking ID Code Column */}
-                      <td className="p-4 pl-6 font-mono text-xs font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
-                        {booking.bookingId || 'N/A'}
-                      </td>
+                  {bookings.map((booking) => {
+                    const isHospital = booking.assessmentLocation === "At Hospital" || Boolean(booking.hospitalDetails);
+                    const hosp = booking.hospitalDetails || {};
+                    const staff = booking.assignedStaff || booking.assignedStaffId || {};
 
-                      {/* Package Core Details */}
-                      <td className="p-4">
-                        <div className="space-y-0.5">
-                          <p className="font-bold text-slate-800 line-clamp-1">
-                            {booking.serviceDetails?.title || 'Home Nursing Module'}
-                          </p>
-                          <div className="flex flex-wrap gap-1.5 items-center">
-                            <span className="px-2 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-600 rounded">
-                              {booking.serviceDetails?.type || 'Care'}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
+                    return (
+                      <tr key={booking._id} className="hover:bg-slate-50/40 transition-colors group">
+                        
+                        {/* Booking ID */}
+                        <td className="p-4 pl-6 font-mono text-xs font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
+                          #{booking.bookingId || 'N/A'}
+                        </td>
 
-                      {/* Appointment Schedule Timeline */}
-                      <td className="p-4 text-xs font-medium text-slate-500">
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-1.5 text-slate-700 font-semibold">
-                            <span>
-                              {formatDate(booking.schedule?.startDate)}
-                            </span>
-                          </div>
-                          {booking.schedule?.startTime && (
-                            <p className="text-[11px] bg-slate-100/80 text-slate-600 px-1.5 py-0.5 rounded w-max font-mono border border-slate-200/40">
-                              {booking.schedule.startTime} - {booking.schedule.endTime || 'End'}
+                        {/* Service Details */}
+                        <td className="p-4">
+                          <div className="space-y-0.5">
+                            <p className="font-bold text-slate-800 line-clamp-1">
+                              {booking.serviceDetails?.title || 'Home Nursing Care'}
                             </p>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Patients Profiles Stack inside row */}
-                      <td className="p-4">
-                        <div className="space-y-1">
-                          {booking.patients && booking.patients.map((patient, pIdx) => (
-                            <div key={patient._id || pIdx} className="flex items-center gap-1 text-xs">
-                              <span className="font-bold text-slate-800">{patient.name}</span>
-                              <span className="text-slate-400 text-[11px]">
-                                ({patient.age} yrs • {patient.gender})
+                            <div className="flex flex-wrap gap-1 items-center">
+                              <span className="px-2 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-600 rounded">
+                                {booking.serviceDetails?.type || booking.schedule?.duration || 'Care'}
                               </span>
+                              {booking.completedSessionsCount > 0 && (
+                                <span className="px-2 py-0.5 text-[9px] font-black bg-emerald-50 text-emerald-700 rounded border border-emerald-100">
+                                  {booking.completedSessionsCount} Days Done
+                                </span>
+                              )}
                             </div>
-                          ))}
-                          
-                          {/* Consumable Kit Extras Badge line counter */}
-                          {booking.selectedConsumables?.length > 0 && (
-                            <div className="flex items-center gap-1 mt-1 text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-100 rounded-md px-1.5 py-0.5 w-max">
-                              <FaBoxes className="text-slate-400 text-[10px]" />
-                              <span>+{booking.selectedConsumables.length} Equipment Bundles</span>
+                          </div>
+                        </td>
+
+                        {/* Schedule Timeline */}
+                        <td className="p-4 text-xs font-medium text-slate-500">
+                          <div className="space-y-1">
+                            <div className="text-slate-700 font-semibold">
+                              {formatDate(booking.schedule?.startDate)}
+                            </div>
+                            {booking.schedule?.startTime && (
+                              <p className="text-[11px] bg-slate-100/80 text-slate-600 px-1.5 py-0.5 rounded w-max font-mono border border-slate-200/40">
+                                {booking.schedule.startTime}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Assigned Staff Nurse & Vehicle */}
+                        <td className="p-4">
+                          {staff.name ? (
+                            <div className="space-y-0.5 text-xs">
+                              <p className="font-bold text-slate-800 flex items-center gap-1">
+                                <FaUserNurse className="text-[#08B36A] text-[10px]" /> {staff.name}
+                              </p>
+                              {staff.phone && (
+                                <p className="text-[10px] text-slate-500 font-mono">{staff.phone}</p>
+                              )}
+                              {staff.vehicleNumber && (
+                                <p className="text-[9px] text-slate-400 font-mono flex items-center gap-1">
+                                  <FaCar size={8} /> {staff.vehicleNumber}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">Unassigned</span>
+                          )}
+                        </td>
+
+                        {/* Patients Profiles Stack */}
+                        <td className="p-4">
+                          <div className="space-y-1">
+                            {booking.patients && booking.patients.map((patient, pIdx) => (
+                              <div key={patient._id || pIdx} className="flex items-center gap-1 text-xs">
+                                <span className="font-bold text-slate-800">{patient.name}</span>
+                                <span className="text-slate-400 text-[11px]">
+                                  ({patient.age} yrs • {patient.gender})
+                                </span>
+                              </div>
+                            ))}
+                            
+                            {booking.selectedConsumables?.length > 0 && (
+                              <div className="flex items-center gap-1 mt-1 text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-100 rounded-md px-1.5 py-0.5 w-max">
+                                <FaBoxes className="text-slate-400 text-[10px]" />
+                                <span>+{booking.selectedConsumables.length} Consumables</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Location / Hospital Bedside Details */}
+                        <td className="p-4 text-xs font-medium text-slate-500">
+                          {isHospital ? (
+                            <div className="space-y-0.5 max-w-[200px] bg-purple-50 p-2 rounded-xl border border-purple-100 text-purple-950">
+                              <p className="font-black flex items-center gap-1 text-[11px]">
+                                <FaHospital className="text-purple-600 shrink-0" size={10} /> {hosp.hospitalName || "Hospital Care"}
+                              </p>
+                              <p className="text-[10px] text-purple-800">
+                                {hosp.wardName || "Ward"} • {hosp.bedNumber || "Bed"}
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-0.5 max-w-[200px]">
+                              <p className="font-bold text-slate-800 truncate">{booking.address?.name}</p>
+                              <p className="text-slate-400 truncate text-[11px]">
+                                {booking.address?.houseNo}, {booking.address?.city}
+                              </p>
+                              <p className="font-mono text-[10px] text-slate-400">{booking.address?.phone}</p>
                             </div>
                           )}
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Patient Destination Coordinates */}
-                      <td className="p-4 text-xs font-medium text-slate-500">
-                        <div className="space-y-0.5 max-w-[200px]">
-                          <p className="font-bold text-slate-800 truncate">{booking.address?.name}</p>
-                          <p className="text-slate-400 truncate text-[11px]">
-                            H.{booking.address?.houseNo}, {booking.address?.city}
-                          </p>
-                          <p className="font-mono text-[10px] text-slate-400 mt-0.5">{booking.address?.phone}</p>
-                        </div>
-                      </td>
+                        {/* Financial Net */}
+                        <td className="p-4 text-center">
+                          <div className="space-y-0.5">
+                            <span className="font-mono font-bold text-slate-900 text-xs block">
+                              ₹{(booking.totalAmount || booking.priceBreakdown?.totalPrice || 0).toLocaleString('en-IN')}
+                            </span>
+                            <span className="text-[9px] font-bold uppercase text-slate-400 block">
+                              {booking.paymentMethod || "Online"} ({booking.paymentStatus || "Paid"})
+                            </span>
+                          </div>
+                        </td>
 
-                      {/* Invoiced Accounting Metric Net Box */}
-                      <td className="p-4 text-center font-mono font-bold text-slate-900 text-xs">
-                        ₹{(booking.priceBreakdown?.totalPrice || 0).toLocaleString('en-IN')}
-                      </td>
+                        {/* Status */}
+                        <td className="p-4 text-center pr-6">
+                          <span className={`px-2.5 py-0.5 inline-flex text-[10px] font-extrabold tracking-wide rounded-full border uppercase ${getStatusBadgeStyle(booking.status)}`}>
+                            {booking.status || 'Pending'}
+                          </span>
+                        </td>
 
-                      {/* State Workflow Status Label Tag */}
-                      <td className="p-4 text-center pr-6">
-                        <span className={`px-2.5 py-0.5 inline-flex text-[11px] font-extrabold tracking-wide rounded-full border uppercase ${getStatusBadgeStyle(booking.status)}`}>
-                          {booking.status || 'Pending'}
-                        </span>
-                      </td>
-
-                    </tr>
-                  ))}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
-            {/* Structured Shared Table Footer Controls */}
+            {/* Pagination Controls */}
             <div className="flex items-center justify-between p-4 px-6 border-t border-slate-100 bg-white">
               <span className="text-xs font-semibold text-slate-500">
-                Showing item index page <strong className="text-slate-900 font-bold">{currentPage}</strong> of <strong className="text-slate-900 font-bold">{totalPages}</strong>
+                Page <strong className="text-slate-900 font-bold">{currentPage}</strong> of <strong className="text-slate-900 font-bold">{totalPages}</strong>
               </span>
               <div className="flex gap-2">
                 <button
@@ -264,7 +320,7 @@ function ViewNurseOrders({ params }) {
                   className={`px-4 py-2 text-xs font-bold rounded-xl border transition-all ${
                     currentPage === 1 
                       ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200/60' 
-                      : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200 shadow-sm active:scale-95'
+                      : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200 shadow-sm active:scale-95 cursor-pointer'
                   }`}
                 >
                   Previous
@@ -272,7 +328,7 @@ function ViewNurseOrders({ params }) {
                 <button
                   onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}
-                  className={`px-4 py-2 text-xs font-bold rounded-xl text-white transition-all shadow-sm active:scale-95 ${
+                  className={`px-4 py-2 text-xs font-bold rounded-xl text-white transition-all shadow-sm active:scale-95 cursor-pointer ${
                     currentPage === totalPages 
                       ? 'bg-slate-300 cursor-not-allowed' 
                       : 'bg-emerald-600 hover:bg-emerald-700'
