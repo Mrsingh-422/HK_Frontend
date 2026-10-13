@@ -51,6 +51,7 @@ export default function HospitalLayout({ children }) {
         { name: 'Referral Ambulance', href: '/hospital/dashboard/referralambulance', icon: FaAmbulance },
          { name: 'Wallet', href: '/hospital/dashboard/wallet', icon: FaAmbulance },
          { name: 'Issue', href: '/hospital/dashboard/issues', icon: FaAmbulance },
+         { name: 'Leave', href: '/hospital/dashboard/leaves', icon: FaAmbulance },
         { 
             name: 'Settings', 
             icon: FaCogs,

@@ -217,8 +217,10 @@ export default function DoctorVendorLayout({ children }) {
         { name: 'Dashboard', href: '/vendors/hospitaldoctor/doctordashboard', icon: FaChartLine },
         { name: 'Emergency Case', href: '/vendors/hospitaldoctor/doctordashboard/emergency-case', icon: FaAmbulance },
         { name: 'Admission Case', href: '/vendors/hospitaldoctor/doctordashboard/admission-case', icon: FaHospital },
+        { name: 'OPD Case', href: '/vendors/hospitaldoctor/doctordashboard/opd-cases', icon: FaHospital },
         { name: 'Consultation History', href: '/vendors/hospitaldoctor/doctordashboard/consultation-history', icon: FaHistory },
         { name: 'Issues', href: '/vendors/hospitaldoctor/doctordashboard/issues', icon: FaHistory },
+        { name: 'OPD Availability', href: '/vendors/hospitaldoctor/doctordashboard/opd-settings', icon: FaHistory },
         {
             name: 'Settings',
             icon: FaCog,

@@ -8,7 +8,7 @@ import {
     FaUser, FaPhone, FaCalendarDay, FaVenusMars, FaCreditCard,
     FaMapMarkerAlt, FaGlobe, FaPlus, FaUpload, FaUserMd, FaStethoscope,
     FaSpinner, FaGem, FaMoneyBillWave, FaLock, FaCheckCircle,
-    FaRegCalendarAlt, FaBed, FaWallet
+    FaRegCalendarAlt, FaBed, FaWallet, FaDoorOpen, FaClock
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import UserAPI from "@/app/services/UserAPI";
@@ -19,7 +19,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 // Dynamically load Razorpay SDK
 const loadRazorpayScript = () => {
     return new Promise((resolve) => {
-        if (window.Razorpay) {
+        if (typeof window !== "undefined" && window.Razorpay) {
             resolve(true);
             return;
         }
@@ -34,6 +34,7 @@ const loadRazorpayScript = () => {
 
 export default function HospitalCheckoutPage() {
     const router = useRouter();
+    const [bookingType, setBookingType] = useState(null); // 'IPD' | 'OPD'
     const [booking, setBooking] = useState(null);
 
     // API Data States
@@ -54,6 +55,7 @@ export default function HospitalCheckoutPage() {
         dob: "",
         phoneNumber: "",
         gender: "Male",
+        relation: "Self",
         address: "",
         city: "",
         pincode: "",
@@ -71,13 +73,13 @@ export default function HospitalCheckoutPage() {
     const [couponError, setCouponError] = useState("");
     const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
-    // Server-side Checkout Summary State (Endpoint 2.1)
+    // Server-side Checkout Summary State
     const [serverPricing, setServerPricing] = useState(null);
     const [isFetchingSummary, setIsFetchingSummary] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [bookingSuccessData, setBookingSuccessData] = useState(null);
 
-    // 1. Initialize Booking Data from Session
+    // 1. Initialize Booking Data from Session (Supports both OPD and IPD)
     useEffect(() => {
         const token = localStorage.getItem('userToken');
         if (!token) {
@@ -86,19 +88,30 @@ export default function HospitalCheckoutPage() {
             return;
         }
 
-        const savedData = sessionStorage.getItem("activeBooking");
-        if (!savedData) {
-            router.push("/hospital");
-        } else {
-            const parsedBooking = JSON.parse(savedData);
-            setBooking(parsedBooking);
-            fetchHospitalData(parsedBooking.hospitalId);
+        const opdRaw = sessionStorage.getItem("activeOpdBooking");
+        const ipdRaw = sessionStorage.getItem("activeBooking");
+
+        if (opdRaw) {
+            const parsedOpd = JSON.parse(opdRaw);
+            setBookingType("OPD");
+            setBooking(parsedOpd);
+            setPaymentMethod("COD"); // default for OPD desk tokens
+            fetchHospitalData(parsedOpd.hospital?._id || parsedOpd.hospitalId);
             fetchFamilyData();
+        } else if (ipdRaw) {
+            const parsedIpd = JSON.parse(ipdRaw);
+            setBookingType("IPD");
+            setBooking(parsedIpd);
+            fetchHospitalData(parsedIpd.hospitalId);
+            fetchFamilyData();
+        } else {
+            router.push("/hospital");
         }
     }, [router]);
 
     // 2. Fetch Hospital Metadata
     const fetchHospitalData = async (hospitalId) => {
+        if (!hospitalId) return;
         try {
             const [docRes, serviceRes, couponRes] = await Promise.all([
                 UserAPI.getHospitalDoctors(hospitalId),
@@ -144,32 +157,46 @@ export default function HospitalCheckoutPage() {
         }
     };
 
-    // 3. Fetch Server-Side Summary (POST /user/hospital/checkout-summary)
+    // 3. Fetch Server-Side Summary (Auto-switches between OPD and IPD)
     const fetchSummary = useCallback(async (codeToApply = appliedCouponCode) => {
-        if (!booking?.hospitalId || !booking?.bedId) return;
+        if (!booking) return;
 
         try {
             setIsFetchingSummary(true);
             setCouponError("");
 
-            const payload = {
-                hospitalId: booking.hospitalId,
-                bedId: booking.bedId,
-                startDate: booking.startDate,
-                endDate: booking.endDate,
-                couponCode: codeToApply || undefined,
-                patients: [{
-                    patientName: patientDetails.fullName || "Patient",
-                    patientAge: calculateAge(patientDetails.dob),
-                    gender: patientDetails.gender || "Male",
-                    relation: selectedMemberId === "self" ? "Self" : "Family Member"
-                }]
-            };
+            let res;
+            if (bookingType === "OPD") {
+                // OPD Checkout Summary: POST /user/hospital/opd/checkout-summary
+                const payload = {
+                    hospitalId: booking.hospital?._id || booking.hospitalId,
+                    doctorId: booking.doctor?._id || booking.doctorId,
+                    appointmentDate: booking.appointmentDate || booking.selectedDate || new Date().toISOString().split("T")[0],
+                    appointmentTime: booking.appointmentTime || booking.selectedSlot?.time || "09:00 AM",
+                    couponCode: codeToApply || undefined
+                };
+                res = await UserAPI.getOpdCheckoutSummary(payload);
+            } else {
+                // IPD Checkout Summary: POST /user/hospital/checkout-summary
+                if (!booking.hospitalId || !booking.bedId) return;
+                const payload = {
+                    hospitalId: booking.hospitalId,
+                    bedId: booking.bedId,
+                    startDate: booking.startDate,
+                    endDate: booking.endDate,
+                    couponCode: codeToApply || undefined,
+                    patients: [{
+                        patientName: patientDetails.fullName || "Patient",
+                        patientAge: calculateAge(patientDetails.dob),
+                        gender: patientDetails.gender || "Male",
+                        relation: selectedMemberId === "self" ? "Self" : "Family Member"
+                    }]
+                };
+                res = await UserAPI.getHospitalCheckoutSummary(payload);
+            }
 
-            const res = await UserAPI.getHospitalCheckoutSummary(payload);
             if (res?.success && res.data) {
                 setServerPricing(res.data);
-                // If COD is disabled globally and user is not subscribed, switch to Online
                 if (!res.data.isCodAvailable && paymentMethod === "COD") {
                     setPaymentMethod("Online");
                 }
@@ -186,7 +213,7 @@ export default function HospitalCheckoutPage() {
             setIsFetchingSummary(false);
             setIsValidatingCoupon(false);
         }
-    }, [booking, patientDetails.fullName, patientDetails.dob, patientDetails.gender, selectedMemberId, appliedCouponCode, paymentMethod]);
+    }, [booking, bookingType, patientDetails.fullName, patientDetails.dob, patientDetails.gender, selectedMemberId, appliedCouponCode, paymentMethod]);
 
     useEffect(() => {
         if (booking) {
@@ -200,6 +227,7 @@ export default function HospitalCheckoutPage() {
             setSelectedMemberId(member);
             setPatientDetails({
                 fullName: "", dob: "", phoneNumber: "", gender: "Male",
+                relation: "Self",
                 address: "", city: "", pincode: "",
                 haveInsurance: "No", insuranceNo: "", companyName: "",
                 insuranceDocument: null, bookingReason: ""
@@ -219,6 +247,7 @@ export default function HospitalCheckoutPage() {
                 phoneNumber: member.phone || "",
                 dob: formattedDob,
                 gender: member.gender || "Male",
+                relation: member.relation || "Family Member",
                 haveInsurance: member.hasInsurance ? "Yes" : "No",
                 insuranceNo: member.insuranceNo || "",
                 companyName: member.insuranceId?.provider || "",
@@ -237,17 +266,17 @@ export default function HospitalCheckoutPage() {
         const servicesTotal = selectedServices.reduce((sum, s) => sum + s.price, 0);
 
         if (serverPricing) {
-            const baseFee = serverPricing.baseFee ?? 0;
+            const baseFee = serverPricing.baseFee ?? (bookingType === "OPD" ? (booking?.doctor?.opdFee || 500) : 0);
             const discount = serverPricing.discount ?? 0;
             const subtotal = serverPricing.subtotal ?? baseFee;
-            const totalPayable = Math.max(0, (serverPricing.totalPayable ?? (subtotal - discount)) + servicesTotal);
+            const totalPayable = Math.max(0, (serverPricing.totalPayable ?? (subtotal - discount)) + (bookingType === "IPD" ? servicesTotal : 0));
 
             return {
                 baseFee,
                 originalBaseFee: serverPricing.originalBaseFee ?? baseFee,
                 servicesTotal,
                 discount,
-                subtotal: subtotal + servicesTotal,
+                subtotal: subtotal + (bookingType === "IPD" ? servicesTotal : 0),
                 totalPayable,
                 stayDuration: serverPricing.stayDuration ?? booking?.totalDays ?? 1,
                 isCodAvailable: !!serverPricing.isCodAvailable,
@@ -257,21 +286,21 @@ export default function HospitalCheckoutPage() {
             };
         }
 
-        const fallbackBase = booking?.totalPrice || 0;
+        const fallbackBase = bookingType === "OPD" ? (booking?.doctor?.opdFee || 500) : (booking?.totalPrice || 0);
         return {
             baseFee: fallbackBase,
             originalBaseFee: fallbackBase,
             servicesTotal,
             discount: 0,
-            subtotal: fallbackBase + servicesTotal,
-            totalPayable: fallbackBase + servicesTotal,
+            subtotal: fallbackBase + (bookingType === "IPD" ? servicesTotal : 0),
+            totalPayable: fallbackBase + (bookingType === "IPD" ? servicesTotal : 0),
             stayDuration: booking?.totalDays ?? 1,
             isCodAvailable: true,
             isSubscriptionApplied: false,
             planName: "",
             selectedServices
         };
-    }, [serverPricing, services, selectedServiceIds, booking]);
+    }, [serverPricing, services, selectedServiceIds, booking, bookingType]);
 
     // Coupon Actions
     const handleApplyCoupon = (code) => {
@@ -311,14 +340,14 @@ export default function HospitalCheckoutPage() {
         }
     };
 
-    // 5. Final Hospital Admission Booking Handler
+    // 5. Final Booking Handler (Both OPD & IPD Supported)
     const handlePayment = async () => {
         if (!patientDetails.fullName || !patientDetails.phoneNumber) {
             CostoumPopup("Please fill in required patient name and contact number", "warning", 3000);
             return;
         }
 
-        if (patientDetails.haveInsurance === "Yes" && !patientDetails.insuranceDocument) {
+        if (bookingType === "IPD" && patientDetails.haveInsurance === "Yes" && !patientDetails.insuranceDocument) {
             CostoumPopup("Please upload your insurance document", "warning", 3000);
             return;
         }
@@ -329,6 +358,50 @@ export default function HospitalCheckoutPage() {
             const isZeroTotal = totals.totalPayable === 0;
             const finalPaymentMethod = isZeroTotal ? "COD" : paymentMethod;
 
+            // ========================================================
+            // FLOW A: OPD BOOKING (Doctor Consultation & Daily Token)
+            // ========================================================
+            if (bookingType === "OPD") {
+                const opdPayload = {
+                    hospitalId: booking.hospital?._id || booking.hospitalId,
+                    doctorId: booking.doctor?._id || booking.doctorId,
+                    appointmentDate: booking.appointmentDate || booking.selectedDate || new Date().toISOString().split("T")[0],
+                    appointmentTime: booking.appointmentTime || booking.selectedSlot?.time || "09:00 AM",
+                    patients: [{
+                        patientName: patientDetails.fullName,
+                        patientAge: calculateAge(patientDetails.dob),
+                        gender: patientDetails.gender || "Male",
+                        relation: selectedMemberId === "self" ? "Self" : (patientDetails.relation || "Family Member")
+                    }],
+                    bookingReason: patientDetails.bookingReason || "General OPD Consultation",
+                    paymentMethod: finalPaymentMethod, // 'COD' | 'Online'
+                    couponCode: appliedCouponCode || undefined
+                };
+
+                const res = await UserAPI.bookOpdAppointment(opdPayload);
+
+                if (!res?.success) {
+                    CostoumPopup(res?.message || "Failed to book OPD consultation", "error", 4000);
+                    setIsSubmitting(false);
+                    return;
+                }
+
+                // If Paid via Online with Razorpay Order
+                if (finalPaymentMethod === "Online" && res.razorpayOrderId) {
+                    await launchRazorpay(res, "OPD");
+                    return;
+                }
+
+                // COD / Free Confirmation
+                sessionStorage.removeItem("activeOpdBooking");
+                setBookingSuccessData(res);
+                setIsSubmitting(false);
+                return;
+            }
+
+            // ========================================================
+            // FLOW B: IPD BOOKING (Bed Admission & Wards)
+            // ========================================================
             const fd = new FormData();
             fd.append("hospitalId", booking.hospitalId);
             fd.append("bedId", booking.bedId);
@@ -363,7 +436,7 @@ export default function HospitalCheckoutPage() {
                 return;
             }
 
-            // --- CASE A: Direct Confirmation for COD or Free Booking ---
+            // COD or Free Booking
             if (isZeroTotal || finalPaymentMethod === "COD" || res.data?.paymentStatus === "Paid") {
                 sessionStorage.removeItem("activeBooking");
                 setBookingSuccessData(res.data || { 
@@ -375,70 +448,76 @@ export default function HospitalCheckoutPage() {
                 return;
             }
 
-            // --- CASE B: Online Razorpay Flow ---
-            const isScriptLoaded = await loadRazorpayScript();
-            if (!isScriptLoaded) {
-                CostoumPopup("Failed to load Razorpay SDK.", "error", 4000);
-                setIsSubmitting(false);
-                return;
-            }
-
-            const { key_id, amount, razorpayOrderId, appointmentId, bookingId } = res;
-
-            const options = {
-                key: key_id,
-                amount: amount,
-                currency: "INR",
-                name: "Health Kangaroo Hospital Network",
-                description: `Bed Admission at ${booking.hospitalName}`,
-                order_id: razorpayOrderId,
-                prefill: {
-                    name: patientDetails.fullName,
-                    contact: patientDetails.phoneNumber
-                },
-                theme: { color: "#10b981" },
-                modal: {
-                    ondismiss: () => {
-                        setIsSubmitting(false);
-                        CostoumPopup("Payment cancelled", "warning", 3000);
-                    }
-                },
-                handler: async function (paymentResponse) {
-                    try {
-                        setIsSubmitting(true);
-                        const verificationRes = await UserAPI.verifyPaymentHospital({
-                            appointmentId: appointmentId || res.data?._id,
-                            razorpayOrderId: paymentResponse.razorpay_order_id || razorpayOrderId,
-                            razorpayPaymentId: paymentResponse.razorpay_payment_id,
-                            razorpaySignature: paymentResponse.razorpay_signature
-                        });
-
-                        if (verificationRes?.success) {
-                            sessionStorage.removeItem("activeBooking");
-                            setBookingSuccessData(verificationRes.data || { 
-                                bookingId: bookingId || "HKH-CONFIRMED",
-                                status: "Confirmed",
-                                paymentStatus: "Paid"
-                            });
-                        } else {
-                            CostoumPopup(verificationRes?.message || "Payment verification failed", "error", 4000);
-                        }
-                    } catch (e) {
-                        CostoumPopup("Payment verification error", "error", 4000);
-                    } finally {
-                        setIsSubmitting(false);
-                    }
-                }
-            };
-
-            const rzpInstance = new window.Razorpay(options);
-            rzpInstance.open();
+            // IPD Online Razorpay
+            await launchRazorpay(res, "IPD");
 
         } catch (error) {
-            console.error("Admission error:", error);
+            console.error("Booking submission error:", error);
             CostoumPopup("An error occurred during booking. Please try again.", "error", 4000);
             setIsSubmitting(false);
         }
+    };
+
+    // Shared Razorpay Flow
+    const launchRazorpay = async (orderRes, type) => {
+        const isScriptLoaded = await loadRazorpayScript();
+        if (!isScriptLoaded) {
+            CostoumPopup("Failed to load Razorpay SDK.", "error", 4000);
+            setIsSubmitting(false);
+            return;
+        }
+
+        const { key_id, amount, razorpayOrderId, appointmentId, bookingId, tokenNumber } = orderRes;
+
+        const options = {
+            key: key_id,
+            amount: amount,
+            currency: "INR",
+            name: "Health Kangaroo Hospital Network",
+            description: type === "OPD" ? "Doctor Consultation Token" : `Bed Admission at ${booking.hospitalName}`,
+            order_id: razorpayOrderId,
+            prefill: {
+                name: patientDetails.fullName,
+                contact: patientDetails.phoneNumber
+            },
+            theme: { color: "#10b981" },
+            modal: {
+                ondismiss: () => {
+                    setIsSubmitting(false);
+                    CostoumPopup("Payment cancelled", "warning", 3000);
+                }
+            },
+            handler: async function (paymentResponse) {
+                try {
+                    setIsSubmitting(true);
+                    // Unified Endpoint: POST /user/hospital/verify-payment
+                    const verificationRes = await UserAPI.verifyPaymentHospital({
+                        appointmentId: appointmentId || orderRes.data?._id || bookingId,
+                        razorpayOrderId: paymentResponse.razorpay_order_id || razorpayOrderId,
+                        razorpayPaymentId: paymentResponse.razorpay_payment_id,
+                        razorpaySignature: paymentResponse.razorpay_signature
+                    });
+
+                    if (verificationRes?.success) {
+                        sessionStorage.removeItem(type === "OPD" ? "activeOpdBooking" : "activeBooking");
+                        setBookingSuccessData({
+                            ...orderRes,
+                            ...verificationRes,
+                            tokenNumber: verificationRes.tokenNumber || tokenNumber || orderRes.tokenNumber
+                        });
+                    } else {
+                        CostoumPopup(verificationRes?.message || "Payment verification failed", "error", 4000);
+                    }
+                } catch (e) {
+                    CostoumPopup("Payment verification error", "error", 4000);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        };
+
+        const rzpInstance = new window.Razorpay(options);
+        rzpInstance.open();
     };
 
     if (!booking) {
@@ -457,7 +536,14 @@ export default function HospitalCheckoutPage() {
                     <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-600 font-bold text-xs uppercase tracking-widest hover:text-emerald-600 cursor-pointer">
                         <FaArrowLeft /> Back
                     </button>
-                    <h1 className="text-sm md:text-base font-black text-slate-900 tracking-tight uppercase">Hospital Admission Checkout</h1>
+                    <div className="text-center">
+                        <h1 className="text-sm md:text-base font-black text-slate-900 tracking-tight uppercase">
+                            {bookingType === "OPD" ? "OPD Doctor Consultation Checkout" : "Hospital Admission Checkout"}
+                        </h1>
+                        <span className="text-[10px] font-black uppercase text-emerald-600 tracking-wider">
+                            {bookingType === "OPD" ? "Token Generation Desk" : "Inpatient Department (IPD)"}
+                        </span>
+                    </div>
                     <div className="flex items-center gap-2 text-emerald-600 font-black text-xs uppercase tracking-widest">
                         <FaShieldAlt /> Secure
                     </div>
@@ -481,36 +567,68 @@ export default function HospitalCheckoutPage() {
                                         {totals.planName} Active
                                     </h4>
                                     <p className="text-xs font-semibold text-emerald-700 mt-0.5">
-                                        VIP Admission benefits applied with instant COD access.
+                                        VIP Member benefits applied with instant COD access.
                                     </p>
                                 </div>
                             </div>
                         )}
 
-                        {/* SECTION 1: ADMISSION OVERVIEW */}
+                        {/* SECTION 1: OVERVIEW CARD (Dynamic OPD / IPD) */}
                         <section className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200/80">
                             <h2 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
                                 <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px]">01</span>
-                                Admission Overview
+                                {bookingType === "OPD" ? "OPD Consultation Details" : "Admission Overview"}
                             </h2>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
-                                    <div className="flex items-center gap-2 mb-1.5 text-slate-400">
-                                        <FaHospital size={13} />
-                                        <span className="text-[10px] font-black uppercase tracking-wider">Facility</span>
+
+                            {bookingType === "OPD" ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
+                                        <div className="flex items-center gap-2 mb-1.5 text-slate-400">
+                                            <FaUserMd size={13} />
+                                            <span className="text-[10px] font-black uppercase tracking-wider">Doctor</span>
+                                        </div>
+                                        <p className="font-bold text-slate-900 text-sm leading-tight">Dr. {booking.doctor?.name}</p>
+                                        <p className="text-emerald-600 text-xs font-bold mt-0.5">{booking.doctor?.speciality}</p>
                                     </div>
-                                    <p className="font-bold text-slate-900 text-sm leading-tight">{booking.hospitalName}</p>
-                                </div>
-                                <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
-                                    <div className="flex items-center gap-2 mb-1.5 text-emerald-600">
-                                        <FaProcedures size={13} />
-                                        <span className="text-[10px] font-black uppercase tracking-wider">Ward & Bed</span>
+                                    <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
+                                        <div className="flex items-center gap-2 mb-1.5 text-emerald-600">
+                                            <FaDoorOpen size={13} />
+                                            <span className="text-[10px] font-black uppercase tracking-wider">Cabin Location</span>
+                                        </div>
+                                        <p className="font-bold text-emerald-900 text-sm leading-tight">
+                                            {booking.doctor?.opdRoomNumber || "OPD Cabin 1"}
+                                        </p>
                                     </div>
-                                    <p className="font-bold text-emerald-900 text-sm leading-tight">
-                                        {booking.wardName} — Bed #{booking.bedNumber} ({totals.stayDuration} Days)
-                                    </p>
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
+                                        <div className="flex items-center gap-2 mb-1.5 text-slate-400">
+                                            <FaClock size={13} />
+                                            <span className="text-[10px] font-black uppercase tracking-wider">Allotted Slot</span>
+                                        </div>
+                                        <p className="font-bold text-slate-900 text-sm leading-tight">
+                                            {booking.appointmentDate || booking.selectedDate} &bull; {booking.appointmentTime || booking.selectedSlot?.time}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
+                                        <div className="flex items-center gap-2 mb-1.5 text-slate-400">
+                                            <FaHospital size={13} />
+                                            <span className="text-[10px] font-black uppercase tracking-wider">Facility</span>
+                                        </div>
+                                        <p className="font-bold text-slate-900 text-sm leading-tight">{booking.hospitalName}</p>
+                                    </div>
+                                    <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
+                                        <div className="flex items-center gap-2 mb-1.5 text-emerald-600">
+                                            <FaProcedures size={13} />
+                                            <span className="text-[10px] font-black uppercase tracking-wider">Ward & Bed</span>
+                                        </div>
+                                        <p className="font-bold text-emerald-900 text-sm leading-tight">
+                                            {booking.wardName} — Bed #{booking.bedNumber} ({totals.stayDuration} Days)
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </section>
 
                         {/* SECTION 2: PATIENT INFORMATION */}
@@ -565,35 +683,39 @@ export default function HospitalCheckoutPage() {
                                     </div>
                                 </div>
                                 <div className="md:col-span-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Admission Reason / Symptoms</label>
-                                    <input type="text" name="bookingReason" value={patientDetails.bookingReason} onChange={handleInputChange} placeholder="e.g., Observation, Surgery, IV Treatment" className="w-full bg-slate-50 px-4 py-3.5 rounded-xl border border-slate-200 outline-none font-bold text-xs text-slate-800" />
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Reason for Visit / Symptoms</label>
+                                    <input type="text" name="bookingReason" value={patientDetails.bookingReason} onChange={handleInputChange} placeholder="e.g. Chest pain and palpitations, headache..." className="w-full bg-slate-50 px-4 py-3.5 rounded-xl border border-slate-200 outline-none font-bold text-xs text-slate-800" />
                                 </div>
 
-                                {/* Insurance */}
-                                <div className="md:col-span-2 pt-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Do you have Health Insurance?</label>
-                                    <div className="flex gap-6">
-                                        {["Yes", "No"].map((opt) => (
-                                            <label key={opt} className="flex items-center gap-2 cursor-pointer">
-                                                <input type="radio" checked={patientDetails.haveInsurance === opt} onChange={() => setPatientDetails({ ...patientDetails, haveInsurance: opt })} className="accent-emerald-600 w-4 h-4" />
-                                                <span className="text-xs font-bold text-slate-700 uppercase">{opt}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {patientDetails.haveInsurance === "Yes" && (
-                                    <div className="md:col-span-2 bg-amber-50/40 p-4 rounded-2xl border border-amber-200/60 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <input type="text" name="insuranceNo" value={patientDetails.insuranceNo} onChange={handleInputChange} placeholder="Policy No." className="w-full bg-white px-4 py-3 rounded-xl border border-amber-200 outline-none font-bold text-xs" />
-                                        <input type="text" name="companyName" value={patientDetails.companyName} onChange={handleInputChange} placeholder="TPA / Provider Name" className="w-full bg-white px-4 py-3 rounded-xl border border-amber-200 outline-none font-bold text-xs" />
-                                        <div className="sm:col-span-2 border-2 border-dashed border-amber-300 rounded-xl p-4 bg-white text-center cursor-pointer relative">
-                                            <input type="file" onChange={handleFileChange} accept="image/*,application/pdf" className="absolute inset-0 opacity-0 cursor-pointer" />
-                                            <div className="flex flex-col items-center justify-center gap-1">
-                                                <FaUpload className="text-amber-500" />
-                                                <span className="text-xs font-bold text-slate-700">{patientDetails.insuranceDocument ? patientDetails.insuranceDocument.name : "Upload Insurance Card (Required) *"}</span>
+                                {/* Insurance (Only for IPD Admissions) */}
+                                {bookingType === "IPD" && (
+                                    <>
+                                        <div className="md:col-span-2 pt-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Do you have Health Insurance?</label>
+                                            <div className="flex gap-6">
+                                                {["Yes", "No"].map((opt) => (
+                                                    <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                                                        <input type="radio" checked={patientDetails.haveInsurance === opt} onChange={() => setPatientDetails({ ...patientDetails, haveInsurance: opt })} className="accent-emerald-600 w-4 h-4" />
+                                                        <span className="text-xs font-bold text-slate-700 uppercase">{opt}</span>
+                                                    </label>
+                                                ))}
                                             </div>
                                         </div>
-                                    </div>
+
+                                        {patientDetails.haveInsurance === "Yes" && (
+                                            <div className="md:col-span-2 bg-amber-50/40 p-4 rounded-2xl border border-amber-200/60 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <input type="text" name="insuranceNo" value={patientDetails.insuranceNo} onChange={handleInputChange} placeholder="Policy No." className="w-full bg-white px-4 py-3 rounded-xl border border-amber-200 outline-none font-bold text-xs" />
+                                                <input type="text" name="companyName" value={patientDetails.companyName} onChange={handleInputChange} placeholder="TPA / Provider Name" className="w-full bg-white px-4 py-3 rounded-xl border border-amber-200 outline-none font-bold text-xs" />
+                                                <div className="sm:col-span-2 border-2 border-dashed border-amber-300 rounded-xl p-4 bg-white text-center cursor-pointer relative">
+                                                    <input type="file" onChange={handleFileChange} accept="image/*,application/pdf" className="absolute inset-0 opacity-0 cursor-pointer" />
+                                                    <div className="flex flex-col items-center justify-center gap-1">
+                                                        <FaUpload className="text-amber-500" />
+                                                        <span className="text-xs font-bold text-slate-700">{patientDetails.insuranceDocument ? patientDetails.insuranceDocument.name : "Upload Insurance Card (Required) *"}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         </section>
@@ -606,6 +728,30 @@ export default function HospitalCheckoutPage() {
                                     Payment Method
                                 </h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <button
+                                        type="button"
+                                        disabled={!totals.isCodAvailable}
+                                        onClick={() => setPaymentMethod("COD")}
+                                        className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between relative cursor-pointer
+                                            ${!totals.isCodAvailable ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : ''}
+                                            ${paymentMethod === "COD" ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'bg-white border-slate-200'}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 bg-slate-100 text-slate-700 rounded-xl">
+                                                <FaMoneyBillWave size={15} />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-black text-slate-900">
+                                                    {bookingType === "OPD" ? "Pay at OPD Desk (COD)" : "Pay at Hospital Desk (COD)"}
+                                                </p>
+                                                <p className="text-[10px] text-slate-500">
+                                                    {totals.isCodAvailable ? "Pay cash/card when showing token" : "Unavailable for this hospital"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {paymentMethod === "COD" && <FaCheckCircle className="text-emerald-600" size={15} />}
+                                    </button>
+
                                     <button
                                         type="button"
                                         onClick={() => setPaymentMethod("Online")}
@@ -622,28 +768,6 @@ export default function HospitalCheckoutPage() {
                                             </div>
                                         </div>
                                         {paymentMethod === "Online" && <FaCheckCircle className="text-emerald-600" size={15} />}
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        disabled={!totals.isCodAvailable}
-                                        onClick={() => setPaymentMethod("COD")}
-                                        className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between relative cursor-pointer
-                                            ${!totals.isCodAvailable ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : ''}
-                                            ${paymentMethod === "COD" ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'bg-white border-slate-200'}`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2.5 bg-slate-100 text-slate-700 rounded-xl">
-                                                <FaMoneyBillWave size={15} />
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-black text-slate-900">Pay at Hospital Desk</p>
-                                                <p className="text-[10px] text-slate-500">
-                                                    {totals.isCodAvailable ? "Pay cash/card during admission" : "Unavailable for this hospital"}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        {paymentMethod === "COD" && <FaCheckCircle className="text-emerald-600" size={15} />}
                                     </button>
                                 </div>
                             </section>
@@ -684,12 +808,15 @@ export default function HospitalCheckoutPage() {
                         {/* Bill Breakdown */}
                         <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
                             <h2 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                                <FaReceipt className="text-slate-400" /> Admission Costing
+                                <FaReceipt className="text-slate-400" />
+                                {bookingType === "OPD" ? "OPD Consultation Bill" : "Admission Costing"}
                             </h2>
                             
                             <div className="space-y-3 text-xs">
                                 <div className="flex justify-between items-center text-slate-600">
-                                    <span>Bed Base Rate ({totals.stayDuration} Days)</span>
+                                    <span>
+                                        {bookingType === "OPD" ? "Doctor Consultation Fee" : `Bed Base Rate (${totals.stayDuration} Days)`}
+                                    </span>
                                     <span className="font-black text-slate-900">₹{totals.baseFee}</span>
                                 </div>
 
@@ -723,6 +850,8 @@ export default function HospitalCheckoutPage() {
                             >
                                 {isSubmitting || isFetchingSummary ? (
                                     <FaSpinner className="animate-spin" size={14} />
+                                ) : bookingType === "OPD" ? (
+                                    <>Issue OPD Token <FaCheckCircle size={12} /></>
                                 ) : totals.totalPayable === 0 ? (
                                     <>Confirm Free Admission <FaCheckCircle size={12} /></>
                                 ) : paymentMethod === "COD" ? (
@@ -747,18 +876,19 @@ export default function HospitalCheckoutPage() {
                             <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm border border-emerald-100">
                                 <FaCheckCircle className="w-9 h-9" />
                             </div>
-                            <h3 className="text-2xl font-black text-slate-900 tracking-tight">Admission Confirmed!</h3>
+                            <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                                {bookingType === "OPD" ? `Token #${bookingSuccessData.tokenNumber || "12"} Issued!` : "Admission Confirmed!"}
+                            </h3>
                             <p className="text-xs font-semibold text-slate-400">
-                                Your hospital accommodation has been successfully scheduled.
+                                {bookingType === "OPD" ? (bookingSuccessData.message || "Consultation confirmed successfully!") : "Your hospital accommodation has been successfully scheduled."}
                             </p>
                             <span className="inline-block bg-slate-900 text-[#08B36A] px-3.5 py-1 rounded-xl text-xs font-black uppercase tracking-wider font-mono">
                                 #{bookingSuccessData.bookingId || "HKH-CONFIRMED"}
                             </span>
                         </div>
 
-                        {/* Scrollable Information Body */}
+                        {/* Information Body */}
                         <div className="space-y-4 overflow-y-auto py-3 text-xs pr-1">
-                            
                             {/* Patient Info Card */}
                             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-2">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block flex items-center gap-1.5">
@@ -775,69 +905,65 @@ export default function HospitalCheckoutPage() {
                                     <div className="text-right font-bold text-slate-800">
                                         {patientDetails.gender} &bull; {calculateAge(patientDetails.dob)} Yrs
                                     </div>
-
-                                    <div className="text-slate-500 font-semibold">Insurance:</div>
-                                    <div className="text-right font-bold text-emerald-600 uppercase">
-                                        {patientDetails.haveInsurance === "Yes" ? `Covered (${patientDetails.companyName || "Verified"})` : "Self-Pay"}
-                                    </div>
                                 </div>
                             </div>
 
-                            {/* Hospital & Ward Accommodation Card */}
-                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block flex items-center gap-1.5">
-                                    <FaHospital className="text-blue-500" /> Accommodation Info
-                                </span>
-                                <div className="grid grid-cols-2 gap-y-1.5 text-xs">
-                                    <div className="text-slate-500 font-semibold">Hospital Facility:</div>
-                                    <div className="text-right font-black text-slate-800">{booking.hospitalName}</div>
+                            {/* Booking Specific Card */}
+                            {bookingType === "OPD" ? (
+                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block flex items-center gap-1.5">
+                                        <FaDoorOpen className="text-emerald-500" /> OPD Cabin & Doctor
+                                    </span>
+                                    <div className="grid grid-cols-2 gap-y-1.5 text-xs">
+                                        <div className="text-slate-500 font-semibold">Consulting Doctor:</div>
+                                        <div className="text-right font-black text-slate-800">Dr. {booking.doctor?.name}</div>
 
-                                    <div className="text-slate-500 font-semibold">Ward & Room:</div>
-                                    <div className="text-right font-bold text-slate-800">{booking.wardName}</div>
+                                        <div className="text-slate-500 font-semibold">OPD Cabin Location:</div>
+                                        <div className="text-right font-bold text-emerald-600">{booking.doctor?.opdRoomNumber || "Cabin 204 (Block A)"}</div>
 
-                                    <div className="text-slate-500 font-semibold">Bed Allocation:</div>
-                                    <div className="text-right font-black text-emerald-600">Bed #{booking.bedNumber}</div>
-
-                                    <div className="text-slate-500 font-semibold">Stay Duration:</div>
-                                    <div className="text-right font-bold text-slate-800">{totals.stayDuration} Days</div>
-
-                                    <div className="text-slate-500 font-semibold">Schedule Period:</div>
-                                    <div className="text-right font-bold text-slate-700 text-[11px]">
-                                        {formatDisplayDate(booking.startDate)} &rarr; {formatDisplayDate(booking.endDate)}
+                                        <div className="text-slate-500 font-semibold">Time Slot:</div>
+                                        <div className="text-right font-bold text-slate-800">
+                                            {booking.appointmentDate || booking.selectedDate} at {booking.appointmentTime || booking.selectedSlot?.time}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block flex items-center gap-1.5">
+                                        <FaHospital className="text-blue-500" /> Accommodation Info
+                                    </span>
+                                    <div className="grid grid-cols-2 gap-y-1.5 text-xs">
+                                        <div className="text-slate-500 font-semibold">Hospital Facility:</div>
+                                        <div className="text-right font-black text-slate-800">{booking.hospitalName}</div>
 
-                            {/* Billing & Settlement Card */}
+                                        <div className="text-slate-500 font-semibold">Ward & Room:</div>
+                                        <div className="text-right font-bold text-slate-800">{booking.wardName}</div>
+
+                                        <div className="text-slate-500 font-semibold">Bed Allocation:</div>
+                                        <div className="text-right font-black text-emerald-600">Bed #{booking.bedNumber}</div>
+
+                                        <div className="text-slate-500 font-semibold">Stay Duration:</div>
+                                        <div className="text-right font-bold text-slate-800">{totals.stayDuration} Days</div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Billing Card */}
                             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-2">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block flex items-center gap-1.5">
-                                    <FaReceipt className="text-emerald-500" /> Payment & Billing
+                                    <FaReceipt className="text-emerald-500" /> Settlement
                                 </span>
                                 <div className="grid grid-cols-2 gap-y-1.5 text-xs">
-                                    <div className="text-slate-500 font-semibold">Payment Method:</div>
-                                    <div className="text-right font-black text-slate-800">
-                                        {totals.totalPayable === 0 ? "Free Admission" : (paymentMethod === "COD" ? "Pay at Hospital Desk" : "Online (Razorpay)")}
-                                    </div>
-
                                     <div className="text-slate-500 font-semibold">Payment Status:</div>
-                                    <div className={`text-right font-black uppercase ${paymentMethod === "COD" && totals.totalPayable > 0 ? "text-amber-600" : "text-emerald-600"}`}>
-                                        {paymentMethod === "COD" && totals.totalPayable > 0 ? "Pending at Desk" : "Paid & Verified"}
+                                    <div className="text-right font-black text-emerald-600 uppercase">
+                                        {paymentMethod === "COD" ? "Pay at Desk" : "Paid & Verified"}
                                     </div>
-
-                                    {totals.discount > 0 && (
-                                        <>
-                                            <div className="text-slate-500 font-semibold text-emerald-600">Coupon Discount:</div>
-                                            <div className="text-right font-bold text-emerald-600">-₹{totals.discount}</div>
-                                        </>
-                                    )}
-
-                                    <div className="text-slate-900 font-black text-sm pt-2 border-t border-slate-200">Total Amount:</div>
+                                    <div className="text-slate-900 font-black text-sm pt-2 border-t border-slate-200">Total:</div>
                                     <div className="text-right font-black text-[#08B36A] text-base pt-2 border-t border-slate-200">
                                         ₹{totals.totalPayable.toFixed(2)}
                                     </div>
                                 </div>
                             </div>
-
                         </div>
 
                         {/* Modal Action Buttons */}
@@ -849,7 +975,7 @@ export default function HospitalCheckoutPage() {
                                 }}
                                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
                             >
-                                <FaCheckCircle size={12} /> View My Admissions
+                                <FaCheckCircle size={12} /> View My Bookings
                             </button>
                         </div>
                     </div>

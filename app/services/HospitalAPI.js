@@ -927,5 +927,160 @@ transferBed: async (data) => {
   trackIssue: (issueId) => {
     return hospitalVendorApi.get(`/api/user-vendor/issues/track/${issueId}`);
   },
+  
+  // ==========================================
+  // OPD SLOTS MANAGEMENT
+  // ==========================================
+
+  /**
+   * 1. GET Doctor OPD Settings (Doctor Panel)
+   * GET /hospital-doctor/panel/opd-settings
+   */
+  getDoctorOpdSettings: async () => {
+    try {
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("hospitalDoctorToken") ||
+            localStorage.getItem("doctorToken") ||
+            localStorage.getItem("hospital_doctor_token") ||
+            localStorage.getItem("hospitalToken") ||
+            localStorage.getItem("token")
+          : null;
+
+      const response = await axios.get(
+        `${BASE_URL}/hospital-doctor/panel/opd-settings`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching doctor OPD settings:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 2. PUT Update Doctor OPD Settings (Doctor Panel)
+   * PUT /hospital-doctor/panel/opd-settings
+   */
+  updateDoctorOpdSettings: async (payload) => {
+    try {
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("hospitalDoctorToken") ||
+            localStorage.getItem("doctorToken") ||
+            localStorage.getItem("hospital_doctor_token") ||
+            localStorage.getItem("hospitalToken") ||
+            localStorage.getItem("token")
+          : null;
+
+      const response = await axios.put(
+        `${BASE_URL}/hospital-doctor/panel/opd-settings`,
+        payload,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error updating doctor OPD settings:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 3. POST Toggle Emergency Slot Block / Unblock (Doctor Panel)
+   * POST /hospital-doctor/panel/opd-slots/toggle-block
+   */
+  toggleDoctorEmergencySlot: async (timeSlot, action) => {
+    try {
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("hospitalDoctorToken") ||
+            localStorage.getItem("doctorToken") ||
+            localStorage.getItem("hospital_doctor_token") ||
+            localStorage.getItem("hospitalToken") ||
+            localStorage.getItem("token")
+          : null;
+
+      const response = await axios.post(
+        `${BASE_URL}/hospital-doctor/panel/opd-slots/toggle-block`,
+        { timeSlot, action },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          }
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error toggling emergency slot:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 4. PUT Admin Configure Doctor OPD (Hospital Admin Panel)
+   * PUT /api/hospital/doctors/configure-opd/:doctorId
+   */
+  adminConfigureDoctorOpd: async (doctorId, payload) => {
+    try {
+      // Uses your existing hospitalVendorApi directly
+      const response = await hospitalVendorApi.put(
+        `/api/hospital/doctors/configure-opd/${doctorId}`,
+        payload
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error configuring doctor OPD settings:", error);
+      throw error;
+    }
+  },
+  // ==========================================
+  // DOCTOR LEAVE MANAGEMENT APIs (Hospital Admin)
+  // ==========================================
+
+  /**
+   * 1. GET Doctor Leaves List
+   * GET /hospital/panel/doctors/leaves
+   * @param {Object} params - { status: 'Pending'|'Approved'|'Rejected'|'All', search, doctorId }
+   */
+  getDoctorLeaves: async (params = { status: "Pending" }) => {
+    try {
+      const response = await hospitalVendorApi.get("/hospital/panel/doctors/leaves", {
+        params
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching doctor leaves:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 2. PATCH Review / Approve / Reject Leave
+   * PATCH /hospital/panel/doctors/leave-approval
+   * @param {Object} payload - { doctorId, leaveId, action: 'Approved'|'Rejected', rejectionReason }
+   */
+  reviewDoctorLeave: async (payload) => {
+    try {
+      const response = await hospitalVendorApi.patch(
+        "/hospital/panel/doctors/leave-approval",
+        payload
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error reviewing doctor leave:", error);
+      throw error;
+    }
+  },
 };
 export default HospitalAPI;

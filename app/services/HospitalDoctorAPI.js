@@ -47,11 +47,10 @@ const HospitalDoctorAPI = {
         }
     },
  
- // Updated getCases method inside HospitalDoctorAPI
 getCases: async (tabOrType = "active", legacyStatus = "") => {
     try {
         const params = {};
-        // Added 'transferred-out' and 'unassigned' to the allowed standard tabs list
+        // Added 'opd', 'ipd', 'emergency', 'all' to support OPD Queue
         const standardTabs = [
             'active', 
             'pending', 
@@ -60,7 +59,11 @@ getCases: async (tabOrType = "active", legacyStatus = "") => {
             'bedside', 
             'pending-bedside', 
             'transferred-out', 
-            'unassigned'
+            'unassigned',
+            'opd',
+            'ipd',
+            'emergency',
+            'all'
         ];
         
         if (standardTabs.includes(tabOrType)) {
@@ -529,6 +532,126 @@ submitBedsideFeedback: async (body) => {
   trackIssue: (issueId) => {
     return hospitalDoctorApi.get(`/api/user-vendor/issues/track/${issueId}`);
   },
+ // 1. GET /hospital-doctor/panel/opd-settings
+  getOpdSettings: async () => {
+    try {
+      const response = await hospitalDoctorApi.get('/hospital-doctor/panel/opd-settings');
+      return response.data;
+    } catch (error) {
+      return Promise.reject(error.response?.data?.message || "Failed to fetch OPD settings");
+    }
+  },
+
+  // 2. PUT /hospital-doctor/panel/opd-settings
+  updateOpdSettings: async (payload) => {
+    try {
+      const response = await hospitalDoctorApi.put('/hospital-doctor/panel/opd-settings', payload);
+      return response.data;
+    } catch (error) {
+      return Promise.reject(error.response?.data?.message || "Failed to update OPD settings");
+    }
+  },
+
+  // 3. POST /hospital-doctor/panel/opd-slots/toggle-block
+  toggleBlockSlot: async (timeSlot, action) => {
+    try {
+      const response = await hospitalDoctorApi.post('/hospital-doctor/panel/opd-slots/toggle-block', {
+        timeSlot,
+        action,
+      });
+      return response.data;
+    } catch (error) {
+      return Promise.reject(error.response?.data?.message || "Failed to toggle slot block state");
+    }
+  },
+  // ==========================================
+    // OPD CABIN LIVE ACTIONS
+    // ==========================================
+
+    // 1. Doctor Calls Patient Inside Cabin (Status -> In-Progress)
+    // PATCH /hospital-doctor/panel/opd/start-consultation/:appointmentId
+    startConsultation: async (appointmentId) => {
+        try {
+            const response = await hospitalDoctorApi.patch(
+                `/hospital-doctor/panel/opd/start-consultation/${appointmentId}`
+            );
+            return response.data;
+        } catch (error) {
+            return Promise.reject(
+                error.response?.data?.message || "Failed to start consultation"
+            );
+        }
+    },
+
+    // 2. Doctor Marks Patient Absent / No-Show
+    // PATCH /hospital-doctor/panel/opd/no-show/:appointmentId
+    markNoShow: async (appointmentId, reason) => {
+        try {
+            const response = await hospitalDoctorApi.patch(
+                `/hospital-doctor/panel/opd/no-show/${appointmentId}`,
+                { reason }
+            );
+            return response.data;
+        } catch (error) {
+            return Promise.reject(
+                error.response?.data?.message || "Failed to mark patient as no-show"
+            );
+        }
+    },
+
+   
+
+    // ==========================================
+    // ENTERPRISE GOVERNANCE (LEAVES & SLOTS)
+    // ==========================================
+
+    // 4. Doctor Applies for Leave (Tomorrow onwards)
+    // POST /hospital-doctor/panel/leaves/apply
+    applyLeave: async ({ startDate, endDate, reason }) => {
+        try {
+            const response = await hospitalDoctorApi.post(
+                "/hospital-doctor/panel/leaves/apply",
+                { startDate, endDate, reason }
+            );
+            return response.data;
+        } catch (error) {
+            return Promise.reject(
+                error.response?.data?.message || "Failed to submit leave application"
+            );
+        }
+    },
+
+    // 5. Doctor Blocks Specific Slot with Reason
+    // POST /hospital-doctor/panel/opd-slots/block-slot
+    blockSlotWithReason: async ({ date, timeSlot, action = "block", reason = "" }) => {
+        try {
+            const response = await hospitalDoctorApi.post(
+                "/hospital-doctor/panel/opd-slots/block-slot",
+                { date, timeSlot, action, reason }
+            );
+            return response.data;
+        } catch (error) {
+            return Promise.reject(
+                error.response?.data?.message || "Failed to update slot status"
+            );
+        }
+    },
+
+    // 6. Doctor Reschedules OPD Appointment
+    // POST /hospital-doctor/panel/opd/reschedule
+    rescheduleAppointment: async ({ appointmentId, newDate, newTimeSlot, reason }) => {
+        try {
+            const response = await hospitalDoctorApi.post(
+                "/hospital-doctor/panel/opd/reschedule",
+                { appointmentId, newDate, newTimeSlot, reason }
+            );
+            return response.data;
+        } catch (error) {
+            return Promise.reject(
+                error.response?.data?.message || "Failed to reschedule appointment"
+            );
+        }
+    },
 
 };
  
