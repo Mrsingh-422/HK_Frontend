@@ -2,7 +2,7 @@
 import HospitalDoctorAPI from '@/app/services/HospitalDoctorAPI';
 import React, { useState, useEffect } from 'react';
 import { 
-    FaUser, FaHeartbeat, FaSpinner, FaExclamationTriangle, FaHospital, FaUserMd, FaBed, FaUserCheck, FaCheck, FaTimes
+    FaUser, FaHeartbeat, FaSpinner, FaExclamationTriangle, FaHospital, FaUserMd, FaBed, FaUserCheck, FaCheck, FaTimes, FaStethoscope
 } from 'react-icons/fa';
 
 import CaseDetailsModal from '../emergency-case/component/CaseDetailsModal';
@@ -643,7 +643,7 @@ export default function DoctorAdmissionCasesPage() {
             setActionLoading(true);
             const genuineMongoId = selectedCaseId || caseDetails?._id;
 
-            // 1. In-Patient Stay Medication addition (Calls addActiveMedication directly without PDF)
+            // 1. In-Patient Stay Medication addition
             if (prescriptionSource === 'stay') {
                 for (const med of finalMedicines) {
                     await HospitalDoctorAPI.addActiveMedication({
@@ -796,9 +796,13 @@ export default function DoctorAdmissionCasesPage() {
         setAssignPriority('Routine');
     };
 
-    // Admission cases filter strictly showing Admission category
+    // Admission & Inpatient cases filter (Safely includes OPD orders as well)
     const displayedCases = cases.filter(cs => {
         if (!cs) return false;
+
+        // If it's an OPD order, keep it in view
+        const isOpd = Boolean(cs.isOpd || cs.bookingType?.toUpperCase() === 'OPD');
+        if (isOpd) return true;
 
         const category = cs.caseCategory || cs.bookingType || (cs.ambulanceId ? "Emergency" : "Admission");
         if (category.toLowerCase() !== 'admission') {
@@ -819,8 +823,8 @@ export default function DoctorAdmissionCasesPage() {
                 
                 <div className="mb-6 flex justify-between items-center">
                     <div>
-                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Ward Admissions Desk</h1>
-                        <p className="text-slate-500 mt-1 text-sm">Review direct inpatient ward admissions, pending entries, and bedside consultations</p>
+                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Ward Admissions &amp; Clinic Desk</h1>
+                        <p className="text-slate-500 mt-1 text-sm">Review direct inpatient ward admissions, pending entries, OPD orders and bedside consultations</p>
                     </div>
                 </div>
 
@@ -875,7 +879,7 @@ export default function DoctorAdmissionCasesPage() {
                             {[
                                 { status: 'Unassigned', label: 'Unassigned Admissions' },
                                 { status: 'Pending Handovers', label: 'Incoming Handovers' },
-                                { status: 'In-Progress', label: 'Active Admitted' },
+                                { status: 'In-Progress', label: 'Active Admitted / In-Progress' },
                                 { status: 'Transferred Out', label: 'Transferred Out' },
                                 { status: 'Discharged', label: 'Discharged / Archived' }
                             ].map((sub) => (
@@ -930,7 +934,7 @@ export default function DoctorAdmissionCasesPage() {
                     ) : displayedCases.length === 0 ? (
                         <div className="text-center py-16 px-4 animate-in fade-in duration-350">
                             <FaHeartbeat className="mx-auto text-slate-300 text-5xl mb-3" />
-                            <h3 className="text-base font-bold text-slate-700">No {activeStatus} Admission Cases Found</h3>
+                            <h3 className="text-base font-bold text-slate-700">No {activeStatus} Cases Found</h3>
                             <p className="text-slate-400 text-xs mt-1">Browse other status categories above to review patient registers.</p>
                         </div>
                     ) : (
@@ -938,21 +942,24 @@ export default function DoctorAdmissionCasesPage() {
                             <table className="w-full text-left border-collapse">
                                 <thead className="bg-slate-50/75 border-b border-slate-100 text-slate-500 text-xs uppercase tracking-wider">
                                     <tr>
-                                        <th className="px-6 py-4 font-semibold">Booking ID</th>
+                                        <th className="px-6 py-4 font-semibold">Booking ID &amp; Type</th>
                                         <th className="px-6 py-4 font-semibold">Patient Details</th>
-                                        <th className="px-6 py-4 font-semibold">Triage Level</th>
-                                        <th className="px-6 py-4 font-semibold">Location / Ward Unit</th>
+                                        <th className="px-6 py-4 font-semibold">Triage / Queue</th>
+                                        <th className="px-6 py-4 font-semibold">Location / Desk</th>
                                         <th className="px-6 py-4 font-semibold text-center">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {displayedCases.map((cs) => {
                                         const patient = cs.patientDetails || cs.patients?.[0] || {};
-                                        const patientName = patient.patientName || patient.name || cs.userId?.name || cs.bookedBy?.name || "Unknown Patient";
+                                        const patientName = cs.patientDisplayName || patient.patientName || patient.name || cs.userId?.name || cs.bookedBy?.name || "Unknown Patient";
                                         const patientAge = patient.age !== undefined ? patient.age : (patient.patientAge !== undefined ? patient.patientAge : cs.userId?.age);
                                         const patientGender = patient.gender || cs.userId?.gender || "";
                                         const bloodGroup = patient.bloodGroup || cs.bloodGroup;
                                         const reason = patient.reasonForVisit || cs.bookingReason;
+
+                                        // OPD Detection
+                                        const isOpdOrder = Boolean(cs.isOpd || cs.bookingType?.toUpperCase() === 'OPD');
 
                                         const bedNumber = cs.bedDetails?.bedNumber || cs.bedNumber;
                                         const wardName = cs.bedDetails?.wardName || cs.bedDetails?.ward?.name || cs.wardName;
@@ -964,15 +971,37 @@ export default function DoctorAdmissionCasesPage() {
                                                 onClick={() => handleCaseClick(cs._id)}
                                                 className="hover:bg-slate-50/50 cursor-pointer transition-colors duration-150"
                                             >
+                                                {/* Booking ID & OPD Tag */}
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className="font-bold text-sm text-slate-900 block">{cs.bookingId}</span>
-                                                    <span className="text-xs text-blue-600 font-medium">{cs.bookingType || "Admission"}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-sm text-slate-900 block">{cs.bookingId}</span>
+                                                        {isOpdOrder ? (
+                                                            <span className="px-2 py-0.5 text-[9.5px] font-black uppercase tracking-wider rounded-md bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs flex items-center gap-1">
+                                                                <FaStethoscope size={8} /> OPD Order
+                                                            </span>
+                                                        ) : (
+                                                            <span className="px-2 py-0.5 text-[9.5px] font-black uppercase tracking-wider rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                                                                {cs.bookingType || "Admission"}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                        {isOpdOrder ? (
+                                                            <span className="text-xs text-amber-800 font-bold">
+                                                                {cs.consultationType || "Clinic Visit"} {cs.tokenNumber ? `• Token #${cs.tokenNumber}` : ''}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-xs text-blue-600 font-medium">In-Patient Admission</span>
+                                                        )}
+                                                    </div>
                                                 </td>
+
+                                                {/* Patient Details */}
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-2.5">
-                                                        {patient.profilePic ? (
+                                                        {patient.profilePic || cs.userId?.profilePic ? (
                                                             <img 
-                                                                src={getImageUrl(patient.profilePic)} 
+                                                                src={getImageUrl(patient.profilePic || cs.userId?.profilePic)} 
                                                                 alt={patientName} 
                                                                 className="w-8 h-8 rounded-full object-cover border"
                                                             />
@@ -997,21 +1026,44 @@ export default function DoctorAdmissionCasesPage() {
                                                         </div>
                                                     </div>
                                                 </td>
+
+                                                {/* Triage / Queue Badge */}
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className="inline-flex px-2.5 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
-                                                        {cs.triageLevel || "Routine"}
-                                                    </span>
+                                                    {isOpdOrder ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-black rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                                                            {cs.displayBadge || (cs.tokenNumber ? `Token #${cs.tokenNumber}` : "OPD Queue")}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex px-2.5 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                                            {cs.triageLevel || "Routine"}
+                                                        </span>
+                                                    )}
                                                 </td>
+
+                                                {/* Location / Ward Unit / OPD Room */}
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-medium">
-                                                    <div>
-                                                        <span className="text-slate-800 font-bold block">
-                                                            {bedNumber ? `Bed: ${bedNumber}` : (cs.bedBookingType || "General-Bed")}
-                                                        </span>
-                                                        <span className="text-xs text-slate-500">
-                                                            {wardName || "General Ward"} {pricePerDay ? `• ₹${pricePerDay}/Day` : ''}
-                                                        </span>
-                                                    </div>
+                                                    {isOpdOrder ? (
+                                                        <div>
+                                                            <span className="text-slate-900 font-bold block">
+                                                                {cs.opdRoomNumber ? `OPD Room ${cs.opdRoomNumber}` : "OPD Consultation Desk"}
+                                                            </span>
+                                                            <span className="text-xs text-slate-500">
+                                                                {cs.appointmentTime ? `Time: ${cs.appointmentTime}` : "Scheduled Visit"}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <div>
+                                                            <span className="text-slate-800 font-bold block">
+                                                                {bedNumber ? `Bed: ${bedNumber}` : (cs.bedBookingType || "General-Bed")}
+                                                            </span>
+                                                            <span className="text-xs text-slate-500">
+                                                                {wardName || "General Ward"} {pricePerDay ? `• ₹${pricePerDay}/Day` : ''}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </td>
+
+                                                {/* Actions */}
                                                 <td className="px-6 py-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
                                                     {activeStatus === 'Unassigned' ? (
                                                         <button 

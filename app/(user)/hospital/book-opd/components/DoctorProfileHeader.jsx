@@ -1,10 +1,16 @@
 "use client";
 
 import React from "react";
-import { FaUserMd, FaStar, FaHospital, FaDoorOpen } from "react-icons/fa";
+import { FaUserMd, FaStar, FaHospital, FaDoorOpen, FaClock } from "react-icons/fa";
 
 export default function DoctorProfileHeader({ doctor, hospital }) {
   if (!doctor) return null;
+
+  // Resolve fee from baseOpdFee, opdFee, or consultationFee
+  const displayFee = doctor.baseOpdFee || doctor.opdFee || doctor.consultationFee || 500;
+  
+  // Resolve room number from cabinRoom or opdRoomNumber
+  const roomNumber = doctor.cabinRoom || doctor.opdRoomNumber;
 
   return (
     <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 border border-slate-200/80 shadow-xs mb-8">
@@ -18,7 +24,7 @@ export default function DoctorProfileHeader({ doctor, hospital }) {
           />
           <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-xs">
             <FaStar className="text-amber-400 text-xs" />
-            <span className="text-[11px] font-black text-slate-800">4.9</span>
+            <span className="text-[11px] font-black text-slate-800">{doctor.rating || "4.9"}</span>
           </div>
         </div>
 
@@ -28,9 +34,14 @@ export default function DoctorProfileHeader({ doctor, hospital }) {
             <span className="bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase px-2.5 py-1 rounded-md border border-emerald-100">
               Verified OPD Specialist
             </span>
-            {doctor.opdRoomNumber && (
+            {roomNumber && (
               <span className="bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded-md flex items-center gap-1">
-                <FaDoorOpen className="text-emerald-400" /> {doctor.opdRoomNumber}
+                <FaDoorOpen className="text-emerald-400" /> Cabin Room: {roomNumber}
+              </span>
+            )}
+            {doctor.slotDurationMinutes && (
+              <span className="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2.5 py-1 rounded-md flex items-center gap-1 border border-indigo-100">
+                <FaClock className="text-indigo-500" /> {doctor.slotDurationMinutes} Mins / Slot
               </span>
             )}
           </div>
@@ -51,8 +62,8 @@ export default function DoctorProfileHeader({ doctor, hospital }) {
 
         {/* OPD Fee Display */}
         <div className="md:border-l md:border-slate-100 md:pl-6 flex md:flex-col justify-between items-end md:items-start gap-1 shrink-0">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">OPD Consultation Fee</span>
-          <span className="text-3xl font-black text-slate-900">₹{doctor.opdFee || doctor.consultationFee || 500}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Base Consultation Fee</span>
+          <span className="text-3xl font-black text-slate-900">₹{displayFee}</span>
           <span className="text-[10px] text-emerald-600 font-bold">Includes OPD Registration</span>
         </div>
       </div>

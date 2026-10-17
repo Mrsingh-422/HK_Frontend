@@ -20,12 +20,12 @@ export default function SlotPicker({
     // 1. Shift Mode ('One day One Time' | 'For Multiple Days' | 'Acc. To Per/Hours')
     const [selectedMode, setSelectedMode] = useState("One day One Time");
 
-    // 2. Calendar View & Date States (Starts completely empty)
+    // 2. Calendar View & Date States
     const [viewDate, setViewDate] = useState(() => new Date());
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
 
-    // 3. Time Slot States (Starts completely empty)
+    // 3. Time Slot States
     const [selectedSlot, setSelectedSlot] = useState(null);
     const [hourlyStartSlot, setHourlyStartSlot] = useState(null);
     const [hourlyEndSlot, setHourlyEndSlot] = useState(null);
@@ -33,7 +33,7 @@ export default function SlotPicker({
     // 4. Server Availability Data State
     const [calendarDaysList, setCalendarDaysList] = useState([]);
     const [timeSlotsList, setTimeSlotsList] = useState([]);
-    const [deliveryConfig, setDeliveryConfig] = useState({ travelBaseFee: 0, expressChargeRate: 100 });
+    const [deliveryConfig, setDeliveryConfig] = useState({ travelBaseFee: 0, expressChargeRate: 0 });
     const [loadingSlots, setLoadingSlots] = useState(false);
 
     // Keep ref to avoid stale closure without triggering infinite re-render loops
@@ -91,21 +91,24 @@ export default function SlotPicker({
                             return {
                                 time: s.time,
                                 displayTime: s.displayTime || formatTimeToAMPM(s.time),
-                                surcharge: s.slotPremiumFee || s.surcharge || 0,
-                                expressExtraFee: s.expressExtraFee || 0,
-                                totalSlotPriceWithExpress: s.totalSlotPriceWithExpress || 0,
+                                surcharge: Number(s.slotPremiumFee || s.surcharge || 0),
+                                expressExtraFee: Number(s.expressExtraFee || 0),
+                                totalSlotPriceWithExpress: Number(s.totalSlotPriceWithExpress || 0),
                                 isExpressWindow: Boolean(s.isExpressWindow),
                                 isDisabled: isUnavailable,
                                 statusLabel: s.statusLabel || (isUnavailable ? "Closed" : s.isExpressWindow ? "Express Rush" : "Standard"),
-                                hourlyBasePrice: s.hourlyBasePrice || 0,
-                                totalHourlyPrice: s.totalHourlyPrice || 0,
+                                hourlyBasePrice: Number(s.hourlyBasePrice || 0),
+                                totalHourlyPrice: Number(s.totalHourlyPrice || 0),
                                 isAvailable: !isUnavailable
                             };
                         })
                         : [];
 
                     if (responseData.deliveryConfig) {
-                        setDeliveryConfig(responseData.deliveryConfig);
+                        setDeliveryConfig({
+                            travelBaseFee: Number(responseData.deliveryConfig.travelBaseFee || 0),
+                            expressChargeRate: Number(responseData.deliveryConfig.expressChargeRate || 0)
+                        });
                     }
 
                     setCalendarDaysList(fetchedCalendar);
@@ -154,15 +157,16 @@ export default function SlotPicker({
             const serverDateObj = calendarDaysList.find(c => c.date === iso);
             const isDisabled = serverDateObj ? serverDateObj.isDisabled : false;
             const pricingObj = serverDateObj?.pricing || {};
-            const extraFee = pricingObj.extraFee || 0;
+            const extraFee = Number(pricingObj.extraFee || 0);
             
-            let customDayPrice = pricingRates?.oneDay?.final ?? initialBasePrice ?? 1800;
+            // Dynamic pricing without hardcoded fallbacks
+            let customDayPrice = Number(pricingRates?.oneDay?.final ?? initialBasePrice ?? 0);
             if (selectedMode === "For Multiple Days") {
-                customDayPrice = pricingObj.multipleDayPrice || pricingRates?.multipleDays?.final || initialBasePrice || 1800;
+                customDayPrice = Number(pricingObj.multipleDayPrice ?? pricingRates?.multipleDays?.final ?? initialBasePrice ?? 0);
             } else if (selectedMode === "Acc. To Per/Hours") {
-                customDayPrice = pricingObj.hourlyPrice || pricingRates?.hourly?.final || 200;
+                customDayPrice = Number(pricingObj.hourlyPrice ?? pricingRates?.hourly?.final ?? 0);
             } else {
-                customDayPrice = pricingObj.oneDayPrice || pricingRates?.oneDay?.final || initialBasePrice || 1800;
+                customDayPrice = Number(pricingObj.oneDayPrice ?? pricingRates?.oneDay?.final ?? initialBasePrice ?? 0);
             }
 
             days.push({
@@ -203,9 +207,9 @@ export default function SlotPicker({
     }, [selectedMode, hourlyStartSlot, hourlyEndSlot]);
 
     const pricing = useMemo(() => {
-        const singlePrice = pricingRates?.oneDay?.final ?? initialBasePrice ?? 1800;
-        const multiPrice = pricingRates?.multipleDays?.final ?? initialBasePrice ?? 1800;
-        const hourlyPrice = pricingRates?.hourly?.final ?? 200;
+        const singlePrice = Number(pricingRates?.oneDay?.final ?? initialBasePrice ?? 0);
+        const multiPrice = Number(pricingRates?.multipleDays?.final ?? initialBasePrice ?? 0);
+        const hourlyPrice = Number(pricingRates?.hourly?.final ?? 0);
 
         let activeBase = singlePrice;
         let units = 1;
@@ -226,34 +230,34 @@ export default function SlotPicker({
                     const isoStr = curr.toISOString().split("T")[0];
                     const matchedCalDay = calendarDaysList.find(c => c.date === isoStr);
                     if (matchedCalDay?.pricing?.extraFee) {
-                        totalDateExtra += matchedCalDay.pricing.extraFee;
+                        totalDateExtra += Number(matchedCalDay.pricing.extraFee);
                     }
                     curr.setDate(curr.getDate() + 1);
                 }
             } else if (startDate) {
                 const matchedCalDay = calendarDaysList.find(c => c.date === startDate);
                 if (matchedCalDay?.pricing?.extraFee) {
-                    totalDateExtra += matchedCalDay.pricing.extraFee;
+                    totalDateExtra += Number(matchedCalDay.pricing.extraFee);
                 }
             }
-            slotExtra = selectedSlot?.surcharge || 0;
-            activeExpressFee = selectedSlot?.expressExtraFee || 0;
+            slotExtra = Number(selectedSlot?.surcharge || 0);
+            activeExpressFee = Number(selectedSlot?.expressExtraFee || 0);
         } else if (selectedMode === "Acc. To Per/Hours") {
             units = computedHoursCount;
             activeBase = hourlyPrice * units;
 
-            if (hourlyStartSlot?.surcharge) slotExtra += hourlyStartSlot.surcharge;
-            if (hourlyEndSlot?.surcharge) slotExtra += hourlyEndSlot.surcharge;
-            if (hourlyStartSlot?.expressExtraFee) activeExpressFee = Math.max(activeExpressFee, hourlyStartSlot.expressExtraFee);
+            if (hourlyStartSlot?.surcharge) slotExtra += Number(hourlyStartSlot.surcharge);
+            if (hourlyEndSlot?.surcharge) slotExtra += Number(hourlyEndSlot.surcharge);
+            if (hourlyStartSlot?.expressExtraFee) activeExpressFee = Math.max(activeExpressFee, Number(hourlyStartSlot.expressExtraFee));
 
             const matchedCalDay = calendarDaysList.find(c => c.date === startDate);
-            totalDateExtra = matchedCalDay?.pricing?.extraFee || 0;
+            totalDateExtra = Number(matchedCalDay?.pricing?.extraFee || 0);
         } else {
             activeBase = singlePrice;
-            slotExtra = selectedSlot?.surcharge || 0;
-            activeExpressFee = selectedSlot?.expressExtraFee || 0;
+            slotExtra = Number(selectedSlot?.surcharge || 0);
+            activeExpressFee = Number(selectedSlot?.expressExtraFee || 0);
             const matchedCalDay = calendarDaysList.find(c => c.date === startDate);
-            totalDateExtra = matchedCalDay?.pricing?.extraFee || 0;
+            totalDateExtra = Number(matchedCalDay?.pricing?.extraFee || 0);
         }
 
         const calculatedTotal = activeBase + totalDateExtra + slotExtra + activeExpressFee;
@@ -611,7 +615,6 @@ export default function SlotPicker({
                                             : "border-slate-200 bg-white hover:border-[#08B36A] text-slate-900 hover:shadow-xs"
                                     }`}
                                 >
-                                    {/* FLOATING PREMIUM / RUSH TAG */}
                                     {isPremiumOrRush && (
                                         <div className={`absolute -top-2.5 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs border ${
                                             isSelected 
@@ -629,7 +632,6 @@ export default function SlotPicker({
                                         {slot.displayTime || slot.time}
                                     </p>
                                     
-                                    {/* Sub-label & Extra Pricing Badge */}
                                     <div className="flex flex-col items-center gap-0.5 mt-1">
                                         <span className={`text-[9px] font-bold block ${
                                             isSelected 
@@ -643,7 +645,6 @@ export default function SlotPicker({
                                             {isHourlyStart ? "Start Time" : isHourlyEnd ? "End Time" : slot.statusLabel}
                                         </span>
 
-                                        {/* EXTRA SURCHARGE / RUSH PRICE BADGE */}
                                         {extraCharge > 0 && (
                                             <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-md ${
                                                 isSelected 

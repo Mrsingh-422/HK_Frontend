@@ -60,26 +60,28 @@ export default function BookingSummary({
         fetchCoupons();
     }, [bookingData?.nurseId]);
 
-    // Comprehensive Line-Item Financial Summary
+    // Comprehensive Line-Item Financial Summary without hardcoded numbers
     const summary = useMemo(() => {
-        const consumableTotal = selectedConsumables.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+        const singleConsumableTotal = selectedConsumables.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+        const fallbackConsumableTotal = singleConsumableTotal * patientCount;
         
         if (subscriptionInfo) {
             const isVisitFree = Boolean(subscriptionInfo.visitBenefit?.isApplied);
             const isTravelFree = Boolean(subscriptionInfo.travelBenefit?.isApplied);
             
-            const baseServicePrice = subscriptionInfo.baseServicePrice ?? 0;
-            const originalBasePrice = subscriptionInfo.originalBasePrice ?? (baseServicePrice || 500);
+            const baseServicePrice = Number(subscriptionInfo.baseServicePrice ?? 0);
+            const originalBasePrice = Number(subscriptionInfo.originalBasePrice ?? baseServicePrice ?? 0);
             const slotSurcharge = Number(subscriptionInfo.slotSurcharge ?? slotInfo?.extraFee ?? 0);
             
-            // Raw and active travel fee
-            const rawTravelFee = Number(subscriptionInfo.travelFee ?? 45);
+            // Raw and active travel fee directly from server (no hardcoded 45)
+            const rawTravelFee = Number(subscriptionInfo.travelFee ?? subscriptionInfo.deliveryCharge ?? subscriptionInfo.originalTravelFee ?? 0);
             const activeTravelFee = isTravelFree ? 0 : rawTravelFee;
 
             // Raw and active express charge from server
-            const rawExpressCharge = Number(slotInfo?.expressExtraFee || subscriptionInfo.fasterServiceCharge || 0);
+            const rawExpressCharge = Number(subscriptionInfo.fasterServiceCharge ?? slotInfo?.expressExtraFee ?? 0);
             const activeExpressCharge = isTravelFree ? 0 : rawExpressCharge;
 
+            const consumableTotal = Number(subscriptionInfo.consumableTotal ?? fallbackConsumableTotal);
             const couponDiscount = Number(appliedCoupon?.discountAmount ?? subscriptionInfo.couponDiscount ?? 0);
             const taxAmount = Number(subscriptionInfo.taxAmount ?? 0);
             
@@ -100,26 +102,26 @@ export default function BookingSummary({
                 isTravelFree,
                 couponDiscount,
                 taxAmount,
-                totalPrice: Math.round(totalPrice),
+                totalPrice: Math.round(subscriptionInfo.totalPrice ?? totalPrice),
                 visitBenefit: subscriptionInfo.visitBenefit || {},
                 travelBenefit: subscriptionInfo.travelBenefit || {}
             };
         }
 
-        // Fallback calculation
-        const fallbackBase = (slotInfo?.totalPrice || slotInfo?.basePrice || bookingData?.basePrice || 0) * patientCount;
+        // Fallback calculation without hardcoded 45 or 500
+        const fallbackBase = Number(slotInfo?.totalPrice || slotInfo?.basePrice || bookingData?.basePrice || 0) * patientCount;
         const slotExpressFee = Number(slotInfo?.expressExtraFee || 0);
         const fallbackExpress = isExpress ? slotExpressFee : 0;
-        const fallbackTravel = 45;
+        const fallbackTravel = 0; // Removed static 45
         const discountAmount = appliedCoupon?.discountAmount ?? (appliedCoupon ? Math.min(appliedCoupon.maxDiscount || 9999, (fallbackBase * (appliedCoupon.discountPercentage || 0)) / 100) : 0);
-        const total = Math.max(0, fallbackBase + consumableTotal + (slotInfo?.extraFee || 0) + fallbackExpress + fallbackTravel - discountAmount);
+        const total = Math.max(0, fallbackBase + fallbackConsumableTotal + Number(slotInfo?.extraFee || 0) + fallbackExpress + fallbackTravel - discountAmount);
 
         return {
             baseServicePrice: fallbackBase,
             originalBasePrice: fallbackBase,
             isVisitFree: false,
-            slotSurcharge: slotInfo?.extraFee || 0,
-            consumableTotal,
+            slotSurcharge: Number(slotInfo?.extraFee || 0),
+            consumableTotal: fallbackConsumableTotal,
             rawTravelFee: fallbackTravel,
             activeTravelFee: fallbackTravel,
             rawExpressCharge: fallbackExpress,
@@ -173,7 +175,6 @@ export default function BookingSummary({
             console.error("❌ [BookingSummary] Coupon Validation Error:", err);
             const serverMessage = err?.response?.data?.message || err?.message || "Coupon usage limit reached. You can only use this coupon 1 time(s).";
             
-            // 💡 Show friendly alert popup instead of breaking UI
             if (typeof CostoumPopup === "function") {
                 CostoumPopup(serverMessage, "warning", 4000);
             } else {
@@ -310,12 +311,8 @@ export default function BookingSummary({
                 </div>
             )}
 
-            {/* ========================================================= */}
-            {/* 5. COUPONS SECTION (HIGH CONTRAST VOUCHER THEME)         */}
-            {/* ========================================================= */}
+            {/* 5. COUPONS SECTION */}
             <div className="bg-white text-slate-900 p-4.5 rounded-2xl shadow-xl border-2 border-amber-300/80 space-y-3.5 relative overflow-hidden">
-                
-                {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-xs">
@@ -334,7 +331,6 @@ export default function BookingSummary({
 
                 {!appliedCoupon ? (
                     <div className="space-y-3">
-                        {/* High-Contrast Crisp Input & Button */}
                         <div className="flex gap-2">
                             <input 
                                 type="text" 
@@ -353,7 +349,6 @@ export default function BookingSummary({
                             </button>
                         </div>
 
-                        {/* Available Coupons List */}
                         {loadingCoupons ? (
                             <div className="flex items-center gap-2 py-1 text-slate-500 text-[11px]">
                                 <FaSpinner className="animate-spin text-amber-500" />
@@ -398,7 +393,6 @@ export default function BookingSummary({
                         ) : null}
                     </div>
                 ) : (
-                    /* Applied Coupon State Card */
                     <div className="flex items-center justify-between bg-emerald-50 border-2 border-[#08B36A] p-3 sm:p-3.5 rounded-xl shadow-xs">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-xl bg-[#08B36A] text-white flex items-center justify-center shadow-xs">
@@ -431,7 +425,7 @@ export default function BookingSummary({
             {/* 6. Comprehensive Breakdown of All Fees & Charges */}
             <div className="bg-slate-800/40 p-4 rounded-2xl border border-slate-800 space-y-2.5">
                 
-                {/* Base Service / Consultation Fee */}
+                {/* Base Service Fee */}
                 <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-400 font-medium">
                         {slotInfo?.mode === "For Multiple Days" ? "Multi-Day Service Fee" : 

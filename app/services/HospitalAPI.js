@@ -932,101 +932,11 @@ transferBed: async (data) => {
   // OPD SLOTS MANAGEMENT
   // ==========================================
 
-  /**
-   * 1. GET Doctor OPD Settings (Doctor Panel)
-   * GET /hospital-doctor/panel/opd-settings
-   */
-  getDoctorOpdSettings: async () => {
-    try {
-      const token =
-        typeof window !== "undefined"
-          ? localStorage.getItem("hospitalDoctorToken") ||
-            localStorage.getItem("doctorToken") ||
-            localStorage.getItem("hospital_doctor_token") ||
-            localStorage.getItem("hospitalToken") ||
-            localStorage.getItem("token")
-          : null;
+ 
 
-      const response = await axios.get(
-        `${BASE_URL}/hospital-doctor/panel/opd-settings`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          }
-        }
-      );
-      return response.data;
-    } catch (error) {
-      console.error("Error fetching doctor OPD settings:", error);
-      throw error;
-    }
-  },
+  
 
-  /**
-   * 2. PUT Update Doctor OPD Settings (Doctor Panel)
-   * PUT /hospital-doctor/panel/opd-settings
-   */
-  updateDoctorOpdSettings: async (payload) => {
-    try {
-      const token =
-        typeof window !== "undefined"
-          ? localStorage.getItem("hospitalDoctorToken") ||
-            localStorage.getItem("doctorToken") ||
-            localStorage.getItem("hospital_doctor_token") ||
-            localStorage.getItem("hospitalToken") ||
-            localStorage.getItem("token")
-          : null;
-
-      const response = await axios.put(
-        `${BASE_URL}/hospital-doctor/panel/opd-settings`,
-        payload,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          }
-        }
-      );
-      return response.data;
-    } catch (error) {
-      console.error("Error updating doctor OPD settings:", error);
-      throw error;
-    }
-  },
-
-  /**
-   * 3. POST Toggle Emergency Slot Block / Unblock (Doctor Panel)
-   * POST /hospital-doctor/panel/opd-slots/toggle-block
-   */
-  toggleDoctorEmergencySlot: async (timeSlot, action) => {
-    try {
-      const token =
-        typeof window !== "undefined"
-          ? localStorage.getItem("hospitalDoctorToken") ||
-            localStorage.getItem("doctorToken") ||
-            localStorage.getItem("hospital_doctor_token") ||
-            localStorage.getItem("hospitalToken") ||
-            localStorage.getItem("token")
-          : null;
-
-      const response = await axios.post(
-        `${BASE_URL}/hospital-doctor/panel/opd-slots/toggle-block`,
-        { timeSlot, action },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          }
-        }
-      );
-      return response.data;
-    } catch (error) {
-      console.error("Error toggling emergency slot:", error);
-      throw error;
-    }
-  },
-
+  
   /**
    * 4. PUT Admin Configure Doctor OPD (Hospital Admin Panel)
    * PUT /api/hospital/doctors/configure-opd/:doctorId
@@ -1079,6 +989,69 @@ transferBed: async (data) => {
       return response.data;
     } catch (error) {
       console.error("Error reviewing doctor leave:", error);
+      throw error;
+    }
+  },
+  // ==========================================
+  // ADMISSION COUNTER PAYMENT (Module 3)
+  // ==========================================
+
+  /**
+   * Collect Admission Deposit at Counter (Cash / Card / POS / UPI)
+   * PATCH /hospital/doctor/appointments/admission/collect-payment/:id
+   * @param {string} id - Admission _id or bookingId (e.g. HKH-ADM-48A10C)
+   * @param {Object} payload - { paymentMode: 'Cash'|'Card'|'UPI', transactionReference, remarks }
+   */
+  collectAdmissionPayment: async (id, payload) => {
+    try {
+      const response = await hospitalVendorApi.patch(
+        `/hospital/doctor/appointments/admission/collect-payment/${id}`,
+        {
+          paymentMode: payload.paymentMode || "Cash",
+          transactionReference: payload.transactionReference || "",
+          remarks: payload.remarks || "Received at Hospital Counter"
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error collecting admission counter payment:", error);
+      throw error;
+    }
+  },
+  /**
+   * View Live Converted Orders & 30-Min Bed Holds (Hospital Receptionist)
+   * GET /hospital/doctor/appointments/admissions/pending-holds
+   */
+  getPendingAdmissionHolds: async () => {
+    try {
+      const response = await hospitalVendorApi.get(
+        "/hospital/doctor/appointments/admissions/pending-holds"
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching pending admission holds:", error);
+      throw error;
+    }
+  },
+  // ==========================================
+  // SWITCH BED AT COUNTER (Module 4)
+  // ==========================================
+
+  /**
+   * Switch Bed at Counter (Upgrade/Downgrade Hold)
+   * PATCH /hospital/doctor/appointments/admission/switch-bed/:id
+   * @param {string} id - Admission booking _id or bookingId (e.g. HKH-ADM-48A10C)
+   * @param {string} newBedId - The ObjectId of the selected new bed
+   */
+  switchBed: async (id, newBedId) => {
+    try {
+      const response = await hospitalVendorApi.patch(
+        `/hospital/doctor/appointments/admission/switch-bed/${id}`,
+        { newBedId }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error switching bed:", error);
       throw error;
     }
   },

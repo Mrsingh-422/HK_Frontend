@@ -89,7 +89,7 @@ function AppointmentSchedulingContent() {
         startDate: "",
         endDate: "",
         startTime: "",
-        endTime: "",
+        endTime: null,
         extraFee: 0,
         expressExtraFee: 0,
         isExpressWindow: false,
@@ -124,7 +124,7 @@ function AppointmentSchedulingContent() {
         }
     }, []);
 
-    // 2. Initialize Booking Data & Service Consumables
+    // 2. Initialize Booking Data, Map Correct Nurse Service ID & Fetch Consumables
     useEffect(() => {
         const initData = async () => {
             const token = localStorage.getItem('userToken');
@@ -137,7 +137,6 @@ function AppointmentSchedulingContent() {
             const savedData = sessionStorage.getItem("pendingNurseBooking");
             if (savedData) {
                 const parsedData = JSON.parse(savedData);
-                setBookingData(parsedData);
 
                 if (parsedData.hospitalDetails || parsedData.hospitalName) {
                     const hospData = {
@@ -147,7 +146,7 @@ function AppointmentSchedulingContent() {
                         city: parsedData.hospitalDetails?.city || parsedData.city || "",
                         wardName: parsedData.hospitalDetails?.wardName || parsedData.wardName || "",
                         floorNumber: parsedData.hospitalDetails?.floorNumber || "",
-                        bedNumber: parsedData.hospitalDetails?.bedNumber || parsedData.bedNumber || ""
+                        bedNumber: parsedData.hospitalDetails?.bedNumber || ""
                     };
                     setHospitalInfo(hospData);
                     if (!hospData.hospitalId && hospData.hospitalName) {
@@ -159,37 +158,94 @@ function AppointmentSchedulingContent() {
                     fetchHospitals("", parsedData.city || "");
                 }
 
-                // If this is a package, fetch details using getUserPackageDetails
+                let resolvedServiceId = parsedData.serviceId || null;
+                let resolvedPackageId = parsedData.packageId || null;
+                let consumables = [];
+
+                // Resolve exact NurseService._id / NursePackage._id from nurse details
+                if (parsedData.nurseId && parsedData.nurseId !== "undefined") {
+                    try {
+                        setConsumablesLoading(true);
+                        const detailsRes = await UserAPI.nurseServiceDetail(parsedData.nurseId);
+                        if (detailsRes?.success && detailsRes.data) {
+                            const nurseData = detailsRes.data;
+
+                            if (!parsedData.packageId) {
+                                const servicesList = nurseData.services || [];
+                                // Match either by subdocument _id, catalog serviceId, or service name
+                                const matchedService = servicesList.find(s => {
+                                    const sId = String(s._id || "");
+                                    const masterId = String(s.serviceId?._id || s.serviceId || "");
+                                    const careId = String(s.careServiceId?._id || s.careServiceId || "");
+                                    const targetId = String(parsedData.serviceId || parsedData.nurseServiceId || "");
+
+                                    if (sId === targetId) return true;
+                                    if (masterId && masterId === targetId) return true;
+                                    if (careId && careId === targetId) return true;
+
+                                    const sTitle = (s.title || s.serviceName || s.serviceId?.name || "").trim().toLowerCase();
+                                    const targetTitle = (parsedData.serviceDetails?.title || parsedData.serviceDetails?.name || parsedData.serviceName || "").trim().toLowerCase();
+                                    return Boolean(sTitle && targetTitle && sTitle === targetTitle);
+                                });
+
+                                if (matchedService) {
+                                    resolvedServiceId = String(matchedService._id);
+                                    if (matchedService.consumablesUsed) {
+                                        consumables = matchedService.consumablesUsed;
+                                    }
+                                }
+                            } else {
+                                const packagesList = nurseData.packages || nurseData.carePackages || [];
+                                const matchedPkg = packagesList.find(p => {
+                                    const pId = String(p._id || "");
+                                    const masterPkgId = String(p.packageId?._id || p.packageId || "");
+                                    const targetPkgId = String(parsedData.packageId || "");
+
+                                    if (pId === targetPkgId) return true;
+                                    if (masterPkgId && masterPkgId === targetPkgId) return true;
+
+                                    const pTitle = (p.title || p.packageName || p.packageId?.name || "").trim().toLowerCase();
+                                    const targetTitle = (parsedData.packageDetails?.title || parsedData.packageDetails?.name || "").trim().toLowerCase();
+                                    return Boolean(pTitle && targetTitle && pTitle === targetTitle);
+                                });
+
+                                if (matchedPkg) {
+                                    resolvedPackageId = String(matchedPkg._id);
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error("❌ Error resolving nurse service/package details:", error);
+                    } finally {
+                        setConsumablesLoading(false);
+                    }
+                }
+
+                // If package, fetch package consumables
                 if (parsedData.packageId) {
                     try {
                         setConsumablesLoading(true);
                         const pkgRes = await UserAPI.getUserPackageDetails(parsedData.packageId);
                         if (pkgRes?.success && pkgRes.data?.consumablesUsed) {
-                            setAvailableConsumables(pkgRes.data.consumablesUsed);
+                            consumables = pkgRes.data.consumablesUsed;
                         }
                     } catch (err) {
                         console.error("Error loading package consumables:", err);
                     } finally {
                         setConsumablesLoading(false);
                     }
-                } else if (parsedData.nurseId && parsedData.nurseId !== "undefined") {
-                    try {
-                        setConsumablesLoading(true);
-                        const detailsRes = await UserAPI.nurseServiceDetail(parsedData.nurseId);
-                        if (detailsRes?.success) {
-                            let consumables = [];
-                            if (parsedData.serviceId && detailsRes.data.services) {
-                                const selectedService = detailsRes.data.services.find(s => s._id === parsedData.serviceId);
-                                if (selectedService?.consumablesUsed) consumables = selectedService.consumablesUsed;
-                            }
-                            setAvailableConsumables(consumables);
-                        }
-                    } catch (error) {
-                        console.error("❌ Error fetching consumables:", error);
-                    } finally {
-                        setConsumablesLoading(false);
-                    }
                 }
+
+                setAvailableConsumables(consumables);
+
+                // Update bookingData with the correct NurseService / NursePackage ID
+                const updatedBooking = {
+                    ...parsedData,
+                    serviceId: resolvedServiceId,
+                    packageId: resolvedPackageId
+                };
+                sessionStorage.setItem("pendingNurseBooking", JSON.stringify(updatedBooking));
+                setBookingData(updatedBooking);
             } else {
                 router.push("/nursingservice");
             }
@@ -200,37 +256,44 @@ function AppointmentSchedulingContent() {
     }, [router, fetchHospitals]);
 
     // 3. Fetch Server-Side Checkout Summary (POST /user/nurse/checkout)
-    const fetchCheckoutSummary = useCallback(async (couponCode = "") => {
+    const fetchCheckoutSummary = useCallback(async (couponCodeToApply = "") => {
         if (!bookingData?.nurseId || !slotInfo.startDate || !slotInfo.startTime) return;
+
+        const isPackage = Boolean(bookingData.packageId);
+        const resolvedServiceId = !isPackage && bookingData.serviceId ? String(bookingData.serviceId) : null;
+        const resolvedPackageId = isPackage && bookingData.packageId ? String(bookingData.packageId) : null;
+
+        // Regular service must have a valid serviceId before hitting checkout API
+        if (!isPackage && !resolvedServiceId) {
+            console.warn("⚠️ Waiting for NurseService._id resolution...");
+            return;
+        }
 
         try {
             setIsFetchingSummary(true);
-            const isPackage = Boolean(bookingData.packageId);
             const cleanStartDate = slotInfo.startDate.split('T')[0];
+            const cleanEndDate = slotInfo.endDate ? slotInfo.endDate.split('T')[0] : cleanStartDate;
 
-            // Payload strictly matching documentation for both regular services and packages
+            // Strict payload mapping matching frontend integration guide
             const payload = {
                 nurseId: String(bookingData.nurseId),
-                ...(isPackage
-                    ? {
-                        packageId: String(bookingData.packageId),
-                        isPackage: true
-                    }
-                    : {
-                        serviceId: String(bookingData.serviceId || ""),
-                        isPackage: false
-                    }
-                ),
+                serviceId: resolvedServiceId,
+                packageId: resolvedPackageId,
+                isPackage: Boolean(isPackage),
                 selectedType: slotInfo.mode || "One day One Time",
                 startDate: cleanStartDate,
+                endDate: cleanEndDate,
                 startTime: slotInfo.startTime,
-                patientCount: Number(bookingData.patients?.length || 1),
+                endTime: slotInfo.mode === "Acc. To Per/Hours" ? (slotInfo.endTime || null) : null,
+                patientCount: Number(patientCount),
+                isFasterService: Boolean(slotInfo.isExpressWindow),
                 selectedConsumables: selectedConsumables.map(c => ({
                     consumableId: String(c.consumableId),
                     itemName: c.itemName || "Medical Consumable",
-                    price: Number(c.price) || 0
+                    price: Number(c.price) || 0,
+                    unitType: c.unitType || "Piece"
                 })),
-                couponCode: couponCode || appliedCouponCode || ""
+                couponCode: couponCodeToApply !== undefined ? couponCodeToApply : (appliedCouponCode || "")
             };
 
             const res = await UserAPI.nurseCheckoutSummary(payload);
@@ -238,23 +301,34 @@ function AppointmentSchedulingContent() {
 
             if (res?.success && responseData) {
                 setServerPricing(responseData);
+
+                if (couponCodeToApply && res.message) {
+                    CostoumPopup(res.message, "success", 3000);
+                }
+
                 const codAllowed = responseData.isCodAvailable ?? responseData.breakdown?.isCodAvailable ?? true;
                 if (!codAllowed && paymentMethod === "COD") {
                     setPaymentMethod("Online");
                 }
+            } else if (res?.success === false) {
+                CostoumPopup(res?.message || "Invalid or expired coupon code", "error", 3000);
             }
         } catch (error) {
             console.error("❌ Error fetching nurse checkout summary:", error);
+            const errorMsg = error?.response?.data?.message || error?.message || "Failed to apply checkout breakdown";
+            if (couponCodeToApply) {
+                CostoumPopup(errorMsg, "error", 3000);
+            }
         } finally {
             setIsFetchingSummary(false);
         }
-    }, [bookingData, slotInfo, selectedConsumables, appliedCouponCode, paymentMethod]);
+    }, [bookingData, slotInfo, selectedConsumables, appliedCouponCode, paymentMethod, patientCount]);
 
     useEffect(() => {
-        if (slotInfo.startDate && slotInfo.startTime) {
-            fetchCheckoutSummary(appliedCouponCode);
+        if (slotInfo.startDate && slotInfo.startTime && bookingData?.nurseId) {
+            fetchCheckoutSummary();
         }
-    }, [slotInfo.startDate, slotInfo.startTime, slotInfo.mode, selectedConsumables, slotInfo.isExpressWindow, hospitalInfo.hospitalId, fetchCheckoutSummary, appliedCouponCode]);
+    }, [slotInfo.startDate, slotInfo.endDate, slotInfo.startTime, slotInfo.endTime, slotInfo.mode, selectedConsumables, slotInfo.isExpressWindow, hospitalInfo.hospitalId, bookingData?.serviceId, bookingData?.packageId, fetchCheckoutSummary]);
 
     // 4. Computed Pricing Breakdown
     const pricing = useMemo(() => {
@@ -265,64 +339,53 @@ function AppointmentSchedulingContent() {
 
         if (serverPricing?.breakdown) {
             const b = serverPricing.breakdown;
-            const subBenefits = serverPricing.subscriptionBenefits || {};
-            const visitBenefit = subBenefits.visitBenefit || {};
-            const travelBenefit = subBenefits.travelBenefit || subBenefits.deliveryBenefit || {};
-
-            const isVisitFree = Boolean(b.isSubscriptionApplied && visitBenefit.isApplied);
-            const isTravelFree = Boolean(b.isSubscriptionApplied && travelBenefit.isApplied);
+            const deliveryBenefit = b.deliverySubscriptionBenefit || b.travelBenefit || {};
+            const isTravelFree = Boolean(deliveryBenefit.isApplied);
 
             const rawExpress = Number(b.fasterServiceCharge || (expressActive ? slotExpressFee : 0));
             const finalExpressCharge = isTravelFree ? 0 : rawExpress;
-            const rawTravelFee = Number(b.travelFee ?? 45);
+            const rawTravelFee = Number(b.travelFee ?? b.deliveryCharge ?? b.originalTravelFee ?? 45);
             const activeTravelFee = isTravelFree ? 0 : rawTravelFee;
             const slotSurcharge = Number(b.slotSurcharge ?? b.slotPremiumFee ?? slotInfo?.extraFee ?? 0);
-            const datePremiumFee = Number(b.datePremiumFee ?? 0);
             const finalConsumablesTotal = Number(b.consumableTotal ?? totalConsumablesMultiplied);
+            const couponDiscount = Number(b.couponDiscount ?? b.appliedCoupon?.discountAmount ?? 0);
 
-            const computed = {
+            return {
                 baseServicePrice: Number(b.baseServicePrice ?? (1800 * patientCount)),
                 originalBasePrice: Number(b.originalBasePrice ?? b.baseServicePrice ?? (1800 * patientCount)),
-                datePremiumFee,
+                datePremiumFee: Number(b.datePremiumFee ?? 0),
                 slotSurcharge,
                 singlePatientConsumableTotal: Number(b.singlePatientConsumableTotal ?? singleConsumableTotal),
                 consumableTotal: finalConsumablesTotal,
-                couponDiscount: Number(b.couponDiscount ?? 0),
+                couponDiscount: couponDiscount,
                 fasterServiceCharge: finalExpressCharge,
                 rawExpressCharge: rawExpress,
                 travelFee: activeTravelFee,
                 rawTravelFee,
                 taxAmount: Number(b.taxAmount ?? 0),
-                totalPrice: Number(b.totalPrice ?? (b.baseServicePrice + finalConsumablesTotal + activeTravelFee + finalExpressCharge + slotSurcharge + datePremiumFee)),
+                totalPrice: Number(b.totalPrice ?? (b.baseServicePrice + finalConsumablesTotal + activeTravelFee + finalExpressCharge + slotSurcharge - couponDiscount)),
                 isCodAvailable: Boolean(serverPricing.isCodAvailable ?? true),
                 isExpressRequired: Boolean(b.isExpressRequired),
                 pCount: Number(b.pCount ?? patientCount),
-                durationUnits: Number(serverPricing.durationUnits ?? 1),
-                
+                durationUnits: Number(b.durationDays ?? b.totalDays ?? 1),
                 visitBenefit: {
-                    isApplied: isVisitFree,
-                    hasActiveSubscription: Boolean(visitBenefit.hasActiveSubscription),
-                    isBenefitExhausted: Boolean(visitBenefit.isBenefitExhausted),
-                    remainingCount: visitBenefit.remainingCount ?? 0,
-                    planName: visitBenefit.planName || "",
-                    exhaustedMessage: visitBenefit.exhaustedMessage || ""
+                    isApplied: false,
+                    hasActiveSubscription: false,
+                    remainingCount: 0
                 },
                 travelBenefit: {
                     isApplied: isTravelFree,
-                    hasActiveSubscription: Boolean(travelBenefit.hasActiveSubscription),
-                    isBenefitExhausted: Boolean(travelBenefit.isBenefitExhausted),
-                    remainingCount: travelBenefit.remainingCount ?? 0,
-                    planName: travelBenefit.planName || "",
-                    exhaustedMessage: travelBenefit.exhaustedMessage || ""
+                    hasActiveSubscription: Boolean(deliveryBenefit.hasActiveSubscription),
+                    remainingCount: deliveryBenefit.remainingCount ?? 0,
+                    planName: deliveryBenefit.planName || ""
                 }
             };
-            return computed;
         }
 
         const fallbackBase = (slotInfo.totalPrice || slotInfo.basePrice || bookingData?.basePrice || 1800) * patientCount;
         const fallbackExpress = expressActive ? slotExpressFee : 0;
         const fallbackTravel = 45;
-        const fallback = {
+        return {
             baseServicePrice: fallbackBase,
             originalBasePrice: fallbackBase,
             datePremiumFee: 0,
@@ -343,7 +406,6 @@ function AppointmentSchedulingContent() {
             visitBenefit: { isApplied: false },
             travelBenefit: { isApplied: false }
         };
-        return fallback;
     }, [serverPricing, selectedConsumables, slotInfo, bookingData, patientCount]);
 
     const handleToggleConsumable = (consumable) => {
@@ -405,25 +467,23 @@ function AppointmentSchedulingContent() {
             const finalPaymentMethod = isZeroTotal ? "COD" : (paymentMethod === "COD" ? "COD" : "Online");
 
             const isPackage = Boolean(bookingData.packageId);
-            const cleanStartDate = slotInfo.startDate.split('T')[0];
+            const resolvedServiceId = !isPackage && bookingData.serviceId ? String(bookingData.serviceId) : null;
+            const resolvedPackageId = isPackage && bookingData.packageId ? String(bookingData.packageId) : null;
 
-            // Build payload exactly as specified in the Book Package Documentation
+            const cleanStartDate = slotInfo.startDate.split('T')[0];
+            const cleanEndDate = slotInfo.endDate ? slotInfo.endDate.split('T')[0] : cleanStartDate;
+
             const bookingPayload = {
                 nurseId: String(bookingData.nurseId),
-                ...(isPackage
-                    ? {
-                        packageId: String(bookingData.packageId),
-                        isPackage: true
-                    }
-                    : {
-                        serviceId: String(bookingData.serviceId || ""),
-                        isPackage: false
-                    }
-                ),
+                serviceId: resolvedServiceId,
+                packageId: resolvedPackageId,
+                isPackage: Boolean(isPackage),
                 schedule: {
                     duration: slotInfo.mode || "One day One Time",
                     startDate: cleanStartDate,
-                    startTime: slotInfo.startTime
+                    endDate: cleanEndDate,
+                    startTime: slotInfo.startTime,
+                    endTime: slotInfo.mode === "Acc. To Per/Hours" ? (slotInfo.endTime || null) : null
                 },
                 patients: (bookingData.patients || []).map(p => ({
                     patientId: p.relation === 'Self' ? 'Self' : (p._id || p.patientId || 'Self'),
@@ -447,7 +507,8 @@ function AppointmentSchedulingContent() {
                     selectedConsumables: selectedConsumables.map(c => ({
                         consumableId: String(c.consumableId),
                         itemName: c.itemName || "Medical Consumable",
-                        price: Number(c.price) || 0
+                        price: Number(c.price) || 0,
+                        unitType: c.unitType || "Piece"
                     }))
                 }),
                 ...(hospitalInfo.hospitalId && isHospitalCare && {
@@ -616,28 +677,6 @@ function AppointmentSchedulingContent() {
                     {/* Left Column */}
                     <div className="lg:col-span-8 space-y-6">
                         
-                        {/* Visit Benefit */}
-                        {pricing.visitBenefit.isApplied && (
-                            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-5 rounded-[2rem] flex items-center gap-4 shadow-sm">
-                                <div className="w-12 h-12 rounded-2xl bg-white shadow-xs flex items-center justify-center text-[#08B36A] flex-shrink-0 border border-emerald-100">
-                                    <FaGem size={22} />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="text-sm font-black text-emerald-950 uppercase tracking-tight">
-                                            ✨ Free Consultation Visit ({pricing.visitBenefit.planName})
-                                        </h4>
-                                        <span className="bg-[#08B36A] text-white text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase">
-                                            {pricing.visitBenefit.remainingCount} Left
-                                        </span>
-                                    </div>
-                                    <p className="text-xs font-semibold text-emerald-800 mt-0.5">
-                                        Base service fee (₹0) waived automatically under your membership plan.
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
                         {/* Travel Benefit */}
                         {pricing.travelBenefit.isApplied && (
                             <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 p-4.5 rounded-[2rem] flex items-center justify-between shadow-xs border-emerald-100">

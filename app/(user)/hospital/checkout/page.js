@@ -8,7 +8,8 @@ import {
     FaUser, FaPhone, FaCalendarDay, FaVenusMars, FaCreditCard,
     FaMapMarkerAlt, FaGlobe, FaPlus, FaUpload, FaUserMd, FaStethoscope,
     FaSpinner, FaGem, FaMoneyBillWave, FaLock, FaCheckCircle,
-    FaRegCalendarAlt, FaBed, FaWallet, FaDoorOpen, FaClock
+    FaRegCalendarAlt, FaBed, FaWallet, FaDoorOpen, FaClock,
+    FaCrown, FaBolt
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import UserAPI from "@/app/services/UserAPI";
@@ -47,7 +48,6 @@ export default function HospitalCheckoutPage() {
     const [selectedMemberId, setSelectedMemberId] = useState("self");
     const [selectedDoctorId, setSelectedDoctorId] = useState(null);
     const [selectedServiceIds, setSelectedServiceIds] = useState([]);
-    const [bedBookingType, setBedBookingType] = useState("General-Bed");
 
     // Patient & Insurance Details
     const [patientDetails, setPatientDetails] = useState({
@@ -67,7 +67,7 @@ export default function HospitalCheckoutPage() {
     });
 
     // Payment & COD States
-    const [paymentMethod, setPaymentMethod] = useState("Online"); // 'Online' | 'COD'
+    const [paymentMethod, setPaymentMethod] = useState("Online");
     const [couponCode, setCouponCode] = useState("");
     const [appliedCouponCode, setAppliedCouponCode] = useState("");
     const [couponError, setCouponError] = useState("");
@@ -144,20 +144,14 @@ export default function HospitalCheckoutPage() {
         return Math.abs(ageDate.getUTCFullYear() - 1970) || 25;
     };
 
-    const formatDisplayDate = (dateStr) => {
-        if (!dateStr) return "N/A";
-        try {
-            return new Date(dateStr).toLocaleDateString('en-IN', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric'
-            });
-        } catch (e) {
-            return dateStr;
-        }
+    // Helper: Ensure date is YYYY-MM-DD
+    const getCleanDate = (dateVal) => {
+        if (!dateVal) return new Date().toISOString().split("T")[0];
+        if (dateVal.includes("T")) return dateVal.split("T")[0];
+        return dateVal;
     };
 
-    // 3. Fetch Server-Side Summary (Auto-switches between OPD and IPD)
+    // 3. Fetch Server-Side Summary: POST /user/hospital/opd/checkout-summary
     const fetchSummary = useCallback(async (codeToApply = appliedCouponCode) => {
         if (!booking) return;
 
@@ -167,17 +161,15 @@ export default function HospitalCheckoutPage() {
 
             let res;
             if (bookingType === "OPD") {
-                // OPD Checkout Summary: POST /user/hospital/opd/checkout-summary
                 const payload = {
                     hospitalId: booking.hospital?._id || booking.hospitalId,
                     doctorId: booking.doctor?._id || booking.doctorId,
-                    appointmentDate: booking.appointmentDate || booking.selectedDate || new Date().toISOString().split("T")[0],
-                    appointmentTime: booking.appointmentTime || booking.selectedSlot?.time || "09:00 AM",
+                    appointmentDate: getCleanDate(booking.appointmentDate || booking.selectedDate),
+                    appointmentTime: booking.appointmentTime || booking.selectedSlot?.time || "10:30 AM",
                     couponCode: codeToApply || undefined
                 };
                 res = await UserAPI.getOpdCheckoutSummary(payload);
             } else {
-                // IPD Checkout Summary: POST /user/hospital/checkout-summary
                 if (!booking.hospitalId || !booking.bedId) return;
                 const payload = {
                     hospitalId: booking.hospitalId,
@@ -260,20 +252,24 @@ export default function HospitalCheckoutPage() {
         }
     };
 
-    // 4. Computed Pricing Breakdown
+    // 4. Computed Pricing Breakdown with Exact Documentation Spec
     const totals = useMemo(() => {
         const selectedServices = services.filter(s => selectedServiceIds.includes(s._id));
         const servicesTotal = selectedServices.reduce((sum, s) => sum + s.price, 0);
 
         if (serverPricing) {
-            const baseFee = serverPricing.baseFee ?? (bookingType === "OPD" ? (booking?.doctor?.opdFee || 500) : 0);
+            const baseFee = serverPricing.baseFee ?? (booking?.doctor?.opdFee || 500);
+            const premiumSlotFee = serverPricing.premiumSlotFee ?? (serverPricing.extraCharges ?? (booking?.premiumFee || booking?.selectedSlot?.premiumFee || 0));
+            const isPremiumSlot = Boolean(serverPricing.isPremiumSlot || booking?.isPremium || booking?.selectedSlot?.isPremium);
             const discount = serverPricing.discount ?? 0;
-            const subtotal = serverPricing.subtotal ?? baseFee;
+            const subtotal = serverPricing.subtotal ?? (baseFee + premiumSlotFee);
             const totalPayable = Math.max(0, (serverPricing.totalPayable ?? (subtotal - discount)) + (bookingType === "IPD" ? servicesTotal : 0));
 
             return {
                 baseFee,
                 originalBaseFee: serverPricing.originalBaseFee ?? baseFee,
+                premiumSlotFee,
+                isPremiumSlot,
                 servicesTotal,
                 discount,
                 subtotal: subtotal + (bookingType === "IPD" ? servicesTotal : 0),
@@ -287,13 +283,19 @@ export default function HospitalCheckoutPage() {
         }
 
         const fallbackBase = bookingType === "OPD" ? (booking?.doctor?.opdFee || 500) : (booking?.totalPrice || 0);
+        const fallbackPremium = bookingType === "OPD" ? (booking?.premiumFee || booking?.selectedSlot?.premiumFee || 0) : 0;
+        const fallbackIsPremium = Boolean(booking?.isPremium || booking?.selectedSlot?.isPremium);
+        const combinedSubtotal = fallbackBase + fallbackPremium + (bookingType === "IPD" ? servicesTotal : 0);
+
         return {
             baseFee: fallbackBase,
             originalBaseFee: fallbackBase,
+            premiumSlotFee: fallbackPremium,
+            isPremiumSlot: fallbackIsPremium,
             servicesTotal,
             discount: 0,
-            subtotal: fallbackBase + (bookingType === "IPD" ? servicesTotal : 0),
-            totalPayable: fallbackBase + (bookingType === "IPD" ? servicesTotal : 0),
+            subtotal: combinedSubtotal,
+            totalPayable: combinedSubtotal,
             stayDuration: booking?.totalDays ?? 1,
             isCodAvailable: true,
             isSubscriptionApplied: false,
@@ -316,16 +318,6 @@ export default function HospitalCheckoutPage() {
         setCouponError("");
     };
 
-    const toggleService = (serviceId) => {
-        setSelectedServiceIds(prev =>
-            prev.includes(serviceId) ? prev.filter(id => id !== serviceId) : [...prev, serviceId]
-        );
-    };
-
-    const toggleDoctor = (doctorId) => {
-        setSelectedDoctorId(prev => (prev === doctorId ? null : doctorId));
-    };
-
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setPatientDetails(prev => ({ ...prev, [name]: value }));
@@ -340,7 +332,7 @@ export default function HospitalCheckoutPage() {
         }
     };
 
-    // 5. Final Booking Handler (Both OPD & IPD Supported)
+    // 5. Final Booking Handler (Exact Payload Match for POST /user/hospital/opd/book)
     const handlePayment = async () => {
         if (!patientDetails.fullName || !patientDetails.phoneNumber) {
             CostoumPopup("Please fill in required patient name and contact number", "warning", 3000);
@@ -359,22 +351,23 @@ export default function HospitalCheckoutPage() {
             const finalPaymentMethod = isZeroTotal ? "COD" : paymentMethod;
 
             // ========================================================
-            // FLOW A: OPD BOOKING (Doctor Consultation & Daily Token)
+            // FLOW A: OPD BOOKING (Exact Module C API Spec)
             // ========================================================
             if (bookingType === "OPD") {
                 const opdPayload = {
                     hospitalId: booking.hospital?._id || booking.hospitalId,
                     doctorId: booking.doctor?._id || booking.doctorId,
-                    appointmentDate: booking.appointmentDate || booking.selectedDate || new Date().toISOString().split("T")[0],
-                    appointmentTime: booking.appointmentTime || booking.selectedSlot?.time || "09:00 AM",
-                    patients: [{
-                        patientName: patientDetails.fullName,
-                        patientAge: calculateAge(patientDetails.dob),
-                        gender: patientDetails.gender || "Male",
-                        relation: selectedMemberId === "self" ? "Self" : (patientDetails.relation || "Family Member")
-                    }],
-                    bookingReason: patientDetails.bookingReason || "General OPD Consultation",
+                    appointmentDate: getCleanDate(booking.appointmentDate || booking.selectedDate),
+                    appointmentTime: booking.appointmentTime || booking.selectedSlot?.time || "10:30 AM",
                     paymentMethod: finalPaymentMethod, // 'COD' | 'Online'
+                    patients: [
+                        {
+                            patientName: patientDetails.fullName,
+                            patientAge: calculateAge(patientDetails.dob),
+                            gender: patientDetails.gender || "Male",
+                            reasonForVisit: patientDetails.bookingReason || "General OPD Consultation"
+                        }
+                    ],
                     couponCode: appliedCouponCode || undefined
                 };
 
@@ -392,9 +385,12 @@ export default function HospitalCheckoutPage() {
                     return;
                 }
 
-                // COD / Free Confirmation
+                // COD: Token generated in Hospital-Pending status until counter payment
                 sessionStorage.removeItem("activeOpdBooking");
-                setBookingSuccessData(res);
+                setBookingSuccessData({
+                    ...res,
+                    status: "Hospital-Pending"
+                });
                 setIsSubmitting(false);
                 return;
             }
@@ -436,7 +432,6 @@ export default function HospitalCheckoutPage() {
                 return;
             }
 
-            // COD or Free Booking
             if (isZeroTotal || finalPaymentMethod === "COD" || res.data?.paymentStatus === "Paid") {
                 sessionStorage.removeItem("activeBooking");
                 setBookingSuccessData(res.data || { 
@@ -448,7 +443,6 @@ export default function HospitalCheckoutPage() {
                 return;
             }
 
-            // IPD Online Razorpay
             await launchRazorpay(res, "IPD");
 
         } catch (error) {
@@ -474,7 +468,9 @@ export default function HospitalCheckoutPage() {
             amount: amount,
             currency: "INR",
             name: "Health Kangaroo Hospital Network",
-            description: type === "OPD" ? "Doctor Consultation Token" : `Bed Admission at ${booking.hospitalName}`,
+            description: type === "OPD"
+                ? `${totals.isPremiumSlot ? "Premium " : ""}OPD Consultation Token`
+                : `Bed Admission at ${booking.hospitalName}`,
             order_id: razorpayOrderId,
             prefill: {
                 name: patientDetails.fullName,
@@ -490,7 +486,6 @@ export default function HospitalCheckoutPage() {
             handler: async function (paymentResponse) {
                 try {
                     setIsSubmitting(true);
-                    // Unified Endpoint: POST /user/hospital/verify-payment
                     const verificationRes = await UserAPI.verifyPaymentHospital({
                         appointmentId: appointmentId || orderRes.data?._id || bookingId,
                         razorpayOrderId: paymentResponse.razorpay_order_id || razorpayOrderId,
@@ -503,6 +498,7 @@ export default function HospitalCheckoutPage() {
                         setBookingSuccessData({
                             ...orderRes,
                             ...verificationRes,
+                            status: "Confirmed",
                             tokenNumber: verificationRes.tokenNumber || tokenNumber || orderRes.tokenNumber
                         });
                     } else {
@@ -529,7 +525,7 @@ export default function HospitalCheckoutPage() {
     }
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] pb-20 font-sans">
+        <div className="min-h-screen bg-[#F8FAFC] pb-20 font-sans antialiased">
             {/* HEADER */}
             <div className="bg-white border-b border-slate-200 sticky top-0 z-40">
                 <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
@@ -573,7 +569,7 @@ export default function HospitalCheckoutPage() {
                             </div>
                         )}
 
-                        {/* SECTION 1: OVERVIEW CARD (Dynamic OPD / IPD) */}
+                        {/* SECTION 1: OVERVIEW CARD */}
                         <section className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-200/80">
                             <h2 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
                                 <span className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px]">01</span>
@@ -590,6 +586,7 @@ export default function HospitalCheckoutPage() {
                                         <p className="font-bold text-slate-900 text-sm leading-tight">Dr. {booking.doctor?.name}</p>
                                         <p className="text-emerald-600 text-xs font-bold mt-0.5">{booking.doctor?.speciality}</p>
                                     </div>
+
                                     <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
                                         <div className="flex items-center gap-2 mb-1.5 text-emerald-600">
                                             <FaDoorOpen size={13} />
@@ -599,14 +596,31 @@ export default function HospitalCheckoutPage() {
                                             {booking.doctor?.opdRoomNumber || "OPD Cabin 1"}
                                         </p>
                                     </div>
-                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
-                                        <div className="flex items-center gap-2 mb-1.5 text-slate-400">
-                                            <FaClock size={13} />
-                                            <span className="text-[10px] font-black uppercase tracking-wider">Allotted Slot</span>
+
+                                    <div className={`p-4 rounded-2xl border ${
+                                        totals.isPremiumSlot 
+                                            ? "bg-amber-50/80 border-amber-200" 
+                                            : "bg-slate-50 border-slate-200/60"
+                                    }`}>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <div className="flex items-center gap-2 text-slate-400">
+                                                <FaClock size={13} />
+                                                <span className="text-[10px] font-black uppercase tracking-wider">Allotted Slot</span>
+                                            </div>
+                                            {totals.isPremiumSlot && (
+                                                <span className="text-[9px] font-black uppercase bg-amber-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                                                    <FaCrown size={8} /> Premium
+                                                </span>
+                                            )}
                                         </div>
                                         <p className="font-bold text-slate-900 text-sm leading-tight">
-                                            {booking.appointmentDate || booking.selectedDate} &bull; {booking.appointmentTime || booking.selectedSlot?.time}
+                                            {getCleanDate(booking.appointmentDate || booking.selectedDate)} &bull; {booking.appointmentTime || booking.selectedSlot?.time}
                                         </p>
+                                        {totals.isPremiumSlot && (
+                                            <p className="text-[10px] text-amber-800 font-bold mt-1">
+                                                Peak Hours Slot (+₹{totals.premiumSlotFee})
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             ) : (
@@ -683,8 +697,8 @@ export default function HospitalCheckoutPage() {
                                     </div>
                                 </div>
                                 <div className="md:col-span-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Reason for Visit / Symptoms</label>
-                                    <input type="text" name="bookingReason" value={patientDetails.bookingReason} onChange={handleInputChange} placeholder="e.g. Chest pain and palpitations, headache..." className="w-full bg-slate-50 px-4 py-3.5 rounded-xl border border-slate-200 outline-none font-bold text-xs text-slate-800" />
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Reason for Visit / Symptoms *</label>
+                                    <input type="text" name="bookingReason" value={patientDetails.bookingReason} onChange={handleInputChange} placeholder="e.g. Fever & throat pain" className="w-full bg-slate-50 px-4 py-3.5 rounded-xl border border-slate-200 outline-none font-bold text-xs text-slate-800" />
                                 </div>
 
                                 {/* Insurance (Only for IPD Admissions) */}
@@ -745,7 +759,7 @@ export default function HospitalCheckoutPage() {
                                                     {bookingType === "OPD" ? "Pay at OPD Desk (COD)" : "Pay at Hospital Desk (COD)"}
                                                 </p>
                                                 <p className="text-[10px] text-slate-500">
-                                                    {totals.isCodAvailable ? "Pay cash/card when showing token" : "Unavailable for this hospital"}
+                                                    {totals.isCodAvailable ? "Pay cash/card at counter to activate token" : "Unavailable for this hospital"}
                                                 </p>
                                             </div>
                                         </div>
@@ -774,7 +788,7 @@ export default function HospitalCheckoutPage() {
                         )}
                     </div>
 
-                    {/* RIGHT COLUMN: BILL SUMMARY */}
+                    {/* RIGHT COLUMN: BILL SUMMARY WITH EXACT GUIDELINES */}
                     <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
                         
                         {/* Coupon Box */}
@@ -820,6 +834,17 @@ export default function HospitalCheckoutPage() {
                                     <span className="font-black text-slate-900">₹{totals.baseFee}</span>
                                 </div>
 
+                                {/* Peak Hours Premium Slot Line Item */}
+                                {bookingType === "OPD" && totals.isPremiumSlot && totals.premiumSlotFee > 0 && (
+                                    <div className="flex justify-between items-center text-amber-800 font-bold bg-amber-50 p-2.5 rounded-xl border border-amber-200/80">
+                                        <span className="flex items-center gap-1.5">
+                                            <FaCrown className="text-amber-500 text-xs" />
+                                            <span>Peak Hours Premium Slot</span>
+                                        </span>
+                                        <span className="font-black text-amber-900">+₹{totals.premiumSlotFee}</span>
+                                    </div>
+                                )}
+
                                 {totals.discount > 0 && (
                                     <div className="flex justify-between items-center text-emerald-600 font-bold">
                                         <span>Coupon Discount</span>
@@ -832,7 +857,7 @@ export default function HospitalCheckoutPage() {
                                 <div className="flex justify-between items-end">
                                     <div>
                                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Total Payable</span>
-                                        <span className="text-[10px] text-slate-400 font-medium">Inclusive of all taxes</span>
+                                        <span className="text-[10px] text-slate-400 font-medium">Inclusive of all taxes & fees</span>
                                     </div>
                                     <span className="text-3xl font-black text-slate-900">
                                         ₹{totals.totalPayable.toFixed(2)}
@@ -851,7 +876,11 @@ export default function HospitalCheckoutPage() {
                                 {isSubmitting || isFetchingSummary ? (
                                     <FaSpinner className="animate-spin" size={14} />
                                 ) : bookingType === "OPD" ? (
-                                    <>Issue OPD Token <FaCheckCircle size={12} /></>
+                                    paymentMethod === "COD" ? (
+                                        <>Issue Token & Pay at OPD Desk <FaCheckCircle size={12} /></>
+                                    ) : (
+                                        <>Pay Online ₹{totals.totalPayable.toFixed(2)} & Issue Token <FaLock size={10} /></>
+                                    )
                                 ) : totals.totalPayable === 0 ? (
                                     <>Confirm Free Admission <FaCheckCircle size={12} /></>
                                 ) : paymentMethod === "COD" ? (
@@ -866,7 +895,7 @@ export default function HospitalCheckoutPage() {
                 </div>
             </main>
 
-            {/* CONFIRMATION SUCCESS MODAL - FULL DETAILS */}
+            {/* CONFIRMATION SUCCESS MODAL WITH LIFECYCLE AWARENESS */}
             {bookingSuccessData && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 max-w-lg w-full border border-slate-150 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
@@ -877,10 +906,14 @@ export default function HospitalCheckoutPage() {
                                 <FaCheckCircle className="w-9 h-9" />
                             </div>
                             <h3 className="text-2xl font-black text-slate-900 tracking-tight">
-                                {bookingType === "OPD" ? `Token #${bookingSuccessData.tokenNumber || "12"} Issued!` : "Admission Confirmed!"}
+                                {bookingType === "OPD" ? `Token #${bookingSuccessData.tokenNumber || "1"} Generated!` : "Admission Confirmed!"}
                             </h3>
                             <p className="text-xs font-semibold text-slate-400">
-                                {bookingType === "OPD" ? (bookingSuccessData.message || "Consultation confirmed successfully!") : "Your hospital accommodation has been successfully scheduled."}
+                                {bookingType === "OPD"
+                                    ? paymentMethod === "COD"
+                                        ? "Token registered! Please pay at the hospital reception desk to activate."
+                                        : "Payment verified. Your consultation token is confirmed!"
+                                    : "Your hospital accommodation has been successfully scheduled."}
                             </p>
                             <span className="inline-block bg-slate-900 text-[#08B36A] px-3.5 py-1 rounded-xl text-xs font-black uppercase tracking-wider font-mono">
                                 #{bookingSuccessData.bookingId || "HKH-CONFIRMED"}
@@ -919,11 +952,21 @@ export default function HospitalCheckoutPage() {
                                         <div className="text-right font-black text-slate-800">Dr. {booking.doctor?.name}</div>
 
                                         <div className="text-slate-500 font-semibold">OPD Cabin Location:</div>
-                                        <div className="text-right font-bold text-emerald-600">{booking.doctor?.opdRoomNumber || "Cabin 204 (Block A)"}</div>
+                                        <div className="text-right font-bold text-emerald-600">{booking.doctor?.opdRoomNumber || "Cabin 1"}</div>
 
                                         <div className="text-slate-500 font-semibold">Time Slot:</div>
                                         <div className="text-right font-bold text-slate-800">
-                                            {booking.appointmentDate || booking.selectedDate} at {booking.appointmentTime || booking.selectedSlot?.time}
+                                            {getCleanDate(booking.appointmentDate || booking.selectedDate)} at {booking.appointmentTime || booking.selectedSlot?.time}
+                                            {totals.isPremiumSlot && " (Premium)"}
+                                        </div>
+
+                                        <div className="text-slate-500 font-semibold">Queue Status:</div>
+                                        <div className="text-right font-bold">
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                                paymentMethod === "COD" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"
+                                            }`}>
+                                                {paymentMethod === "COD" ? "Hospital-Pending" : "Confirmed"}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -948,16 +991,31 @@ export default function HospitalCheckoutPage() {
                                 </div>
                             )}
 
-                            {/* Billing Card */}
+                            {/* Settlement Card */}
                             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/70 space-y-2">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block flex items-center gap-1.5">
                                     <FaReceipt className="text-emerald-500" /> Settlement
                                 </span>
                                 <div className="grid grid-cols-2 gap-y-1.5 text-xs">
                                     <div className="text-slate-500 font-semibold">Payment Status:</div>
-                                    <div className="text-right font-black text-emerald-600 uppercase">
-                                        {paymentMethod === "COD" ? "Pay at Desk" : "Paid & Verified"}
+                                    <div className="text-right font-black uppercase text-slate-800">
+                                        {paymentMethod === "COD" ? (
+                                            <span className="text-amber-600">Pay at Counter (COD)</span>
+                                        ) : (
+                                            <span className="text-emerald-600">Paid Online</span>
+                                        )}
                                     </div>
+
+                                    {bookingType === "OPD" && totals.isPremiumSlot && (
+                                        <>
+                                            <div className="text-slate-500 font-semibold">Base Fee:</div>
+                                            <div className="text-right font-bold text-slate-800">₹{totals.baseFee}</div>
+
+                                            <div className="text-amber-800 font-semibold">Peak Surcharge:</div>
+                                            <div className="text-right font-bold text-amber-800">+₹{totals.premiumSlotFee}</div>
+                                        </>
+                                    )}
+
                                     <div className="text-slate-900 font-black text-sm pt-2 border-t border-slate-200">Total:</div>
                                     <div className="text-right font-black text-[#08B36A] text-base pt-2 border-t border-slate-200">
                                         ₹{totals.totalPayable.toFixed(2)}

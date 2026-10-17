@@ -532,25 +532,29 @@ submitBedsideFeedback: async (body) => {
   trackIssue: (issueId) => {
     return hospitalDoctorApi.get(`/api/user-vendor/issues/track/${issueId}`);
   },
- // 1. GET /hospital-doctor/panel/opd-settings
-  getOpdSettings: async () => {
-    try {
-      const response = await hospitalDoctorApi.get('/hospital-doctor/panel/opd-settings');
-      return response.data;
-    } catch (error) {
-      return Promise.reject(error.response?.data?.message || "Failed to fetch OPD settings");
-    }
-  },
+ // 1. Get OPD Settings & Slot Configurations (Supports optional date query)
+    // GET /hospital-doctor/panel/opd-settings?date=YYYY-MM-DD
+    getOpdSettings: async (date = "") => {
+        try {
+            const params = {};
+            if (date) params.date = date;
+            const response = await hospitalDoctorApi.get('/hospital-doctor/panel/opd-settings', { params });
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error.response?.data?.message || "Failed to fetch OPD settings");
+        }
+    },
 
-  // 2. PUT /hospital-doctor/panel/opd-settings
-  updateOpdSettings: async (payload) => {
-    try {
-      const response = await hospitalDoctorApi.put('/hospital-doctor/panel/opd-settings', payload);
-      return response.data;
-    } catch (error) {
-      return Promise.reject(error.response?.data?.message || "Failed to update OPD settings");
-    }
-  },
+    // 2. Update OPD Settings & Timings (PUT)
+    // PUT /hospital-doctor/panel/opd-settings
+    updateOpdSettings: async (payload) => {
+        try {
+            const response = await hospitalDoctorApi.put('/hospital-doctor/panel/opd-settings', payload);
+            return response.data;
+        } catch (error) {
+            return Promise.reject(error.response?.data?.message || "Failed to update OPD settings");
+        }
+    },
 
   // 3. POST /hospital-doctor/panel/opd-slots/toggle-block
   toggleBlockSlot: async (timeSlot, action) => {
@@ -622,17 +626,19 @@ submitBedsideFeedback: async (body) => {
     },
 
     // 5. Doctor Blocks Specific Slot with Reason
+  
+    // 3. Block Slot with Reason (POST)
     // POST /hospital-doctor/panel/opd-slots/block-slot
-    blockSlotWithReason: async ({ date, timeSlot, action = "block", reason = "" }) => {
+    blockSlotWithReason: async ({ date, time, reason = "" }) => {
         try {
             const response = await hospitalDoctorApi.post(
                 "/hospital-doctor/panel/opd-slots/block-slot",
-                { date, timeSlot, action, reason }
+                { date, time, reason }
             );
             return response.data;
         } catch (error) {
             return Promise.reject(
-                error.response?.data?.message || "Failed to update slot status"
+                error.response?.data?.message || "Failed to block slot"
             );
         }
     },
@@ -652,7 +658,85 @@ submitBedsideFeedback: async (body) => {
             );
         }
     },
+    // ==========================================
+  // OPD TO IPD ADMISSION & BED HOLD (Module 1)
+  // ==========================================
+
+  /**
+   * 1. View Available Wards & Beds in Hospital
+   * GET /hospital-doctor/panel/opd/available-beds
+   */
+  getAvailableBedsForOpd: async () => {
+    try {
+      const response = await hospitalDoctorApi.get('/hospital-doctor/panel/opd/available-beds');
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching available beds:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 2. Initiate Bed Admission Hold (30-Minute Countdown)
+   * POST /hospital-doctor/panel/opd/initiate-admission
+   * @param {Object} payload - { opdAppointmentId, bedId, admissionReason, triageLevel, initialStayDays }
+   */
+  initiateBedAdmission: async (payload) => {
+    try {
+      const response = await hospitalDoctorApi.post(
+        '/hospital-doctor/panel/opd/initiate-admission',
+        payload
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error initiating bed admission hold:", error);
+      throw error;
+    }
+  },
+  // 1. Doctor Reviews Created Prescription (Section 2.3 Spec)
+  // GET /hospital-doctor/panel/prescriptions/:appointmentId
+  getDoctorPrescription: async (appointmentId) => {
+    try {
+      const response = await hospitalDoctorApi.get(
+        `/hospital-doctor/panel/prescriptions/${appointmentId}`
+      );
+      return response.data;
+    } catch (error) {
+      return Promise.reject(
+        error.response?.data?.message || "Failed to fetch prescription details"
+      );
+    }
+  },
+
+  // 2. Doctor Logs / Updates Pre-Consultation OPD Vitals (BP, Pulse, Temp, SpO2, Notes)
+  // PATCH /hospital/doctor/appointments/opd-vitals/:id
+  recordOpdVitals: async (appointmentId, vitalsData) => {
+    try {
+      const response = await hospitalDoctorApi.patch(
+        `/hospital/doctor/appointments/opd-vitals/${appointmentId}`,
+        vitalsData
+      );
+      return response.data;
+    } catch (error) {
+      return Promise.reject(
+        error.response?.data?.message || "Failed to record OPD vitals"
+      );
+    }
+  },
+  // Search Drug Catalog
+  // GET /hospital-doctor/panel/medicines?search=...&page=1&limit=20
+  searchMedicines: async (search = "", page = 1, limit = 20) => {
+    try {
+      const response = await hospitalDoctorApi.get('/hospital-doctor/panel/medicines', {
+        params: { search, page, limit }
+      });
+      return response.data;
+    } catch (error) {
+      return Promise.reject(error.response?.data?.message || "Failed to search medicines");
+    }
+  },
 
 };
+
  
 export default HospitalDoctorAPI;

@@ -1125,10 +1125,6 @@ someFunction: async () => {
         return response.data;
     },
 
-    getMyHospitalBookings: async () => {
-        const response = await authApi.get("/user/hospital/my-bookings");
-        return response.data;
-    },
     recheduleHospitalBooking: async (data) => {
         const response = await authApi.post(`/user/hospital/reschedule`, data);
         return response.data;
@@ -1672,22 +1668,105 @@ cancelAmbulanceBooking: async (bookingId, cancelData = {}) => {
         return response.data;
     },
 
-    // 6. GET My Hospital Bookings (OPD / Admission)
-    // Endpoint: GET /user/hospital/my-bookings?bookingType=...&tab=...
-    getMyHospitalBookings: async (bookingType = "OPD", tab = "Upcoming") => {
-        const response = await authApi.get('/user/hospital/my-bookings', {
-            params: { bookingType, tab },
-        });
-        return response.data;
-    },
-
+  
     // 7. PATCH Cancel Booking
     // Endpoint: PATCH /user/hospital/cancel/:id
     cancelHospitalBooking: async (id, reason) => {
         const response = await authApi.patch(`/user/hospital/cancel/${id}`, { reason });
         return response.data;
     },
+// ==========================================
+  // MODULE 2: PATIENT ADMISSION HOLD & BOOKINGS
+  // ==========================================
 
+  /**
+   * 2.1 Home Screen / Active Hold Check
+   * GET /user/hospital/admission/active-hold
+   */
+  checkActiveAdmissionHold: async () => {
+    try {
+      const response = await authApi.get('/user/hospital/admission/active-hold');
+      return response.data;
+    } catch (error) {
+      console.warn("Error checking active admission hold:", error);
+      return { success: false, hasActiveHold: false, data: null };
+    }
+  },
+
+  /**
+   * 2.2 View Pending Admission Hold Details
+   * GET /user/hospital/admission/pending-payment/:appointmentId
+   */
+  getPendingAdmissionDetails: async (appointmentId) => {
+    try {
+      const response = await authApi.get(`/user/hospital/admission/pending-payment/${appointmentId}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching admission hold details:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 2.3 Decline / Cancel Bed Hold (Immediate Release)
+   * POST /user/hospital/admission/cancel-hold
+   */
+  cancelAdmissionHold: async (appointmentId, reason = "Patient opted for home treatment.") => {
+    try {
+      const response = await authApi.post('/user/hospital/admission/cancel-hold', {
+        appointmentId,
+        reason
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error cancelling bed hold:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 2.4 Step 1: Create Razorpay Order for Bed Deposit
+   * POST /user/hospital/admission/create-payment-order
+   */
+  createAdmissionPaymentOrder: async (appointmentId) => {
+    try {
+      const response = await authApi.post('/user/hospital/admission/create-payment-order', {
+        appointmentId
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error creating admission payment order:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 2.4 Step 2: Verify Razorpay Payment Signature
+   * POST /user/hospital/admission/verify-payment
+   */
+  verifyAdmissionPayment: async (payload) => {
+    try {
+      const response = await authApi.post('/user/hospital/admission/verify-payment', payload);
+      return response.data;
+    } catch (error) {
+      console.error("Error verifying admission payment:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 2.5 View Patient Bookings History (Separated Cards)
+   * GET /user/hospital/my-bookings?tab=All
+   */
+  getMyHospitalBookings: async (tab = "All") => {
+    try {
+      const response = await authApi.get(`/user/hospital/my-bookings?tab=${tab}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching bookings history:", error);
+      throw error;
+    }
+  },
 };
 
 export default UserAPI;

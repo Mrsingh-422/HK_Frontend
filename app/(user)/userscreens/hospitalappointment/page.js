@@ -5,7 +5,12 @@ import {
   HiOutlineLocationMarker, HiOutlineX, HiOutlineReceiptTax,
   HiOutlineCalendar, HiOutlineDocumentDownload, HiOutlineClock, HiChevronLeft, HiChevronRight, HiStar
 } from "react-icons/hi";
-import { FaUserMd, FaUserAlt, FaWallet, FaBed, FaCalendarAlt, FaStethoscope, FaInfoCircle, FaExclamationTriangle } from "react-icons/fa";
+import {
+  FaUserMd, FaUserAlt, FaWallet, FaBed, FaCalendarAlt, FaStethoscope,
+  FaInfoCircle, FaExclamationTriangle, FaClock, FaCheckCircle, FaCreditCard,
+  FaArrowRight, FaTimes, FaHeartbeat, FaMapMarkerAlt, FaShieldAlt, FaSpinner,
+  FaDoorOpen, FaTag, FaMoneyBillWave
+} from "react-icons/fa";
 import { MdVerified, MdOutlineBedroomChild, MdOutlineRateReview } from "react-icons/md";
 import { FiRefreshCw } from "react-icons/fi";
 import UserAPI from "@/app/services/UserAPI";
@@ -13,6 +18,22 @@ import { Toaster, toast } from 'react-hot-toast';
 import { createPortal } from "react-dom";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+// Dynamically load Razorpay SDK
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    if (typeof window !== "undefined" && window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
 
 // --- Helper Functions for Date calculations ---
 const getUtcDate = (dateStr) => {
@@ -75,13 +96,50 @@ function MyHospitalAppointments() {
   const [monthlySchedule, setMonthlySchedule] = useState([]);
   const [isScheduleLoading, setIsScheduleLoading] = useState(false);
 
+  // -------------------------------------------------------------
+  // MODULE 2: 30-MINUTE BED HOLD INTEGRATION STATES
+  // -------------------------------------------------------------
+  const [activeHold, setActiveHold] = useState(null);
+  const [activeHoldTimer, setActiveHoldTimer] = useState("");
+  const [isHoldBannerDismissed, setIsHoldBannerDismissed] = useState(false);
+
+  // Hold Payment / Details Modal States (2.2, 2.4)
+  const [isHoldPayModalOpen, setIsHoldPayModalOpen] = useState(false);
+  const [pendingHoldDetail, setPendingHoldDetail] = useState(null);
+  const [isHoldDetailLoading, setIsHoldDetailLoading] = useState(false);
+  const [isPayingHoldOnline, setIsPayingHoldOnline] = useState(false);
+
+  // Decline Hold States (2.3)
+  const [isDeclineHoldModalOpen, setIsDeclineHoldModalOpen] = useState(false);
+  const [declineHoldReason, setDeclineHoldReason] = useState("Patient opted for home treatment.");
+  const [isDecliningHold, setIsDecliningHold] = useState(false);
+
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     fetchBookings(1);
+    checkActiveHold();
     return () => setMounted(false);
   }, []);
+
+  // Live Timer Interval for Active Hold & Pending Cards
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (activeHold?.holdExpiresAt) {
+        const diff = new Date(activeHold.holdExpiresAt).getTime() - Date.now();
+        if (diff <= 0) {
+          setActiveHoldTimer("EXPIRED");
+        } else {
+          const mins = Math.floor(diff / 60000);
+          const secs = Math.floor((diff % 60000) / 1000);
+          setActiveHoldTimer(`${mins}m ${secs < 10 ? "0" : ""}${secs}s`);
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [activeHold]);
 
   useEffect(() => {
     if (isRescheduling && selectedAppt) {
@@ -122,13 +180,220 @@ function MyHospitalAppointments() {
 
   // Prevent body scroll when modals are active
   useEffect(() => {
-    if (isModalOpen || isReviewModalOpen || isCancelModalOpen) {
+    if (isModalOpen || isReviewModalOpen || isCancelModalOpen || isHoldPayModalOpen || isDeclineHoldModalOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
     }
     return () => { document.body.style.overflow = 'unset'; };
-  }, [isModalOpen, isReviewModalOpen, isCancelModalOpen]);
+  }, [isModalOpen, isReviewModalOpen, isCancelModalOpen, isHoldPayModalOpen, isDeclineHoldModalOpen]);
+
+  // -------------------------------------------------------------
+  // MODULE 2.1: CHECK ACTIVE ADMISSION HOLD
+  // -------------------------------------------------------------
+  const checkActiveHold = async () => {
+    try {
+      if (typeof UserAPI.checkActiveAdmissionHold === "function") {
+        const res = await UserAPI.checkActiveAdmissionHold();
+        if (res && res.success && res.hasActiveHold && res.data) {
+          setActiveHold(res.data);
+          return;
+        }
+      }
+      const token = typeof window !== 'undefined' ? (localStorage.getItem('userToken') || localStorage.getItem('token')) : '';
+      const res = await fetch(`${BASE_URL}/user/hospital/admission/active-hold`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const json = await res.json();
+      if (json && json.success && json.hasActiveHold && json.data) {
+        setActiveHold(json.data);
+      } else {
+        setActiveHold(null);
+      }
+    } catch (err) {
+      console.warn("Could not check active hold status:", err);
+      setActiveHold(null);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // MODULE 2.2: OPEN PENDING ADMISSION HOLD DETAILS MODAL
+  // -------------------------------------------------------------
+  const handleOpenHoldDetails = async (appointmentId) => {
+    const targetId = appointmentId || activeHold?.appointmentId;
+    if (!targetId) return;
+
+    try {
+      setIsHoldDetailLoading(true);
+      setIsHoldPayModalOpen(true);
+      let details = null;
+
+      if (typeof UserAPI.getPendingAdmissionDetails === "function") {
+        const res = await UserAPI.getPendingAdmissionDetails(targetId);
+        if (res && res.success && res.data) {
+          details = res.data;
+        }
+      } else {
+        const token = typeof window !== 'undefined' ? (localStorage.getItem('userToken') || localStorage.getItem('token')) : '';
+        const res = await fetch(`${BASE_URL}/user/hospital/admission/pending-payment/${targetId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const json = await res.json();
+        if (json && json.success && json.data) details = json.data;
+      }
+
+      setPendingHoldDetail(details || activeHold);
+    } catch (err) {
+      console.error("Error loading pending hold details:", err);
+      toast.error("Failed to load admission hold details.");
+      setPendingHoldDetail(activeHold);
+    } finally {
+      setIsHoldDetailLoading(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // MODULE 2.4: PAY BED DEPOSIT ONLINE VIA RAZORPAY
+  // -------------------------------------------------------------
+  const handlePayHoldOnline = async () => {
+    const apptId = pendingHoldDetail?.appointmentId || activeHold?.appointmentId;
+    if (!apptId) return;
+
+    try {
+      setIsPayingHoldOnline(true);
+      const isLoaded = await loadRazorpayScript();
+      if (!isLoaded) {
+        toast.error("Failed to load Razorpay payment gateway.");
+        setIsPayingHoldOnline(false);
+        return;
+      }
+
+      // Step 1: Create Payment Order (POST /user/hospital/admission/create-payment-order)
+      let orderRes;
+      if (typeof UserAPI.createAdmissionPaymentOrder === "function") {
+        orderRes = await UserAPI.createAdmissionPaymentOrder(apptId);
+      } else {
+        const token = typeof window !== 'undefined' ? (localStorage.getItem('userToken') || localStorage.getItem('token')) : '';
+        const res = await fetch(`${BASE_URL}/user/hospital/admission/create-payment-order`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ appointmentId: apptId })
+        });
+        orderRes = await res.json();
+      }
+
+      if (!orderRes?.success) {
+        toast.error(orderRes?.message || "Failed to initiate payment order");
+        setIsPayingHoldOnline(false);
+        return;
+      }
+
+      // Step 2: Open Razorpay Window & Verify Signature
+      const options = {
+        key: orderRes.key_id,
+        amount: orderRes.amount,
+        currency: orderRes.currency || "INR",
+        name: pendingHoldDetail?.hospital?.name || "Hospital Network",
+        description: `Admission Deposit: ${pendingHoldDetail?.wardName || "Ward"} (${pendingHoldDetail?.bedNumber || "Bed"})`,
+        order_id: orderRes.razorpayOrderId,
+        prefill: {
+          name: localStorage.getItem("userName") || "",
+          contact: localStorage.getItem("userPhone") || ""
+        },
+        theme: { color: "#10b981" },
+        modal: {
+          ondismiss: () => {
+            setIsPayingHoldOnline(false);
+            toast("Payment cancelled.");
+          }
+        },
+        handler: async function (paymentResponse) {
+          try {
+            setIsPayingHoldOnline(true);
+            const verifyPayload = {
+              appointmentId: apptId,
+              razorpay_order_id: paymentResponse.razorpay_order_id || orderRes.razorpayOrderId,
+              razorpay_payment_id: paymentResponse.razorpay_payment_id,
+              razorpay_signature: paymentResponse.razorpay_signature
+            };
+
+            let verifyRes;
+            if (typeof UserAPI.verifyAdmissionPayment === "function") {
+              verifyRes = await UserAPI.verifyAdmissionPayment(verifyPayload);
+            } else {
+              const token = typeof window !== 'undefined' ? (localStorage.getItem('userToken') || localStorage.getItem('token')) : '';
+              const res = await fetch(`${BASE_URL}/user/hospital/admission/verify-payment`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify(verifyPayload)
+              });
+              verifyRes = await res.json();
+            }
+
+            if (verifyRes?.success) {
+              toast.success("Online payment verified! Hospital admission confirmed.");
+              setIsHoldPayModalOpen(false);
+              setActiveHold(null);
+              fetchBookings(pagination.currentPage);
+            } else {
+              toast.error(verifyRes?.message || "Payment verification failed.");
+            }
+          } catch (e) {
+            console.error("Verification error:", e);
+            toast.error("Payment verification error.");
+          } finally {
+            setIsPayingHoldOnline(false);
+          }
+        }
+      };
+
+      const rzpInstance = new window.Razorpay(options);
+      rzpInstance.open();
+    } catch (err) {
+      console.error("Payment initiation error:", err);
+      toast.error("Error initiating payment.");
+      setIsPayingHoldOnline(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // MODULE 2.3: DECLINE / CANCEL BED HOLD (Immediate Release)
+  // -------------------------------------------------------------
+  const handleConfirmDeclineHold = async () => {
+    const apptId = pendingHoldDetail?.appointmentId || activeHold?.appointmentId;
+    if (!apptId) return;
+
+    try {
+      setIsDecliningHold(true);
+      let res;
+      if (typeof UserAPI.cancelAdmissionHold === "function") {
+        res = await UserAPI.cancelAdmissionHold(apptId, declineHoldReason);
+      } else {
+        const token = typeof window !== 'undefined' ? (localStorage.getItem('userToken') || localStorage.getItem('token')) : '';
+        const fetchRes = await fetch(`${BASE_URL}/user/hospital/admission/cancel-hold`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ appointmentId: apptId, reason: declineHoldReason })
+        });
+        res = await fetchRes.json();
+      }
+
+      if (res?.success) {
+        toast.success(res.message || "Admission hold cancelled. Bed released back to hospital.");
+        setIsDeclineHoldModalOpen(false);
+        setIsHoldPayModalOpen(false);
+        setActiveHold(null);
+        fetchBookings(pagination.currentPage);
+      } else {
+        toast.error(res?.message || "Failed to cancel hold");
+      }
+    } catch (err) {
+      console.error("Error cancelling bed hold:", err);
+      toast.error("Something went wrong cancelling bed hold.");
+    } finally {
+      setIsDecliningHold(false);
+    }
+  };
 
   const handleMonthChange = (nextMonth) => {
     setCurrentMonth(nextMonth);
@@ -140,13 +405,14 @@ function MyHospitalAppointments() {
 
   const fetchBookings = async (page) => {
     try {
-      const response = await UserAPI.getMyHospitalBookings(page);
-      if (response.success) {
-        setMyAppointments(response.data);
+      // Calls updated getMyHospitalBookings supporting tab parameter
+      const response = await UserAPI.getMyHospitalBookings("All");
+      if (response && response.success) {
+        setMyAppointments(response.data || []);
         setPagination(response.pagination || {
           currentPage: page,
-          totalPages: Math.ceil(response.total / 10),
-          totalCount: response.total
+          totalPages: Math.ceil((response.total || response.count || response.data?.length) / 10) || 1,
+          totalCount: response.total || response.count || response.data?.length || 0
         });
         setMaxRescheduleLimit(response.maxRescheduleLimit || 0);
       }
@@ -311,7 +577,6 @@ function MyHospitalAppointments() {
     const currentYearMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const prevMonthDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
     
-    // Prevent navigating to past months
     if (prevMonthDate < currentYearMonth) return;
 
     handleMonthChange(prevMonthDate);
@@ -332,11 +597,13 @@ function MyHospitalAppointments() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case "Admitted": return "bg-purple-100 text-purple-700 border-purple-200";
+      case "Admitted":
+      case "In-Progress": return "bg-purple-100 text-purple-700 border-purple-200";
       case "Confirmed": return "bg-green-100 text-green-700 border-green-200";
       case "Completed": return "bg-blue-100 text-blue-700 border-blue-200";
       case "Cancelled":
-      case "Cancelled-By-User": return "bg-red-100 text-red-700 border-red-200";
+      case "Cancelled-By-User":
+      case "Cancelled-By-Hospital": return "bg-red-100 text-red-700 border-red-200";
       case "Hospital-Pending": return "bg-orange-100 text-orange-700 border-orange-200";
       default: return "bg-gray-100 text-gray-700 border-gray-200";
     }
@@ -479,10 +746,59 @@ function MyHospitalAppointments() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fcfcfc] py-10 px-4 md:px-8 font-sans">
+    <div className="min-h-screen bg-[#fcfcfc] py-6 px-4 md:px-8 font-sans">
       <Toaster position="top-center" reverseOrder={false} />
-      <div className="max-w-5xl mx-auto">
 
+      {/* ==============================================================
+          MODULE 2.1: LIVE 30-MINUTE BED HOLD STICKY BANNER
+      ============================================================== */}
+      {activeHold && !isHoldBannerDismissed && activeHoldTimer !== "EXPIRED" && (
+        <div className="sticky top-0 z-50 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white border-b border-indigo-500/30 px-4 py-3.5 mb-8 shadow-xl backdrop-blur-md rounded-2xl animate-in slide-in-from-top duration-300">
+          <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center justify-center text-base shrink-0">
+                <FaBed />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-white uppercase tracking-wider text-[11px]">
+                    Hospital Bed Hold Active &bull; {activeHold.bedNumber} ({activeHold.wardName})
+                  </span>
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                </div>
+                <p className="text-slate-300 text-[11px] font-medium mt-0.5">
+                  Dr. {activeHold.doctorName} ordered in-patient admission at {activeHold.hospitalName}.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 self-end sm:self-center">
+              <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-xl border border-white/15 text-[11px] font-black text-amber-300">
+                <FaClock size={11} />
+                <span>{activeHoldTimer || activeHold.formattedRemainingTime || "30m"}</span>
+              </div>
+
+              <button
+                onClick={() => handleOpenHoldDetails(activeHold.appointmentId)}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>Pay ₹{activeHold.depositPayable} & Admit</span>
+                <FaArrowRight size={10} />
+              </button>
+
+              <button
+                onClick={() => setIsHoldBannerDismissed(true)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                title="Dismiss Banner"
+              >
+                <FaTimes size={12} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-5xl mx-auto">
         {/* HEADER */}
         <div className="mb-10 flex justify-between items-end">
           <div>
@@ -491,78 +807,140 @@ function MyHospitalAppointments() {
           </div>
         </div>
 
-        {/* LIST */}
+        {/* ==============================================================
+            MODULE 2.5: LIST OF BOOKINGS (Separated OPD vs Bed Admissions)
+        ============================================================== */}
         <div className="space-y-6">
-          {myAppointments.map((appt) => (
-            <div key={appt._id} className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden hover:shadow-xl transition-all duration-500">
-              <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8">
-                <div className="md:w-1/3 space-y-4">
-                  <div className="relative group overflow-hidden rounded-2xl h-48 bg-gray-100">
-                    {appt.hospitalId?.hospitalImage ? (
-                      <img src={`${BASE_URL}${appt.hospitalId.hospitalImage[0]}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs font-black uppercase">Home Visit</div>
-                    )}
-                    <div className="absolute top-3 left-3">
-                      <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border backdrop-blur-md ${getStatusColor(appt.status)}`}>
-                        {appt.status}
+          {myAppointments.map((appt) => {
+            const isOpd = appt.isOpd || appt.bookingType === "OPD";
+            const isIpd = appt.isIpd || appt.bookingType === "Admission";
+            const isPendingHold = appt.status === "Hospital-Pending";
+
+            return (
+              <div key={appt._id} className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden hover:shadow-xl transition-all duration-500">
+                <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8">
+                  {/* Left Column Image & Badges */}
+                  <div className="md:w-1/3 space-y-4">
+                    <div className="relative group overflow-hidden rounded-2xl h-48 bg-gray-100">
+                      {appt.hospitalId?.hospitalImage ? (
+                        <img src={`${BASE_URL}${appt.hospitalId.hospitalImage[0]}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs font-black uppercase">
+                          {isOpd ? "OPD Consultation" : "Hospital Stay"}
+                        </div>
+                      )}
+                      <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+                        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border backdrop-blur-md ${getStatusColor(appt.status)}`}>
+                          {appt.status}
+                        </span>
+
+                        {/* Dedicated Module 2.5 Display Badges */}
+                        {appt.displayBadge && (
+                          <span className="px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-slate-900 text-white shadow-xs">
+                            {appt.displayBadge}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                        {appt.hospitalId?.name || "Hospital Facility"} {appt.hospitalId && <MdVerified className="text-blue-500" />}
+                      </h3>
+                      <p className="text-gray-400 text-xs font-bold flex items-center gap-1 mt-1">
+                        <HiOutlineLocationMarker /> {appt.hospitalId?.address || appt.address?.city}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Right Column Details */}
+                  <div className="flex-1 flex flex-col justify-between">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-gray-50 p-4 rounded-2xl">
+                        <p className="text-[10px] font-black text-gray-400 uppercase mb-1">
+                          {isOpd ? `Patient (Token #${appt.tokenNumber || "--"})` : "Patient Profile"}
+                        </p>
+                        <p className="font-bold text-gray-800">
+                          {appt.patients?.[0]?.patientName || appt.patientName}
+                        </p>
+                        <p className="text-xs text-gray-500 font-medium">
+                          Age: {appt.patients?.[0]?.patientAge || appt.patientAge || "25"} &bull; {appt.patients?.[0]?.gender || "Male"}
+                        </p>
+                      </div>
+
+                      <div className="bg-green-50/50 p-4 rounded-2xl border border-green-100">
+                        <p className="text-[10px] font-black text-[#08b36a] uppercase mb-1">
+                          {isPendingHold ? "Admission Deposit" : "Total Amount"}
+                        </p>
+                        <p className="text-lg font-black text-gray-900">₹{appt.totalAmount?.toLocaleString()}</p>
+                        <p className="text-[10px] font-bold text-[#08b36a]">
+                          {appt.paymentStatus} ({appt.paymentMethod || "Online"})
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* OPD Cabin Room or IPD Ward & Bed */}
+                    <div className="mt-4 p-3 bg-slate-50/70 rounded-xl text-xs flex items-center justify-between border border-slate-100">
+                      {isOpd ? (
+                        <span className="font-bold text-slate-700">
+                          Cabin: <strong>{appt.opdRoomNumber || appt.doctorId?.department?.roomNumber || "Cabin 1"}</strong> &bull; Token: <strong>#{appt.tokenNumber}</strong>
+                        </span>
+                      ) : (
+                        <span className="font-bold text-slate-700">
+                          Ward: <strong>{appt.wardName || appt.bedId?.wardId?.name || "In-Patient"}</strong> &bull; Bed: <strong>{appt.bedNumber || appt.bedId?.bedNumber || "Bed"}</strong>
+                        </span>
+                      )}
+                      <span className="text-[10px] font-mono text-slate-400 font-bold">
+                        #{appt.bookingId}
                       </span>
                     </div>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
-                      {appt.hospitalId?.name || "Home Visit"} {appt.hospitalId && <MdVerified className="text-blue-500" />}
-                    </h3>
-                    <p className="text-gray-400 text-xs font-bold flex items-center gap-1 mt-1"><HiOutlineLocationMarker /> {appt.hospitalId?.address || appt.address?.city}</p>
-                  </div>
-                </div>
 
-                <div className="flex-1 flex flex-col justify-between">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-50 p-4 rounded-2xl">
-                      <p className="text-[10px] font-black text-gray-400 uppercase mb-1">Patient</p>
-                      <p className="font-bold text-gray-800">{appt.patients[0]?.patientName}</p>
-                      <p className="text-xs text-gray-500 font-medium">Age: {appt.patients[0]?.patientAge}</p>
-                    </div>
-                    <div className="bg-green-50/50 p-4 rounded-2xl border border-green-100">
-                      <p className="text-[10px] font-black text-[#08b36a] uppercase mb-1">Total Amount</p>
-                      <p className="text-lg font-black text-gray-900">₹{appt.totalAmount.toLocaleString()}</p>
-                      <p className="text-[10px] font-bold text-[#08b36a]">{appt.paymentStatus}</p>
-                    </div>
-                  </div>
+                    <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-center gap-6">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-gray-300 uppercase">Consultant</span>
+                          <span className="text-xs font-bold text-gray-700">Dr. {appt.doctorId?.name || appt.doctor?.name || "Doctor"}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-gray-300 uppercase">Date</span>
+                          <span className="text-xs font-bold text-gray-700">
+                            {new Date(appt.appointmentDate || appt.startDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
 
-                  <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex items-center gap-6">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-gray-300 uppercase">Specialist</span>
-                        <span className="text-xs font-bold text-gray-700">{appt.doctorId?.name || "N/A"}</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-gray-300 uppercase">Date</span>
-                        <span className="text-xs font-bold text-gray-700">{new Date(appt.appointmentDate).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {appt.status === "Completed" && (
-                        <button 
-                          onClick={() => { setSelectedAppt(appt); setIsReviewModalOpen(true); }}
-                          className="px-6 py-3 rounded-2xl text-[10px] font-black uppercase bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1.5 shadow-md shadow-amber-100"
+                      <div className="flex items-center gap-2">
+                        {/* 30-Min Bed Hold Payment CTA */}
+                        {isIpd && isPendingHold && (
+                          <button
+                            onClick={() => handleOpenHoldDetails(appt._id)}
+                            className="px-6 py-3 rounded-2xl text-[10px] font-black uppercase bg-emerald-600 hover:bg-emerald-700 text-white transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer"
+                          >
+                            <FaCreditCard size={11} /> Pay Deposit & Admit
+                          </button>
+                        )}
+
+                        {appt.status === "Completed" && (
+                          <button 
+                            onClick={() => { setSelectedAppt(appt); setIsReviewModalOpen(true); }}
+                            className="px-6 py-3 rounded-2xl text-[10px] font-black uppercase bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1.5 shadow-md shadow-amber-100"
+                          >
+                            <HiStar className="fill-white" /> Rate Service
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => { setSelectedAppt(appt); setIsModalOpen(true); }}
+                          className="bg-gray-900 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-[#08b36a] transition-all active:scale-95 shadow-lg shadow-gray-200 cursor-pointer"
                         >
-                          <HiStar className="fill-white" /> Rate Service
+                          Full Details
                         </button>
-                      )}
-                      <button
-                        onClick={() => { setSelectedAppt(appt); setIsModalOpen(true); }}
-                        className="bg-gray-900 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-[#08b36a] transition-all active:scale-95 shadow-lg shadow-gray-200"
-                      >
-                        Full Details
-                      </button>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* PAGINATION */}
@@ -574,6 +952,180 @@ function MyHospitalAppointments() {
           </div>
         )}
       </div>
+
+      {/* ==============================================================
+          MODULE 2.2 & 2.4: PENDING ADMISSION HOLD PAYMENT MODAL
+      ============================================================== */}
+      {isHoldPayModalOpen && pendingHoldDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col p-6 sm:p-8 space-y-6 animate-in zoom-in-95">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl">
+                  <FaBed />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 tracking-tight">
+                    Confirm Bed Admission Hold
+                  </h3>
+                  <p className="text-xs text-slate-400 font-semibold mt-0.5">
+                    Booking ID: #{pendingHoldDetail.bookingId} &bull; 30-Min Priority Window
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsHoldPayModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <HiOutlineX size={16} />
+              </button>
+            </div>
+
+            {/* Countdown Alert */}
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-amber-900 font-bold">
+                <FaClock className="text-amber-600" />
+                <span>Hold Countdown Timer:</span>
+              </div>
+              <span className="text-sm font-black text-amber-700 font-mono">
+                {activeHoldTimer || pendingHoldDetail.formattedRemainingTime || "30m 00s"}
+              </span>
+            </div>
+
+            {/* Facility & Doctor Overview */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-0.5">
+                <span className="text-[10px] font-black uppercase text-slate-400 block">Hospital Facility</span>
+                <p className="font-black text-slate-900">{pendingHoldDetail.hospital?.name || "Hospital"}</p>
+                <p className="text-slate-500 text-[11px]">{pendingHoldDetail.hospital?.city}</p>
+              </div>
+
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-0.5">
+                <span className="text-[10px] font-black uppercase text-slate-400 block">Attending Consultant</span>
+                <p className="font-black text-slate-900">Dr. {pendingHoldDetail.doctor?.name || "Consultant"}</p>
+                <p className="text-indigo-600 text-[11px] font-bold">{pendingHoldDetail.doctor?.speciality}</p>
+              </div>
+
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-0.5">
+                <span className="text-[10px] font-black uppercase text-slate-400 block">Ward & Bed</span>
+                <p className="font-black text-slate-900">{pendingHoldDetail.wardName}</p>
+                <p className="text-emerald-700 text-[11px] font-bold">{pendingHoldDetail.bedNumber}</p>
+              </div>
+
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-0.5">
+                <span className="text-[10px] font-black uppercase text-slate-400 block">Daily Bed Rate</span>
+                <p className="font-black text-slate-900">₹{pendingHoldDetail.pricePerDay || pendingHoldDetail.depositPayable} / day</p>
+                <p className="text-slate-400 text-[10px]">Standard Charge</p>
+              </div>
+            </div>
+
+            {/* Vitals Summary at Admission */}
+            {pendingHoldDetail.vitals && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <FaHeartbeat className="text-rose-500" /> Recorded Patient Vitals
+                </span>
+                <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                  <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="text-[8px] font-black text-slate-400 block uppercase">BP</span>
+                    <span className="font-black text-slate-900">{pendingHoldDetail.vitals.bp || "--"}</span>
+                  </div>
+                  <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="text-[8px] font-black text-slate-400 block uppercase">Pulse</span>
+                    <span className="font-black text-slate-900">{pendingHoldDetail.vitals.pulse || "--"} bpm</span>
+                  </div>
+                  <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="text-[8px] font-black text-slate-400 block uppercase">Temp</span>
+                    <span className="font-black text-slate-900">{pendingHoldDetail.vitals.temp || "--"} °F</span>
+                  </div>
+                  <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="text-[8px] font-black text-slate-400 block uppercase">SpO2</span>
+                    <span className="font-black text-emerald-600">{pendingHoldDetail.vitals.spo2 || "--"}%</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Total Payable & Pay Online CTA */}
+            <div className="pt-2 border-t border-slate-100 space-y-3">
+              <div className="flex justify-between items-center text-xs">
+                <div>
+                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Initial Deposit Due</span>
+                  <span className="text-[10px] text-slate-400">Adjusted / Refundable at discharge</span>
+                </div>
+                <span className="text-2xl font-black text-slate-900">
+                  ₹{pendingHoldDetail.depositPayable || 3500}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                disabled={isPayingHoldOnline}
+                onClick={handlePayHoldOnline}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isPayingHoldOnline ? <FaSpinner className="animate-spin" /> : <FaCreditCard />}
+                <span>Pay Online ₹{pendingHoldDetail.depositPayable || 3500} & Confirm Admission</span>
+              </button>
+
+              <div className="flex justify-between items-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDeclineHoldModalOpen(true)}
+                  className="text-xs font-bold text-red-500 hover:text-red-700 underline cursor-pointer"
+                >
+                  Decline admission & release bed
+                </button>
+
+                <span className="text-[10px] text-slate-400 font-bold uppercase">
+                  Or pay cash at hospital desk
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==============================================================
+          MODULE 2.3: DECLINE BED HOLD MODAL
+      ============================================================== */}
+      {isDeclineHoldModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-md">
+          <div className="bg-white w-full max-w-md rounded-[32px] p-6 sm:p-7 space-y-4 shadow-2xl">
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">
+              Decline Hospital Bed Admission
+            </h3>
+            <p className="text-slate-600 text-xs font-medium leading-relaxed">
+              Are you sure you want to decline this admission? The reserved bed will be released immediately back to the hospital. (Your OPD visit remains completed).
+            </p>
+
+            <textarea
+              rows="2"
+              value={declineHoldReason}
+              onChange={(e) => setDeclineHoldReason(e.target.value)}
+              placeholder="Reason for declining..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-bold outline-none"
+            />
+
+            <div className="flex justify-end gap-2.5 pt-2">
+              <button
+                onClick={() => setIsDeclineHoldModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isDecliningHold}
+                onClick={handleConfirmDeclineHold}
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md cursor-pointer"
+              >
+                {isDecliningHold ? "Releasing..." : "Confirm Decline"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- DETAILED MODAL --- */}
       {isModalOpen && selectedAppt && (
@@ -594,10 +1146,10 @@ function MyHospitalAppointments() {
                     <div className="flex items-center gap-2 mb-4"><FaUserAlt className="text-[#08b36a]" /><h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Patient Details</h4></div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {[
-                        { label: "Patient", value: selectedAppt.patients[0]?.patientName },
-                        { label: "Gender", value: selectedAppt.patients[0]?.gender },
-                        { label: "Relation", value: selectedAppt.patients[0]?.relation },
-                        { label: "Age", value: selectedAppt.patients[0]?.patientAge },
+                        { label: "Patient", value: selectedAppt.patients?.[0]?.patientName || selectedAppt.patientName },
+                        { label: "Gender", value: selectedAppt.patients?.[0]?.gender || selectedAppt.patientGender || "Male" },
+                        { label: "Relation", value: selectedAppt.patients?.[0]?.relation || "Self" },
+                        { label: "Age", value: selectedAppt.patients?.[0]?.patientAge || selectedAppt.patientAge || "25" },
                       ].map((item, i) => (
                         <div key={i} className="bg-gray-50 p-4 rounded-2xl"><p className="text-[9px] font-black text-gray-300 uppercase mb-1">{item.label}</p><p className="text-[11px] font-bold text-gray-800">{item.value}</p></div>
                       ))}
@@ -606,17 +1158,17 @@ function MyHospitalAppointments() {
 
                   <section className="bg-gray-50 p-6 rounded-[32px] border border-gray-100 grid md:grid-cols-2 gap-6">
                     <div className="space-y-4">
-                      <div className="flex items-center gap-3 text-gray-600"><HiOutlineCalendar size={20} /> <div><p className="text-[9px] uppercase font-black text-gray-400">Start Date</p><p className="font-bold text-sm">{new Date(selectedAppt.startDate).toLocaleDateString()}</p></div></div>
+                      <div className="flex items-center gap-3 text-gray-600"><HiOutlineCalendar size={20} /> <div><p className="text-[9px] uppercase font-black text-gray-400">Start Date</p><p className="font-bold text-sm">{new Date(selectedAppt.startDate || selectedAppt.appointmentDate).toLocaleDateString()}</p></div></div>
                       <div className="flex items-center gap-3 text-gray-600"><HiOutlineClock size={20} /> <div><p className="text-[9px] uppercase font-black text-gray-400">Time</p><p className="font-bold text-sm">{selectedAppt.appointmentTime}</p></div></div>
-                      {selectedAppt.bedId && <div className="flex items-center gap-3 text-gray-600"><FaBed size={20} /> <div><p className="text-[9px] uppercase font-black text-gray-400">Bed No</p><p className="font-bold text-sm">{selectedAppt.bedId.bedNumber} ({selectedAppt.bedId.wardId?.name})</p></div></div>}
+                      {selectedAppt.bedId && <div className="flex items-center gap-3 text-gray-600"><FaBed size={20} /> <div><p className="text-[9px] uppercase font-black text-gray-400">Bed No</p><p className="font-bold text-sm">{selectedAppt.bedId.bedNumber || selectedAppt.bedNumber} ({selectedAppt.bedId.wardId?.name || selectedAppt.wardName})</p></div></div>}
                     </div>
                     <div className="space-y-4">
-                      <div className="flex items-center gap-3 text-gray-600"><HiOutlineCalendar size={20} /> <div><p className="text-[9px] uppercase font-black text-gray-400">End Date</p><p className="font-bold text-sm">{new Date(selectedAppt.endDate).toLocaleDateString()}</p></div></div>
+                      <div className="flex items-center gap-3 text-gray-600"><HiOutlineCalendar size={20} /> <div><p className="text-[9px] uppercase font-black text-gray-400">End Date</p><p className="font-bold text-sm">{new Date(selectedAppt.endDate || selectedAppt.appointmentDate).toLocaleDateString()}</p></div></div>
                       <div className="flex items-center gap-3 text-gray-600"><MdVerified size={20} /> <div><p className="text-[9px] uppercase font-black text-gray-400">Triage</p><p className="font-bold text-sm">{selectedAppt.triageLevel || 'N/A'}</p></div></div>
                     </div>
                   </section>
 
-                  {/* Rating & Review Summary (Loaded Dynamically inside Details Modal) */}
+                  {/* Rating & Review Summary */}
                   {selectedAppt.status === "Completed" && (
                     <section className="space-y-4">
                       <div className="flex items-center gap-2 mb-4">
@@ -676,7 +1228,7 @@ function MyHospitalAppointments() {
                         <div className="text-right">
                           <p className="text-[9px] font-black text-gray-400 uppercase">Reschedule Status</p>
                           <p className={`text-xs font-bold ${selectedAppt.rescheduleCount >= maxRescheduleLimit ? 'text-red-500' : 'text-gray-700'}`}>
-                            {selectedAppt.rescheduleCount} / {maxRescheduleLimit} Used
+                            {selectedAppt.rescheduleCount || 0} / {maxRescheduleLimit} Used
                           </p>
                         </div>
                       </div>
