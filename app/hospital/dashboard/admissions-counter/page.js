@@ -33,9 +33,9 @@ export default function HospitalAdmissionCounterPage() {
 
   // Counter Collection Modal State
   const [selectedHold, setSelectedHold] = useState(null);
-  const [paymentMode, setPaymentMode] = useState("Cash"); // 'Cash' | 'Card' | 'UPI'
+  const [paymentMode, setPaymentMode] = useState("Cash"); // Strictly 'Cash' | 'Card' | 'UPI'
   const [transactionReference, setTransactionReference] = useState("");
-  const [cashierRemarks, setCashierRemarks] = useState("Received at Cash Desk");
+  const [cashierRemarks, setCashierRemarks] = useState("Admission deposit paid at Counter 1");
 
   // Post-payment success receipt
   const [receiptData, setReceiptData] = useState(null);
@@ -71,7 +71,7 @@ export default function HospitalAdmissionCounterPage() {
       let res;
       if (typeof HospitalAPI.getPendingAdmissionHolds === "function") {
         res = await HospitalAPI.getPendingAdmissionHolds();
-      } else {
+      } else if (typeof HospitalAPI.get === "function") {
         res = await HospitalAPI.get(
           "/hospital/doctor/appointments/admissions/pending-holds"
         );
@@ -102,7 +102,7 @@ export default function HospitalAdmissionCounterPage() {
     setSelectedHold(holdItem);
     setPaymentMode("Cash");
     setTransactionReference(`POS-REC-${Math.floor(10000 + Math.random() * 90000)}`);
-    setCashierRemarks("Received at Hospital Cash Desk");
+    setCashierRemarks("Admission deposit paid at Counter 1");
   };
 
   // ========================================================
@@ -163,7 +163,9 @@ export default function HospitalAdmissionCounterPage() {
 
     const targetId =
       switchTargetHold.admissionAppointmentId ||
+      switchTargetHold.appointmentId ||
       switchTargetHold.admissionBookingId ||
+      switchTargetHold.bookingId ||
       switchTargetHold._id;
 
     try {
@@ -173,7 +175,7 @@ export default function HospitalAdmissionCounterPage() {
       if (res?.success) {
         showToast(
           res.message ||
-            `Bed successfully switched to ${res.newWardName} (${res.newBedNumber})!`
+            `Bed successfully switched to ${res.newWardName || selectedNewBed.wardName} (${res.newBedNumber || selectedNewBed.bedNumber})!`
         );
 
         // Update local object & seamlessly open payment collection
@@ -201,7 +203,7 @@ export default function HospitalAdmissionCounterPage() {
   };
 
   // ========================================================
-  // SUBMIT PAYMENT COLLECTION
+  // SUBMIT PAYMENT COLLECTION (PATCH /admission/collect-payment/:id)
   // ========================================================
   const handleSubmitCounterPayment = async (e) => {
     e.preventDefault();
@@ -209,30 +211,50 @@ export default function HospitalAdmissionCounterPage() {
 
     try {
       setActionLoading(true);
+      // Support appointmentId or bookingId URL param
       const targetId =
         selectedHold.admissionAppointmentId ||
+        selectedHold.appointmentId ||
         selectedHold.admissionBookingId ||
+        selectedHold.bookingId ||
         selectedHold._id;
 
+      // Exact request body matching section 4.2 documentation
       const payload = {
-        paymentMode: paymentMode,
+        paymentMode: paymentMode, // 'Cash' | 'Card' | 'UPI'
         transactionReference: transactionReference.trim(),
-        remarks: cashierRemarks.trim()
+        remarks: cashierRemarks.trim() || "Admission deposit paid at Counter 1"
       };
 
-      const res = await HospitalAPI.collectAdmissionPayment(targetId, payload);
+      let res;
+      if (typeof HospitalAPI.collectAdmissionPayment === "function") {
+        res = await HospitalAPI.collectAdmissionPayment(targetId, payload);
+      } else if (typeof HospitalAPI.patch === "function") {
+        res = await HospitalAPI.patch(
+          `/hospital/doctor/appointments/admission/collect-payment/${targetId}`,
+          payload
+        );
+      }
 
       if (res?.success) {
         showToast(
           res.message ||
-            `Admission confirmed! Deposit collected via ${paymentMode}. Bed is now Occupied.`
+            `Bed Admission confirmed! Deposit collected via ${res.paymentMode || paymentMode}. Bed is Occupied.`
         );
+        
+        // Exact response mapping from doc (4.2 Response format)
         setReceiptData({
-          ...res,
-          patientName: selectedHold.patient?.name || "Patient",
-          depositAmount: selectedHold.depositPayable || 3500,
+          bookingId: res.bookingId || selectedHold.admissionBookingId || selectedHold.bookingId || targetId,
+          bedNumber: res.bedNumber || selectedHold.bedNumber,
+          wardName: res.wardName || selectedHold.wardName,
+          paymentMode: res.paymentMode || paymentMode,
+          status: res.data?.status || "In-Progress",
+          paymentStatus: res.data?.paymentStatus || "Paid",
+          patientName: selectedHold.patient?.name || selectedHold.patientName || "Patient",
+          depositAmount: selectedHold.depositPayable || selectedHold.totalPayable || selectedHold.depositAmount || 3500,
           date: new Date().toLocaleDateString("en-IN")
         });
+
         setSelectedHold(null);
         await fetchPendingHolds();
       } else {
@@ -240,7 +262,7 @@ export default function HospitalAdmissionCounterPage() {
       }
     } catch (err) {
       console.error("Counter collection error:", err);
-      showToast(err.response?.data?.message || "Error processing payment.", "error");
+      showToast(err.response?.data?.message || err.message || "Error processing payment.", "error");
     } finally {
       setActionLoading(false);
     }
@@ -249,9 +271,9 @@ export default function HospitalAdmissionCounterPage() {
   // Search Filter
   const filteredHolds = pendingHolds.filter((item) => {
     const q = searchQuery.toLowerCase();
-    const id = (item.admissionBookingId || "").toLowerCase();
+    const id = (item.admissionBookingId || item.bookingId || "").toLowerCase();
     const opdId = (item.parentOpdBooking?.opdBookingId || "").toLowerCase();
-    const name = (item.patient?.name || "").toLowerCase();
+    const name = (item.patient?.name || item.patientName || "").toLowerCase();
     const ward = (item.wardName || "").toLowerCase();
     return id.includes(q) || opdId.includes(q) || name.includes(q) || ward.includes(q);
   });
@@ -341,7 +363,7 @@ export default function HospitalAdmissionCounterPage() {
 
               return (
                 <div
-                  key={item.admissionAppointmentId || item.admissionBookingId}
+                  key={item.admissionAppointmentId || item.admissionBookingId || item._id}
                   className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-xs hover:shadow-md transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-6"
                 >
                   {/* Left: Patient, Doctor, Ward, and Bed Info */}
@@ -354,10 +376,10 @@ export default function HospitalAdmissionCounterPage() {
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2.5 flex-wrap">
                         <h3 className="text-base font-black text-slate-900 tracking-tight">
-                          {item.patient?.name}
+                          {item.patient?.name || item.patientName}
                         </h3>
                         <span className="text-xs text-slate-400 font-bold">
-                          ({item.patient?.age} Yrs &bull; {item.patient?.gender})
+                          ({item.patient?.age || item.patientAge || "N/A"} Yrs &bull; {item.patient?.gender || item.patientGender || "N/A"})
                         </span>
 
                         {item.parentOpdBooking && (
@@ -388,16 +410,16 @@ export default function HospitalAdmissionCounterPage() {
                         )}
                         <span>&bull;</span>
                         <span>
-                          Attending: <strong>Dr. {item.doctor?.name}</strong> ({item.doctor?.cabinRoom || "Cabin"})
+                          Attending: <strong>Dr. {item.doctor?.name || "Assigned Specialist"}</strong> ({item.doctor?.cabinRoom || "Cabin"})
                         </span>
                         <span>&bull;</span>
                         <span className="font-mono text-slate-500 font-bold">
-                          #{item.admissionBookingId}
+                          #{item.admissionBookingId || item.bookingId}
                         </span>
                       </p>
 
                       <p className="text-xs text-slate-500 font-medium italic">
-                        Order: "{item.bookingReason}"
+                        Order: "{item.bookingReason || "Inpatient Ward Admission"}"
                       </p>
 
                       {item.vitalsAtAdmission && (
@@ -405,13 +427,13 @@ export default function HospitalAdmissionCounterPage() {
                           <span className="text-slate-400 flex items-center gap-1">
                             <FaHeartbeat className="text-rose-500" size={11} /> Vitals:
                           </span>
-                          <span>BP: {item.vitalsAtAdmission.bp}</span>
+                          <span>BP: {item.vitalsAtAdmission.bp || "N/A"}</span>
                           <span>&bull;</span>
-                          <span>Pulse: {item.vitalsAtAdmission.pulse} bpm</span>
+                          <span>Pulse: {item.vitalsAtAdmission.pulse ? `${item.vitalsAtAdmission.pulse} bpm` : "N/A"}</span>
                           <span>&bull;</span>
-                          <span>Temp: {item.vitalsAtAdmission.temp} °F</span>
+                          <span>Temp: {item.vitalsAtAdmission.temp ? `${item.vitalsAtAdmission.temp} °F` : "N/A"}</span>
                           <span>&bull;</span>
-                          <span className="text-emerald-600">SpO2: {item.vitalsAtAdmission.spo2}%</span>
+                          <span className="text-emerald-600">SpO2: {item.vitalsAtAdmission.spo2 ? `${item.vitalsAtAdmission.spo2}%` : "N/A"}</span>
                         </div>
                       )}
                     </div>
@@ -489,7 +511,7 @@ export default function HospitalAdmissionCounterPage() {
                   <FaExchangeAlt className="text-indigo-600" /> Switch / Upgrade Bed
                 </h3>
                 <p className="text-xs text-slate-400 font-semibold mt-0.5">
-                  Patient: <strong className="text-slate-800">{switchTargetHold.patient?.name}</strong> &bull; Current: {switchTargetHold.wardName} ({switchTargetHold.bedNumber})
+                  Patient: <strong className="text-slate-800">{switchTargetHold.patient?.name || switchTargetHold.patientName}</strong> &bull; Current: {switchTargetHold.wardName} ({switchTargetHold.bedNumber})
                 </p>
               </div>
               <button
@@ -652,6 +674,7 @@ export default function HospitalAdmissionCounterPage() {
 
       {/* ========================================================
           MODAL: COUNTER PAYMENT COLLECTION (Cash / Card / POS / UPI)
+          Endpoint: PATCH /hospital/doctor/appointments/admission/collect-payment/:id
       ======================================================== */}
       {selectedHold && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200">
@@ -662,7 +685,7 @@ export default function HospitalAdmissionCounterPage() {
                   Collect Bed Deposit at Counter
                 </h3>
                 <p className="text-xs text-slate-400 font-semibold mt-0.5">
-                  #{selectedHold.admissionBookingId} &bull; {selectedHold.wardName} ({selectedHold.bedNumber})
+                  #{selectedHold.admissionBookingId || selectedHold.bookingId} &bull; {selectedHold.wardName} ({selectedHold.bedNumber})
                 </p>
               </div>
               <button
@@ -680,7 +703,7 @@ export default function HospitalAdmissionCounterPage() {
                     Patient Name
                   </span>
                   <p className="font-black text-sm text-slate-900 mt-0.5">
-                    {selectedHold.patient?.name}
+                    {selectedHold.patient?.name || selectedHold.patientName}
                   </p>
                 </div>
                 <div className="text-right">
@@ -697,11 +720,12 @@ export default function HospitalAdmissionCounterPage() {
                 <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-2">
                   Payment Mode *
                 </label>
+                {/* Strictly 'Cash' | 'Card' | 'UPI' per documentation */}
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { key: "Cash", icon: FaMoneyBillWave, label: "Cash" },
-                    { key: "Card", icon: FaCreditCard, label: "POS Card" },
-                    { key: "UPI", icon: FaQrcode, label: "Counter UPI" }
+                    { key: "Card", icon: FaCreditCard, label: "Card / POS" },
+                    { key: "UPI", icon: FaQrcode, label: "UPI" }
                   ].map((mode) => (
                     <button
                       key={mode.key}
@@ -722,14 +746,14 @@ export default function HospitalAdmissionCounterPage() {
 
               <div>
                 <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
-                  POS / Transaction Reference *
+                  Transaction / POS Reference *
                 </label>
                 <input
                   type="text"
                   required
                   value={transactionReference}
                   onChange={(e) => setTransactionReference(e.target.value)}
-                  placeholder="e.g. POS-REC-90124 or UPI-TXN-49102"
+                  placeholder="e.g. POS-REC-48201 or UPI-49102"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-bold text-slate-900 text-xs outline-none focus:border-indigo-500"
                 />
               </div>
@@ -742,7 +766,7 @@ export default function HospitalAdmissionCounterPage() {
                   type="text"
                   value={cashierRemarks}
                   onChange={(e) => setCashierRemarks(e.target.value)}
-                  placeholder="e.g. Received by Cashier at Counter 1"
+                  placeholder="e.g. Admission deposit paid at Counter 1"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-bold text-slate-900 text-xs outline-none focus:border-indigo-500"
                 />
               </div>
@@ -761,7 +785,7 @@ export default function HospitalAdmissionCounterPage() {
                   className="px-6 py-2.5 text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl uppercase tracking-wider flex items-center gap-2 shadow-md shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer"
                 >
                   {actionLoading ? <FaSpinner className="animate-spin" /> : <FaCheckCircle />}
-                  <span>Confirm Deposit & Admit</span>
+                  <span>Confirm Deposit &amp; Admit</span>
                 </button>
               </div>
             </form>
@@ -795,7 +819,7 @@ export default function HospitalAdmissionCounterPage() {
                 <span className="font-black text-slate-900">{receiptData.patientName}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400 font-bold">Ward & Bed:</span>
+                <span className="text-slate-400 font-bold">Ward &amp; Bed:</span>
                 <span className="font-black text-emerald-700">
                   {receiptData.wardName} ({receiptData.bedNumber})
                 </span>

@@ -1045,21 +1045,34 @@ getHospitalCheckoutSummary: async (data) => {
     return response.data;
 },
 
-// 2. Final Hospital Admission Booking (POST /user/hospital/book-bed)
-bookHospitalBed: async (formData) => {
-    const response = await authApi.post("/user/hospital/book-bed", formData, {
-        headers: {
-            "Content-Type": "multipart/form-data",
-        },
-    });
+/// ✅ Replace bookHospitalBed in UserAPI.js:
+bookHospitalBed: async (data) => {
+    // Agar data FormData hai, toh native fetch use karenge taaki browser boundary attach kare
+    if (typeof window !== 'undefined' && data instanceof FormData) {
+        const token = localStorage.getItem('userToken');
+        const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || BASE_URL;
+        const res = await fetch(`${baseUrl}/user/hospital/book`, {
+            method: 'POST',
+            headers: {
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                // Note: 'Content-Type' pass nahi karna hai, browser khud boundary ke sath set karega
+            },
+            body: data
+        });
+        const json = await res.json();
+        if (!res.ok) {
+            const err = new Error(json.message || "Failed to book admission");
+            err.response = { data: json, status: res.status };
+            throw err;
+        }
+        return json;
+    }
+
+    const response = await authApi.post("/user/hospital/book", data);
     return response.data;
 },
 
-// 3. Verify Hospital Payment (POST /user/hospital/verify-payment)
-verifyPaymentHospital: async (verifyData) => {
-    const response = await authApi.post("/user/hospital/verify-payment", verifyData);
-    return response.data;
-},
+
 someFunction: async () => {
         const response = await authApi.get("/example");
         return response.data;
@@ -1118,12 +1131,7 @@ someFunction: async () => {
         return response.data;
     },
 
-    bookHospitalBed: async (data) => {
-        const response = await authApi.post("/user/hospital/book", data, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        return response.data;
-    },
+   
 
     recheduleHospitalBooking: async (data) => {
         const response = await authApi.post(`/user/hospital/reschedule`, data);

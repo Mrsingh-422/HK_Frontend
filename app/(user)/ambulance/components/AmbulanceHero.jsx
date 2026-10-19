@@ -1,16 +1,14 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
     ShieldAlert,
     Stethoscope,
     Truck,
-    MapPin,
     PhoneCall,
     ChevronRight,
     Clock
 } from "lucide-react";
-import { useGlobalContext } from "@/app/context/GlobalContext";
 
 const AMBULANCE_TYPES = [
     {
@@ -54,32 +52,19 @@ const AMBULANCE_TYPES = [
     }
 ];
 
-const AmbulanceHero = ({ searchTerm, setSearchTerm }) => {
+const AmbulanceHero = () => {
     const router = useRouter();
-    const { getAmbulancePageData } = useGlobalContext();
     const [selectedType, setSelectedType] = useState("emergency");
-    const [pageData, setPageData] = useState({
+
+    // Static text written directly in this file (no API overwrite)
+    const pageData = {
         headerTag: "24/7 Emergency Dispatch",
         mainTitle: "Every Second Counts. \nReliable Care, Faster.",
         description: "India's most advanced medical transport network. We connect you to life-saving care in minutes.",
-        searchPlaceholder: "Enter pickup location...",
-    });
-
-    useEffect(() => {
-        const fetchContent = async () => {
-            try {
-                const res = await getAmbulancePageData();
-                if (res?.success && res?.data) setPageData(res.data);
-            } catch (err) {
-                console.error("Failed to fetch ambulance hero data", err);
-            }
-        };
-        fetchContent();
-    }, [getAmbulancePageData]);
+    };
 
     const handleServiceClick = (id, slug, serviceType) => {
         setSelectedType(id);
-        // We pass the serviceType as a URL query parameter
         router.push(`/ambulance/${slug}?serviceType=${encodeURIComponent(serviceType)}`);
     };
 
@@ -113,7 +98,7 @@ const AmbulanceHero = ({ searchTerm, setSearchTerm }) => {
                             </p>
                         </div>
 
-                        {/* Service Selection Cards - Navigates on Click */}
+                        {/* Service Selection Cards */}
                         <div className="space-y-4">
                             <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest px-1">Select Service Type</h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -152,26 +137,6 @@ const AmbulanceHero = ({ searchTerm, setSearchTerm }) => {
                             </div>
                         </div>
 
-                        {/* Search/Booking Bar */}
-                        {/* <div className="relative group w-full max-w-3xl">
-                            <div className="absolute -inset-1 bg-gradient-to-r from-red-600 to-red-400 rounded-[2.5rem] blur opacity-20 group-hover:opacity-30 transition duration-500"></div>
-                            <div className="relative flex flex-col md:flex-row items-center bg-white border border-slate-100 rounded-[2rem] p-2 shadow-xl">
-                                <div className="flex items-center flex-1 w-full px-4 border-b md:border-b-0 md:border-r border-slate-100">
-                                    <MapPin className="text-red-500 w-6 h-6 mr-3 shrink-0" />
-                                    <input
-                                        type="text"
-                                        className="w-full py-4 bg-transparent outline-none text-slate-800 font-bold placeholder:text-slate-400"
-                                        placeholder={pageData.searchPlaceholder}
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                    />
-                                </div>
-                                <button className="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white px-10 py-4 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-2 group/btn">
-                                    Book Near Me
-                                    <ChevronRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
-                                </button>
-                            </div>
-                        </div> */}
                     </div>
 
                     {/* Right Side: Visual & Quick Info */}
