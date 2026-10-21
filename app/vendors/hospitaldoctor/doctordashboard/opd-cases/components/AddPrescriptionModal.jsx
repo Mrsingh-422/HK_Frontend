@@ -763,21 +763,16 @@ export default function AddPrescriptionModal({ isOpen, onClose, appointment, onS
                 </div>
               </div>
 
-              {/* Duration Field */}
+              {/* Duration Field (Text Input) */}
               <div className="space-y-1">
                 <label className="block text-[10px] font-black uppercase text-slate-400">Duration *</label>
-                <select
+                <input
+                  type="text"
                   value={duration}
                   onChange={(e) => setDuration(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl font-bold text-xs text-slate-800"
-                >
-                  <option value="3 days">3 days</option>
-                  <option value="5 days">5 days</option>
-                  <option value="7 days">7 days</option>
-                  <option value="10 days">10 days</option>
-                  <option value="15 days">15 days</option>
-                  <option value="1 month">1 month</option>
-                </select>
+                  placeholder="e.g. 5 days, 10 days, 2 weeks, SOS..."
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl font-bold text-xs text-slate-800 outline-none focus:bg-white focus:border-amber-500"
+                />
               </div>
 
               {/* Latin Administration Timing Shortcuts */}

@@ -1,16 +1,15 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation"; // Correct hook for App Router
+import { useRouter } from "next/navigation";
 import {
     FaArrowLeft, FaSearch, FaHospital, FaStar,
     FaChevronDown, FaFilter, FaMapMarkerAlt, FaLocationArrow,
-    FaBed, FaUserMd, FaClock, FaRegHeart
+    FaBed, FaUserMd, FaClock, FaRegHeart, FaShieldAlt
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
 const CATEGORIES = ["All", "Private", "Govt", "Cardiology", "Emergency"];
-// const BASE_URL = "http://192.168.1.26:5002";
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 export default function AllHospitalsPage() {
@@ -20,21 +19,37 @@ export default function AllHospitalsPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [sortBy, setSortBy] = useState("distance");
     const [activeCategory, setActiveCategory] = useState("All");
+    const [onlyInsuranceAccepted, setOnlyInsuranceAccepted] = useState(false);
 
     useEffect(() => {
         const fetchHospitals = async () => {
             try {
                 setLoading(true);
-                const storedCoords = localStorage.getItem("userCoords");
-                let payload = { lat: 0, lng: 0 };
+                const storedCoords = typeof window !== "undefined" ? localStorage.getItem("userCoords") : null;
+                let payload = { 
+                    lat: 0, 
+                    lng: 0,
+                    userLat: 0, 
+                    userLng: 0,
+                    search: searchTerm || undefined,
+                    isInsuranceAccepted: onlyInsuranceAccepted ? true : undefined
+                };
 
                 if (storedCoords) {
-                    try { payload = JSON.parse(storedCoords); } catch (e) {}
+                    try { 
+                        const parsed = JSON.parse(storedCoords);
+                        payload.lat = parsed.lat || 0;
+                        payload.lng = parsed.lng || 0;
+                        payload.userLat = parsed.lat || 0;
+                        payload.userLng = parsed.lng || 0;
+                    } catch (e) {
+                        console.error("Coords parsing error:", e);
+                    }
                 }
 
                 const response = await UserAPI.getHospitalsList(payload);
-                if (response.success) {
-                    setHospitals(response.data);
+                if (response?.success) {
+                    setHospitals(response.data || []);
                 }
             } catch (error) {
                 console.error("Failed to fetch hospitals:", error);
@@ -42,41 +57,59 @@ export default function AllHospitalsPage() {
                 setLoading(false);
             }
         };
-        fetchHospitals();
-    }, []);
+
+        const debounceTimer = setTimeout(() => {
+            fetchHospitals();
+        }, 300);
+
+        return () => clearTimeout(debounceTimer);
+    }, [onlyInsuranceAccepted]);
 
     // NAVIGATION HANDLER
     const handleHospitalClick = (id) => {
-        // Navigates to /hospital/hospitaldetail/[id]
         router.push(`/hospital/hospitaldetail/${id}`);
     };
 
     const filteredHospitals = useMemo(() => {
         return hospitals
-            .map((hosp) => ({
-                ...hosp,
-                id: hosp._id,
-                image: hosp.hospitalImage && hosp.hospitalImage.length > 0 
-                    ? `${BASE_URL}${hosp.hospitalImage[0]}` 
-                    : `${BASE_URL}/uploads/hospitals/hospital-1778483195575.png`,
-                fullAddress: hosp.address || `${hosp.city || ''}, ${hosp.state || ''}`,
-                rating: hosp.rating || 4.8,
-                doctors: hosp.doctors || 24,
-                beds: hosp.beds || 120,
-                timing: "Open 24/7"
-            }))
+            .map((hosp) => {
+                const parsedDistance = parseFloat(hosp.distance);
+                const safeDistance = isNaN(parsedDistance) ? 0 : parsedDistance;
+
+                return {
+                    ...hosp,
+                    id: hosp._id,
+                    image: hosp.hospitalImage && hosp.hospitalImage.length > 0 
+                        ? `${BASE_URL}${hosp.hospitalImage[0]}` 
+                        : `${BASE_URL}/uploads/hospitals/hospital-1778483195575.png`,
+                    fullAddress: hosp.address || `${hosp.city || ''}${hosp.state ? `, ${hosp.state}` : ''}`,
+                    rating: hosp.rating || 4.8,
+                    doctors: hosp.doctors || 24,
+                    beds: hosp.beds || 120,
+                    timing: "Open 24/7",
+                    numericDistance: safeDistance,
+                    isInsuranceAccepted: Boolean(hosp.isInsuranceAccepted),
+                    acceptedInsurances: Array.isArray(hosp.acceptedInsurances) ? hosp.acceptedInsurances : []
+                };
+            })
             .filter((hosp) => {
-                const matchesSearch = hosp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                    hosp.fullAddress.toLowerCase().includes(searchTerm.toLowerCase());
+                const searchLower = searchTerm.toLowerCase();
+                const matchesSearch = 
+                    hosp.name.toLowerCase().includes(searchLower) ||
+                    hosp.fullAddress.toLowerCase().includes(searchLower) ||
+                    hosp.acceptedInsurances.some(ins => ins.toLowerCase().includes(searchLower));
+
                 const matchesCategory = activeCategory === "All" || hosp.type === activeCategory;
-                return matchesSearch && matchesCategory;
+                const matchesInsurance = !onlyInsuranceAccepted || hosp.isInsuranceAccepted;
+
+                return matchesSearch && matchesCategory && matchesInsurance;
             })
             .sort((a, b) => {
-                if (sortBy === "distance") return a.distance - b.distance;
+                if (sortBy === "distance") return a.numericDistance - b.numericDistance;
                 if (sortBy === "rating") return b.rating - a.rating;
                 return 0;
             });
-    }, [hospitals, searchTerm, sortBy, activeCategory]);
+    }, [hospitals, searchTerm, sortBy, activeCategory, onlyInsuranceAccepted]);
 
     return (
         <div className="min-h-screen bg-[#FDFDFD] font-sans selection:bg-[#08B36A]/20 pb-20">
@@ -100,7 +133,7 @@ export default function AllHospitalsPage() {
             <main className="max-w-7xl mx-auto py-8 px-4 md:px-8">
                 
                 {/* HEADER */}
-                <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-12">
+                <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-10">
                     <div className="space-y-2">
                         <div className="inline-block px-3 py-1 bg-emerald-50 text-[#08B36A] rounded-lg text-[10px] font-bold uppercase tracking-[0.2em] mb-2">
                             Medical Directory
@@ -116,10 +149,10 @@ export default function AllHospitalsPage() {
                             <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm group-focus-within:text-[#08B36A]" />
                             <input
                                 type="text"
-                                placeholder="Search hospital..."
+                                placeholder="Search hospital, city, or insurer..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-50 focus:border-[#08B36A] outline-none text-sm shadow-sm"
+                                className="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-50 focus:border-[#08B36A] outline-none text-sm shadow-sm font-medium"
                             />
                         </div>
                         <div className="relative">
@@ -136,21 +169,38 @@ export default function AllHospitalsPage() {
                     </div>
                 </div>
 
-                {/* FILTERS */}
-                <div className="flex items-center gap-3 overflow-x-auto pb-8 no-scrollbar">
-                    {CATEGORIES.map((cat) => (
-                        <button
-                            key={cat}
-                            onClick={() => setActiveCategory(cat)}
-                            className={`whitespace-nowrap px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                activeCategory === cat
-                                ? "bg-slate-900 text-white shadow-xl shadow-slate-200"
-                                : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-100"
-                            }`}
-                        >
-                            {cat}
-                        </button>
-                    ))}
+                {/* FILTERS & INSURANCE TOGGLE */}
+                <div className="flex flex-wrap items-center justify-between gap-4 pb-8 border-b border-slate-100 mb-8">
+                    {/* Category Tabs */}
+                    <div className="flex items-center gap-3 overflow-x-auto no-scrollbar">
+                        {CATEGORIES.map((cat) => (
+                            <button
+                                key={cat}
+                                onClick={() => setActiveCategory(cat)}
+                                className={`whitespace-nowrap px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                    activeCategory === cat
+                                    ? "bg-slate-900 text-white shadow-lg shadow-slate-200"
+                                    : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
+                                }`}
+                            >
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Dedicated Cashless / Insurance Filter Toggle */}
+                    <button
+                        type="button"
+                        onClick={() => setOnlyInsuranceAccepted(prev => !prev)}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold transition-all border ${
+                            onlyInsuranceAccepted
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-sm'
+                                : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                        }`}
+                    >
+                        <FaShieldAlt className={onlyInsuranceAccepted ? 'text-[#08B36A]' : 'text-slate-400'} />
+                        <span>Accepts Cashless Insurance</span>
+                    </button>
                 </div>
 
                 {/* LISTING */}
@@ -160,6 +210,12 @@ export default function AllHospitalsPage() {
                             <div key={n} className="h-80 bg-slate-100 animate-pulse rounded-[2rem]"></div>
                         ))}
                     </div>
+                ) : filteredHospitals.length === 0 ? (
+                    <div className="col-span-full py-20 bg-white rounded-[2rem] border-2 border-dashed border-slate-100 text-center">
+                        <FaHospital className="text-slate-200 text-4xl mx-auto mb-3" />
+                        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">No Hospitals Found</h3>
+                        <p className="text-xs text-slate-400 mt-1">Try relaxing filters or changing your location parameters.</p>
+                    </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                         {filteredHospitals.map((hosp) => (
@@ -168,41 +224,67 @@ export default function AllHospitalsPage() {
                                 onClick={() => handleHospitalClick(hosp.id)}
                                 className="group bg-white rounded-[2rem] p-4 shadow-sm border border-slate-100 flex flex-col hover:shadow-2xl hover:shadow-emerald-100/50 hover:-translate-y-2 transition-all duration-500 cursor-pointer"
                             >
-                                {/* Image */}
+                                {/* Image Area */}
                                 <div className="h-52 w-full relative overflow-hidden rounded-[1.5rem] bg-slate-100 mb-5">
                                     <img
                                         src={hosp.image}
                                         className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                                         alt={hosp.name}
+                                        onError={(e) => { e.target.src = "https://placehold.co/600x400?text=Hospital"; }}
                                     />
-                                    <div className="absolute top-4 left-4">
+                                    
+                                    {/* Type & Cashless Tags */}
+                                    <div className="absolute top-4 left-4 flex flex-wrap items-center gap-1.5">
                                         <span className={`backdrop-blur-md text-white text-[9px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest ${hosp.type === 'Govt' ? 'bg-blue-600/80' : 'bg-emerald-600/80'}`}>
                                             {hosp.type}
                                         </span>
+                                        {hosp.isInsuranceAccepted && (
+                                            <span className="bg-slate-900/85 backdrop-blur-md text-white text-[9px] font-black px-2.5 py-1.5 rounded-xl uppercase tracking-widest flex items-center gap-1 shadow-sm">
+                                                <FaShieldAlt className="text-emerald-400" size={8} /> Cashless
+                                            </span>
+                                        )}
                                     </div>
+
+                                    {/* Bottom Rating & Distance */}
                                     <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
-                                        <div className="bg-white px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg">
+                                        <div className="bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg">
                                             <FaStar className="text-yellow-400 text-[10px]" />
                                             <span className="text-[11px] font-black text-slate-900">{hosp.rating}</span>
                                         </div>
                                         <div className="bg-[#08B36A] text-white px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg">
                                             <FaLocationArrow className="text-[9px]" />
-                                            <span className="text-[10px] font-bold">{hosp.distance.toFixed(1)} km</span>
+                                            <span className="text-[10px] font-bold">{hosp.numericDistance.toFixed(1)} km</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Info */}
                                 <div className="px-1 flex-1 flex flex-col">
-                                    <h3 className="text-xl font-black text-slate-800 line-clamp-1 mb-1 group-hover:text-[#08B36A] transition-colors uppercase">
+                                    <h3 className="text-xl font-black text-slate-800 line-clamp-1 mb-1 group-hover:text-[#08B36A] transition-colors uppercase tracking-tight">
                                         {hosp.name}
                                     </h3>
-                                    <div className="flex items-start gap-1.5 text-slate-400 mb-4">
-                                        <FaMapMarkerAlt className="text-xs mt-0.5 shrink-0" />
+                                    <div className="flex items-start gap-1.5 text-slate-400 mb-3">
+                                        <FaMapMarkerAlt className="text-xs mt-0.5 shrink-0 text-emerald-500" />
                                         <span className="text-xs font-semibold line-clamp-1">{hosp.fullAddress}</span>
                                     </div>
 
-                                    {/* Stats */}
+                                    {/* Insurance Schemes Preview */}
+                                    {hosp.isInsuranceAccepted && hosp.acceptedInsurances.length > 0 && (
+                                        <div className="flex flex-wrap items-center gap-1 mb-4">
+                                            {hosp.acceptedInsurances.slice(0, 2).map((ins, i) => (
+                                                <span key={i} className="text-[8px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                                                    {ins}
+                                                </span>
+                                            ))}
+                                            {hosp.acceptedInsurances.length > 2 && (
+                                                <span className="text-[8px] font-bold text-slate-400">
+                                                    +{hosp.acceptedInsurances.length - 2} more
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Stats Grid */}
                                     <div className="grid grid-cols-2 gap-3 mb-6">
                                         <div className="bg-slate-50 rounded-2xl p-3 flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center text-[#08B36A] shadow-sm"><FaUserMd /></div>
@@ -220,7 +302,7 @@ export default function AllHospitalsPage() {
                                         </div>
                                     </div>
 
-                                    {/* Action */}
+                                    {/* Action Footer */}
                                     <div className="mt-auto flex items-center justify-between pt-4 border-t border-slate-50">
                                         <div className="flex items-center gap-2">
                                             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>

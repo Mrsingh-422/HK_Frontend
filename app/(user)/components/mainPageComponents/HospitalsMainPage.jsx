@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { FaMapMarkerAlt, FaStar, FaClock, FaArrowRight, FaHospital, FaSpinner, FaLocationArrow } from 'react-icons/fa';
+import { FaMapMarkerAlt, FaStar, FaClock, FaArrowRight, FaHospital, FaSpinner, FaLocationArrow, FaShieldAlt } from 'react-icons/fa';
 import UserAPI from "@/app/services/UserAPI";
 import { useGlobalContext } from '@/app/context/GlobalContext';
 
@@ -13,27 +13,32 @@ function HospitalsMainPage() {
     const scrollRef = useRef(null);
     const [hospitals, setHospitals] = useState([]);
     const [loading, setLoading] = useState(true);
-    const {openModal} = useGlobalContext()
+    const { openModal } = useGlobalContext();
 
     useEffect(() => {
         const fetchHospitals = async () => {
             try {
                 setLoading(true);
-                const storedCoords = localStorage.getItem("userCoords");
-                let payload = { lat: 0, lng: 0 };
+                const storedCoords = typeof window !== "undefined" ? localStorage.getItem("userCoords") : null;
+                let payload = { lat: 0, lng: 0, userLat: 0, userLng: 0 };
 
                 if (storedCoords) {
                     try {
                         const parsed = JSON.parse(storedCoords);
-                        payload = { lat: parsed.lat, lng: parsed.lng };
+                        payload = { 
+                            lat: parsed.lat || 0, 
+                            lng: parsed.lng || 0,
+                            userLat: parsed.lat || 0,
+                            userLng: parsed.lng || 0
+                        };
                     } catch (e) {
                         console.error("Coordinate parse error", e);
                     }
                 }
 
                 const response = await UserAPI.getHospitalsList(payload);
-                if (response.success) {
-                    setHospitals(response.data);
+                if (response?.success) {
+                    setHospitals(response.data || []);
                 }
             } catch (error) {
                 console.error("Failed to fetch hospitals:", error);
@@ -85,60 +90,87 @@ function HospitalsMainPage() {
                             <div key={n} className="min-w-[320px] md:min-w-[380px] h-[400px] bg-white rounded-[2.5rem] animate-pulse border border-slate-100" />
                         ))
                     ) : displayHospitals.length > 0 ? (
-                        displayHospitals.map((hospital) => (
-                            <div
-                                key={hospital._id}
-                                onClick={() => goToDetail(hospital._id)}
-                                className="min-w-[310px] md:min-w-[380px] snap-start bg-white rounded-[2.5rem] overflow-hidden shadow-sm hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-500 border border-slate-100 group cursor-pointer hover:-translate-y-2"
-                            >
-                                {/* Image Wrapper */}
-                                <div className="relative h-56 overflow-hidden bg-slate-100">
-                                    <img
-                                        src={hospital.hospitalImage && hospital.hospitalImage[0]
-                                            ? `${BASE_URL}${hospital.hospitalImage[0]}`
-                                            : "https://placehold.co/600x400?text=Hospital"}
-                                        alt={hospital.name}
-                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                        onError={(e) => { e.target.src = "https://placehold.co/600x400?text=Hospital"; }}
-                                    />
-                                    <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm border border-white/50">
-                                        <FaStar className="text-yellow-400 text-xs" />
-                                        <span className="text-[11px] font-black text-slate-800">{hospital.rating || "4.8"}</span>
-                                    </div>
-                                    <div className="absolute top-4 right-4 bg-emerald-600 text-white text-[10px] font-black px-3 py-1.5 rounded-xl uppercase tracking-wider shadow-lg flex items-center gap-2">
-                                        <FaLocationArrow size={10} />
-                                        {hospital.distance?.toFixed(1) || 0} KM
-                                    </div>
-                                    <div className="absolute bottom-4 left-4">
-                                        <span className="bg-slate-900/80 backdrop-blur-sm text-white text-[9px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest border border-white/10">
-                                            {hospital.type || "Multi-Specialty"}
-                                        </span>
-                                    </div>
-                                </div>
+                        displayHospitals.map((hospital) => {
+                            // Safe distance parsing
+                            const parsedDistance = parseFloat(hospital.distance);
+                            const safeDistance = isNaN(parsedDistance) ? 0 : parsedDistance;
 
-                                {/* Details Wrapper */}
-                                <div className="p-7">
-                                    <h3 className="text-xl font-black text-slate-900 mb-2 group-hover:text-emerald-600 transition-colors truncate uppercase tracking-tight">
-                                        {hospital.name}
-                                    </h3>
-
-                                    <div className="space-y-3 mb-8">
-                                        <div className="flex items-start gap-3 text-slate-500 text-[13px] font-bold">
-                                            <FaMapMarkerAlt className="text-emerald-500 mt-1 shrink-0" />
-                                            <span className="line-clamp-1">{hospital.address || `${hospital.city}, ${hospital.state}`}</span>
+                            return (
+                                <div
+                                    key={hospital._id}
+                                    onClick={() => goToDetail(hospital._id)}
+                                    className="min-w-[310px] md:min-w-[380px] snap-start bg-white rounded-[2.5rem] overflow-hidden shadow-sm hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-500 border border-slate-100 group cursor-pointer hover:-translate-y-2"
+                                >
+                                    {/* Image Wrapper */}
+                                    <div className="relative h-56 overflow-hidden bg-slate-100">
+                                        <img
+                                            src={hospital.hospitalImage && hospital.hospitalImage[0]
+                                                ? `${BASE_URL}${hospital.hospitalImage[0]}`
+                                                : "https://placehold.co/600x400?text=Hospital"}
+                                            alt={hospital.name || "Hospital"}
+                                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                            onError={(e) => { e.target.src = "https://placehold.co/600x400?text=Hospital"; }}
+                                        />
+                                        <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm border border-white/50">
+                                            <FaStar className="text-yellow-400 text-xs" />
+                                            <span className="text-[11px] font-black text-slate-800">{hospital.rating || "4.8"}</span>
                                         </div>
-                                        <div className="flex items-center gap-3 text-slate-500 text-[13px] font-bold uppercase tracking-widest">
-                                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                            <span>Open 24/7</span>
+                                        <div className="absolute top-4 right-4 bg-emerald-600 text-white text-[10px] font-black px-3 py-1.5 rounded-xl uppercase tracking-wider shadow-lg flex items-center gap-2">
+                                            <FaLocationArrow size={10} />
+                                            {safeDistance.toFixed(1)} KM
+                                        </div>
+                                        <div className="absolute bottom-4 left-4 flex items-center gap-2">
+                                            <span className="bg-slate-900/80 backdrop-blur-sm text-white text-[9px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest border border-white/10">
+                                                {hospital.type || "Multi-Specialty"}
+                                            </span>
+                                            {hospital.isInsuranceAccepted && (
+                                                <span className="bg-emerald-500/90 backdrop-blur-sm text-white text-[9px] font-black px-2.5 py-1.5 rounded-lg uppercase tracking-widest border border-white/10 flex items-center gap-1 shadow-sm">
+                                                    <FaShieldAlt size={8} /> Cashless/TPA
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
 
-                                    <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-emerald-600 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-95">
-                                        Book Appointment
-                                    </button>
+                                    {/* Details Wrapper */}
+                                    <div className="p-7">
+                                        <h3 className="text-xl font-black text-slate-900 mb-2 group-hover:text-emerald-600 transition-colors truncate uppercase tracking-tight">
+                                            {hospital.name}
+                                        </h3>
+
+                                        <div className="space-y-3 mb-6">
+                                            <div className="flex items-start gap-3 text-slate-500 text-[13px] font-bold">
+                                                <FaMapMarkerAlt className="text-emerald-500 mt-1 shrink-0" />
+                                                <span className="line-clamp-1">{hospital.address || `${hospital.city || ''}, ${hospital.state || ''}`}</span>
+                                            </div>
+                                            <div className="flex items-center gap-3 text-slate-500 text-[13px] font-bold uppercase tracking-widest">
+                                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                <span>Open 24/7</span>
+                                            </div>
+
+                                            {/* Accepted Insurances Badges Preview */}
+                                            {hospital.isInsuranceAccepted && hospital.acceptedInsurances?.length > 0 && (
+                                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                                    {hospital.acceptedInsurances.slice(0, 2).map((ins, i) => (
+                                                        <span key={i} className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-100">
+                                                            {ins}
+                                                        </span>
+                                                    ))}
+                                                    {hospital.acceptedInsurances.length > 2 && (
+                                                        <span className="text-[9px] font-black text-slate-400">
+                                                            +{hospital.acceptedInsurances.length - 2} more
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-emerald-600 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-95">
+                                            Book Appointment
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        ))
+                            );
+                        })
                     ) : (
                         <div className="w-full py-20 flex flex-col items-center justify-center bg-white rounded-[2.5rem] border border-dashed border-slate-200">
                             <FaHospital size={40} className="text-slate-200 mb-4" />
@@ -153,12 +185,13 @@ function HospitalsMainPage() {
                     <div className="max-w-xl text-center lg:text-left relative z-10">
                         <h2 className="text-3xl md:text-4xl font-black mb-6 tracking-tight leading-none">Are you a Hospital Owner?</h2>
                         <p className="text-emerald-50 opacity-90 font-bold text-sm md:text-base leading-relaxed">
-                            Join India's fastest growing healthcare network. Register your facility with Health Kangaroo to manage appointments, digitize records, and reach patients efficiently.
+                            Join India&apos;s fastest growing healthcare network. Register your facility with Health Kangaroo to manage appointments, digitize records, and reach patients efficiently.
                         </p>
                     </div>
                     <button 
-                    onClick={()=> openModal('register')}
-                    className="relative z-10 bg-white text-emerald-600 px-10 py-5 rounded-2xl font-black text-sm md:text-base uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all shadow-2xl whitespace-nowrap active:scale-95">
+                        onClick={() => openModal('register')}
+                        className="relative z-10 bg-white text-emerald-600 px-10 py-5 rounded-2xl font-black text-sm md:text-base uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all shadow-2xl whitespace-nowrap active:scale-95"
+                    >
                         Partner With Us
                     </button>
                 </div>

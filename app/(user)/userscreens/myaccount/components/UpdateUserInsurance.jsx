@@ -2,22 +2,23 @@ import React, { useState, useEffect } from "react";
 import {
     FaShieldAlt, FaIdCard, FaBuilding, FaRegCalendarAlt,
     FaFileAlt, FaCheckCircle, FaTimesCircle, FaEdit,
-    FaCheck, FaTimes, FaSpinner, FaUpload, FaSearch,
+    FaCheck, FaTimes, FaSpinner, FaUpload, FaExternalLinkAlt,
     FaChevronDown, FaChevronUp
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
 function UpdateUserInsurance({ insurance }) {
-    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [isOpen, setIsOpen] = useState(true); // State for collapse/expand
+    const [isLoadingUserInsurance, setIsLoadingUserInsurance] = useState(true);
+    const [isOpen, setIsOpen] = useState(true);
 
     // API Data states
     const [insuranceList, setInsuranceList] = useState([]);
     const [uniqueProviders, setUniqueProviders] = useState([]);
-    const [insuranceTypes, setInsuranceTypes] = useState([]); // Will hold ["NON-CASHLESS", "PREMIUM", ...]
+    const [insuranceTypes, setInsuranceTypes] = useState([]);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -29,72 +30,102 @@ function UpdateUserInsurance({ insurance }) {
         endDate: "",
         masterInsuranceId: "",
         insuranceDocument: null,
-        customInsuranceType: "" // Added to track custom input when 'Other' is selected
+        insuranceDocumentFront: null,
+        insuranceDocumentBack: null,
+        customInsuranceType: ""
     });
+
+    const formatDate = (dateStr) => {
+        if (!dateStr) return "";
+        try {
+            return new Date(dateStr).toISOString().split("T")[0];
+        } catch (e) {
+            return dateStr;
+        }
+    };
+
+    const populateFormFromData = (data) => {
+        if (!data) return;
+
+        const masterId = typeof data.masterInsuranceId === "object" && data.masterInsuranceId !== null
+            ? data.masterInsuranceId._id
+            : data.masterInsuranceId || "";
+
+        setFormData({
+            hasInsurance: Boolean(data.hasInsurance),
+            insuranceNumber: data.insuranceNumber || "",
+            companyName: data.companyName || "",
+            insuranceType: data.insuranceType || "",
+            startDate: formatDate(data.startDate),
+            endDate: formatDate(data.endDate),
+            masterInsuranceId: masterId,
+            insuranceDocument: data.insuranceDocument || null,
+            insuranceDocumentFront: data.insuranceDocumentFront || null,
+            insuranceDocumentBack: data.insuranceDocumentBack || null,
+            customInsuranceType: ""
+        });
+    };
 
     // ------------------ FETCH API DATA ------------------
     useEffect(() => {
         const fetchAllData = async () => {
             try {
-                // 1. Fetch Providers/Policies
+                // 1. Fetch Providers/Policies with query filters
                 const resInsurances = await UserAPI.getUserHealthInsuranses();
                 const policyData = resInsurances.data || [];
                 setInsuranceList(policyData);
-                const providers = [...new Set(policyData.map(item => item.provider))];
+                
+                const providers = [...new Set(policyData.map(item => item.provider).filter(Boolean))];
                 setUniqueProviders(providers);
 
-                // 2. Fetch Insurance Types
-                const resTypes = await UserAPI.getInsuranceTypes();
-                // We spread the data and manually add "Other" to the selection list
-                const typesFromAPI = resTypes.data || [];
-                setInsuranceTypes([...typesFromAPI, "Other"]);
+                // 2. Fetch Insurance Types if available
+                if (UserAPI.getInsuranceTypes) {
+                    const resTypes = await UserAPI.getInsuranceTypes();
+                    const typesFromAPI = resTypes.data || [];
+                    setInsuranceTypes([...typesFromAPI, "Other"]);
+                }
+
+                // 3. Fetch Saved Insurance via GET /api/auth/user/my-insurance
+                if (UserAPI.getMyInsurance) {
+                    setIsLoadingUserInsurance(true);
+                    const myInsRes = await UserAPI.getMyInsurance();
+                    if (myInsRes?.success && myInsRes.data) {
+                        populateFormFromData(myInsRes.data);
+                    } else if (insurance) {
+                        populateFormFromData(insurance);
+                    }
+                } else if (insurance) {
+                    populateFormFromData(insurance);
+                }
             } catch (error) {
-                console.error("Failed to fetch insurance metadata", error);
+                console.error("Failed to fetch insurance details", error);
+                if (insurance) populateFormFromData(insurance);
+            } finally {
+                setIsLoadingUserInsurance(false);
             }
         };
+
         fetchAllData();
     }, []);
-
-    // Initialize form with prop data
-    useEffect(() => {
-        if (insurance) {
-            setFormData({
-                ...insurance,
-                insuranceDocument: null,
-                customInsuranceType: ""
-            });
-        }
-    }, [insurance]);
 
     // ------------------ HANDLERS ------------------
     const handleInputChange = (e) => {
         const { name, value } = e.target;
 
         if (name === "companyName") {
-            if (value === "other") {
-                setFormData(prev => ({
-                    ...prev,
-                    companyName: "other",
-                    masterInsuranceId: "",
-                    insuranceType: ""
-                }));
-            } else {
-                setFormData(prev => ({
-                    ...prev,
-                    companyName: value,
-                    masterInsuranceId: "",
-                    insuranceType: ""
-                }));
-            }
+            setFormData(prev => ({
+                ...prev,
+                companyName: value,
+                masterInsuranceId: "",
+                insuranceType: value === "other" ? "" : prev.insuranceType
+            }));
         } else if (name === "masterInsuranceId") {
             const selectedPolicy = insuranceList.find(item => item._id === value);
-            if (selectedPolicy) {
-                setFormData(prev => ({
-                    ...prev,
-                    masterInsuranceId: value,
-                    insuranceType: selectedPolicy.type
-                }));
-            }
+            setFormData(prev => ({
+                ...prev,
+                masterInsuranceId: value,
+                insuranceType: selectedPolicy ? selectedPolicy.type : prev.insuranceType
+            }));
         } else if (name === "hasInsurance") {
             const hasIns = value === "true";
             if (!hasIns) {
@@ -107,6 +138,8 @@ function UpdateUserInsurance({ insurance }) {
                     endDate: "",
                     masterInsuranceId: "",
                     insuranceDocument: null,
+                    insuranceDocumentFront: null,
+                    insuranceDocumentBack: null,
                     customInsuranceType: ""
                 });
             } else {
@@ -117,37 +150,46 @@ function UpdateUserInsurance({ insurance }) {
         }
     };
 
-    const handleFileChange = (e) => {
-        setFormData(prev => ({ ...prev, insuranceDocument: e.target.files[0] }));
+    const handleFileChange = (e, fieldName) => {
+        if (e.target.files && e.target.files[0]) {
+            setFormData(prev => ({ ...prev, [fieldName]: e.target.files[0] }));
+        }
     };
 
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            const data = new FormData();
+            const payload = new FormData();
+            payload.append("hasInsurance", String(formData.hasInsurance));
 
-            // Logic for "Other": If insuranceType is "Other", use the value from customInsuranceType
-            const finalInsuranceType = formData.insuranceType === "Other"
-                ? formData.customInsuranceType
-                : formData.insuranceType;
+            if (formData.hasInsurance) {
+                const finalInsuranceType = formData.insuranceType === "Other"
+                    ? formData.customInsuranceType
+                    : formData.insuranceType;
 
-            Object.keys(formData).forEach(key => {
-                if (key === 'insuranceDocument') {
-                    if (formData[key]) data.append(key, formData[key]);
-                } else if (key === 'insuranceType') {
-                    data.append(key, finalInsuranceType);
-                } else if (key !== 'customInsuranceType') {
-                    data.append(key, formData[key]);
+                payload.append("companyName", formData.companyName || "");
+                payload.append("insuranceNumber", formData.insuranceNumber || "");
+                if (finalInsuranceType) payload.append("insuranceType", finalInsuranceType);
+                if (formData.startDate) payload.append("startDate", formData.startDate);
+                if (formData.endDate) payload.append("endDate", formData.endDate);
+                if (formData.masterInsuranceId) payload.append("masterInsuranceId", formData.masterInsuranceId);
+
+                // Attach Front and Back files only if a new File instance is picked
+                if (formData.insuranceDocumentFront instanceof File) {
+                    payload.append("insuranceDocumentFront", formData.insuranceDocumentFront);
                 }
-            });
+                if (formData.insuranceDocumentBack instanceof File) {
+                    payload.append("insuranceDocumentBack", formData.insuranceDocumentBack);
+                }
+            }
 
-            await UserAPI.updateInsurnceUser(data);
+            await UserAPI.updateInsurnceUser(payload);
             alert("Insurance details updated successfully!");
             setIsEditing(false);
             window.location.reload();
         } catch (error) {
             console.error("Update failed", error);
-            alert("Failed to update insurance");
+            alert(error?.response?.data?.message || "Failed to update insurance details");
         } finally {
             setIsSaving(false);
         }
@@ -155,6 +197,7 @@ function UpdateUserInsurance({ insurance }) {
 
     return (
         <section className="mt-10">
+            {/* Header */}
             <div className="flex justify-between items-center mb-6">
                 <div 
                     className="flex items-center gap-2 cursor-pointer select-none"
@@ -165,10 +208,11 @@ function UpdateUserInsurance({ insurance }) {
                     </h1>
                     {isOpen ? <FaChevronUp className="text-gray-400 text-sm" /> : <FaChevronDown className="text-gray-400 text-sm" />}
                 </div>
-                {!isEditing && isOpen && (
+
+                {!isEditing && isOpen && !isLoadingUserInsurance && (
                     <button
                         onClick={() => setIsEditing(true)}
-                        className="flex items-center gap-2 bg-[#08b36a] text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-[#256f47]"
+                        className="flex items-center gap-2 bg-[#08b36a] text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-[#256f47] transition"
                     >
                         <FaEdit /> Edit Insurance
                     </button>
@@ -193,23 +237,36 @@ function UpdateUserInsurance({ insurance }) {
                                         <option value="false">No, I don't have insurance</option>
                                     </select>
                                 ) : (
-                                    <p className="text-sm font-bold text-gray-900">{formData.hasInsurance ? "Active Insurance Policy" : "No Active Insurance"}</p>
+                                    <p className="text-sm font-bold text-gray-900">
+                                        {formData.hasInsurance ? "Active Insurance Policy" : "No Active Insurance"}
+                                    </p>
                                 )}
                                 <p className="text-xs text-gray-500 uppercase tracking-widest font-semibold">Policy Status</p>
                             </div>
                         </div>
+
+                        {isLoadingUserInsurance && (
+                            <div className="flex items-center gap-2 text-xs font-semibold text-gray-400">
+                                <FaSpinner className="animate-spin text-[#08b36a]" /> Loading details...
+                            </div>
+                        )}
                     </div>
 
                     {formData.hasInsurance && (
-                        <div className="p-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-                            {/* 1st Dropdown: Company Provider */}
+                            {/* 1. Company Provider */}
                             <div className="space-y-1">
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
                                     <span className="text-[#08b36a]"><FaBuilding /></span> Company Provider
                                 </label>
                                 {isEditing ? (
-                                    <select name="companyName" value={formData.companyName} onChange={handleInputChange} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold">
+                                    <select 
+                                        name="companyName" 
+                                        value={formData.companyName} 
+                                        onChange={handleInputChange} 
+                                        className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold"
+                                    >
                                         <option value="">Select Provider</option>
                                         {uniqueProviders.map(p => <option key={p} value={p}>{p}</option>)}
                                         <option value="other">Other</option>
@@ -219,7 +276,7 @@ function UpdateUserInsurance({ insurance }) {
                                 )}
                             </div>
 
-                            {/* 2nd Dropdown: Conditional Step */}
+                            {/* 2. Policy / Scheme Dropdown */}
                             {isEditing && formData.companyName && (
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
@@ -243,7 +300,6 @@ function UpdateUserInsurance({ insurance }) {
                                                 ))}
                                             </select>
 
-                                            {/* CUSTOM TEXT INPUT: Appears when "Other" is selected in the type dropdown */}
                                             {formData.insuranceType === "Other" && (
                                                 <input
                                                     type="text"
@@ -251,7 +307,7 @@ function UpdateUserInsurance({ insurance }) {
                                                     placeholder="Please specify insurance type"
                                                     value={formData.customInsuranceType}
                                                     onChange={handleInputChange}
-                                                    className="w-full p-2 bg-white border-2 border-[#08b36a] rounded-lg text-sm font-bold animate-pulse"
+                                                    className="w-full p-2 bg-white border border-[#08b36a] rounded-lg text-sm font-bold"
                                                 />
                                             )}
                                         </div>
@@ -263,79 +319,169 @@ function UpdateUserInsurance({ insurance }) {
                                             className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-[#08b36a]"
                                         >
                                             <option value="">-- Choose Policy --</option>
-                                            {insuranceList.filter(item => item.provider === formData.companyName).map(policy => (
-                                                <option key={policy._id} value={policy._id}>
-                                                    {policy.insuranceName} ({policy.type})
-                                                </option>
-                                            ))}
+                                            {insuranceList
+                                                .filter(item => item.provider === formData.companyName)
+                                                .map(policy => (
+                                                    <option key={policy._id} value={policy._id}>
+                                                        {policy.insuranceName} ({policy.type})
+                                                    </option>
+                                                ))}
                                         </select>
                                     )}
                                 </div>
                             )}
 
-                            {/* View Mode: Insurance Type Display */}
+                            {/* 3. Insurance Type Display */}
                             {!isEditing && (
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
                                         <span className="text-[#08b36a]"><FaShieldAlt /></span> Insurance Type
                                     </label>
-                                    <p className="text-gray-800 font-bold text-sm">{formData.insuranceType || "—"}</p>
+                                    <p className="text-gray-800 font-bold text-sm capitalize">{formData.insuranceType || "—"}</p>
                                 </div>
                             )}
 
-                            {/* Policy Number */}
+                            {/* 4. Policy Number */}
                             <div className="space-y-1">
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
                                     <span className="text-[#08b36a]"><FaIdCard /></span> Policy Number
                                 </label>
                                 {isEditing ? (
-                                    <input name="insuranceNumber" type="text" placeholder="POL-123456" value={formData.insuranceNumber} onChange={handleInputChange} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold" />
+                                    <input 
+                                        name="insuranceNumber" 
+                                        type="text" 
+                                        placeholder="e.g. HDFC-POL-984021" 
+                                        value={formData.insuranceNumber} 
+                                        onChange={handleInputChange} 
+                                        className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold" 
+                                    />
                                 ) : (
-                                    <p className="text-gray-800 font-bold text-sm">{formData.insuranceNumber || "—"}</p>
+                                    <p className="text-gray-800 font-bold text-sm font-mono">{formData.insuranceNumber || "—"}</p>
                                 )}
                             </div>
 
-                            {/* Dates */}
+                            {/* 5. Start Date */}
                             <div className="space-y-1">
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
                                     <span className="text-[#08b36a]"><FaRegCalendarAlt /></span> Start Date
                                 </label>
                                 {isEditing ? (
-                                    <input name="startDate" type="date" value={formData.startDate} onChange={handleInputChange} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold" />
+                                    <input 
+                                        name="startDate" 
+                                        type="date" 
+                                        value={formData.startDate} 
+                                        onChange={handleInputChange} 
+                                        className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold" 
+                                    />
                                 ) : (
                                     <p className="text-gray-800 font-bold text-sm">{formData.startDate || "—"}</p>
                                 )}
                             </div>
 
+                            {/* 6. End Date */}
                             <div className="space-y-1">
                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
                                     <span className="text-[#08b36a]"><FaRegCalendarAlt /></span> End Date
                                 </label>
                                 {isEditing ? (
-                                    <input name="endDate" type="date" value={formData.endDate} onChange={handleInputChange} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold" />
+                                    <input 
+                                        name="endDate" 
+                                        type="date" 
+                                        value={formData.endDate} 
+                                        onChange={handleInputChange} 
+                                        className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold" 
+                                    />
                                 ) : (
                                     <p className="text-gray-800 font-bold text-sm">{formData.endDate || "—"}</p>
                                 )}
                             </div>
 
-                            {/* File Upload */}
-                            {isEditing && (
+                            {/* 7. Card Front Document */}
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="text-[#08b36a]"><FaFileAlt /></span> Insurance Card (Front)
+                                </label>
+                                {isEditing ? (
+                                    <input 
+                                        type="file" 
+                                        accept="image/*,.pdf" 
+                                        onChange={(e) => handleFileChange(e, "insuranceDocumentFront")} 
+                                        className="w-full text-xs font-bold text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-green-50 file:text-[#08b36a] hover:file:bg-green-100" 
+                                    />
+                                ) : (
+                                    formData.insuranceDocumentFront ? (
+                                        <a 
+                                            href={`${BACKEND_URL}${formData.insuranceDocumentFront}`} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer" 
+                                            className="text-xs text-[#08b36a] font-bold inline-flex items-center gap-1.5 hover:underline"
+                                        >
+                                            View Front Card <FaExternalLinkAlt className="text-[10px]" />
+                                        </a>
+                                    ) : <p className="text-gray-400 text-sm">Not Provided</p>
+                                )}
+                            </div>
+
+                            {/* 8. Card Back Document */}
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="text-[#08b36a]"><FaFileAlt /></span> Insurance Card (Back)
+                                </label>
+                                {isEditing ? (
+                                    <input 
+                                        type="file" 
+                                        accept="image/*,.pdf" 
+                                        onChange={(e) => handleFileChange(e, "insuranceDocumentBack")} 
+                                        className="w-full text-xs font-bold text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-green-50 file:text-[#08b36a] hover:file:bg-green-100" 
+                                    />
+                                ) : (
+                                    formData.insuranceDocumentBack ? (
+                                        <a 
+                                            href={`${BACKEND_URL}${formData.insuranceDocumentBack}`} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer" 
+                                            className="text-xs text-[#08b36a] font-bold inline-flex items-center gap-1.5 hover:underline"
+                                        >
+                                            View Back Card <FaExternalLinkAlt className="text-[10px]" />
+                                        </a>
+                                    ) : <p className="text-gray-400 text-sm">Not Provided</p>
+                                )}
+                            </div>
+
+                            {/* 9. Combined Document (if present) */}
+                            {!isEditing && formData.insuranceDocument && (
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                        <span className="text-[#08b36a]"><FaUpload /></span> Policy Document
+                                        <span className="text-[#08b36a]"><FaFileAlt /></span> Policy Document (PDF)
                                     </label>
-                                    <input type="file" onChange={handleFileChange} className="w-full text-xs font-bold text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-green-50 file:text-[#08b36a] hover:file:bg-green-100" />
+                                    <a 
+                                        href={`${BACKEND_URL}${formData.insuranceDocument}`} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="text-xs text-blue-600 font-bold inline-flex items-center gap-1.5 hover:underline"
+                                    >
+                                        View Combined PDF <FaExternalLinkAlt className="text-[10px]" />
+                                    </a>
                                 </div>
                             )}
+
                         </div>
                     )}
 
+                    {/* Action Buttons */}
                     {isEditing && (
-                        <div className="px-10 pb-10 flex gap-3">
-                            <button onClick={handleSave} disabled={isSaving} className="flex-1 bg-[#08b36a] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#256f47]">
+                        <div className="px-8 pb-8 flex gap-3">
+                            <button 
+                                onClick={handleSave} 
+                                disabled={isSaving} 
+                                className="flex-1 bg-[#08b36a] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#256f47] disabled:opacity-50"
+                            >
                                 {isSaving ? <FaSpinner className="animate-spin" /> : <FaCheck />} Save Changes
                             </button>
-                            <button onClick={() => { setIsEditing(false); setFormData(insurance); }} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200">
+                            <button 
+                                onClick={() => setIsEditing(false)} 
+                                className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200"
+                            >
                                 <FaTimes /> Cancel
                             </button>
                         </div>

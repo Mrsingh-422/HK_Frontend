@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { FaStar, FaMapMarkerAlt, FaBed, FaUserMd, FaHospital, FaArrowRight } from "react-icons/fa";
+import { FaStar, FaMapMarkerAlt, FaBed, FaUserMd, FaHospital, FaArrowRight, FaShieldAlt } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
@@ -18,20 +18,25 @@ function OurHospitalPartners() {
         const fetchHospitals = async () => {
             try {
                 setLoading(true);
-                const storedCoords = localStorage.getItem("userCoords");
-                let payload = { lat: 0, lng: 0 };
+                const storedCoords = typeof window !== "undefined" ? localStorage.getItem("userCoords") : null;
+                let payload = { lat: 0, lng: 0, userLat: 0, userLng: 0 };
 
                 if (storedCoords) {
                     try {
                         const parsed = JSON.parse(storedCoords);
-                        payload = { lat: parsed.lat, lng: parsed.lng };
+                        payload = { 
+                            lat: parsed.lat || 0, 
+                            lng: parsed.lng || 0,
+                            userLat: parsed.lat || 0,
+                            userLng: parsed.lng || 0
+                        };
                     } catch (e) {
                         console.error("Coordinate parse error", e);
                     }
                 }
 
                 const response = await UserAPI.getHospitalsList(payload);
-                if (response.success) {
+                if (response?.success && Array.isArray(response.data)) {
                     // Limiting to top 6 as requested
                     setHospitals(response.data.slice(0, 6));
                 }
@@ -45,7 +50,10 @@ function OurHospitalPartners() {
     }, []);
 
     // --- SEAMLESS MARQUEE DATA ---
-    const displayHospitals = useMemo(() => [...hospitals, ...hospitals], [hospitals]);
+    const displayHospitals = useMemo(() => {
+        if (!hospitals || hospitals.length === 0) return [];
+        return [...hospitals, ...hospitals];
+    }, [hospitals]);
 
     const goToDetail = (id) => {
         router.push(`/hospital/hospitaldetail/${id}`);
@@ -78,7 +86,7 @@ function OurHospitalPartners() {
                         </h2>
                     </div>
                     <p className="text-slate-400 max-w-sm text-sm font-medium leading-relaxed text-center lg:text-left">
-                        We collaborate with the world's most advanced hospitals to ensure your care is in expert hands.
+                        We collaborate with the world&apos;s most advanced hospitals to ensure your care is in expert hands.
                     </p>
                 </div>
             </div>
@@ -97,84 +105,115 @@ function OurHospitalPartners() {
                             width: 'max-content'
                         }}
                     >
-                        {displayHospitals.map((hospital, index) => (
-                            <div
-                                key={`${hospital._id}-${index}`}
-                                onClick={() => goToDetail(hospital._id)}
-                                className="w-[300px] md:w-[420px] flex-shrink-0 group"
-                            >
-                                <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.05)] hover:shadow-[0_40px_80px_-20px_rgba(8,179,106,0.15)] transition-all duration-500 flex flex-col overflow-hidden relative group">
-                                    
-                                    {/* Image Section */}
-                                    <div className="relative w-full h-52 md:h-64 overflow-hidden bg-slate-100">
-                                        <img
-                                            src={hospital.hospitalImage?.[0] ? `${BASE_URL}${hospital.hospitalImage[0]}` : "https://placehold.co/600x400?text=Hospital"}
-                                            alt={hospital.name}
-                                            className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-                                            onError={(e) => { e.target.src = "https://placehold.co/600x400?text=Hospital"; }}
-                                        />
+                        {displayHospitals.map((hospital, index) => {
+                            // Safe distance parsing
+                            const parsedDistance = parseFloat(hospital.distance);
+                            const safeDistance = isNaN(parsedDistance) ? 0 : parsedDistance;
+
+                            return (
+                                <div
+                                    key={`${hospital._id}-${index}`}
+                                    onClick={() => goToDetail(hospital._id)}
+                                    className="w-[300px] md:w-[420px] flex-shrink-0 group"
+                                >
+                                    <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.05)] hover:shadow-[0_40px_80px_-20px_rgba(8,179,106,0.15)] transition-all duration-500 flex flex-col overflow-hidden relative group">
                                         
-                                        {/* Badges */}
-                                        <div className="absolute top-5 left-5 right-5 flex justify-between items-start">
-                                            <div className="bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg border border-white/50">
-                                                <FaStar className="text-yellow-400 text-xs" />
-                                                <span className="text-[11px] font-black text-slate-800">{hospital.rating || "4.8"}</span>
-                                            </div>
-                                            <div className="bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg">
-                                                Partner
-                                            </div>
-                                        </div>
-
-                                        <div className="absolute bottom-5 left-5 flex items-center gap-2 bg-slate-900/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">
-                                            <FaMapMarkerAlt className="text-emerald-400 text-[10px]" />
-                                            <span className="text-white text-[10px] font-black uppercase tracking-wider">
-                                                {hospital.distance?.toFixed(1) || 0} KM Away
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Content Section */}
-                                    <div className="p-6 md:p-8 space-y-6">
-                                        <div>
-                                            <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tight group-hover:text-emerald-600 transition-colors truncate">
-                                                {hospital.name}
-                                            </h3>
-                                            <p className="text-slate-400 text-[11px] font-bold uppercase tracking-[0.1em] mt-1 line-clamp-1">
-                                                {hospital.address || `${hospital.city}, ${hospital.state}`}
-                                            </p>
-                                        </div>
-
-                                        {/* Stats */}
-                                        <div className="flex items-center justify-between border-y border-slate-50 py-5">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-                                                    <FaUserMd size={16} />
+                                        {/* Image Section */}
+                                        <div className="relative w-full h-52 md:h-64 overflow-hidden bg-slate-100">
+                                            <img
+                                                src={hospital.hospitalImage?.[0] ? `${BASE_URL}${hospital.hospitalImage[0]}` : "https://placehold.co/600x400?text=Hospital"}
+                                                alt={hospital.name || "Hospital"}
+                                                className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                                                onError={(e) => { e.target.src = "https://placehold.co/600x400?text=Hospital"; }}
+                                            />
+                                            
+                                            {/* Badges */}
+                                            <div className="absolute top-5 left-5 right-5 flex justify-between items-start">
+                                                <div className="bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg border border-white/50">
+                                                    <FaStar className="text-yellow-400 text-xs" />
+                                                    <span className="text-[11px] font-black text-slate-800">{hospital.rating || "4.8"}</span>
                                                 </div>
-                                                <div>
-                                                    <p className="text-xs font-black text-slate-800">{hospital.doctors || '30'}+</p>
-                                                    <p className="text-[8px] font-bold text-slate-400 uppercase">Specialists</p>
+                                                
+                                                <div className="flex items-center gap-1.5">
+                                                    {hospital.isInsuranceAccepted && (
+                                                        <div className="bg-emerald-500/90 backdrop-blur-md text-white px-2.5 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider shadow-lg flex items-center gap-1">
+                                                            <FaShieldAlt size={9} /> Cashless
+                                                        </div>
+                                                    )}
+                                                    <div className="bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg">
+                                                        Partner
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="w-px h-8 bg-slate-100"></div>
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500">
-                                                    <FaBed size={16} />
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-black text-slate-800">{hospital.beds || '100'}</p>
-                                                    <p className="text-[8px] font-bold text-slate-400 uppercase">Bed Units</p>
-                                                </div>
+
+                                            {/* Distance Badge */}
+                                            <div className="absolute bottom-5 left-5 flex items-center gap-2 bg-slate-900/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">
+                                                <FaMapMarkerAlt className="text-emerald-400 text-[10px]" />
+                                                <span className="text-white text-[10px] font-black uppercase tracking-wider">
+                                                    {safeDistance.toFixed(1)} KM Away
+                                                </span>
                                             </div>
                                         </div>
 
-                                        {/* Premium CTA Button */}
-                                        <button className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all duration-300 hover:bg-emerald-600 shadow-xl shadow-slate-200 active:scale-95">
-                                            View Details <FaArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
-                                        </button>
+                                        {/* Content Section */}
+                                        <div className="p-6 md:p-8 space-y-6">
+                                            <div>
+                                                <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tight group-hover:text-emerald-600 transition-colors truncate">
+                                                    {hospital.name}
+                                                </h3>
+                                                <p className="text-slate-400 text-[11px] font-bold uppercase tracking-[0.1em] mt-1 line-clamp-1">
+                                                    {hospital.address || `${hospital.city || ''}, ${hospital.state || ''}`}
+                                                </p>
+
+                                                {/* Accepted Insurances list preview */}
+                                                {hospital.isInsuranceAccepted && hospital.acceptedInsurances?.length > 0 && (
+                                                    <div className="flex flex-wrap items-center gap-1 mt-2">
+                                                        {hospital.acceptedInsurances.slice(0, 2).map((ins, i) => (
+                                                            <span key={i} className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                                                                {ins}
+                                                            </span>
+                                                        ))}
+                                                        {hospital.acceptedInsurances.length > 2 && (
+                                                            <span className="text-[9px] font-bold text-slate-400">
+                                                                +{hospital.acceptedInsurances.length - 2} more
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Stats */}
+                                            <div className="flex items-center justify-between border-y border-slate-50 py-5">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                                                        <FaUserMd size={16} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-black text-slate-800">{hospital.doctors || '30'}+</p>
+                                                        <p className="text-[8px] font-bold text-slate-400 uppercase">Specialists</p>
+                                                    </div>
+                                                </div>
+                                                <div className="w-px h-8 bg-slate-100"></div>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500">
+                                                        <FaBed size={16} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-black text-slate-800">{hospital.beds || '100'}</p>
+                                                        <p className="text-[8px] font-bold text-slate-400 uppercase">Bed Units</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Premium CTA Button */}
+                                            <button className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all duration-300 hover:bg-emerald-600 shadow-xl shadow-slate-200 active:scale-95">
+                                                View Details <FaArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             )}

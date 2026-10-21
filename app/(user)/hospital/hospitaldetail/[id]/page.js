@@ -7,7 +7,8 @@ import {
     FaUserMd, FaStar, FaPhoneAlt,
     FaRegEnvelope, FaStethoscope, FaChevronRight, FaCommentDots,
     FaCalendarCheck, FaClock, FaSearch, FaFilter,
-    FaClinicMedical, FaProcedures, FaNotesMedical, FaCheckCircle
+    FaClinicMedical, FaProcedures, FaNotesMedical, FaCheckCircle,
+    FaShieldAlt, FaTimesCircle, FaHandPointer, FaCheck
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
@@ -77,6 +78,8 @@ export default function HospitalDetailPage() {
                 address: `${data.hospital.address}, ${data.hospital.city}, ${data.hospital.state}`,
                 phone: data.hospital.phone,
                 email: data.hospital.email,
+                isInsuranceAccepted: !!data.hospital.isInsuranceAccepted,
+                acceptedInsurances: data.hospital.acceptedInsurances || []
             },
             doctor: {
                 _id: doctor._id,
@@ -84,7 +87,7 @@ export default function HospitalDetailPage() {
                 speciality: doctor.speciality,
                 qualification: doctor.qualification || "MBBS, MD",
                 experienceYears: doctor.experienceYears || 5,
-                consultationFee: doctor.consultationFee || 500,
+                consultationFee: doctor.opdFee || doctor.consultationFee || 500,
                 profileImage: getImageUrl(doctor.profileImage),
                 averageRating: doctor.averageRating || "5.0",
                 about: doctor.about,
@@ -135,7 +138,7 @@ export default function HospitalDetailPage() {
         </div>
     );
 
-    const { hospital, wards, doctors, services, recentReviews } = data;
+    const { hospital, wards = [], doctors = [], specialServices = [], services = specialServices, recentReviews = [] } = data;
 
     return (
         <div className="min-h-screen bg-slate-50/50 text-slate-900 pb-32 font-sans">
@@ -150,9 +153,20 @@ export default function HospitalDetailPage() {
                         <FaArrowLeft className="group-hover:-translate-x-1 transition-transform" />
                         <span>Back to Search</span>
                     </button>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
+                        {/* Insurance Status Badge in Top Bar */}
+                        {hospital.isInsuranceAccepted ? (
+                            <span className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[11px] font-bold tracking-wide border border-emerald-200">
+                                <FaShieldAlt className="text-emerald-500 text-xs" /> Insurance Accepted
+                            </span>
+                        ) : (
+                            <span className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[11px] font-bold tracking-wide border border-slate-200">
+                                <FaTimesCircle className="text-slate-400 text-xs" /> No Insurance
+                            </span>
+                        )}
+
                         <span className="px-4 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-[11px] font-bold uppercase tracking-widest border border-emerald-100">
-                            {hospital.profileStatus || "Verified Facility"}
+                            {hospital.profileStatus || hospital.type || "Verified Facility"}
                         </span>
                     </div>
                 </div>
@@ -164,8 +178,21 @@ export default function HospitalDetailPage() {
                 <div className="bg-white rounded-[3rem] p-8 md:p-12 shadow-sm border border-slate-100 mb-8 overflow-hidden relative">
                     <div className="grid lg:grid-cols-2 gap-12 items-center relative z-10">
                         <div>
-                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-bold uppercase tracking-wider mb-6">
-                                <FaHospital className="text-sm" /> Institutional Profile
+                            <div className="flex flex-wrap items-center gap-2 mb-4">
+                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-bold uppercase tracking-wider">
+                                    <FaHospital className="text-sm" /> Institutional Profile
+                                </div>
+
+                                {/* Insurance Tag Badge */}
+                                {hospital.isInsuranceAccepted ? (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-teal-50 text-teal-700 rounded-lg text-xs font-bold uppercase tracking-wider border border-teal-200/60">
+                                        <FaShieldAlt className="text-teal-600" /> Cashless / Insurance Accepted
+                                    </div>
+                                ) : (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold uppercase tracking-wider border border-slate-200">
+                                        <FaTimesCircle className="text-slate-400" /> Self-Pay Only
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex flex-wrap items-center gap-3 mb-6">
@@ -182,18 +209,22 @@ export default function HospitalDetailPage() {
                                 )}
                             </div>
 
-                            <div className="space-y-4 mb-8">
+                            <div className="space-y-4 mb-6">
                                 <div className="flex items-start gap-3 text-slate-600">
                                     <FaMapMarkerAlt className="text-emerald-500 mt-1 shrink-0" />
                                     <p className="font-medium text-lg leading-relaxed">{hospital.address}, {hospital.city}, {hospital.state}</p>
                                 </div>
                                 <div className="flex flex-wrap gap-3">
-                                    <a href={`tel:${hospital.phone}`} className="flex items-center gap-2 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-600 transition-colors px-5 py-3 rounded-2xl border border-slate-100 text-sm font-bold">
-                                        <FaPhoneAlt className="text-xs" /> {hospital.phone}
-                                    </a>
-                                    <a href={`mailto:${hospital.email}`} className="flex items-center gap-2 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-600 transition-colors px-5 py-3 rounded-2xl border border-slate-100 text-sm font-bold">
-                                        <FaRegEnvelope className="text-xs" /> {hospital.email}
-                                    </a>
+                                    {hospital.phone && (
+                                        <a href={`tel:${hospital.phone}`} className="flex items-center gap-2 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-600 transition-colors px-5 py-3 rounded-2xl border border-slate-100 text-sm font-bold">
+                                            <FaPhoneAlt className="text-xs" /> {hospital.phone}
+                                        </a>
+                                    )}
+                                    {hospital.email && (
+                                        <a href={`mailto:${hospital.email}`} className="flex items-center gap-2 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-600 transition-colors px-5 py-3 rounded-2xl border border-slate-100 text-sm font-bold">
+                                            <FaRegEnvelope className="text-xs" /> {hospital.email}
+                                        </a>
+                                    )}
                                     {hospital.location && (
                                         <a
                                             href={`https://www.google.com/maps/search/?api=1&query=${hospital.location.lat},${hospital.location.lng}`}
@@ -206,6 +237,28 @@ export default function HospitalDetailPage() {
                                     )}
                                 </div>
                             </div>
+
+                            {/* ACCEPTED INSURANCES LIST */}
+                            {hospital.isInsuranceAccepted && hospital.acceptedInsurances?.length > 0 && (
+                                <div className="pt-4 border-t border-slate-100">
+                                    <div className="flex items-center gap-2 mb-2.5">
+                                        <FaShieldAlt className="text-teal-600 text-xs" />
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                                            Accepted Insurance Panels & TPAs
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {hospital.acceptedInsurances.map((ins, idx) => (
+                                            <span
+                                                key={idx}
+                                                className="px-3 py-1 bg-slate-50 hover:bg-teal-50 hover:border-teal-200 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition-colors"
+                                            >
+                                                {ins}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="relative group">
@@ -221,11 +274,26 @@ export default function HospitalDetailPage() {
                     </div>
                 </div>
 
-                {/* TAB SWITCHER: OPD vs IPD */}
+                {/* ======================================================== */}
+                {/* 🎯 PROMPT BANNER: CHOOSE SERVICE TYPE (OPD vs IPD)       */}
+                {/* ======================================================== */}
+                <div className="max-w-2xl mx-auto mb-6 text-center space-y-10">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest border border-emerald-200/80">
+                        <FaHandPointer className="text-emerald-500" /> Select Care Type
+                    </span>
+                    <h2 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tight">
+                        Which Service Are You Looking For?
+                    </h2>
+                    <p className="text-xs text-slate-500 font-medium">
+                        Choose <strong className="text-slate-800">OPD</strong> for doctor consultations or <strong className="text-slate-800">IPD</strong> for hospital admissions and ward bed bookings.
+                    </p>
+                </div>
+
+                {/* TAB SWITCHER: OPD vs IPD (High-Polish Interactive Selector) */}
                 <div className="bg-white p-2 rounded-2xl border border-slate-200/80 shadow-xs mb-10 max-w-xl mx-auto flex items-center gap-2">
                     <button
                         onClick={() => setActiveTab("opd")}
-                        className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-xl font-black text-sm tracking-wide transition-all ${
+                        className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-xl font-black text-sm tracking-wide transition-all cursor-pointer ${
                             activeTab === "opd"
                                 ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
                                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
@@ -242,7 +310,7 @@ export default function HospitalDetailPage() {
 
                     <button
                         onClick={() => setActiveTab("ipd")}
-                        className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-xl font-black text-sm tracking-wide transition-all ${
+                        className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-xl font-black text-sm tracking-wide transition-all cursor-pointer ${
                             activeTab === "ipd"
                                 ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
                                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
@@ -317,7 +385,7 @@ export default function HospitalDetailPage() {
                                     <button
                                         key={spec}
                                         onClick={() => setSelectedSpecialty(spec)}
-                                        className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                                        className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                                             selectedSpecialty.toLowerCase() === spec.toLowerCase()
                                                 ? "bg-slate-900 text-white shadow-sm"
                                                 : "bg-white border border-slate-200 text-slate-600 hover:border-emerald-400 hover:text-emerald-700"
@@ -368,7 +436,9 @@ export default function HospitalDetailPage() {
                                                         )}
                                                     </div>
 
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">{doc.qualification}</p>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">
+                                                        {doc.qualification} {doc.roomNumber ? `• ${doc.roomNumber}` : ""}
+                                                    </p>
                                                     <p className="text-slate-500 text-xs font-semibold mt-2 line-clamp-2 leading-relaxed">
                                                         {doc.about || "Senior OPD consultant dedicated to dynamic therapeutic care and comprehensive diagnostics."}
                                                     </p>
@@ -398,7 +468,7 @@ export default function HospitalDetailPage() {
                                             <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between gap-4">
                                                 <div>
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">OPD Token Fee</span>
-                                                    <span className="text-lg font-black text-slate-900">₹{doc.consultationFee || 500}</span>
+                                                    <span className="text-lg font-black text-slate-900">₹{doc.opdFee || doc.consultationFee || 500}</span>
                                                 </div>
 
                                                 {/* TRIGGER FOR OPD FLOW */}
@@ -416,52 +486,54 @@ export default function HospitalDetailPage() {
                         </section>
 
                         {/* OPD SERVICES / DIAGNOSTIC TESTS */}
-                        <section>
-                            <div className="flex items-center justify-between mb-8">
-                                <div>
-                                    <h3 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">OPD Diagnostic & Clinical Services</h3>
-                                    <p className="text-slate-500 text-sm font-medium">Outpatient lab tests, minor procedures, and diagnostic scans.</p>
-                                </div>
-                            </div>
-
-                            <div className="grid md:grid-cols-2 gap-6">
-                                {services.map((service) => (
-                                    <div
-                                        key={service._id}
-                                        className="group relative bg-white p-4 rounded-[2rem] border border-slate-100 flex items-center gap-6 hover:shadow-[0_20px_50px_rgba(16,185,129,0.1)] transition-all duration-500 hover:-translate-y-1"
-                                    >
-                                        <div className="relative w-28 h-28 rounded-[1.5rem] overflow-hidden shrink-0 shadow-inner bg-slate-50">
-                                            <img
-                                                src={getImageUrl(service.image)}
-                                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                                alt={service.serviceName}
-                                            />
-                                        </div>
-
-                                        <div className="flex-1 py-1">
-                                            <div className="flex justify-between items-start gap-2 mb-1">
-                                                <h4 className="font-black text-slate-800 group-hover:text-emerald-600 transition-colors text-sm uppercase tracking-wide">
-                                                    {service.serviceName}
-                                                </h4>
-                                                <div className="bg-emerald-50 px-2.5 py-1 rounded-full shrink-0">
-                                                    <span className="text-emerald-700 font-black text-xs">₹{service.price}</span>
-                                                </div>
-                                            </div>
-
-                                            <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-3 font-medium">
-                                                {service.description}
-                                            </p>
-
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-1.5 text-emerald-600 text-[10px] font-bold uppercase tracking-wider">
-                                                    <FaCheckCircle className="text-xs" /> Same-day OPD Delivery
-                                                </div>
-                                            </div>
-                                        </div>
+                        {services.length > 0 && (
+                            <section>
+                                <div className="flex items-center justify-between mb-8">
+                                    <div>
+                                        <h3 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">OPD Diagnostic & Clinical Services</h3>
+                                        <p className="text-slate-500 text-sm font-medium">Outpatient lab tests, minor procedures, and diagnostic scans.</p>
                                     </div>
-                                ))}
-                            </div>
-                        </section>
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-6">
+                                    {services.map((service) => (
+                                        <div
+                                            key={service._id}
+                                            className="group relative bg-white p-4 rounded-[2rem] border border-slate-100 flex items-center gap-6 hover:shadow-[0_20px_50px_rgba(16,185,129,0.1)] transition-all duration-500 hover:-translate-y-1"
+                                        >
+                                            <div className="relative w-28 h-28 rounded-[1.5rem] overflow-hidden shrink-0 shadow-inner bg-slate-50">
+                                                <img
+                                                    src={getImageUrl(service.image)}
+                                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                                    alt={service.serviceName || service.name}
+                                                />
+                                            </div>
+
+                                            <div className="flex-1 py-1">
+                                                <div className="flex justify-between items-start gap-2 mb-1">
+                                                    <h4 className="font-black text-slate-800 group-hover:text-emerald-600 transition-colors text-sm uppercase tracking-wide">
+                                                        {service.serviceName || service.name}
+                                                    </h4>
+                                                    <div className="bg-emerald-50 px-2.5 py-1 rounded-full shrink-0">
+                                                        <span className="text-emerald-700 font-black text-xs">₹{service.price}</span>
+                                                    </div>
+                                                </div>
+
+                                                <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-3 font-medium">
+                                                    {service.description}
+                                                </p>
+
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-1.5 text-emerald-600 text-[10px] font-bold uppercase tracking-wider">
+                                                        <FaCheckCircle className="text-xs" /> Same-day OPD Delivery
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
 
                         {/* OPD GUIDELINES & TOKEN INFO */}
                         <section className="bg-white rounded-[2.5rem] border border-slate-200 p-8 md:p-10">
@@ -494,7 +566,7 @@ export default function HospitalDetailPage() {
                         {/* INPATIENT CAPACITY DASHBOARD */}
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                             {[
-                                { label: "Total Beds Available", val: wards.reduce((a, b) => a + b.availableBeds, 0), icon: <FaBed />, color: "text-blue-600", bg: "bg-blue-50" },
+                                { label: "Total Beds Available", val: wards.reduce((a, b) => a + (b.availableBeds || 0), 0), icon: <FaBed />, color: "text-blue-600", bg: "bg-blue-50" },
                                 { label: "Wards In Action", val: wards.length, icon: <FaHospital />, color: "text-purple-600", bg: "bg-purple-50" },
                                 { label: "IPD Specialists", val: doctors.length, icon: <FaUserMd />, color: "text-emerald-600", bg: "bg-emerald-50" },
                                 { label: "Inpatient Facilities", val: services.length, icon: <FaStethoscope />, color: "text-orange-600", bg: "bg-orange-50" }
@@ -619,7 +691,7 @@ export default function HospitalDetailPage() {
                             <div className="flex justify-center mt-10">
                                 <button
                                     onClick={() => router.push(`/userscreens/userallreviews?targetType=Hospital&targetId=${id}`)}
-                                    className="group flex items-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-emerald-200 text-slate-700 hover:text-emerald-600 font-bold text-xs uppercase tracking-wider rounded-2xl shadow-xs transition-all active:scale-95"
+                                    className="group flex items-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-emerald-200 text-slate-700 hover:text-emerald-600 font-bold text-xs uppercase tracking-wider rounded-2xl shadow-xs transition-all active:scale-95 cursor-pointer"
                                 >
                                     <FaCommentDots className="text-slate-400 group-hover:text-emerald-500 transition-colors" />
                                     <span>View All Reviews ({hospital.totalReviews})</span>

@@ -17,8 +17,8 @@ function ViewMembers() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingId, setEditingId] = useState(null);
 
-    const [selectedFile, setSelectedFile] = useState(null); // Stores the binary File object
-    const [previewUrl, setPreviewUrl] = useState(""); // Stores the string for UI preview
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [previewUrl, setPreviewUrl] = useState("");
 
     const initialFormState = {
         memberName: "",
@@ -45,11 +45,16 @@ function ViewMembers() {
                 UserAPI.getFamilyMembers(),
                 UserAPI.getUserHealthInsuranses()
             ]);
-            setMembers(memberRes.data || memberRes || []);
-            setInsurancesList(insuranceRes.data || insuranceRes || []);
+
+            // Format member and insurance list responses
+            const membersData = Array.isArray(memberRes) ? memberRes : (memberRes?.data || []);
+            const insurancesData = Array.isArray(insuranceRes) ? insuranceRes : (insuranceRes?.data || []);
+
+            setMembers(membersData);
+            setInsurancesList(insurancesData);
         } catch (error) {
-            console.error("Error fetching data:", error);
-            toast.error("Failed to load data");
+            console.error("Error fetching family/insurance data:", error);
+            toast.error("Failed to load family data");
         } finally {
             setLoading(false);
         }
@@ -62,8 +67,8 @@ function ViewMembers() {
     const handleImageChange = (e) => {
         const file = e.target.files[0];
         if (file) {
-            setSelectedFile(file); // This is the FILE object for the backend
-            setPreviewUrl(URL.createObjectURL(file)); // This is a temporary string for the IMG tag
+            setSelectedFile(file);
+            setPreviewUrl(URL.createObjectURL(file));
         }
     };
 
@@ -71,6 +76,12 @@ function ViewMembers() {
         if (member) {
             setEditingId(member._id);
             const formattedDob = member.dob ? member.dob.split("T")[0] : "";
+            
+            // Handle if insuranceId is populated object or string ID
+            const insuranceRefId = typeof member.insuranceId === "object" && member.insuranceId !== null
+                ? member.insuranceId._id
+                : member.insuranceId || "";
+
             setFormData({
                 memberName: member.memberName || "",
                 relation: member.relation || "Spouse",
@@ -80,12 +91,12 @@ function ViewMembers() {
                 gender: member.gender || "Male",
                 height: member.height || "",
                 weight: member.weight || "",
-                hasInsurance: member.hasInsurance || false,
+                hasInsurance: Boolean(member.hasInsurance),
                 insuranceNo: member.insuranceNo || "",
-                insuranceId: member.insuranceId?._id || member.insuranceId || ""
+                insuranceId: insuranceRefId
             });
-            setPreviewUrl(member.profilePic || ""); // Existing image path from server
-            setSelectedFile(null); // No new file selected yet
+            setPreviewUrl(member.profilePic || "");
+            setSelectedFile(null);
         } else {
             setEditingId(null);
             setFormData(initialFormState);
@@ -105,13 +116,17 @@ function ViewMembers() {
             data.append('relation', formData.relation);
             if (formData.dob) data.append('dob', formData.dob.split("T")[0]);
             if (formData.bloodGroup) data.append('bloodGroup', formData.bloodGroup);
-            data.append('phone', formData.phone);
+            if (formData.phone) data.append('phone', formData.phone);
             data.append('gender', formData.gender);
             if (formData.height) data.append('height', formData.height);
             if (formData.weight) data.append('weight', formData.weight);
-            if (formData.insuranceNo) data.append('insuranceNo', formData.insuranceNo);
-            if (formData.insuranceId) data.append('insuranceId', formData.insuranceId);
+
+            // Insurance handling
             data.append('hasInsurance', String(formData.hasInsurance));
+            if (formData.hasInsurance) {
+                if (formData.insuranceNo) data.append('insuranceNo', formData.insuranceNo);
+                if (formData.insuranceId) data.append('insuranceId', formData.insuranceId);
+            }
 
             if (selectedFile instanceof File) {
                 data.append('profilePic', selectedFile);
@@ -144,6 +159,7 @@ function ViewMembers() {
             toast.success("Member removed");
         } catch (error) {
             console.error("Delete error:", error);
+            toast.error("Failed to delete member");
         }
     };
 
@@ -169,58 +185,73 @@ function ViewMembers() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {members.map((member) => (
-                    <div key={member._id} className="bg-white border border-gray-300 rounded-[24px] p-5 relative group hover:border-[#08b36a] transition-all hover:shadow-lg">
-                        <div className="absolute top-4 right-4 flex gap-1">
-                            <button onClick={() => openModal(member)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><FaEdit size={14} /></button>
-                            <button onClick={() => handleDelete(member._id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><FaTrashAlt size={14} /></button>
-                        </div>
+                {members.map((member) => {
+                    // Resolve active insurance detail for display badge
+                    const matchedInsurance = insurancesList.find(
+                        ins => ins._id === (member.insuranceId?._id || member.insuranceId)
+                    );
 
-                        <div className="flex items-center gap-4 mb-4 text-left">
-                            <div className="w-14 h-14 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
-                                {member.profilePic ? (
-                                    <img
-                                        src={member.profilePic.startsWith('blob') || member.profilePic.startsWith('http') || member.profilePic.startsWith('data:') ? member.profilePic : `${process.env.NEXT_PUBLIC_BACKEND_URL}${member.profilePic}`}
-                                        className="w-full h-full object-cover"
-                                        alt=""
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-300"><FaUser size={24} /></div>
-                                )}
+                    return (
+                        <div key={member._id} className="bg-white border border-gray-300 rounded-[24px] p-5 relative group hover:border-[#08b36a] transition-all hover:shadow-lg">
+                            <div className="absolute top-4 right-4 flex gap-1">
+                                <button onClick={() => openModal(member)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><FaEdit size={14} /></button>
+                                <button onClick={() => handleDelete(member._id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><FaTrashAlt size={14} /></button>
                             </div>
-                            <div>
-                                <h3 className="font-bold text-gray-900 text-base line-clamp-1">{member.memberName}</h3>
-                                <div className="flex items-center gap-2 flex-wrap mt-1">
-                                    <span className="text-[10px] font-black uppercase text-[#08b36a] bg-green-50 px-2 py-0.5 border border-green-100 rounded">{member.relation}</span>
-                                    {member.bloodGroup && (
-                                        <span className="text-[10px] font-black uppercase text-red-600 bg-red-50 px-2 py-0.5 border border-red-100 rounded flex items-center gap-1">
-                                            <FaTint size={8} /> {member.bloodGroup}
-                                        </span>
+
+                            <div className="flex items-center gap-4 mb-4 text-left">
+                                <div className="w-14 h-14 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
+                                    {member.profilePic ? (
+                                        <img
+                                            src={member.profilePic.startsWith('blob') || member.profilePic.startsWith('http') || member.profilePic.startsWith('data:') ? member.profilePic : `${process.env.NEXT_PUBLIC_BACKEND_URL}${member.profilePic}`}
+                                            className="w-full h-full object-cover"
+                                            alt=""
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-gray-300"><FaUser size={24} /></div>
                                     )}
-                                    {member.hasInsurance && <FaShieldAlt className="text-blue-500" size={12} />}
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-900 text-base line-clamp-1">{member.memberName}</h3>
+                                    <div className="flex items-center gap-2 flex-wrap mt-1">
+                                        <span className="text-[10px] font-black uppercase text-[#08b36a] bg-green-50 px-2 py-0.5 border border-green-100 rounded">{member.relation}</span>
+                                        {member.bloodGroup && (
+                                            <span className="text-[10px] font-black uppercase text-red-600 bg-red-50 px-2 py-0.5 border border-red-100 rounded flex items-center gap-1">
+                                                <FaTint size={8} /> {member.bloodGroup}
+                                            </span>
+                                        )}
+                                        {member.hasInsurance && (
+                                            <span 
+                                                className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 flex items-center gap-1"
+                                                title={matchedInsurance ? `${matchedInsurance.insuranceName} (${matchedInsurance.provider})` : "Insured"}
+                                            >
+                                                <FaShieldAlt size={10} /> Insured
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="grid grid-cols-2 gap-2 mb-4">
-                            <div className="bg-gray-50 border border-gray-100 p-2 rounded-xl text-left">
-                                <p className="text-[9px] text-gray-400 font-bold uppercase">DOB</p>
-                                <p className="text-xs font-bold text-gray-700">{member.dob ? member.dob.split("T")[0] : "N/A"}</p>
+                            <div className="grid grid-cols-2 gap-2 mb-4">
+                                <div className="bg-gray-50 border border-gray-100 p-2 rounded-xl text-left">
+                                    <p className="text-[9px] text-gray-400 font-bold uppercase">DOB</p>
+                                    <p className="text-xs font-bold text-gray-700">{member.dob ? member.dob.split("T")[0] : "N/A"}</p>
+                                </div>
+                                <div className="bg-gray-50 border border-gray-100 p-2 rounded-xl text-left">
+                                    <p className="text-[9px] text-gray-400 font-bold uppercase">Gender</p>
+                                    <p className="text-xs font-bold text-gray-700">{member.gender}</p>
+                                </div>
                             </div>
-                            <div className="bg-gray-50 border border-gray-100 p-2 rounded-xl text-left">
-                                <p className="text-[9px] text-gray-400 font-bold uppercase">Gender</p>
-                                <p className="text-xs font-bold text-gray-700">{member.gender}</p>
-                            </div>
-                        </div>
 
-                        <div className="flex items-center gap-2 text-gray-600 text-xs pt-3 border-t border-gray-200 text-left">
-                            <FaPhone className="text-[#08b36a]" />
-                            <span className="font-bold">{member.phone || "No phone added"}</span>
+                            <div className="flex items-center gap-2 text-gray-600 text-xs pt-3 border-t border-gray-200 text-left">
+                                <FaPhone className="text-[#08b36a]" />
+                                <span className="font-bold">{member.phone || "No phone added"}</span>
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
+            {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-md rounded-[32px] border shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
@@ -230,6 +261,7 @@ function ViewMembers() {
                         </div>
 
                         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+                            {/* Photo Picker */}
                             <div className="flex flex-col items-center mb-2">
                                 <div className="relative group cursor-pointer" onClick={() => fileInputRef.current.click()}>
                                     <div className="w-20 h-20 rounded-3xl bg-white border border-gray-300 overflow-hidden flex items-center justify-center group-hover:border-[#08b36a] transition-all">
@@ -301,6 +333,7 @@ function ViewMembers() {
                                 <InputField label="Weight" icon={<FaWeight size={12} />} placeholder="70 kg" value={formData.weight} onChange={(val) => setFormData({ ...formData, weight: val })} />
                             </div>
 
+                            {/* Insurance Checkbox */}
                             <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100 text-left">
                                 <input
                                     type="checkbox"
@@ -314,27 +347,38 @@ function ViewMembers() {
                                 </label>
                             </div>
 
+                            {/* Insurance Fields */}
                             {formData.hasInsurance && (
                                 <div className="space-y-4 p-4 border-2 border-dashed border-blue-100 rounded-2xl bg-gray-50/50">
-                                    <InputField label="Insurance Number" icon={<FaIdCard size={12} />} placeholder="Insurance No." value={formData.insuranceNo} onChange={(val) => setFormData({ ...formData, insuranceNo: val })} />
+                                    <InputField 
+                                        label="Insurance Policy Number" 
+                                        icon={<FaIdCard size={12} />} 
+                                        placeholder="e.g. POL-984021" 
+                                        value={formData.insuranceNo} 
+                                        onChange={(val) => setFormData({ ...formData, insuranceNo: val })} 
+                                        required={formData.hasInsurance}
+                                    />
 
                                     <div className="space-y-1 text-left">
-                                        <label className="text-[10px] font-bold text-gray-500 uppercase px-1">Insurance Provider</label>
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase px-1">Active Policy / Company</label>
                                         <select
                                             required={formData.hasInsurance}
                                             className="w-full p-3 border border-gray-300 rounded-xl text-sm font-semibold outline-none focus:border-[#08b36a]"
                                             value={formData.insuranceId}
                                             onChange={(e) => setFormData({ ...formData, insuranceId: e.target.value })}
                                         >
-                                            <option value="">Select Provider</option>
+                                            <option value="">-- Select Active Policy --</option>
                                             {insurancesList.map(ins => (
-                                                <option key={ins._id} value={ins._id}>{ins.insuranceName} ({ins.provider})</option>
+                                                <option key={ins._id} value={ins._id}>
+                                                    {ins.provider} - {ins.insuranceName} ({ins.type})
+                                                </option>
                                             ))}
                                         </select>
                                     </div>
                                 </div>
                             )}
 
+                            {/* Gender Picker */}
                             <div className="space-y-1 text-left">
                                 <label className="text-[10px] font-bold text-gray-500 uppercase px-1">Gender</label>
                                 <div className="flex p-1 bg-gray-100 border border-gray-300 rounded-xl">

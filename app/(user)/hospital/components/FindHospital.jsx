@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import React, { useState, useMemo, useEffect } from "react";
 import {
-    FaStar, FaMapMarkerAlt, FaHospital, FaArrowRight, FaBed, FaUserMd, FaLocationArrow
+    FaStar, FaMapMarkerAlt, FaHospital, FaArrowRight, FaBed, FaUserMd, FaLocationArrow, FaShieldAlt
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
@@ -21,21 +21,26 @@ function FindHospital() {
         const fetchHospitals = async () => {
             try {
                 setLoading(true);
-                const storedCoords = localStorage.getItem("userCoords");
-                let payload = { lat: 0, lng: 0 };
+                const storedCoords = typeof window !== "undefined" ? localStorage.getItem("userCoords") : null;
+                let payload = { lat: 0, lng: 0, userLat: 0, userLng: 0 };
 
                 if (storedCoords) {
                     try { 
                         const parsed = JSON.parse(storedCoords);
-                        payload = { lat: parsed.lat, lng: parsed.lng };
+                        payload = { 
+                            lat: parsed.lat || 0, 
+                            lng: parsed.lng || 0,
+                            userLat: parsed.lat || 0,
+                            userLng: parsed.lng || 0
+                        };
                     } catch (e) {
                         console.error("Coordinate parse error", e);
                     }
                 }
 
                 const response = await UserAPI.getHospitalsList(payload);
-                if (response.success) {
-                    setHospitals(response.data);
+                if (response?.success) {
+                    setHospitals(response.data || []);
                 }
             } catch (error) {
                 console.error("Failed to fetch hospitals:", error);
@@ -57,22 +62,32 @@ function FindHospital() {
 
     // --- PROCESS & FILTER DATA ---
     const processedHospitals = useMemo(() => {
+        if (!Array.isArray(hospitals)) return [];
+
         return hospitals
             .filter((hosp) =>
-                hosp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (hosp.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (hosp.address || "").toLowerCase().includes(searchTerm.toLowerCase())
             )
-            .map((hosp) => ({
-                ...hosp,
-                displayImage: hosp.hospitalImage && hosp.hospitalImage.length > 0 
-                    ? `${BASE_URL}${hosp.hospitalImage[0]}` 
-                    : `${BASE_URL}/uploads/hospitals/default.png`,
-                displayAddress: hosp.address || `${hosp.city || ''}, ${hosp.state || ''}`,
-                rating: hosp.rating || 4.8,
-                doctorsCount: hosp.doctors || 15,
-                bedsCount: hosp.beds || 50,
-                dist: hosp.distance || 0
-            }));
+            .map((hosp) => {
+                // Ensure dist is safely parsed to a float number
+                const parsedDist = parseFloat(hosp.distance);
+                const safeDist = isNaN(parsedDist) ? 0 : parsedDist;
+
+                return {
+                    ...hosp,
+                    displayImage: hosp.hospitalImage && hosp.hospitalImage.length > 0 
+                        ? `${BASE_URL}${hosp.hospitalImage[0]}` 
+                        : `${BASE_URL}/uploads/hospitals/default.png`,
+                    displayAddress: hosp.address || `${hosp.city || ''}${hosp.state ? `, ${hosp.state}` : ''}`,
+                    rating: hosp.rating || 4.8,
+                    doctorsCount: hosp.doctors || 15,
+                    bedsCount: hosp.beds || 50,
+                    dist: safeDist,
+                    isInsuranceAccepted: Boolean(hosp.isInsuranceAccepted),
+                    acceptedInsurances: Array.isArray(hosp.acceptedInsurances) ? hosp.acceptedInsurances : []
+                };
+            });
     }, [hospitals, searchTerm]);
 
     // ONLY SHOW TOP 6
@@ -112,7 +127,7 @@ function FindHospital() {
                                     <img
                                         src={hospital.displayImage}
                                         className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                        alt={hospital.name}
+                                        alt={hospital.name || "Hospital"}
                                         onError={(e) => { e.target.src = "https://placehold.co/600x400?text=Hospital"; }}
                                     />
                                     
@@ -120,14 +135,22 @@ function FindHospital() {
                                         <div className="bg-[#08B36A] text-white px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl flex items-center gap-1.5 shadow-lg">
                                             <FaLocationArrow className="text-[7px] sm:text-[9px]" />
                                             <span className="text-[8px] sm:text-[10px] font-black tracking-tighter">
-                                                {hospital.dist.toFixed(1)} km
+                                                {Number(hospital.dist || 0).toFixed(1)} km
                                             </span>
                                         </div>
                                     </div>
 
-                                    <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-white/90 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 shadow-sm">
-                                        <FaStar className="text-yellow-400 text-[8px] sm:text-xs" />
-                                        <span className="text-[9px] sm:text-xs font-black text-slate-900">{hospital.rating}</span>
+                                    <div className="absolute top-2 left-2 sm:top-4 sm:left-4 flex items-center gap-1.5">
+                                        <div className="bg-white/90 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 shadow-sm">
+                                            <FaStar className="text-yellow-400 text-[8px] sm:text-xs" />
+                                            <span className="text-[9px] sm:text-xs font-black text-slate-900">{hospital.rating}</span>
+                                        </div>
+
+                                        {hospital.isInsuranceAccepted && (
+                                            <div className="bg-emerald-600/90 backdrop-blur-md text-white text-[8px] sm:text-[10px] font-black px-2 py-1 rounded-lg shadow-sm flex items-center gap-1 uppercase tracking-wider">
+                                                <FaShieldAlt size={8} /> Cashless
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -136,9 +159,25 @@ function FindHospital() {
                                     <h3 className="text-sm sm:text-lg md:text-xl font-black text-slate-800 line-clamp-1 group-hover:text-[#08B36A] transition-colors uppercase tracking-tight">
                                         {hospital.name}
                                     </h3>
-                                    <p className="text-[8px] sm:text-xs font-semibold text-slate-400 line-clamp-1 mb-4">
+                                    <p className="text-[8px] sm:text-xs font-semibold text-slate-400 line-clamp-1 mb-2">
                                         {hospital.displayAddress}
                                     </p>
+
+                                    {/* Insurances Chip Preview */}
+                                    {hospital.isInsuranceAccepted && hospital.acceptedInsurances?.length > 0 && (
+                                        <div className="flex flex-wrap items-center gap-1 mb-3">
+                                            {hospital.acceptedInsurances.slice(0, 2).map((ins, idx) => (
+                                                <span key={idx} className="text-[8px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                                                    {ins}
+                                                </span>
+                                            ))}
+                                            {hospital.acceptedInsurances.length > 2 && (
+                                                <span className="text-[8px] font-bold text-slate-400">
+                                                    +{hospital.acceptedInsurances.length - 2}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {/* Stats Grid */}
                                     <div className="grid grid-cols-2 gap-2 md:gap-3 mb-5">

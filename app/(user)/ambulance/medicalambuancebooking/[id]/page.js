@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import {
   MapPin, ChevronDown, Camera, ShieldAlert, MessageSquare,
   Info, ChevronLeft, Navigation, Clock, User, CheckCircle2,
-  Stethoscope, Activity, AlertCircle, Map, Phone, Mail, Truck, Ticket, KeyRound, Calendar, CreditCard
+  Stethoscope, Activity, AlertCircle, Map, Phone, Mail, Truck, Ticket, KeyRound, Calendar, CreditCard, ShieldCheck
 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import UserAPI from "@/app/services/UserAPI";
@@ -96,18 +96,26 @@ export default function AmbulanceBookingPage() {
           })
           .catch(() => {});
 
-        // Fetch Hospitals, Family Members, Full Ambulance Details & Coupons
+        // Fetch Hospitals with compatible coordinates payload, Family Members, Full Ambulance Details & Coupons
+        const hospitalPayload = {
+          userLat: userCoords.lat,
+          userLng: userCoords.lng,
+          lat: userCoords.lat,
+          lng: userCoords.lng
+        };
+
         const [hospitalRes, familyRes, ambDetailRes, couponsRes] = await Promise.allSettled([
-          UserAPI.getNearbyHospitals ? UserAPI.getNearbyHospitals(userCoords) : UserAPI.getHospitalsList(userCoords),
+          UserAPI.getNearbyHospitals ? UserAPI.getNearbyHospitals(hospitalPayload) : UserAPI.getHospitalsList(hospitalPayload),
           UserAPI.getFamilyMembers(),
           UserAPI.getAmbulanceDetail ? UserAPI.getAmbulanceDetail(id) : Promise.resolve({ success: false }),
           UserAPI.getAmbulanceCoupons ? UserAPI.getAmbulanceCoupons(id) : Promise.resolve({ success: false })
         ]);
 
         if (hospitalRes.status === "fulfilled" && hospitalRes.value?.success) {
-          setHospitals(hospitalRes.value.data || []);
-          if (hospitalRes.value.data?.length > 0) {
-            setFormData(prev => ({ ...prev, hospital: hospitalRes.value.data[0]._id }));
+          const fetchedHospitals = hospitalRes.value.data || [];
+          setHospitals(fetchedHospitals);
+          if (fetchedHospitals.length > 0) {
+            setFormData(prev => ({ ...prev, hospital: fetchedHospitals[0]._id }));
           }
         }
 
@@ -677,7 +685,7 @@ export default function AmbulanceBookingPage() {
               </div>
             </div>
 
-            {/* Destination Hospital Selection */}
+            {/* Destination Hospital Selection (Reflecting Distance & Insurance Acceptance) */}
             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
               <h3 className="text-lg font-black mb-6">Choose Destination Hospital</h3>
               <div className="relative">
@@ -688,14 +696,40 @@ export default function AmbulanceBookingPage() {
                   onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
                 >
                   <option value="">Select Nearest Hospital/Clinic</option>
-                  {hospitals.map((hospital) => (
-                    <option key={hospital._id} value={hospital._id}>
-                      {hospital.name} {hospital.distance ? `(${hospital.distance} away)` : ''}
-                    </option>
-                  ))}
+                  {hospitals.map((hospital) => {
+                    const distDisplay = hospital.distance ? ` (${hospital.distance})` : '';
+                    const insuranceBadge = hospital.isInsuranceAccepted ? ' 🛡️ [Cashless/TPA]' : '';
+                    return (
+                      <option key={hospital._id} value={hospital._id}>
+                        {hospital.name} - {hospital.city || hospital.address}{distDisplay}{insuranceBadge}
+                      </option>
+                    );
+                  })}
                 </select>
                 <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               </div>
+
+              {/* Selected Hospital Insurance Indicator */}
+              {(() => {
+                const selectedHospitalObj = hospitals.find(h => h._id === formData.hospital);
+                if (selectedHospitalObj?.isInsuranceAccepted) {
+                  return (
+                    <div className="mt-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2 text-emerald-800 font-bold">
+                        <ShieldCheck className="w-4 h-4 text-[#08B36A]" />
+                        <span>Cashless Insurance Supported at this Hospital</span>
+                      </div>
+                      {selectedHospitalObj.acceptedInsurances?.length > 0 && (
+                        <span className="text-[10px] text-emerald-600 font-black">
+                          {selectedHospitalObj.acceptedInsurances.slice(0, 3).join(', ')}
+                          {selectedHospitalObj.acceptedInsurances.length > 3 ? ' +' : ''}
+                        </span>
+                      )}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
 
             {/* Payment Method Selector */}

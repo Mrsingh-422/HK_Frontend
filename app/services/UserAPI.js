@@ -1097,7 +1097,10 @@ someFunction: async () => {
         const response = await authApi.patch(`/user/doctors/cancel/${appointmentId}`, { reason });
         return response.data;
     },
-
+getMyInsurance: async () => {
+    const response = await authApi.get("/api/auth/user/my-insurance");
+    return response.data;
+},
     //Hospital apis
     getHospitalsList: async (data) => {
         const response = await publicApi.post("/user/hospital/list", data);

@@ -94,15 +94,22 @@ export default function ReferralBookingPage() {
         const userCoords = storedCoordsString ? JSON.parse(storedCoordsString) : { lat: 30.6, lng: 76.7 };
         setCoords(userCoords);
 
+        const hospitalPayload = {
+          userLat: userCoords.lat,
+          userLng: userCoords.lng,
+          lat: userCoords.lat,
+          lng: userCoords.lng
+        };
+
         const [hospRes, familyRes, ambRes] = await Promise.all([
-          UserAPI.getHospitalsList(userCoords),
+          UserAPI.getHospitalsList(hospitalPayload),
           UserAPI.getFamilyMembers(),
           UserAPI.getNearestAmbulances(userCoords)
         ]);
 
-        if (hospRes.success) setHospitals(hospRes.data || []);
-        if (familyRes.success) setFamilyMembers(familyRes.data || []);
-        if (ambRes.success) {
+        if (hospRes?.success) setHospitals(hospRes.data || []);
+        if (familyRes?.success) setFamilyMembers(familyRes.data || []);
+        if (ambRes?.success) {
           setAmbulances(ambRes.data || []);
           if (ambRes.data?.length > 0) setSelectedAmbulance(ambRes.data[0]);
         }
@@ -337,7 +344,6 @@ export default function ReferralBookingPage() {
           return;
         }
 
-        // Strict appointmentId extraction
         const targetAppointmentId = res.appointmentId || res.bookingId || res.booking?._id || res.booking?.bookingId;
 
         if (!targetAppointmentId) {
@@ -355,7 +361,6 @@ export default function ReferralBookingPage() {
           order_id: res.razorpayOrderId,
           handler: async function (paymentResponse) {
             try {
-              // ⚠️ STRICT PAYLOAD FORMAT AS PER SPECIFICATION
               const verifyPayload = {
                 appointmentId: targetAppointmentId,
                 razorpayOrderId: paymentResponse.razorpay_order_id,
@@ -454,6 +459,7 @@ export default function ReferralBookingPage() {
             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 space-y-6">
               <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Inter-Hospital Route</h3>
               <div className="space-y-4">
+                {/* Pickup Hospital */}
                 <div className="relative">
                   <label className="text-[10px] font-black text-slate-400 uppercase absolute left-5 top-3 z-10">From (Origin Hospital A)</label>
                   <select
@@ -462,7 +468,15 @@ export default function ReferralBookingPage() {
                     className="w-full bg-slate-50 border-2 border-transparent focus:border-[#08B36A] rounded-2xl pt-8 pb-4 px-5 text-sm font-bold appearance-none outline-none cursor-pointer"
                   >
                     <option value="">Select Pickup Hospital</option>
-                    {hospitals.map(h => <option key={h._id} value={h._id}>{h.name}</option>)}
+                    {hospitals.map(h => {
+                      const dist = h.distance ? ` (${h.distance})` : '';
+                      const ins = h.isInsuranceAccepted ? ' 🛡️ [Cashless]' : '';
+                      return (
+                        <option key={h._id} value={h._id}>
+                          {h.name}{dist}{ins}
+                        </option>
+                      );
+                    })}
                   </select>
                   <Hospital className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 pointer-events-none" />
                 </div>
@@ -473,6 +487,7 @@ export default function ReferralBookingPage() {
                   </div>
                 </div>
 
+                {/* Destination Hospital */}
                 <div className="relative">
                   <label className="text-[10px] font-black text-slate-400 uppercase absolute left-5 top-3 z-10">To (Destination Hospital B)</label>
                   <select
@@ -481,7 +496,15 @@ export default function ReferralBookingPage() {
                     className="w-full bg-slate-50 border-2 border-transparent focus:border-[#08B36A] rounded-2xl pt-8 pb-4 px-5 text-sm font-bold appearance-none outline-none cursor-pointer"
                   >
                     <option value="">Select Destination Hospital</option>
-                    {hospitals.map(h => <option key={h._id} value={h._id}>{h.name}</option>)}
+                    {hospitals.map(h => {
+                      const dist = h.distance ? ` (${h.distance})` : '';
+                      const ins = h.isInsuranceAccepted ? ' 🛡️ [Cashless]' : '';
+                      return (
+                        <option key={h._id} value={h._id}>
+                          {h.name}{dist}{ins}
+                        </option>
+                      );
+                    })}
                   </select>
                   <MapPin className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 pointer-events-none" />
                 </div>

@@ -5,9 +5,10 @@ import {
   FaHospital, FaMapMarkerAlt, FaPhoneAlt, FaEnvelope, 
   FaRegIdCard, FaClock, FaCheckCircle, FaExclamationTriangle, 
   FaTimes, FaGlobe, FaMap, FaBuilding, FaSpinner,
-  FaFileAlt, FaEdit, FaCreditCard
+  FaFileAlt, FaEdit, FaCreditCard, FaShieldAlt, FaPlus, FaCheck
 } from "react-icons/fa"
 import HospitalAPI from '@/app/services/HospitalAPI';
+import UserAPI from '@/app/services/UserAPI';
 
 export default function HospitalProfilePage() {
   const { loading: authLoading } = useAuth();
@@ -21,6 +22,10 @@ export default function HospitalProfilePage() {
 
   // Staged request status state
   const [stagedRequest, setStagedRequest] = useState(null);
+
+  // Available Master Insurance Companies List
+  const [masterInsuranceCompanies, setMasterInsuranceCompanies] = useState([]);
+  const [customInsuranceInput, setCustomInsuranceInput] = useState("");
 
   // Form States
   const [formData, setFormData] = useState({
@@ -38,22 +43,41 @@ export default function HospitalProfilePage() {
     accountHolderName: '',
     accountNumber: '',
     ifscCode: '',
-    upiId: ''
+    upiId: '',
+    isInsuranceAccepted: false,
+    acceptedInsurances: []
   });
 
   const fetchProfile = async () => {
     setIsFetching(true);
     try {
-      // 1. Fetch profile update staging status
-      const statusRes = await HospitalAPI.getHospitalProfileUpdateStatus();
-      if (statusRes && statusRes.success) {
-        setStagedRequest(statusRes.data);
+      // 1. Fetch profile update staging status (if implemented)
+      try {
+        if (HospitalAPI.getHospitalProfileUpdateStatus) {
+          const statusRes = await HospitalAPI.getHospitalProfileUpdateStatus();
+          if (statusRes?.success) {
+            setStagedRequest(statusRes.data);
+          }
+        }
+      } catch (err) {
+        console.warn("Staged request status not found or unsupported", err);
       }
 
       // 2. Fetch primary active profile
       const response = await HospitalAPI.getHospitalProfile();
-      if (response.success) {
+      if (response?.success) {
         setHospitalData(response.data.hospital);
+      }
+
+      // 3. Fetch Master Insurance list for dropdown selection
+      try {
+        const insRes = await UserAPI.getUserHealthInsuranses();
+        const rawList = insRes?.data || [];
+        // Extract unique insurance / provider names
+        const names = [...new Set(rawList.map(item => item.insuranceName || item.provider).filter(Boolean))];
+        setMasterInsuranceCompanies(names);
+      } catch (err) {
+        console.error("Failed to load master insurance companies list", err);
       }
     } catch (error) {
       console.error("Error fetching hospital profile", error);
@@ -83,45 +107,86 @@ export default function HospitalProfilePage() {
       accountHolderName: hospitalData?.bankDetails?.accountHolderName || '',
       accountNumber: hospitalData?.bankDetails?.accountNumber || '',
       ifscCode: hospitalData?.bankDetails?.ifscCode || '',
-      upiId: hospitalData?.bankDetails?.upiId || ''
+      upiId: hospitalData?.bankDetails?.upiId || '',
+      isInsuranceAccepted: Boolean(hospitalData?.isInsuranceAccepted),
+      acceptedInsurances: Array.isArray(hospitalData?.acceptedInsurances) ? [...hospitalData.acceptedInsurances] : []
     });
+    setCustomInsuranceInput("");
     setIsEditModalOpen(true);
   };
 
   const handleTextChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  // Submit Update Profile Details Only (Excluded registration documents)
+  // Insurance checkbox / tag toggle handler
+  const handleToggleInsurance = (insuranceName) => {
+    setFormData((prev) => {
+      const exists = prev.acceptedInsurances.includes(insuranceName);
+      return {
+        ...prev,
+        acceptedInsurances: exists
+          ? prev.acceptedInsurances.filter((item) => item !== insuranceName)
+          : [...prev.acceptedInsurances, insuranceName]
+      };
+    });
+  };
+
+  const handleAddCustomInsurance = () => {
+    const trimmed = customInsuranceInput.trim();
+    if (!trimmed) return;
+    if (!formData.acceptedInsurances.includes(trimmed)) {
+      setFormData(prev => ({
+        ...prev,
+        acceptedInsurances: [...prev.acceptedInsurances, trimmed]
+      }));
+    }
+    setCustomInsuranceInput("");
+  };
+
+  const handleRemoveInsurance = (nameToRemove) => {
+    setFormData(prev => ({
+      ...prev,
+      acceptedInsurances: prev.acceptedInsurances.filter(item => item !== nameToRemove)
+    }));
+  };
+
+  // Submit Update Profile Details
   const handleUpdateSubmit = async (e) => {
     e.preventDefault();
     setIsUpdating(true);
 
-    const dataToSend = new FormData();
-    dataToSend.append('name', formData.name);
-    dataToSend.append('address', formData.address);
-    dataToSend.append('country', formData.country);
-    dataToSend.append('state', formData.state);
-    dataToSend.append('city', formData.city);
-    dataToSend.append('zipCode', formData.zipCode);
-    dataToSend.append('type', formData.type);
-    dataToSend.append('alternatePhone', formData.alternatePhone);
-    
-    // Append coordinates map using backend bracket notation
-    if (formData.lat) dataToSend.append('location[lat]', String(formData.lat));
-    if (formData.lng) dataToSend.append('location[lng]', String(formData.lng));
-
-    // Append nested bankDetails credentials
-    dataToSend.append('bankDetails[bankName]', formData.bankName);
-    dataToSend.append('bankDetails[accountHolderName]', formData.accountHolderName);
-    dataToSend.append('bankDetails[accountNumber]', formData.accountNumber);
-    dataToSend.append('bankDetails[ifscCode]', formData.ifscCode);
-    dataToSend.append('bankDetails[upiId]', formData.upiId);
+    // JSON Payload matches the endpoint spec:
+    // PUT /api/auth/hospital/profile/update
+    const payload = {
+      name: formData.name,
+      address: formData.address,
+      country: formData.country,
+      state: formData.state,
+      city: formData.city,
+      zipCode: formData.zipCode,
+      type: formData.type,
+      alternatePhone: formData.alternatePhone,
+      location: {
+        lat: formData.lat ? Number(formData.lat) : undefined,
+        lng: formData.lng ? Number(formData.lng) : undefined
+      },
+      bankDetails: {
+        bankName: formData.bankName,
+        accountHolderName: formData.accountHolderName,
+        accountNumber: formData.accountNumber,
+        ifscCode: formData.ifscCode,
+        upiId: formData.upiId
+      },
+      isInsuranceAccepted: Boolean(formData.isInsuranceAccepted),
+      acceptedInsurances: formData.isInsuranceAccepted ? formData.acceptedInsurances : []
+    };
 
     try {
-      const res = await HospitalAPI.updateHospitalProfile(dataToSend);
+      const res = await HospitalAPI.updateHospitalProfile(payload);
       if (res.success) {
-        alert(res.message || "Profile updates submitted to Admin for review. Your profile will update once approved.");
-        // Store newly created staging record inside local state
-        setStagedRequest(res.data);
+        alert(res.message || "Profile and Insurance acceptance updated successfully.");
+        if (res.data?.status) {
+          setStagedRequest(res.data);
+        }
         setIsEditModalOpen(false);
         fetchProfile(); 
       } else {
@@ -129,7 +194,7 @@ export default function HospitalProfilePage() {
       }
     } catch (error) {
       console.error("Error updating profile", error);
-      alert("An error occurred while updating.");
+      alert(error?.response?.data?.message || "An error occurred while updating.");
     } finally {
       setIsUpdating(false);
     }
@@ -156,7 +221,7 @@ export default function HospitalProfilePage() {
   const city = hospitalData?.city || "";
   const state = hospitalData?.state || "";
   const country = hospitalData?.country || "";
-  const addressParts = [city, state, country].filter(Boolean);
+  const addressParts = [hospitalData?.address, city, state, country].filter(Boolean);
   const fullAddress = addressParts.length > 0 ? addressParts.join(", ") : "Not Provided";
 
   const name = hospitalData?.name || "N/A";
@@ -165,6 +230,8 @@ export default function HospitalProfilePage() {
   const alternatePhone = hospitalData?.alternatePhone || "Not Configured";
   const type = hospitalData?.type || "N/A";
   const status = hospitalData?.profileStatus || "Pending";
+  const isInsuranceAccepted = Boolean(hospitalData?.isInsuranceAccepted);
+  const acceptedInsurances = hospitalData?.acceptedInsurances || [];
   const joinedDate = hospitalData?.createdAt 
     ? new Date(hospitalData.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) 
     : "N/A";
@@ -180,7 +247,7 @@ export default function HospitalProfilePage() {
             <div>
               <h4 className="font-bold text-sm">Modifications Pending Verification</h4>
               <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                Your profile changes submitted on {new Date(stagedRequest.createdAt).toLocaleDateString()} are awaiting admin review. 
+                Your profile changes submitted on {new Date(stagedRequest.createdAt || Date.now()).toLocaleDateString()} are awaiting admin review. 
                 Your active public page details will remain visible as they are until the request has been verified and approved.
               </p>
             </div>
@@ -196,7 +263,7 @@ export default function HospitalProfilePage() {
                 Your recent profile modification request was rejected. <strong className="text-rose-950">Reason:</strong> {stagedRequest.rejectionReason || "No details provided."}
               </p>
               <p className="text-xs text-rose-600 mt-1 font-semibold">
-                Please correct your records using the "Edit Profile" dashboard below and re-submit.
+                Please correct your records using the &quot;Edit Profile&quot; dashboard below and re-submit.
               </p>
             </div>
           </div>
@@ -239,6 +306,11 @@ export default function HospitalProfilePage() {
                     <span className="px-3.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-gray-50 text-gray-600 border border-gray-200 flex items-center gap-1.5 shadow-sm">
                       <FaBuilding size={12} /> {type}
                     </span>
+                    <span className={`px-3.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm ${
+                      isInsuranceAccepted ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-500 border border-gray-200'
+                    }`}>
+                      <FaShieldAlt size={12} /> {isInsuranceAccepted ? 'Cashless / TPA Active' : 'No Insurance Accepted'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -251,6 +323,51 @@ export default function HospitalProfilePage() {
                 <FaEdit /> Edit Profile
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* --- INSURANCE & TPA POLICY ACCEPTANCE DISPLAY --- */}
+        <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-gray-100 gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isInsuranceAccepted ? 'bg-emerald-50 text-[#08B36A]' : 'bg-gray-100 text-gray-400'}`}>
+                <FaShieldAlt size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-extrabold text-gray-800">Health Insurance & TPA Desk Acceptance</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Defines whether your hospital supports cashless mediclaim policies and government schemes.</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-black uppercase px-3 py-1.5 rounded-xl border ${
+                isInsuranceAccepted ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-600 border-rose-200'
+              }`}>
+                {isInsuranceAccepted ? 'Accepted' : 'Disabled'}
+              </span>
+            </div>
+          </div>
+
+          <div className="pt-6">
+            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Accepted Insurance Companies & Schemes</h4>
+            {isInsuranceAccepted && acceptedInsurances.length > 0 ? (
+              <div className="flex flex-wrap gap-2.5">
+                {acceptedInsurances.map((ins, index) => (
+                  <span 
+                    key={index} 
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-50 text-slate-800 border border-slate-200/80 shadow-sm"
+                  >
+                    <FaCheckCircle className="text-[#08B36A] text-[11px]" /> {ins}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 italic">
+                {isInsuranceAccepted 
+                  ? "No specific insurance providers selected yet. Click 'Edit Profile' to choose accepted insurers." 
+                  : "Insurance claims and cashless pre-authorizations are not currently enabled for this hospital."}
+              </p>
+            )}
           </div>
         </div>
 
@@ -392,13 +509,119 @@ export default function HospitalProfilePage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl flex flex-col relative">
             <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-5 flex items-center justify-between z-10 rounded-t-3xl">
-              <h2 className="text-xl font-extrabold text-gray-800 flex items-center gap-2"><FaEdit className="text-[#08B36A]"/> Edit Profile & Details</h2>
+              <h2 className="text-xl font-extrabold text-gray-800 flex items-center gap-2"><FaEdit className="text-[#08B36A]"/> Edit Profile & Insurance Settings</h2>
               <button onClick={() => setIsEditModalOpen(false)} className="p-2 bg-gray-50 text-gray-500 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors">
                 <FaTimes />
               </button>
             </div>
 
             <form onSubmit={handleUpdateSubmit} className="p-6 space-y-8">
+              
+              {/* INSURANCE ACCEPTANCE SECTION */}
+              <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <h3 className="text-sm font-extrabold text-gray-900 flex items-center gap-2">
+                      <FaShieldAlt className="text-[#08B36A]" /> Accept Health Insurance / TPA
+                    </h3>
+                    <p className="text-xs text-gray-500">Enable this if your hospital processes cashless claims for insured patients.</p>
+                  </div>
+                  
+                  {/* Switch Toggle */}
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={formData.isInsuranceAccepted} 
+                      onChange={(e) => setFormData(prev => ({ ...prev, isInsuranceAccepted: e.target.checked }))} 
+                      className="sr-only peer"
+                    />
+                    <div className="w-12 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#08B36A]"></div>
+                  </label>
+                </div>
+
+                {formData.isInsuranceAccepted && (
+                  <div className="pt-4 border-t border-emerald-100/70 space-y-4">
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Select Approved Providers & Schemes
+                    </label>
+
+                    {/* Pre-populated master list toggles */}
+                    <div className="flex flex-wrap gap-2">
+                      {masterInsuranceCompanies.map((nameStr, idx) => {
+                        const isSelected = formData.acceptedInsurances.includes(nameStr);
+                        return (
+                          <button
+                            type="button"
+                            key={idx}
+                            onClick={() => handleToggleInsurance(nameStr)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                              isSelected
+                                ? 'bg-[#08B36A] text-white border-[#08B36A] shadow-sm'
+                                : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                            }`}
+                          >
+                            {isSelected && <FaCheck size={10} />}
+                            {nameStr}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Add Custom / Other Insurance scheme input */}
+                    <div className="pt-2">
+                      <p className="text-[11px] font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Add Other Company / State TPA</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={customInsuranceInput}
+                          onChange={(e) => setCustomInsuranceInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddCustomInsurance();
+                            }
+                          }}
+                          placeholder="e.g. RGHS, Ayushman Bharat, Reliance General"
+                          className="flex-1 px-4 py-2.5 text-xs rounded-xl border border-gray-300 focus:outline-none focus:border-[#08B36A]"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddCustomInsurance}
+                          className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition flex items-center gap-1"
+                        >
+                          <FaPlus size={10} /> Add
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Selected Badges Preview */}
+                    {formData.acceptedInsurances.length > 0 && (
+                      <div className="pt-2">
+                        <p className="text-[11px] font-bold text-gray-400 mb-2 uppercase">Currently Selected ({formData.acceptedInsurances.length})</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {formData.acceptedInsurances.map((item, index) => (
+                            <span 
+                              key={index}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-white border border-emerald-200 text-emerald-800"
+                            >
+                              {item}
+                              <button 
+                                type="button" 
+                                onClick={() => handleRemoveInsurance(item)}
+                                className="text-gray-400 hover:text-red-500"
+                              >
+                                <FaTimes size={10} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
+                )}
+              </div>
+
               {/* Profile Text Fields */}
               <div>
                 <h3 className="text-sm font-bold text-gray-800 mb-4 uppercase tracking-wider flex items-center gap-1.5">
@@ -485,7 +708,7 @@ export default function HospitalProfilePage() {
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">UPI ID</label>
-                    <input type="text" name="upiId" value={formData.upiId} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="e.g. cityhospital@upi"/>
+                    <input type="text" name="upiId" value={formData.upiId} onChange={handleTextChange} className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-[#08B36A]/10 focus:border-[#08B36A] transition-all font-medium text-gray-800" placeholder="e.g. fortishospital@upi"/>
                   </div>
                 </div>
               </div>

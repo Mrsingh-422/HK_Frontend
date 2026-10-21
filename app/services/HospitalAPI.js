@@ -78,14 +78,16 @@ const HospitalAPI = {
     }
   },
 
-  updateHospitalProfile: async (formData) => {
-    const response = await hospitalVendorApi.put('/api/auth/hospital/profile/update', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
-  },
+ updateHospitalProfile: async (data) => {
+  // Can be sent as JSON or multipart
+  const isFormData = data instanceof FormData;
+  const response = await hospitalVendorApi.put('/api/auth/hospital/profile/update', data, {
+    headers: {
+      'Content-Type': isFormData ? 'multipart/form-data' : 'application/json',
+    },
+  });
+  return response.data;
+},
 
   // GET: Fetch all coupons
   getCouponsList: async () => {
