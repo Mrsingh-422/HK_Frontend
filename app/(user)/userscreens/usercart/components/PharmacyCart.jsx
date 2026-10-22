@@ -394,7 +394,7 @@ const PharmacyCart = () => {
             const isScriptLoaded = await loadRazorpayScript();
             if (!isScriptLoaded) {
                 toast.error("Failed to load Razorpay SDK.");
-                setIsSubmitting(false);
+                setIsCheckingOut(false);
                 return;
             }
 
@@ -657,53 +657,51 @@ const PharmacyCart = () => {
                             />
                         </div>
 
-                        {/* SECTION 5: PAYMENT METHOD SELECTOR */}
-                        <div className="space-y-4">
-                            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[2px] flex items-center gap-2 px-1">
-                                <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px]">5</span>
-                                Payment Method
-                            </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* SECTION 5: PAYMENT METHOD SELECTOR (MATCHING PRECISE REFERENCE DESIGN) */}
+                        <div className="bg-white rounded-[2rem] p-6 border border-slate-200/90 shadow-xs space-y-4">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                                Select Payment Method
+                            </h3>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {/* ONLINE RAZORPAY BUTTON */}
                                 <button
                                     type="button"
                                     onClick={() => setPaymentMethod("Online")}
-                                    className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer
-                                        ${paymentMethod === "Online" ? 'border-[#08B36A] bg-emerald-50/40 ring-1 ring-[#08B36A]/20' : 'bg-white border-slate-200'}`}
+                                    className={`py-4 px-6 rounded-2xl font-bold text-sm border-2 transition-all text-center flex items-center justify-center gap-2.5 cursor-pointer ${
+                                        paymentMethod === "Online"
+                                            ? 'border-[#08B36A] bg-white text-[#08B36A]'
+                                            : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                                    }`}
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 bg-emerald-100 text-[#08B36A] rounded-xl">
-                                            <FaCreditCard size={15} />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-black text-slate-900">Pay Online</p>
-                                            <p className="text-[10px] text-slate-500">UPI, Cards, NetBanking</p>
-                                        </div>
-                                    </div>
-                                    {paymentMethod === "Online" && <FaCheckCircle className="text-[#08B36A]" size={15} />}
+                                    <FaCreditCard className="text-[#08B36A] text-sm" />
+                                    <span>Razorpay (Online)</span>
                                 </button>
 
+                                {/* CASH ON DELIVERY BUTTON */}
                                 <button
                                     type="button"
                                     disabled={!isCodAvailable}
-                                    onClick={() => setPaymentMethod("COD")}
-                                    className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between relative cursor-pointer
-                                        ${!isCodAvailable ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : ''}
-                                        ${paymentMethod === "COD" ? 'border-[#08B36A] bg-emerald-50/40 ring-1 ring-[#08B36A]/20' : 'bg-white border-slate-200'}`}
+                                    onClick={() => isCodAvailable && setPaymentMethod("COD")}
+                                    className={`py-4 px-6 rounded-2xl font-bold text-sm border-2 transition-all text-center flex items-center justify-center gap-2.5 ${
+                                        !isCodAvailable 
+                                            ? 'border-slate-200 bg-slate-50/60 text-slate-300 cursor-not-allowed select-none' 
+                                            : paymentMethod === "COD" 
+                                            ? 'border-[#08B36A] bg-white text-[#08B36A] cursor-pointer' 
+                                            : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 cursor-pointer'
+                                    }`}
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 bg-slate-100 text-slate-700 rounded-xl">
-                                            <FaMoneyBillWave size={15} />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-black text-slate-900">Cash on Delivery (COD)</p>
-                                            <p className="text-[10px] text-slate-500">
-                                                {isCodAvailable ? "Pay cash when delivered" : "Unavailable for this order"}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    {paymentMethod === "COD" && <FaCheckCircle className="text-[#08B36A]" size={15} />}
+                                    <span>Cash on Pickup (COD)</span>
                                 </button>
                             </div>
+
+                            {/* DYNAMIC WARNING NOTIFICATION WHEN COD IS DISABLED */}
+                            {!isCodAvailable && (
+                                <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-center gap-2.5 text-amber-800 text-xs font-semibold">
+                                    <FaExclamationTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                                    <span>COD is temporarily disabled for this pharmacy order. Please pay online via UPI/Card.</span>
+                                </div>
+                            )}
                         </div>
 
                     </div>

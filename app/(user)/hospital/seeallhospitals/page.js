@@ -9,7 +9,7 @@ import {
 } from "react-icons/fa";
 import UserAPI from "@/app/services/UserAPI";
 
-const CATEGORIES = ["All", "Private", "Govt", "Cardiology", "Emergency"];
+const CATEGORIES = ["All", "Private", "Govt",];
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 export default function AllHospitalsPage() {

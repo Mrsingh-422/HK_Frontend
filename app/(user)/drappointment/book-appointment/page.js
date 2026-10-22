@@ -8,7 +8,7 @@ import {
   FaUserCircle, FaMapMarkerAlt, FaCheckCircle, FaGem,
   FaMoneyBillWave, FaCreditCard, FaLock, FaCalendarAlt,
   FaClock, FaStethoscope, FaUserAlt, FaReceipt, FaKey,
-  FaSun, FaCloudSun, FaMoon
+  FaSun, FaCloudSun, FaMoon, FaExclamationTriangle
 } from 'react-icons/fa';
 import UserAPI from "@/app/services/UserAPI";
 import CostoumPopup from '@/lib/CostoumPopup';
@@ -69,6 +69,7 @@ export default function DoctorBookingConfirmation() {
 
   // --- Server Pricing & COD Availability ---
   const [serverPricing, setServerPricing] = useState(null);
+  const [codDisabledReason, setCodDisabledReason] = useState("");
   const [isFetchingSummary, setIsFetchingSummary] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -150,7 +151,7 @@ export default function DoctorBookingConfirmation() {
     return "Clinic Visit";
   }, [bookingData]);
 
-  // 5. Calculate Doctor Checkout Summary (1.1 Endpoint)
+  // 5. Calculate Doctor Checkout Summary (POST /user/doctors/checkout-summary)
   const fetchSummary = useCallback(async (codeToApply = appliedCouponCode) => {
     if (!bookingData?.doctorId || !selectedSlot || !selectedMember) return;
 
@@ -183,7 +184,18 @@ export default function DoctorBookingConfirmation() {
       const res = await UserAPI.doctorCheckoutSummary(payload);
       if (res?.success && res.data) {
         setServerPricing(res.data);
-        if (!res.data.isCodAvailable && paymentMethod === "COD") {
+
+        // Resolve COD Availability & Disabled Reason
+        const isCodAllowed = Boolean(res.isCodAvailable ?? res.data?.isCodAvailable ?? false);
+        const reason = res.codDisabledReason || res.data?.codDisabledReason || (
+          mappedConsultationType === "Video Consult" 
+            ? "Online Video Consultation requires online payment (UPI/Card). Cash on Delivery is disabled."
+            : "Cash on Delivery is temporarily unavailable for this consultation."
+        );
+        setCodDisabledReason(reason);
+
+        // Enforce fallback to Online if COD is disabled
+        if (!isCodAllowed && paymentMethod === "COD") {
           setPaymentMethod("Online");
         }
       } else {
@@ -210,16 +222,20 @@ export default function DoctorBookingConfirmation() {
 
   // Memoized Pricing View
   const pricing = useMemo(() => {
+    const isVideoConsult = mappedConsultationType === "Video Consult";
+
     if (serverPricing) {
+      const isCodAllowed = !isVideoConsult && Boolean(serverPricing.isCodAvailable);
+
       return {
         baseFee: serverPricing.baseFee ?? 0,
         originalBaseFee: serverPricing.originalBaseFee ?? serverPricing.baseFee ?? 0,
         visitCharges: serverPricing.visitCharge ?? 0,
-        extraCharges: serverPricing.premiumFee ?? 0,
+        extraCharges: serverPricing.premiumSlotFee ?? 0,
         discountAmount: serverPricing.discount ?? 0,
         subtotal: serverPricing.subtotal ?? 0,
         total: serverPricing.totalPayable ?? 0,
-        isCodAvailable: !!serverPricing.isCodAvailable,
+        isCodAvailable: isCodAllowed,
         isSubscriptionApplied: !!serverPricing.subscriptionDetails?.isSubscriptionApplied,
         planName: serverPricing.subscriptionDetails?.planName || "",
         userSubscriptionId: serverPricing.subscriptionDetails?.userSubscriptionId || null
@@ -235,12 +251,19 @@ export default function DoctorBookingConfirmation() {
       discountAmount: 0,
       subtotal: fallbackBase,
       total: fallbackBase,
-      isCodAvailable: false,
+      isCodAvailable: !isVideoConsult,
       isSubscriptionApplied: false,
       planName: "",
       userSubscriptionId: null
     };
-  }, [serverPricing, bookingData]);
+  }, [serverPricing, bookingData, mappedConsultationType]);
+
+  // Automatically enforce Online payment when consultation type is Video Consult
+  useEffect(() => {
+    if (mappedConsultationType === "Video Consult" && paymentMethod === "COD") {
+      setPaymentMethod("Online");
+    }
+  }, [mappedConsultationType, paymentMethod]);
 
   // Apply Coupon Handler
   const handleApplyCoupon = async () => {
@@ -267,7 +290,6 @@ export default function DoctorBookingConfirmation() {
     const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
     const oneHourAheadBuffer = 60; // Must be at least 1 hour ahead from present time
 
-    // 1. Filter out slots that are not at least 1 hour ahead if selectedDate is today
     const validSlots = availableSlots.filter((slot) => {
       if (!isToday) return true;
       const { hour, minute } = parseSlotTime(slot.time);
@@ -275,7 +297,6 @@ export default function DoctorBookingConfirmation() {
       return slotTotalMinutes >= currentTotalMinutes + oneHourAheadBuffer;
     });
 
-    // 2. Partition into Morning (<12:00), Afternoon (12:00 - 16:59), Evening (>=17:00)
     const morning = [];
     const afternoon = [];
     const evening = [];
@@ -299,7 +320,7 @@ export default function DoctorBookingConfirmation() {
     };
   }, [availableSlots, selectedDate]);
 
-  // 7. Final Booking Handler (1.2 Book + 7.0 Payment Verify)
+  // 7. Final Booking Handler (POST /user/doctors/book)
   const handleFinalBooking = async () => {
     if (!selectedSlot) {
       CostoumPopup("Please select an appointment time slot", "warning", 3000);
@@ -314,18 +335,31 @@ export default function DoctorBookingConfirmation() {
       return;
     }
 
+    // Strict validation: Video Consultation can NEVER be COD
+    if (mappedConsultationType === "Video Consult" && paymentMethod === "COD") {
+      CostoumPopup("Cash on Delivery is not allowed for Online Video Consultations. Please select Online Payment.", "warning", 4000);
+      setPaymentMethod("Online");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
 
       const isFreeOrSubscribed = pricing.total === 0 || pricing.isSubscriptionApplied;
-      const finalPaymentMethod = isFreeOrSubscribed ? "COD" : paymentMethod;
+      const finalPaymentMethod = isFreeOrSubscribed 
+        ? "COD" 
+        : mappedConsultationType === "Video Consult" 
+        ? "Online" 
+        : paymentMethod;
 
       const payload = {
         doctorId: bookingData.doctorId,
         consultationType: mappedConsultationType,
         appointmentDate: selectedDate,
+        appointmentTime: selectedSlot.time,
         timeSlot: selectedSlot.time,
         paymentMethod: finalPaymentMethod,
+        bookingReason: bookingData.bookingReason || "General consultation",
         couponCode: appliedCouponCode || undefined,
         patients: [{
           patientName: selectedMember.memberName || selectedMember.name,
@@ -363,7 +397,7 @@ export default function DoctorBookingConfirmation() {
       // --- CASE A: Free Booking / Subscribed User / COD ---
       if (isFreeOrSubscribed || finalPaymentMethod === "COD" || bookingRes.data?.paymentStatus === "Paid") {
         localStorage.removeItem('pendingBooking');
-        setConfirmedBookingDetails(bookingRes.data || { bookingId: "CONFIRMED" });
+        setConfirmedBookingDetails(bookingRes.data || { bookingId: bookingRes.bookingId || "CONFIRMED" });
         setIsSubmitting(false);
         return;
       }
@@ -376,10 +410,15 @@ export default function DoctorBookingConfirmation() {
         return;
       }
 
+      let keyId = bookingRes.key_id || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+      if (typeof keyId === 'string' && keyId.startsWith("zp_")) {
+        keyId = "r" + keyId;
+      }
+
       const options = {
-        key: bookingRes.key_id,
+        key: keyId,
         amount: bookingRes.amount,
-        currency: "INR",
+        currency: bookingRes.currency || "INR",
         name: "Health Kangaroo",
         description: `Consultation with Dr. ${bookingData.doctorName}`,
         order_id: bookingRes.razorpayOrderId,
@@ -423,7 +462,7 @@ export default function DoctorBookingConfirmation() {
 
     } catch (error) {
       console.error("Booking error:", error);
-      CostoumPopup("An error occurred during booking. Please try again.", "error", 4000);
+      CostoumPopup(error?.response?.data?.message || "An error occurred during booking. Please try again.", "error", 4000);
       setIsSubmitting(false);
     }
   };
@@ -540,7 +579,7 @@ export default function DoctorBookingConfirmation() {
               </div>
             </section>
 
-            {/* SELECT TIME SLOT (FILTERED: 1 HOUR AHEAD IF TODAY) */}
+            {/* SELECT TIME SLOT */}
             <section className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">3. Available Slots</h3>
@@ -576,7 +615,7 @@ export default function DoctorBookingConfirmation() {
                               key={`morning-${idx}`}
                               disabled={!isAvailable}
                               onClick={() => setSelectedSlot(slot)}
-                              className={`relative py-2.5 px-2 min-h-[3.25rem] rounded-xl border text-xs font-black transition-all flex flex-col items-center justify-center
+                              className={`relative py-2.5 px-2 min-h-[3.25rem] rounded-xl border text-xs font-black transition-all flex flex-col items-center justify-center cursor-pointer
                                 ${!isAvailable ? 'opacity-30 bg-slate-50 cursor-not-allowed border-slate-200' : ''}
                                 ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-md' : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-500'}`}
                             >
@@ -613,7 +652,7 @@ export default function DoctorBookingConfirmation() {
                               key={`afternoon-${idx}`}
                               disabled={!isAvailable}
                               onClick={() => setSelectedSlot(slot)}
-                              className={`relative py-2.5 px-2 min-h-[3.25rem] rounded-xl border text-xs font-black transition-all flex flex-col items-center justify-center
+                              className={`relative py-2.5 px-2 min-h-[3.25rem] rounded-xl border text-xs font-black transition-all flex flex-col items-center justify-center cursor-pointer
                                 ${!isAvailable ? 'opacity-30 bg-slate-50 cursor-not-allowed border-slate-200' : ''}
                                 ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-md' : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-500'}`}
                             >
@@ -650,7 +689,7 @@ export default function DoctorBookingConfirmation() {
                               key={`evening-${idx}`}
                               disabled={!isAvailable}
                               onClick={() => setSelectedSlot(slot)}
-                              className={`relative py-2.5 px-2 min-h-[3.25rem] rounded-xl border text-xs font-black transition-all flex flex-col items-center justify-center
+                              className={`relative py-2.5 px-2 min-h-[3.25rem] rounded-xl border text-xs font-black transition-all flex flex-col items-center justify-center cursor-pointer
                                 ${!isAvailable ? 'opacity-30 bg-slate-50 cursor-not-allowed border-slate-200' : ''}
                                 ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-md' : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-500'}`}
                             >
@@ -689,7 +728,7 @@ export default function DoctorBookingConfirmation() {
                         <button
                           key={addr._id}
                           onClick={() => setSelectedAddress(addr)}
-                          className={`p-4 rounded-2xl border transition-all text-left relative
+                          className={`p-4 rounded-2xl border transition-all text-left relative cursor-pointer
                             ${isSelected ? 'border-emerald-600 bg-emerald-50/30 ring-1 ring-emerald-500' : 'bg-white border-slate-200 hover:border-slate-300'}`}
                         >
                           <div className="flex items-start gap-3">
@@ -713,55 +752,52 @@ export default function DoctorBookingConfirmation() {
               </section>
             )}
 
-            {/* PAYMENT METHOD SELECTION */}
+            {/* PAYMENT METHOD SELECTION (With Dynamic Video Consultation & COD Enforcement) */}
             {pricing.total > 0 && (
-              <section className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">
-                  {mappedConsultationType === "Home Visit" ? "5. Payment Method" : "4. Payment Method"}
+              <section className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">
+                  {mappedConsultationType === "Home Visit" ? "5. Select Payment Method" : "4. Select Payment Method"}
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Online Option */}
                   <button
                     type="button"
                     onClick={() => setPaymentMethod("Online")}
-                    className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between
-                      ${paymentMethod === "Online" ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'bg-white border-slate-200'}`}
+                    className={`py-4 px-6 rounded-2xl font-bold text-sm border-2 transition-all text-center flex items-center justify-center gap-2.5 cursor-pointer ${
+                      paymentMethod === "Online"
+                        ? 'border-[#08B36A] bg-white text-[#08B36A]'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                    }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
-                        <FaCreditCard size={16} />
-                      </div>
-                      <div>
-                        <p className="text-xs font-black text-slate-900">Pay Online</p>
-                        <p className="text-[10px] text-slate-500">UPI, Cards, NetBanking</p>
-                      </div>
-                    </div>
-                    {paymentMethod === "Online" && <FaCheckCircle className="text-emerald-600" size={16} />}
+                    <FaCreditCard className="text-[#08B36A] text-sm" />
+                    <span>Razorpay (Online)</span>
                   </button>
 
                   {/* COD / Pay at Clinic Option */}
                   <button
                     type="button"
                     disabled={!pricing.isCodAvailable}
-                    onClick={() => setPaymentMethod("COD")}
-                    className={`p-4 rounded-2xl border transition-all text-left flex items-center justify-between relative
-                      ${!pricing.isCodAvailable ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : ''}
-                      ${paymentMethod === "COD" ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-500' : 'bg-white border-slate-200'}`}
+                    onClick={() => pricing.isCodAvailable && setPaymentMethod("COD")}
+                    className={`py-4 px-6 rounded-2xl font-bold text-sm border-2 transition-all text-center flex items-center justify-center gap-2.5 ${
+                      !pricing.isCodAvailable
+                        ? 'border-slate-200 bg-slate-50/60 text-slate-300 cursor-not-allowed select-none'
+                        : paymentMethod === "COD"
+                        ? 'border-[#08B36A] bg-white text-[#08B36A] cursor-pointer'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 cursor-pointer'
+                    }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-slate-100 text-slate-700 rounded-xl">
-                        <FaMoneyBillWave size={16} />
-                      </div>
-                      <div>
-                        <p className="text-xs font-black text-slate-900">Pay at Clinic / COD</p>
-                        <p className="text-[10px] text-slate-500">
-                          {pricing.isCodAvailable ? "Pay during your consultation" : "Unavailable for this vendor"}
-                        </p>
-                      </div>
-                    </div>
-                    {paymentMethod === "COD" && <FaCheckCircle className="text-emerald-600" size={16} />}
+                    <span>{mappedConsultationType === "Home Visit" ? "Cash on Delivery (COD)" : "Pay at Clinic (COD)"}</span>
                   </button>
                 </div>
+
+                {/* COD Disabled Warning Box */}
+                {!pricing.isCodAvailable && (
+                  <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-center gap-2.5 text-amber-800 text-xs font-semibold">
+                    <FaExclamationTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                    <span>{codDisabledReason}</span>
+                  </div>
+                )}
               </section>
             )}
           </div>
@@ -853,7 +889,7 @@ export default function DoctorBookingConfirmation() {
                   <button
                     disabled={isValidatingCoupon || pricing.isSubscriptionApplied || (!couponCode && !appliedCouponCode)}
                     onClick={() => appliedCouponCode ? handleRemoveCoupon() : handleApplyCoupon()}
-                    className={`absolute right-1.5 top-1.5 bottom-1.5 px-3 rounded-lg text-[10px] font-black uppercase transition-all
+                    className={`absolute right-1.5 top-1.5 bottom-1.5 px-3 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer
                       ${appliedCouponCode ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-slate-900 text-white hover:bg-slate-800 disabled:bg-slate-200'}`}
                   >
                     {isValidatingCoupon ? <FaSpinner className="animate-spin" /> : appliedCouponCode ? 'Remove' : 'Apply'}
@@ -866,7 +902,7 @@ export default function DoctorBookingConfirmation() {
               <button
                 disabled={!selectedSlot || !selectedMember || isSubmitting || isFetchingSummary}
                 onClick={handleFinalBooking}
-                className={`w-full py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2
+                className={`w-full py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer
                   ${(selectedSlot && selectedMember && !isSubmitting && !isFetchingSummary)
                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 active:scale-95'
                     : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
@@ -1008,7 +1044,7 @@ export default function DoctorBookingConfirmation() {
                 <div className="flex justify-between text-slate-500">
                   <span>Payment Mode:</span>
                   <span className="font-bold text-slate-800">
-                    {pricing.total === 0 ? "Subscription / Free" : paymentMethod === "COD" ? "Pay at Clinic / COD" : "Online (Razorpay)"}
+                    {pricing.total === 0 ? "Subscription / Free" : paymentMethod === "COD" ? (mappedConsultationType === "Home Visit" ? "Cash on Delivery (COD)" : "Pay at Clinic (COD)") : "Online (Razorpay)"}
                   </span>
                 </div>
 
@@ -1041,7 +1077,7 @@ export default function DoctorBookingConfirmation() {
                   setConfirmedBookingDetails(null);
                   router.push('/userscreens/doctorappointment');
                 }}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-slate-900/10 transition-all active:scale-98 flex items-center justify-center gap-2"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-slate-900/10 transition-all active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>View My Appointments</span>
                 <FaArrowRight size={11} />

@@ -1,10 +1,10 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   MapPin, ChevronDown, Camera, ShieldAlert, FileText,
   Calendar, Clock, User, CheckCircle2, Stethoscope,
   Activity, AlertCircle, Building2, ChevronLeft,
-  Upload, Info, Hospital, ArrowRightLeft, CreditCard, Plus, Ticket, KeyRound
+  Upload, Info, Hospital, ArrowRightLeft, CreditCard, Plus, Ticket, KeyRound, AlertTriangle, Loader2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import UserAPI from "@/app/services/UserAPI";
@@ -63,13 +63,18 @@ export default function ReferralBookingPage() {
   const [couponError, setCouponError] = useState("");
   const [validatingCoupon, setValidatingCoupon] = useState(false);
 
+  // Server Fare & COD Control State
+  const [serverFare, setServerFare] = useState(null);
+  const [isCalculatingFare, setIsCalculatingFare] = useState(false);
+  const [isCodAvailable, setIsCodAvailable] = useState(true);
+
   // Form Data
   const [formData, setFormData] = useState({
     pickupHospitalId: "",
     hospitalId: "", // Drop Hospital
     serviceType: "Referral Ambulance",
     triageLevel: "Urgent",
-    paymentMethod: "COD",
+    paymentMethod: "Online", // Default to Online, switchable to COD if enabled
     supportStaff: {
       nurse: false,
       doctor: false
@@ -173,7 +178,77 @@ export default function ReferralBookingPage() {
 
   }, [selectedAmbulance?._id, scheduledDate]);
 
-  // --- Pricing Breakdown ---
+  // Calculate distance between origin & destination hospital (in KM)
+  const resolvedTransferDistance = useMemo(() => {
+    const origin = hospitals.find(h => h._id === formData.pickupHospitalId);
+    const dest = hospitals.find(h => h._id === formData.hospitalId);
+
+    if (origin?.location?.coordinates && dest?.location?.coordinates) {
+      const [lon1, lat1] = origin.location.coordinates;
+      const [lon2, lat2] = dest.location.coordinates;
+      const R = 6371; // Earth radius in km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return Number((R * c).toFixed(1)) || 10;
+    }
+
+    if (dest?.distance) {
+      const parsed = parseFloat(dest.distance);
+      if (!isNaN(parsed)) return parsed;
+    }
+
+    return 10; // Standard inter-hospital baseline distance
+  }, [hospitals, formData.pickupHospitalId, formData.hospitalId]);
+
+  // Execute Server Fare Calculation (POST /user/ambulance/calculate-fare)
+  const calculateFareFromServer = useCallback(async () => {
+    if (!selectedAmbulance?._id || !UserAPI.checkOutAmbulance) return;
+
+    try {
+      setIsCalculatingFare(true);
+      const payload = {
+        ambulanceId: selectedAmbulance._id,
+        serviceType: "Referral Ambulance",
+        distance: resolvedTransferDistance,
+        supportStaff: {
+          nurse: Boolean(formData.supportStaff.nurse),
+          doctor: Boolean(formData.supportStaff.doctor)
+        },
+        couponCode: (appliedCoupon?.couponName || couponCode || "").trim() || undefined
+      };
+
+      const res = await UserAPI.checkOutAmbulance(payload);
+      if (res?.success) {
+        setServerFare(res.data);
+
+        // Resolve dynamic COD state from API
+        const codStatus = Boolean(res.isCodAvailable ?? res.data?.isCodAvailable ?? true);
+        setIsCodAvailable(codStatus);
+
+        // Fallback to Online if COD is disabled
+        if (!codStatus && formData.paymentMethod === "COD") {
+          setFormData(prev => ({ ...prev, paymentMethod: "Online" }));
+        }
+      }
+    } catch (err) {
+      console.warn("Referral fare calculation error, falling back locally:", err);
+    } finally {
+      setIsCalculatingFare(false);
+    }
+  }, [selectedAmbulance?._id, resolvedTransferDistance, formData.supportStaff, appliedCoupon, couponCode, formData.paymentMethod]);
+
+  useEffect(() => {
+    if (selectedAmbulance && (formData.pickupHospitalId || formData.hospitalId)) {
+      calculateFareFromServer();
+    }
+  }, [selectedAmbulance, formData.pickupHospitalId, formData.hospitalId, formData.supportStaff, appliedCoupon, calculateFareFromServer]);
+
+  // Fallback Local Calculations
   const calculatePricingBreakdown = () => {
     if (!selectedAmbulance) return { ambCharge: 0, staffCharge: 0, subtotal: 0 };
     const ambCharge = selectedAmbulance.freeServices?.referral ? 0 : (selectedAmbulance.pricing?.fixedPrice || 2000);
@@ -183,23 +258,28 @@ export default function ReferralBookingPage() {
     return { ambCharge, staffCharge, subtotal: ambCharge + staffCharge };
   };
 
-  const { ambCharge, staffCharge, subtotal: currentSubtotal } = calculatePricingBreakdown();
+  const { ambCharge: localAmbCharge, staffCharge: localStaffCharge, subtotal: localSubtotal } = calculatePricingBreakdown();
 
-  let discountAmount = 0;
+  let localDiscountAmount = 0;
   if (appliedCoupon) {
-    const couponInfo = availableCoupons.find(c => c.couponName.toUpperCase() === (appliedCoupon.couponName || couponCode).toUpperCase());
+    const couponInfo = availableCoupons.find(c => c.couponName?.toUpperCase() === (appliedCoupon.couponName || couponCode).toUpperCase());
     if (couponInfo) {
-      if (currentSubtotal >= couponInfo.minOrderAmount) {
-        const calculatedDiscount = (currentSubtotal * couponInfo.discountPercentage) / 100;
-        discountAmount = Math.min(calculatedDiscount, couponInfo.maxDiscount);
+      if (localSubtotal >= couponInfo.minOrderAmount) {
+        const calculatedDiscount = (localSubtotal * couponInfo.discountPercentage) / 100;
+        localDiscountAmount = Math.min(calculatedDiscount, couponInfo.maxDiscount);
       }
     } else if (appliedCoupon.discountPercentage) {
-      const calculatedDiscount = (currentSubtotal * appliedCoupon.discountPercentage) / 100;
-      discountAmount = appliedCoupon.maxDiscount ? Math.min(calculatedDiscount, appliedCoupon.maxDiscount) : calculatedDiscount;
+      const calculatedDiscount = (localSubtotal * appliedCoupon.discountPercentage) / 100;
+      localDiscountAmount = appliedCoupon.maxDiscount ? Math.min(calculatedDiscount, appliedCoupon.maxDiscount) : calculatedDiscount;
     }
   }
 
-  const finalTotalAmount = Math.max(0, currentSubtotal - discountAmount);
+  // Totals Synced with API
+  const currentSubtotal = serverFare?.subtotal ?? localSubtotal;
+  const discountAmount = serverFare?.discount ?? localDiscountAmount;
+  const finalTotalAmount = serverFare?.total ?? Math.max(0, localSubtotal - localDiscountAmount);
+  const ambCharge = serverFare?.ambulanceCharge ?? localAmbCharge;
+  const staffCharge = serverFare?.supportingStaffCharge ?? localStaffCharge;
 
   // --- Coupon Handlers ---
   const handleValidateCoupon = async () => {
@@ -324,6 +404,7 @@ export default function ReferralBookingPage() {
 
       data.append("pricing", JSON.stringify({
         ambulanceCharge: ambCharge,
+        distanceCharge: serverFare?.distanceCharge ?? 0,
         supportingStaffCharge: staffCharge,
         subtotal: currentSubtotal,
         discount: discountAmount,
@@ -333,9 +414,7 @@ export default function ReferralBookingPage() {
       // Execute Booking Initiation
       const res = await UserAPI.bookAmbulance(data);
 
-      // =========================================================================
-      // 🔒 STRICT RAZORPAY VERIFICATION FLOW (POST /user/ambulance/verify-payment)
-      // =========================================================================
+      // --- FLOW A: RAZORPAY VERIFICATION ---
       if (formData.paymentMethod === "Online" && (res.requiresPayment || res.razorpayOrderId || res.key_id)) {
         const isLoaded = await loadRazorpayScript();
         if (!isLoaded) {
@@ -401,7 +480,7 @@ export default function ReferralBookingPage() {
         return;
       }
 
-      // --- FLOW B: COD / DIRECT CONFIRMATION ---
+      // --- FLOW B: COD DIRECT CONFIRMATION ---
       if (res.success) {
         setBookingSuccessData(res.booking || res.data || null);
         setShowSuccessModal(true);
@@ -589,25 +668,48 @@ export default function ReferralBookingPage() {
               />
             </div>
 
-            {/* Payment Method */}
-            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
-              <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4">Payment Method</h3>
-              <div className="grid grid-cols-2 gap-4">
-                {['COD', 'Online'].map((method) => (
-                  <button
-                    key={method}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, paymentMethod: method })}
-                    className={`py-4 px-6 rounded-2xl font-bold text-sm border-2 transition-all text-center cursor-pointer ${
-                      formData.paymentMethod === method
-                        ? 'border-[#08B36A] bg-emerald-50/50 text-[#08B36A]'
-                        : 'border-slate-100 text-slate-600 hover:border-slate-200'
-                    }`}
-                  >
-                    {method === 'COD' ? 'Cash on Pickup (COD)' : 'Online Payment (Razorpay)'}
-                  </button>
-                ))}
+            {/* Payment Method Selector (With Dynamic COD Control) */}
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 space-y-3">
+              <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4">Select Payment Method</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                {/* ONLINE PAYMENT - RAZORPAY */}
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, paymentMethod: 'Online' })}
+                  className={`py-4 px-6 rounded-2xl font-bold text-sm border-2 transition-all text-center flex items-center justify-center gap-2 cursor-pointer ${
+                    formData.paymentMethod === 'Online'
+                      ? 'border-[#08B36A] bg-emerald-50/50 text-[#08B36A]'
+                      : 'border-slate-100 text-slate-600 hover:border-slate-200'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4" /> Razorpay (Online)
+                </button>
+
+                {/* CASH ON PICKUP (COD) - DYNAMIC STATUS */}
+                <button
+                  type="button"
+                  disabled={!isCodAvailable}
+                  onClick={() => setFormData({ ...formData, paymentMethod: 'COD' })}
+                  className={`py-4 px-6 rounded-2xl font-bold text-sm border-2 transition-all text-center flex items-center justify-center gap-2 ${
+                    !isCodAvailable
+                      ? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed opacity-50'
+                      : formData.paymentMethod === 'COD'
+                      ? 'border-[#08B36A] bg-emerald-50/50 text-[#08B36A] cursor-pointer'
+                      : 'border-slate-100 text-slate-600 hover:border-slate-200 cursor-pointer'
+                  }`}
+                >
+                  Cash on Pickup (COD)
+                </button>
               </div>
+
+              {/* COD Disabled Warning Message */}
+              {!isCodAvailable && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-amber-800 text-xs">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                  <span>COD is temporarily disabled for this ambulance category. Please pay online via UPI/Card.</span>
+                </div>
+              )}
             </div>
 
           </div>
@@ -759,7 +861,9 @@ export default function ReferralBookingPage() {
             {/* Total & Confirm */}
             <div className="bg-white rounded-[3rem] p-8 shadow-xl border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-8">
               <div className="space-y-1">
-                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Est. Transfer Cost</p>
+                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                  Est. Transfer Cost {isCalculatingFare && <Loader2 className="w-3 h-3 animate-spin text-[#08B36A]" />}
+                </p>
                 <div className="flex items-baseline gap-2">
                   <span className="text-4xl font-black text-slate-900">₹{finalTotalAmount}</span>
                   {discountAmount > 0 && <span className="text-sm font-bold text-slate-400 line-through">₹{currentSubtotal}</span>}
@@ -772,7 +876,7 @@ export default function ReferralBookingPage() {
               </div>
               <button
                 onClick={handleSubmit}
-                disabled={isSubmitting || !selectedAmbulance}
+                disabled={isSubmitting || !selectedAmbulance || isCalculatingFare}
                 className="w-full md:w-auto bg-[#08B36A] hover:bg-emerald-600 disabled:bg-slate-100 disabled:text-slate-400 text-white px-14 py-5 rounded-2xl font-black text-lg shadow-lg shadow-emerald-200 transition-all active:scale-95 flex items-center justify-center gap-3 cursor-pointer"
               >
                 {isSubmitting ? "Finalizing..." : formData.paymentMethod === 'Online' ? "Pay with Razorpay →" : "Confirm Booking"}

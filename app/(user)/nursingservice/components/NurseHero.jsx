@@ -151,104 +151,107 @@ const NurseHero = () => {
 
               {/* Description */}
               <p className="text-base md:text-xl text-slate-500 max-w-2xl font-medium leading-relaxed">
-                India's most trusted clinical homecare network. Certified nurses, background-verified caregivers, and hospital-grade procedures at your doorstep.
+                India&apos;s most trusted clinical homecare network. Certified nurses, background-verified caregivers, and hospital-grade procedures at your doorstep.
               </p>
             </div>
 
-            {/* Search Box & Dropdown */}
-            <div className="relative max-w-2xl space-y-4 z-40" ref={dropdownRef}>
+          {/* Search Box & Dropdown Container */}
+            <div className="relative max-w-2xl space-y-4 z-50" ref={dropdownRef}>
               
-              {/* Main Pill Search Input */}
-              <div className="bg-white rounded-full p-2 pl-6 shadow-xl border border-slate-100 flex items-center justify-between gap-3 focus-within:ring-2 focus-within:ring-[#08B36A]/20 transition-all">
-                <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                  <FaSearch className="text-slate-400 text-base shrink-0" />
-                  <input
-                    type="text"
-                    placeholder="Search homecare services, injections, post-op..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearchNavigation()}
-                    onFocus={() => searchTerm.length > 1 && setShowSuggestions(true)}
-                    className="w-full bg-transparent outline-none font-semibold text-slate-800 placeholder:text-slate-400 text-sm md:text-base"
-                  />
-                  {isSearching && <FaSpinner className="animate-spin text-[#08B36A] text-sm shrink-0" />}
+              {/* Relative wrapper holding both the pill & attached suggestions */}
+              <div className="relative">
+                {/* Main Pill Search Input */}
+                <div className="bg-white rounded-full p-2 pl-6 shadow-xl border border-slate-200/80 flex items-center justify-between gap-3 focus-within:ring-2 focus-within:ring-[#08B36A]/20 focus-within:border-[#08B36A] transition-all">
+                  <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                    <FaSearch className="text-slate-400 text-base shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Search homecare services, injections, post-op..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleSearchNavigation()}
+                      onFocus={() => searchTerm.length > 1 && setShowSuggestions(true)}
+                      className="w-full bg-transparent outline-none font-semibold text-slate-800 placeholder:text-slate-400 text-sm md:text-base"
+                    />
+                    {isSearching && <FaSpinner className="animate-spin text-[#08B36A] text-sm shrink-0" />}
+                  </div>
+
+                  <button
+                    onClick={() => handleSearchNavigation()}
+                    className="bg-slate-900 hover:bg-black text-white px-8 md:px-10 py-3.5 md:py-4 rounded-full font-bold text-sm tracking-tight transition-all cursor-pointer shrink-0 shadow-md active:scale-95"
+                  >
+                    Find Services
+                  </button>
                 </div>
 
-                <button
-                  onClick={() => handleSearchNavigation()}
-                  className="bg-slate-900 hover:bg-black text-white px-8 md:px-10 py-3.5 md:py-4 rounded-full font-bold text-sm tracking-tight transition-all cursor-pointer shrink-0 shadow-md active:scale-95"
-                >
-                  Find Services
-                </button>
+                {/* Suggestions Dropdown (Cleanly Placed Below the Search Pill) */}
+                {showSuggestions && (
+                  <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden z-[9999] animate-in fade-in duration-150">
+                    <div className="max-h-[380px] overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                      
+                      {serviceResults.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-2 mb-2 flex items-center gap-1.5">
+                            <FaSyringe className="text-[#08B36A]" /> Clinical Services
+                          </p>
+                          <div className="space-y-1">
+                            {serviceResults.map((s) => (
+                              <div
+                                key={s.id || s._id}
+                                onClick={() => handleSelectService(s)}
+                                className="flex items-center justify-between p-3 hover:bg-emerald-50/60 rounded-2xl cursor-pointer transition-colors"
+                              >
+                                <div>
+                                  <h6 className="text-sm font-bold text-slate-800">{s.title}</h6>
+                                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">{s.subtitle || s.category}</p>
+                                </div>
+                                <FaChevronRight size={10} className="text-slate-300" />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {providerResults.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-2 mb-2 flex items-center gap-1.5">
+                            <FaBuilding className="text-blue-500" /> Verified Nursing Bureaus
+                          </p>
+                          <div className="space-y-1">
+                            {providerResults.map((p) => (
+                              <div
+                                key={p.id || p._id}
+                                onClick={() => handleSelectProvider(p.id || p._id)}
+                                className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-2xl cursor-pointer transition-colors"
+                              >
+                                <img src={p.image || NURSE_PHOTOS[0].image} className="w-10 h-10 rounded-xl object-cover border" alt={p.title} />
+                                <div className="flex-1 min-w-0">
+                                  <h6 className="text-sm font-bold text-slate-800 truncate">{p.title}</h6>
+                                  <p className="text-[10px] text-slate-400 truncate mt-0.5">{p.subtitle}</p>
+                                </div>
+                                <FaChevronRight size={10} className="text-slate-300" />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {searchTerm.length > 1 && !isSearching && suggestionsList.length === 0 && (
+                        <div className="p-8 text-center text-xs font-semibold text-slate-400">
+                          No matching nursing services found for &quot;{searchTerm}&quot;
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Suggestions Dropdown */}
-              {showSuggestions && (
-                <div className="absolute top-full left-0 w-full bg-white mt-2.5 rounded-3xl shadow-2xl border border-slate-100 overflow-hidden z-[9999] animate-in fade-in duration-150">
-                  <div className="max-h-[380px] overflow-y-auto p-3.5 space-y-3 custom-scrollbar">
-                    
-                    {serviceResults.length > 0 && (
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-2 mb-1.5 flex items-center gap-1.5">
-                          <FaSyringe className="text-[#08B36A]" /> Clinical Services
-                        </p>
-                        <div className="space-y-1">
-                          {serviceResults.map((s) => (
-                            <div
-                              key={s.id || s._id}
-                              onClick={() => handleSelectService(s)}
-                              className="flex items-center justify-between p-3 hover:bg-emerald-50/50 rounded-2xl cursor-pointer transition-colors"
-                            >
-                              <div>
-                                <h6 className="text-sm font-bold text-slate-800">{s.title}</h6>
-                                <p className="text-[11px] text-slate-400 font-medium">{s.subtitle || s.category}</p>
-                              </div>
-                              <FaChevronRight size={10} className="text-slate-300" />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {providerResults.length > 0 && (
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-2 mb-1.5 flex items-center gap-1.5">
-                          <FaBuilding className="text-blue-500" /> Verified Nursing Bureaus
-                        </p>
-                        <div className="space-y-1">
-                          {providerResults.map((p) => (
-                            <div
-                              key={p.id || p._id}
-                              onClick={() => handleSelectProvider(p.id || p._id)}
-                              className="flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-2xl cursor-pointer transition-colors"
-                            >
-                              <img src={p.image || NURSE_PHOTOS[0].image} className="w-10 h-10 rounded-xl object-cover border" alt={p.title} />
-                              <div className="flex-1 min-w-0">
-                                <h6 className="text-sm font-bold text-slate-800 truncate">{p.title}</h6>
-                                <p className="text-[10px] text-slate-400 truncate">{p.subtitle}</p>
-                              </div>
-                              <FaChevronRight size={10} className="text-slate-300" />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {searchTerm.length > 1 && !isSearching && suggestionsList.length === 0 && (
-                      <div className="p-6 text-center text-xs font-semibold text-slate-400">
-                        No matching nursing services found for "{searchTerm}"
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {/* Upload Prescription Button */}
-              <div className="pt-1">
+              <div>
                 <Link href="/nursingservice/prescriptionnurse">
                   <button className="flex items-center gap-2.5 bg-slate-50 hover:bg-emerald-50 text-slate-800 hover:text-emerald-900 border border-slate-200 hover:border-emerald-200 px-6 py-3 rounded-2xl font-bold text-xs tracking-tight transition-all cursor-pointer shadow-xs active:scale-95">
                     <FaCloudUploadAlt className="text-base text-[#08B36A]" />
-                    <span>Upload Doctor's Prescription</span>
+                    <span>Upload Doctor&apos;s Prescription</span>
                   </button>
                 </Link>
               </div>
@@ -283,7 +286,7 @@ const NurseHero = () => {
           {/* ========================================================= */}
           <div className="lg:col-span-5 relative mt-10 lg:mt-0">
             
-            {/* Main Outer Frame (Exact Dimensions & Border) */}
+            {/* Main Outer Frame */}
             <div className="relative rounded-[3rem] overflow-hidden shadow-2xl border-8 border-white">
               
               {/* Photo Carousel Container */}
@@ -340,7 +343,7 @@ const NurseHero = () => {
               </div>
             </div>
 
-            {/* Emergency / Service Contact Float (Identical Structure & Sizing) */}
+            {/* Emergency / Service Contact Float */}
             <div className="absolute -bottom-8 left-4 right-4 md:left-8 md:right-8 z-30">
               <div className="bg-slate-900 text-white p-6 md:p-8 rounded-[2.5rem] shadow-2xl flex items-center justify-between overflow-hidden relative">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-600/10 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none"></div>

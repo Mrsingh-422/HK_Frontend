@@ -318,7 +318,7 @@ export default function LabPrescriptionBookingPage() {
             <div className="text-center py-16 space-y-6">
               <FaCheckCircle className="text-6xl text-emerald-500 mx-auto" />
               <h2 className="text-2xl font-black">Request Placed!</h2>
-              <button onClick={() => router.push('/userscreens/dashboard')} className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-bold text-xs uppercase">Go to Dashboard</button>
+              <button onClick={() => router.push('/userscreens/previousorders')} className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-bold text-xs uppercase">Go to Dashboard</button>
             </div>
           )}
         </div>

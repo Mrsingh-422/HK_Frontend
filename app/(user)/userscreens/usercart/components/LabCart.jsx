@@ -641,7 +641,9 @@ const LabCart = () => {
                                             <p className="text-[10px] text-slate-400">Get verified digital reports 2x faster</p>
                                         </div>
                                     </div>
-                                    <span className="font-black text-xs text-slate-900">+₹150</span>
+                                    <span className="font-black text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-xl">
+                                        +₹{serverSummary?.billSummary?.fastReportCharge || 199}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -927,7 +929,7 @@ const LabCart = () => {
 
                                 {totals.fastReportCharge > 0 && (
                                     <div className="flex justify-between text-amber-600 font-bold">
-                                        <span>Fast Report Charge</span>
+                                        <span>Fast Express Reporting</span>
                                         <span>+₹{totals.fastReportCharge.toFixed(2)}</span>
                                     </div>
                                 )}

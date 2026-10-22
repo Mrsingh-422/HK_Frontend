@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   MapPin, ChevronDown, Camera, ShieldAlert, MessageSquare,
   Info, ChevronLeft, Navigation, Clock, User, CheckCircle2,
-  Stethoscope, Activity, AlertCircle, Map, Phone, Mail, Truck, Ticket, KeyRound, Calendar, CreditCard, ShieldCheck
+  Stethoscope, Activity, AlertCircle, Map, Phone, Mail, Truck, Ticket, KeyRound, Calendar, CreditCard, ShieldCheck,
+  AlertTriangle, Loader2
 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import UserAPI from "@/app/services/UserAPI";
@@ -59,6 +60,11 @@ export default function AmbulanceBookingPage() {
   const [couponError, setCouponError] = useState("");
   const [validatingCoupon, setValidatingCoupon] = useState(false);
 
+  // Server Calculation & COD State
+  const [serverFare, setServerFare] = useState(null);
+  const [isCalculatingFare, setIsCalculatingFare] = useState(false);
+  const [isCodAvailable, setIsCodAvailable] = useState(true);
+
   // Form States
   const [formData, setFormData] = useState({
     pickupLocation: "Locating you...",
@@ -67,10 +73,10 @@ export default function AmbulanceBookingPage() {
     supportStaff: { nurse: false, doctor: false },
     hospital: "",
     priority: "Emergency",
-    paymentMethod: "COD"
+    paymentMethod: "Online" // Defaults to Online, switches to COD if available
   });
 
-  // --- 1. Initial Data Fetching (Includes Full Dynamic Pricing Details) ---
+  // --- 1. Initial Data Fetching ---
   useEffect(() => {
     const token = localStorage.getItem('userToken');
     if (!token) {
@@ -123,11 +129,10 @@ export default function AmbulanceBookingPage() {
           setFamilyMembers(familyRes.value.data || []);
         }
 
-        // Set live ambulance profile with dynamic staff fees from API
+        // Set live ambulance profile
         if (ambDetailRes.status === "fulfilled" && ambDetailRes.value?.success) {
           setAmbulance(ambDetailRes.value.data);
         } else {
-          // Fallback to nearest list if detail fails
           const ambListRes = await UserAPI.getNearestAmbulances(userCoords);
           if (ambListRes.success) {
             const selected = (ambListRes.data || []).find(a => a._id === id);
@@ -148,7 +153,7 @@ export default function AmbulanceBookingPage() {
     init();
   }, [id, router]);
 
-  // --- 2. Fetch 2-Hour Slots (GET /user/ambulance/slots/:id?date=...) ---
+  // --- 2. Fetch 2-Hour Slots ---
   useEffect(() => {
     if (!id || !selectedDate) return;
 
@@ -181,7 +186,7 @@ export default function AmbulanceBookingPage() {
   }, [id, selectedDate]);
 
   // =========================================================================
-  // 💰 DYNAMIC PRICING HELPERS (100% Extracted from Backend API)
+  // 💰 DYNAMIC PRICING HELPERS & SERVER FARE CALCULATION
   // =========================================================================
   const getDoctorPrice = () => {
     if (!ambulance) return 0;
@@ -215,30 +220,87 @@ export default function AmbulanceBookingPage() {
     );
   };
 
-  // --- Calculations ---
   const doctorFee = getDoctorPrice();
   const nurseFee = getNursePrice();
   const baseAmbulanceFee = getBaseAmbulancePrice();
 
-  const currentSubtotal = (ambulance ? baseAmbulanceFee : 0) +
+  // Selected hospital object & distance resolution
+  const selectedHospitalObj = useMemo(() => {
+    return hospitals.find(h => h._id === formData.hospital);
+  }, [hospitals, formData.hospital]);
+
+  const resolvedDistanceKM = useMemo(() => {
+    if (!selectedHospitalObj?.distance) return 5;
+    const parsed = parseFloat(selectedHospitalObj.distance);
+    return isNaN(parsed) ? 5 : parsed;
+  }, [selectedHospitalObj]);
+
+  // Execute Server Fare Calculation (POST /user/ambulance/calculate-fare)
+  const calculateFareFromServer = useCallback(async () => {
+    if (!id || !UserAPI.checkOutAmbulance) return;
+
+    try {
+      setIsCalculatingFare(true);
+      const payload = {
+        ambulanceId: id,
+        serviceType: "Medical Ambulance",
+        distance: resolvedDistanceKM,
+        supportStaff: {
+          nurse: Boolean(formData.supportStaff.nurse),
+          doctor: Boolean(formData.supportStaff.doctor)
+        },
+        couponCode: (appliedCoupon?.couponName || couponCode || "").trim() || undefined
+      };
+
+      const res = await UserAPI.checkOutAmbulance(payload);
+      if (res?.success) {
+        setServerFare(res.data);
+        
+        // Resolve COD Availability
+        const codStatus = Boolean(res.isCodAvailable ?? res.data?.isCodAvailable ?? true);
+        setIsCodAvailable(codStatus);
+
+        // Fallback to Online if COD is disabled
+        if (!codStatus && formData.paymentMethod === "COD") {
+          setFormData(prev => ({ ...prev, paymentMethod: "Online" }));
+        }
+      }
+    } catch (err) {
+      console.warn("Server fare calculation error, using local fallback:", err);
+    } finally {
+      setIsCalculatingFare(false);
+    }
+  }, [id, resolvedDistanceKM, formData.supportStaff, appliedCoupon, couponCode, formData.paymentMethod]);
+
+  useEffect(() => {
+    if (ambulance && formData.hospital) {
+      calculateFareFromServer();
+    }
+  }, [ambulance, formData.hospital, formData.supportStaff, appliedCoupon, calculateFareFromServer]);
+
+  // Fallback local calculations
+  const localSubtotal = (ambulance ? baseAmbulanceFee : 0) +
     (formData.supportStaff.doctor ? doctorFee : 0) +
     (formData.supportStaff.nurse ? nurseFee : 0);
 
-  let discountAmount = 0;
+  let localDiscountAmount = 0;
   if (appliedCoupon) {
-    const couponInfo = availableCoupons.find(c => c.couponName.toUpperCase() === (appliedCoupon.couponName || couponCode).toUpperCase());
+    const couponInfo = availableCoupons.find(c => c.couponName?.toUpperCase() === (appliedCoupon.couponName || couponCode).toUpperCase());
     if (couponInfo) {
-      if (currentSubtotal >= couponInfo.minOrderAmount) {
-        const calculatedDiscount = (currentSubtotal * couponInfo.discountPercentage) / 100;
-        discountAmount = Math.min(calculatedDiscount, couponInfo.maxDiscount);
+      if (localSubtotal >= couponInfo.minOrderAmount) {
+        const calculatedDiscount = (localSubtotal * couponInfo.discountPercentage) / 100;
+        localDiscountAmount = Math.min(calculatedDiscount, couponInfo.maxDiscount);
       }
     } else if (appliedCoupon.discountPercentage) {
-      const calculatedDiscount = (currentSubtotal * appliedCoupon.discountPercentage) / 100;
-      discountAmount = appliedCoupon.maxDiscount ? Math.min(calculatedDiscount, appliedCoupon.maxDiscount) : calculatedDiscount;
+      const calculatedDiscount = (localSubtotal * appliedCoupon.discountPercentage) / 100;
+      localDiscountAmount = appliedCoupon.maxDiscount ? Math.min(calculatedDiscount, appliedCoupon.maxDiscount) : calculatedDiscount;
     }
   }
 
-  const finalTotalAmount = Math.max(0, currentSubtotal - discountAmount);
+  // Final Total & Subtotal synced with server response when available
+  const currentSubtotal = serverFare?.subtotal ?? localSubtotal;
+  const discountAmount = serverFare?.discount ?? localDiscountAmount;
+  const finalTotalAmount = serverFare?.total ?? Math.max(0, localSubtotal - localDiscountAmount);
 
   // --- Coupon Handlers ---
   const handleValidateCoupon = async () => {
@@ -328,14 +390,15 @@ export default function AmbulanceBookingPage() {
       data.append("pickupLocation", JSON.stringify(pickupLocationObj));
       data.append("patientDetails", JSON.stringify(patientDetailsObj));
 
-      // Dynamic supporting staff charge calculation
+      // Pricing structure
       const supportingStaffCharge =
         (formData.supportStaff.doctor ? doctorFee : 0) +
         (formData.supportStaff.nurse ? nurseFee : 0);
 
       data.append("pricing", JSON.stringify({
-        ambulanceCharge: baseAmbulanceFee,
-        supportingStaffCharge: supportingStaffCharge,
+        ambulanceCharge: serverFare?.ambulanceCharge ?? baseAmbulanceFee,
+        distanceCharge: serverFare?.distanceCharge ?? 0,
+        supportingStaffCharge: serverFare?.supportingStaffCharge ?? supportingStaffCharge,
         subtotal: currentSubtotal,
         discount: discountAmount,
         total: finalTotalAmount
@@ -592,7 +655,7 @@ export default function AmbulanceBookingPage() {
               </div>
             </div>
 
-            {/* DYNAMIC SUPPORT STAFF SELECTOR (Prices From Backend API) */}
+            {/* DYNAMIC SUPPORT STAFF SELECTOR */}
             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
               <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6">Add Support Staff (Optional)</h3>
               <div className="space-y-3">
@@ -685,7 +748,7 @@ export default function AmbulanceBookingPage() {
               </div>
             </div>
 
-            {/* Destination Hospital Selection (Reflecting Distance & Insurance Acceptance) */}
+            {/* Destination Hospital Selection */}
             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
               <h3 className="text-lg font-black mb-6">Choose Destination Hospital</h3>
               <div className="relative">
@@ -710,44 +773,28 @@ export default function AmbulanceBookingPage() {
               </div>
 
               {/* Selected Hospital Insurance Indicator */}
-              {(() => {
-                const selectedHospitalObj = hospitals.find(h => h._id === formData.hospital);
-                if (selectedHospitalObj?.isInsuranceAccepted) {
-                  return (
-                    <div className="mt-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2 text-emerald-800 font-bold">
-                        <ShieldCheck className="w-4 h-4 text-[#08B36A]" />
-                        <span>Cashless Insurance Supported at this Hospital</span>
-                      </div>
-                      {selectedHospitalObj.acceptedInsurances?.length > 0 && (
-                        <span className="text-[10px] text-emerald-600 font-black">
-                          {selectedHospitalObj.acceptedInsurances.slice(0, 3).join(', ')}
-                          {selectedHospitalObj.acceptedInsurances.length > 3 ? ' +' : ''}
-                        </span>
-                      )}
-                    </div>
-                  );
-                }
-                return null;
-              })()}
+              {selectedHospitalObj?.isInsuranceAccepted && (
+                <div className="mt-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 text-emerald-800 font-bold">
+                    <ShieldCheck className="w-4 h-4 text-[#08B36A]" />
+                    <span>Cashless Insurance Supported at this Hospital</span>
+                  </div>
+                  {selectedHospitalObj.acceptedInsurances?.length > 0 && (
+                    <span className="text-[10px] text-emerald-600 font-black">
+                      {selectedHospitalObj.acceptedInsurances.slice(0, 3).join(', ')}
+                      {selectedHospitalObj.acceptedInsurances.length > 3 ? ' +' : ''}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Payment Method Selector */}
-            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
+            {/* Payment Method Selector (With Dynamic COD Control) */}
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 space-y-3">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Select Payment Method</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, paymentMethod: 'COD' })}
-                  className={`py-4 px-6 rounded-2xl font-bold text-sm border-2 transition-all text-center flex items-center justify-center gap-2 cursor-pointer ${
-                    formData.paymentMethod === 'COD'
-                      ? 'border-[#08B36A] bg-emerald-50/50 text-[#08B36A]'
-                      : 'border-slate-100 text-slate-600 hover:border-slate-200'
-                  }`}
-                >
-                  Cash on Pickup (COD)
-                </button>
-
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                {/* ONLINE PAYMENT - RAZORPAY */}
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, paymentMethod: 'Online' })}
@@ -759,7 +806,31 @@ export default function AmbulanceBookingPage() {
                 >
                   <CreditCard className="w-4 h-4" /> Razorpay (Online)
                 </button>
+
+                {/* CASH ON PICKUP (COD) - DYNAMIC STATUS */}
+                <button
+                  type="button"
+                  disabled={!isCodAvailable}
+                  onClick={() => setFormData({ ...formData, paymentMethod: 'COD' })}
+                  className={`py-4 px-6 rounded-2xl font-bold text-sm border-2 transition-all text-center flex items-center justify-center gap-2 ${
+                    !isCodAvailable
+                      ? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed opacity-50'
+                      : formData.paymentMethod === 'COD'
+                      ? 'border-[#08B36A] bg-emerald-50/50 text-[#08B36A] cursor-pointer'
+                      : 'border-slate-100 text-slate-600 hover:border-slate-200 cursor-pointer'
+                  }`}
+                >
+                  Cash on Pickup (COD)
+                </button>
               </div>
+
+              {/* COD Disabled Warning Message */}
+              {!isCodAvailable && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-amber-800 text-xs">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                  <span>COD is temporarily disabled for this ambulance category. Please pay online via UPI/Card.</span>
+                </div>
+              )}
             </div>
 
             {/* Offers & Coupons */}
@@ -801,7 +872,9 @@ export default function AmbulanceBookingPage() {
             {/* Total Fare & Confirm */}
             <div className="bg-white rounded-[3rem] p-8 shadow-xl border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="space-y-1">
-                <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Total Fare</p>
+                <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
+                  Total Fare {isCalculatingFare && <Loader2 className="w-3 h-3 animate-spin text-[#08B36A]" />}
+                </p>
                 <div className="flex items-baseline gap-2">
                   <p className="text-3xl font-black text-slate-900">₹{finalTotalAmount}</p>
                   {discountAmount > 0 && <span className="text-sm font-bold text-slate-400 line-through">₹{currentSubtotal}</span>}
@@ -814,7 +887,7 @@ export default function AmbulanceBookingPage() {
               </div>
               <button
                 onClick={handleSubmit}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isCalculatingFare}
                 className="w-full md:w-auto bg-[#08B36A] hover:bg-emerald-600 disabled:bg-slate-300 text-white px-12 py-5 rounded-2xl font-black text-lg shadow-lg shadow-emerald-200 transition-all active:scale-95 cursor-pointer"
               >
                 {isSubmitting ? "Confirming..." : formData.paymentMethod === 'Online' ? "Pay with Razorpay →" : "Confirm Booking"}
@@ -824,7 +897,7 @@ export default function AmbulanceBookingPage() {
         </div>
       </main>
 
-      {/* Booking Success Modal (With 6-Digit Pickup OTP PIN) */}
+      {/* Booking Success Modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full border border-slate-100 shadow-2xl text-center space-y-6 animate-in fade-in zoom-in duration-200">
