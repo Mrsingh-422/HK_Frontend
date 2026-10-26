@@ -8,6 +8,7 @@ export default function Slots({ labId, onSlotSelect, onBack, onNext }) {
   const [loading, setLoading] = useState(false);
   const [slots, setSlots] = useState([]);
   const [isClosed, setIsClosed] = useState(false);
+  const [closedMessage, setClosedMessage] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [activeSlot, setActiveSlot] = useState(null);
 
@@ -15,50 +16,42 @@ export default function Slots({ labId, onSlotSelect, onBack, onNext }) {
     if (labId) fetchSlots();
   }, [labId, selectedDate]);
 
-  // Convert YYYY-MM-DD from <input type="date"> to DD/MM/YYYY as required by API
-  const formatDateForApi = (isoDate) => {
-    if (!isoDate) return '';
-    const [year, month, day] = isoDate.split('-');
-    return `${day}/${month}/${year}`;
-  };
-
   const fetchSlots = async () => {
     setLoading(true);
     setActiveSlot(null);
+    setIsClosed(false);
+    setClosedMessage("");
+
     try {
-      const formattedDate = formatDateForApi(selectedDate);
-      const res = await UserAPI.getLabSlots(labId, formattedDate);
+      // Query parameters format: date=YYYY-MM-DD (e.g. 2026-10-25)
+      const res = await UserAPI.getLabSlots(labId, selectedDate);
       
       if (res?.success) {
         setSlots(res.slots || []);
         setIsClosed(Boolean(res.isClosed));
+        if (res.isClosed) {
+          setClosedMessage(res.message || "Lab is closed on this day.");
+        }
       } else {
         setSlots([]);
-        setIsClosed(false);
+        setIsClosed(Boolean(res?.isClosed));
+        setClosedMessage(res?.message || "Failed to fetch slots.");
       }
     } catch (err) {
       console.error("Error fetching lab slots:", err);
-      // Fallback try with standard ISO date if backend accepts YYYY-MM-DD
-      try {
-        const fallbackRes = await UserAPI.getLabSlots(labId, selectedDate);
-        if (fallbackRes?.success) {
-          setSlots(fallbackRes.slots || []);
-          setIsClosed(Boolean(fallbackRes.isClosed));
-        }
-      } catch (fallbackErr) {
-        console.error("Fallback slot fetch failed:", fallbackErr);
-        setSlots([]);
-      }
+      setSlots([]);
+      setIsClosed(false);
     } finally {
       setLoading(false);
     }
   };
 
   const handleConfirm = () => {
-    const selectedSlotObj = slots.find(s => s.time === activeSlot);
+    const selectedSlotObj = slots.find(s => (s.time === activeSlot || s.displayTime === activeSlot));
     onSlotSelect({ 
       date: selectedDate, 
-      time: activeSlot,
+      time: selectedSlotObj?.time || activeSlot,
+      displayTime: selectedSlotObj?.displayTime || activeSlot,
       slot: selectedSlotObj 
     });
     onNext();
@@ -94,7 +87,7 @@ export default function Slots({ labId, onSlotSelect, onBack, onNext }) {
             </div>
           ) : isClosed ? (
             <div className="mt-3 p-6 bg-rose-50 border border-rose-200 rounded-2xl text-center">
-              <p className="text-xs font-bold text-rose-700">Lab is closed on this date</p>
+              <p className="text-xs font-bold text-rose-700">{closedMessage || "Lab is closed on this date"}</p>
               <p className="text-[11px] text-rose-500 mt-1">Please select another date to view available time slots.</p>
             </div>
           ) : slots.length === 0 ? (
@@ -104,9 +97,9 @@ export default function Slots({ labId, onSlotSelect, onBack, onNext }) {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-2 max-h-72 overflow-y-auto pr-1">
               {slots.map((slot, idx) => {
-                // Available if isFull is false
-                const isAvailable = !slot.isFull;
-                const isSelected = activeSlot === slot.time;
+                // Master flag for button enable/disable: isAvailable
+                const isAvailable = Boolean(slot.isAvailable);
+                const isSelected = activeSlot === slot.time || activeSlot === slot.displayTime;
                 const extraCharge = Number(slot.extraFee || 0);
 
                 return (
@@ -115,21 +108,38 @@ export default function Slots({ labId, onSlotSelect, onBack, onNext }) {
                     type="button"
                     disabled={!isAvailable}
                     onClick={() => setActiveSlot(slot.time)}
-                    className={`p-3 text-xs font-bold rounded-xl border-2 transition-all flex flex-col items-center justify-center cursor-pointer ${
+                    className={`p-3 text-xs font-bold rounded-xl border-2 transition-all flex flex-col items-center justify-center ${
                       isSelected 
-                        ? 'border-[#08B36A] bg-emerald-50 text-[#08B36A] shadow-xs' 
+                        ? 'border-[#08B36A] bg-emerald-50 text-[#08B36A] shadow-xs cursor-pointer' 
                         : isAvailable 
-                        ? 'border-slate-100 hover:border-slate-200 text-slate-700 bg-white' 
-                        : 'bg-slate-100 text-slate-300 border-transparent cursor-not-allowed'
+                        ? 'border-slate-100 hover:border-slate-200 text-slate-700 bg-white cursor-pointer' 
+                        : 'bg-slate-100 text-slate-400 border-transparent cursor-not-allowed opacity-60'
                     }`}
                   >
-                    <span>{slot.time}</span>
+                    {/* Direct UI print format with AM/PM */}
+                    <span className="font-bold text-xs">{slot.displayTime || slot.time}</span>
+                    
                     <span className="text-[9px] uppercase font-medium text-slate-400 mt-0.5">
                       {slot.category || "Slot"}
                     </span>
-                    {extraCharge > 0 && (
+
+                    {/* Extra Convenience Fee */}
+                    {isAvailable && extraCharge > 0 && (
                       <span className="text-[9px] text-amber-600 font-black mt-0.5">
                         +₹{extraCharge}
+                      </span>
+                    )}
+
+                    {/* Status Badge when not Available */}
+                    {!isAvailable && (
+                      <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full mt-1 ${
+                        slot.status === "Booked"
+                          ? "bg-slate-200 text-slate-600"
+                          : slot.status === "Past"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-rose-100 text-rose-700"
+                      }`}>
+                        {slot.status || "Unavailable"}
                       </span>
                     )}
                   </button>

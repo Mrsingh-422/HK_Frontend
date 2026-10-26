@@ -22,6 +22,7 @@ const loadRazorpayScript = () => {
         }
         const script = document.createElement('script');
         script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.async = true;
         script.onload = () => resolve(true);
         script.onerror = () => resolve(false);
         document.body.appendChild(script);
@@ -34,8 +35,8 @@ const DeliveryModeBadge = ({ deliveryMode, slotSchedule }) => {
 
     if (deliveryMode.type === 'EXPRESS' || deliveryMode.isRapid) {
         return (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
-                <FiZap size={10} className="text-rose-500 fill-rose-500 shrink-0" />
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-500/10 text-rose-300 border border-rose-500/20 font-bold rounded-lg text-[10px] whitespace-nowrap">
+                <FiZap size={10} className="text-rose-400 fill-rose-400 shrink-0" />
                 Express (+₹{deliveryMode.rapidCharge || 0})
             </span>
         );
@@ -43,7 +44,7 @@ const DeliveryModeBadge = ({ deliveryMode, slotSchedule }) => {
 
     if (deliveryMode.type === 'SLOT' || deliveryMode.isSlotDelivery) {
         return (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/20 font-bold rounded-lg text-[10px] whitespace-nowrap">
                 <FiCalendar size={10} className="shrink-0" />
                 Slot: {slotSchedule?.timeSlot || 'Scheduled'} {deliveryMode.isPremiumSlot && `(+₹${deliveryMode.slotCharge || 0})`}
             </span>
@@ -52,7 +53,7 @@ const DeliveryModeBadge = ({ deliveryMode, slotSchedule }) => {
 
     if (deliveryMode.type === 'PICKUP') {
         return (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 font-bold rounded-md text-[10px] whitespace-nowrap">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-700/60 text-slate-300 border border-slate-600 font-bold rounded-lg text-[10px] whitespace-nowrap">
                 <FiShoppingBag size={10} className="shrink-0" />
                 Self Pickup
             </span>
@@ -60,9 +61,9 @@ const DeliveryModeBadge = ({ deliveryMode, slotSchedule }) => {
     }
 
     return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/10 text-blue-300 border border-blue-500/20 font-bold rounded-lg text-[10px] whitespace-nowrap">
             <FiTruck size={10} className="shrink-0" />
-            Standard
+            Standard Delivery
         </span>
     );
 };
@@ -74,7 +75,7 @@ const PaymentBadge = ({ paymentInfo, paymentStatus, paymentMethod }) => {
 
     if (isCod) {
         return (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500/10 text-amber-300 border border-amber-500/20 font-bold rounded-lg text-[10px] whitespace-nowrap">
                 💵 COD {status === 'Paid' ? '(Paid)' : '(Pending)'}
             </span>
         );
@@ -82,7 +83,7 @@ const PaymentBadge = ({ paymentInfo, paymentStatus, paymentMethod }) => {
 
     if (status === 'Paid') {
         return (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-bold rounded-lg text-[10px] whitespace-nowrap">
                 <FiCheckCircle size={10} className="shrink-0" /> Paid Online
             </span>
         );
@@ -90,85 +91,120 @@ const PaymentBadge = ({ paymentInfo, paymentStatus, paymentMethod }) => {
 
     if (status === 'Refund-Initiated' || status === 'Refunded') {
         return (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 font-bold rounded-md text-[10px] whitespace-nowrap">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-500/10 text-purple-300 border border-purple-500/20 font-bold rounded-lg text-[10px] whitespace-nowrap">
                 ↩️ {status}
             </span>
         );
     }
 
     return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200/80 font-bold rounded-md text-[10px] whitespace-nowrap">
-            <FiAlertCircle size={10} className="shrink-0" /> Payment Incomplete
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-500/10 text-rose-300 border border-rose-500/20 font-bold rounded-lg text-[10px] whitespace-nowrap">
+            <FiAlertCircle size={10} className="shrink-0" /> Payment Pending
         </span>
     );
 };
 
-// --- SUB-COMPONENT: STATUS TRACKER / TIMELINE ---
+// --- UNIFIED VERTICAL STATUS STEPPER (ELIMINATES DESIGN FLICKER) ---
 const StatusStepper = ({ status, trackingTimeline }) => {
-    if (trackingTimeline && trackingTimeline.length > 0) {
-        return (
-            <div className="w-full py-3 md:py-4 space-y-3">
-                <div className="relative border-l-2 border-indigo-500/30 ml-3 md:ml-4 pl-4 md:pl-6 space-y-4">
-                    {trackingTimeline.map((step, index) => (
+    // Standard baseline steps to avoid empty or changing layouts
+    const defaultSteps = [
+        {
+            key: "Placed",
+            title: "ORDER PLACED",
+            description: "Order placed successfully",
+            stageIndex: 0
+        },
+        {
+            key: "Under Review",
+            title: "PACKED BY PHARMACY",
+            description: "Medicines verified and packed in tamper-proof bag",
+            stageIndex: 1
+        },
+        {
+            key: "Shipped",
+            title: "OUT FOR DELIVERY",
+            description: "Delivery partner on the way to destination",
+            stageIndex: 2
+        },
+        {
+            key: "Delivered",
+            title: "DELIVERED",
+            description: "Handed over to customer safely",
+            stageIndex: 3
+        }
+    ];
+
+    const statusOrderMap = {
+        "Placed": 0,
+        "Under Review": 1,
+        "Packed": 1,
+        "Shipped": 2,
+        "OutForDelivery": 2,
+        "Delivered": 3
+    };
+
+    const currentOrderLevel = statusOrderMap[status] ?? 0;
+
+    // Use timeline from API if present, otherwise use mapped default steps immediately
+    const timelineToRender = (trackingTimeline && trackingTimeline.length > 0)
+        ? trackingTimeline
+        : defaultSteps.map((step) => ({
+            title: step.title,
+            description: step.description,
+            isCompleted: step.stageIndex < currentOrderLevel,
+            isCurrent: step.stageIndex === currentOrderLevel,
+            time: step.stageIndex === 0 ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
+        }));
+
+    return (
+        <div className="w-full py-4 space-y-4">
+            <div className="relative border-l-2 border-indigo-500/20 ml-2.5 pl-5 space-y-6">
+                {timelineToRender.map((step, index) => {
+                    const isDone = step.isCompleted;
+                    const isCurrent = step.isCurrent;
+
+                    return (
                         <div key={index} className="relative group">
-                            <div className={`absolute -left-[23px] md:-left-[31px] top-1 w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                                step.isCompleted
-                                    ? "bg-emerald-500 border-emerald-300 text-white"
-                                    : step.isCurrent
-                                    ? "bg-indigo-600 border-indigo-300 animate-pulse"
-                                    : "bg-slate-800 border-slate-600"
+                            {/* Circle Pin indicator */}
+                            <div className={`absolute -left-[29px] top-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors duration-300 ${
+                                isDone
+                                    ? "bg-emerald-500 border-emerald-400 text-white"
+                                    : isCurrent
+                                    ? "bg-indigo-600 border-indigo-400 shadow-[0_0_12px_rgba(99,102,241,0.6)]"
+                                    : "bg-slate-800 border-slate-700"
                             }`}>
-                                {step.isCompleted && <FiCheck size={10} />}
+                                {isDone && <FiCheck size={10} className="stroke-[3]" />}
                             </div>
+
+                            {/* Details */}
                             <div>
                                 <div className="flex items-center justify-between">
-                                    <h5 className={`text-xs font-black uppercase tracking-wider ${
-                                        step.isCurrent ? "text-indigo-400 font-black" : step.isCompleted ? "text-white" : "text-slate-400"
+                                    <h5 className={`text-xs font-black uppercase tracking-wider transition-colors ${
+                                        isCurrent 
+                                            ? "text-indigo-400" 
+                                            : isDone 
+                                            ? "text-white" 
+                                            : "text-slate-500"
                                     }`}>
                                         {step.title}
                                     </h5>
                                     {step.time && (
-                                        <span className="text-[9px] font-mono text-slate-400">
-                                            {new Date(step.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        <span className="text-[10px] font-mono text-slate-400 font-bold">
+                                            {typeof step.time === 'string' && step.time.includes('T')
+                                                ? new Date(step.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                                : step.time}
                                         </span>
                                     )}
                                 </div>
-                                <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">{step.description}</p>
+                                <p className={`text-[11px] mt-1 leading-relaxed ${
+                                    isDone || isCurrent ? "text-slate-300" : "text-slate-500"
+                                }`}>
+                                    {step.description}
+                                </p>
                             </div>
                         </div>
-                    ))}
-                </div>
-            </div>
-        );
-    }
-
-    const statusMap = {
-        "Placed": 0,
-        "Under Review": 1,
-        "Shipped": 2,
-        "Delivered": 3 
-    };
-    const currentStep = statusMap[status] ?? 0;
-    const steps = ["Placed", "Reviewed", "Shipped", "Delivered"];
-
-    return (
-        <div className="w-full py-4 md:py-8">
-            <div className="relative flex items-center justify-between">
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-slate-100 -z-10"></div>
-                <div
-                    className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-600 transition-all duration-1000 z-10"
-                    style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
-                ></div>
-                {steps.map((step, index) => (
-                    <div key={step} className="flex flex-col items-center gap-1.5 md:gap-2 relative z-20">
-                        <div className={`w-3 h-3 md:w-3.5 md:h-3.5 rounded-full border-2 transition-all ${
-                            index <= currentStep ? "bg-indigo-600 border-indigo-200" : "bg-white border-slate-200"
-                        }`}></div>
-                        <span className={`text-[7.5px] md:text-[9px] font-black uppercase tracking-tighter whitespace-nowrap ${
-                            index <= currentStep ? "text-slate-900" : "text-slate-400"
-                        }`}>{step}</span>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );
@@ -284,16 +320,21 @@ function PharmacyOrders() {
         loadOrders();
     }, [loadOrders]);
 
-    // --- OPEN DETAILS & TRACKING MODAL ---
+    // --- OPEN DETAILS & TRACKING MODAL (FETCH IMMEDIATELY) ---
     const handleOpenOrderDetails = async (order) => {
-        setModal({ isOpen: true, data: order, trackingData: null });
+        // Open modal with current data immediately
+        setModal({ isOpen: true, data: order, trackingData: order });
         try {
             const res = await UserAPI.getPharmacyOrderTracking(order.orderId || order._id);
             if (res && res.success && res.data) {
-                setModal({ isOpen: true, data: { ...order, ...res.data }, trackingData: res.data });
+                setModal(prev => ({
+                    ...prev,
+                    data: { ...order, ...res.data },
+                    trackingData: res.data
+                }));
             }
         } catch (err) {
-            console.warn("Tracking data fetch skipped/failed:", err);
+            console.warn("Tracking data fetch fallback:", err);
         }
     };
 

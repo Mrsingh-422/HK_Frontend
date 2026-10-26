@@ -319,6 +319,17 @@ const UserAPI = {
         const response = await publicApi.get("/user/pharmacy/categories");
         return response.data;
     },
+    // Phase 1: Review & Bill Generation Tracking (Pre-Payment)
+getPrescriptionRequestDetails: async (requestId) => {
+    const response = await authApi.get(`/user/pharmacy/prescription-request/details/${requestId}`);
+    return response.data;
+},
+
+// Phase 2: Live Delivery Tracking (Post-Payment)
+trackPharmacyOrder: async (orderId) => {
+    const response = await authApi.get(`/user/pharmacy/track-order/${orderId}`);
+    return response.data;
+},
     // ==========================================
 // PHARMACY COUPONS API METHODS
 // ==========================================
@@ -958,17 +969,19 @@ getNurseTracking: async (bookingId) => {
         }
     },
 
-    // Fetches the global list of unique nursing services with their lowest starting prices [2]
-   getGlobalNursingServices: async (params = {}) => {
-    const { category, search } = params;
+ // In UserAPI.js
+getGlobalNursingServices: async (params = {}) => {
+    const { category, search, page, limit, sortBy } = params;
     const response = await authApi.get("/user/nurse/services/global", {
         params: {
             ...(category && { category }),
-            ...(search && { search })
+            ...(search && { search }),
+            ...(page && { page }),
+            ...(limit && { limit }),
+            ...(sortBy && { sortBy })
         }
     });
     return response.data;
-    
 },
 // Add this inside your UserAPI object in UserAPI.js
 getHospitalDropdown: async (params = {}) => {
@@ -1778,6 +1791,36 @@ cancelAmbulanceBooking: async (bookingId, cancelData = {}) => {
       throw error;
     }
   },
+  // 1. User cancels prescription request & frees the locked slot instantly
+cancelLabPrescriptionRequest: async (requestId, reason) => {
+    const response = await authApi.patch(`/user/labs/prescription-request/cancel/${requestId}`, { reason });
+    return response.data;
+},
+
+// 2. Cart screen alternative slots endpoint
+getCartAvailableSlots: async (labId, date) => {
+    const response = await authApi.get(`/user/cart/available-slots`, {
+        params: { vendorId: labId, date }
+    });
+    return response.data;
+},
+// Notifications API Suite
+getUserNotifications: async (params = {}) => {
+  const response = await authApi.get('/api/auth/user/notifications', { params });
+  return response.data;
+},
+markNotificationAsRead: async (id) => {
+  const response = await authApi.patch(`/api/auth/user/notifications/read/${id}`);
+  return response.data;
+},
+markAllNotificationsAsRead: async () => {
+  const response = await authApi.patch('/api/auth/user/notifications/mark-all-read');
+  return response.data;
+},
+deleteNotification: async (id) => {
+  const response = await authApi.delete(`/api/auth/user/notifications/${id}`);
+  return response.data;
+},
 };
 
 export default UserAPI;

@@ -1,16 +1,17 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom'; // Required for screen centering
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import UserAPI from '../../../services/UserAPI';
 import {
     FiX, FiActivity, FiLayers, FiHome,
     FiDownload, FiSearch, FiRefreshCw, FiChevronLeft, FiChevronRight,
     FiUser, FiMapPin, FiClock, FiCreditCard, FiStar, FiCheckCircle,
-    FiUploadCloud, FiTrash2, FiFileText, FiMinus, FiPlus, FiSend, FiArrowLeft, FiLoader
+    FiUploadCloud, FiTrash2, FiFileText, FiMinus, FiPlus, FiSend, FiArrowLeft, FiLoader,
+    FiTruck, FiCheck, FiMap, FiNavigation
 } from 'react-icons/fi';
 import { HiStar } from 'react-icons/hi';
-import { MdOutlineLocalPharmacy } from 'react-icons/md';
+import { MdOutlineLocalPharmacy, MdOutlineDeliveryDining } from 'react-icons/md';
 import CostoumPopup from '../../../../lib/CostoumPopup';
 import { useRouter } from 'next/navigation';
 
@@ -26,65 +27,6 @@ const getReportFileUrl = (path) => {
     return `${BACKEND_URL}/${cleanedPath}`;
 };
 
-// --- SUB-COMPONENT: STEPPER ---
-const StatusStepper = ({ status }) => {
-    const statusMap = {
-        "Prescription Uploaded": 0,
-        "Under Review": 0,
-        "Tests Added": 0,
-        "Pending": 0,
-        "Confirmed": 0,
-        "Phlebotomist Assigned": 1,
-        "Sample Collected": 2,
-        "Sample Deposited": 2,
-        "Testing": 3,
-        "Report Generated": 4,
-        "Completed": 4
-    };
-
-    const currentStep = statusMap[status] ?? 0;
-    const steps = ["Booked", "Assigned", "Collected", "Testing", "Completed"];
-    const isCancelled = status === "Cancelled";
-
-    return (
-        <div className="w-full py-4 md:py-8 px-1 md:px-2">
-            <div className="relative flex items-center justify-between">
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-slate-100 -z-10"></div>
-                <div 
-                    className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 transition-all duration-700 z-10"
-                    style={{ 
-                        width: isCancelled ? "100%" : `${(currentStep / (steps.length - 1)) * 100}%`,
-                        backgroundColor: isCancelled ? "#f43f5e" : "#4f46e5"
-                    }}
-                ></div>
-                {steps.map((step, index) => {
-                    const isCompletedStep = !isCancelled && index <= currentStep;
-                    return (
-                        <div key={step} className="flex flex-col items-center gap-1.5 md:gap-2 relative z-20">
-                            <div className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full border-2 transition-all duration-500 ${
-                                isCancelled 
-                                    ? "bg-rose-500 border-rose-100 ring-2 md:ring-4 ring-rose-50" 
-                                    : isCompletedStep 
-                                        ? "bg-indigo-600 border-indigo-100 ring-2 md:ring-4 ring-indigo-50" 
-                                        : "bg-white border-slate-200"
-                            }`} />
-                            <span className={`text-[7.5px] md:text-[8px] font-black uppercase tracking-tighter whitespace-nowrap ${
-                                isCancelled 
-                                    ? "text-rose-500" 
-                                    : isCompletedStep 
-                                        ? "text-slate-900" 
-                                        : "text-slate-400"
-                            }`}>
-                                {isCancelled && index === steps.length - 1 ? "Cancelled" : step}
-                            </span>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
-};
-
 export default function PrescriptionFlow() {
     // 1: Upload, 2: Review, 3: Address Selection, 4: Pharmacy Selection
     const [step, setStep] = useState(1);
@@ -93,11 +35,11 @@ export default function PrescriptionFlow() {
     const [scanMeta, setScanSummary] = useState({ doctor: "", date: "" });
 
     const [filePreview, setFilePreview] = useState(null);
-    const [rawFile, setRawFile] = useState(null); // Added to store binary file for final submission
+    const [rawFile, setRawFile] = useState(null);
     const [manualInput, setManualInput] = useState("");
     const [durationMode, setDurationType] = useState("prescription");
     const [globalDays, setGlobalDays] = useState(7);
-    const [zoomedImage, setZoomedImage] = useState(null); // State for fullscreen preview
+    const [zoomedImage, setZoomedImage] = useState(null);
 
     // --- MANUAL MEDICINE AUTOCOMPLETE STATES ---
     const [manualSuggestions, setManualSuggestions] = useState([]);
@@ -168,7 +110,7 @@ export default function PrescriptionFlow() {
         return () => clearTimeout(delayDebounceFn);
     }, [manualInput]);
 
-    // --- DISMISS AUTOCMPLETE ON OUTSIDE CLICK ---
+    // --- DISMISS AUTOCOMPLETE ON OUTSIDE CLICK ---
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (manualSearchRef.current && !manualSearchRef.current.contains(event.target)) {
@@ -198,8 +140,8 @@ export default function PrescriptionFlow() {
     const fetchNearbyPharmacies = async () => {
         setIsLoadingPharmacies(true);
         try {
-            let lat = 30.73801886597137; // Default fallback lat
-            let lng = 76.66057655388279; // Default fallback lng
+            let lat = 30.73801886597137;
+            let lng = 76.66057655388279;
 
             const storedCoords = localStorage.getItem("userCoords");
             if (storedCoords) {
@@ -244,14 +186,12 @@ export default function PrescriptionFlow() {
 
         setIsSubmitting(true);
         try {
-            // Prepare the requested medicines array
             const requestedMeds = medicines.map(med => ({
                 name: med.name,
                 days: durationMode === "prescription" ? globalDays : med.days,
                 dosage: med.dosage || "1-0-1"
             }));
 
-            // Construct FormData as per requirements
             const formData = new FormData();
             formData.append("prescriptionImage", rawFile);
             formData.append("pharmacyId", selectedPharmacy._id);
@@ -260,13 +200,10 @@ export default function PrescriptionFlow() {
             formData.append("requestedMedicines", JSON.stringify(requestedMeds));
             formData.append("address", JSON.stringify(selectedAddress));
 
-            // Call the API function
             const response = await UserAPI.createPrescriptionRequest(formData);
 
             if (response.success) {
-                router.push("/userscreens/previousorders"); // Redirect to orders page
-
-                // Reset flow
+                router.push("/userscreens/previousorders");
                 setStep(1);
                 setMedicines([]);
                 setRawFile(null);
@@ -289,7 +226,7 @@ export default function PrescriptionFlow() {
         const file = e.target.files[0];
         if (!file) return;
 
-        setRawFile(file); // Store the binary file
+        setRawFile(file);
         setFilePreview(URL.createObjectURL(file));
         setIsAnalyzing(true);
         setStep(2);
@@ -343,14 +280,12 @@ export default function PrescriptionFlow() {
 
     const removeMed = (id) => setMedicines(prev => prev.filter(m => m.id !== id));
 
-
-    // --- RENDER STEP 3: ADDRESS SELECTION ---
     // --- RENDER STEP 3: ADDRESS SELECTION ---
     if (step === 3) return (
-        <div className="min-h-screen bg-slate-50 pb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="min-h-screen bg-slate-50 pb-16 animate-in fade-in slide-in-from-bottom-4 duration-500 font-sans">
             <header className="bg-white px-8 py-6 border-b border-slate-200 sticky top-0 z-10 shadow-sm">
                 <div className="max-w-6xl mx-auto flex items-center gap-4">
-                    <button onClick={() => setStep(2)} className="p-3 bg-slate-100 rounded-full hover:bg-slate-200 transition-all text-slate-600">
+                    <button onClick={() => setStep(2)} className="p-3 bg-slate-100 rounded-full hover:bg-slate-200 transition-all text-slate-600 cursor-pointer">
                         <FiArrowLeft size={18} />
                     </button>
                     <div>
@@ -368,13 +303,11 @@ export default function PrescriptionFlow() {
                     </div>
                 ) : (
                     <div className="space-y-6">
-                        
-                        {/* Header Section with Quick Add Button */}
                         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                             <div className="font-black text-slate-400 text-[10px] uppercase tracking-[0.3em]">Select From Saved Locations</div>
                             <button 
                                 onClick={() => router.push('/userscreens/myaccount')}
-                                className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-xs"
+                                className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-xs cursor-pointer"
                             >
                                 <FiPlus size={12} /> Add New Address
                             </button>
@@ -419,7 +352,6 @@ export default function PrescriptionFlow() {
                                 );
                             })}
 
-                            {/* DASHED GRID CARD: ADD NEW ADDRESS */}
                             <div
                                 onClick={() => router.push('/userscreens/myaccount')}
                                 className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[28px] p-6 hover:border-emerald-500 hover:bg-emerald-50/10 transition-all cursor-pointer flex flex-col items-center justify-center min-h-[220px] group text-center"
@@ -436,7 +368,7 @@ export default function PrescriptionFlow() {
                             <button
                                 disabled={!selectedAddress}
                                 onClick={() => setStep(4)}
-                                className={`px-10 py-5 rounded-[24px] font-black text-xs uppercase tracking-[0.25em] transition-all shadow-xl flex items-center gap-3
+                                className={`px-10 py-5 rounded-[24px] font-black text-xs uppercase tracking-[0.25em] transition-all shadow-xl flex items-center gap-3 cursor-pointer
                                     ${selectedAddress
                                         ? "bg-slate-900 text-white hover:bg-emerald-600"
                                         : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
@@ -450,51 +382,55 @@ export default function PrescriptionFlow() {
         </div>
     );
 
-
-    // --- RENDER STEP 4: PHARMACY SELECTION WITH REQUEST ACTIONS ---
+    // --- RENDER STEP 4: PHARMACY SELECTION ---
     if (step === 4) return (
-        <div className="min-h-screen bg-slate-50 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="min-h-screen bg-[#F8FAFC] pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500 font-sans">
             <header className="bg-white px-8 py-6 border-b border-slate-200 sticky top-0 z-10 shadow-sm">
                 <div className="max-w-6xl mx-auto flex items-center gap-4">
-                    <button onClick={() => setStep(3)} className="p-3 bg-slate-100 rounded-full hover:bg-slate-200 transition-all text-slate-600">
+                    <button onClick={() => setStep(3)} className="p-3 bg-slate-100 rounded-full hover:bg-slate-200 transition-all text-slate-600 cursor-pointer">
                         <FiArrowLeft size={18} />
                     </button>
                     <div>
-                        <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">Local Pharmacies</h1>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select a vendor to fulfill order</p>
+                        <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">Select Fulfilling Pharmacy</h1>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Choose a certified local partner to review your prescription</p>
                     </div>
                 </div>
             </header>
 
-            <main className="max-w-6xl mx-auto p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <main className="max-w-6xl mx-auto p-6 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Summary Card Left */}
                 <div className="lg:col-span-1 space-y-4">
                     <div className="bg-slate-900 p-8 rounded-[32px] text-white shadow-2xl relative overflow-hidden sticky top-28 space-y-6">
-                        <div className="absolute right-[-10px] bottom-[-10px] opacity-10 text-emerald-400"><MdOutlineLocalPharmacy size={160} /></div>
+                        <div className="absolute right-[-10px] bottom-[-10px] opacity-10 text-emerald-400 pointer-events-none">
+                            <MdOutlineLocalPharmacy size={160} />
+                        </div>
                         <div>
-                            <p className="text-[10px] font-black uppercase text-emerald-400 tracking-[0.2em]">Ready to order</p>
+                            <p className="text-[10px] font-black uppercase text-emerald-400 tracking-[0.2em]">Prescription Order</p>
                             <p className="text-3xl font-black mt-1">{medicines.length} Medicines</p>
-                            <p className="text-sm text-slate-400 mt-1 font-medium italic">Average delivery time: 45 mins</p>
+                            <p className="text-xs text-slate-400 mt-1 font-semibold">Store reviews &amp; sends estimated invoice</p>
                         </div>
 
                         {/* Selected Address Summary Block */}
                         {selectedAddress && (
-                            <div className="bg-slate-800/60 p-4 rounded-2xl border border-slate-800">
-                                <div className="flex items-center gap-2 text-[9px] font-black text-emerald-400 uppercase tracking-wider mb-1">
-                                    <FiMapPin /> Delivering To ({selectedAddress.addressType})
+                            <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/80 space-y-1">
+                                <div className="flex items-center gap-2 text-[9px] font-black text-emerald-400 uppercase tracking-wider">
+                                    <FiMapPin /> Delivery Destination ({selectedAddress.addressType})
                                 </div>
-                                <p className="text-xs font-bold text-slate-200 truncate">{selectedAddress.name}</p>
-                                <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">
-                                    {selectedAddress.houseNo}, Sector {selectedAddress.sector}, {selectedAddress.city}
+                                <p className="text-xs font-bold text-slate-200 truncate">{selectedAddress.name} ({selectedAddress.phone})</p>
+                                <p className="text-[11px] text-slate-400 leading-relaxed">
+                                    {selectedAddress.houseNo}, Sector {selectedAddress.sector}, {selectedAddress.city} - {selectedAddress.pincode}
                                 </p>
                             </div>
                         )}
 
-                        <div className="pt-4 border-t border-slate-800 space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                        <div className="pt-4 border-t border-slate-800 space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Prescribed Items</span>
                             {medicines.map((m) => (
-                                <div key={m.id} className="text-xs text-slate-300 flex justify-between">
-                                    <span className="truncate max-w-[180px] font-medium">✓ {m.name}</span>
-                                    <span className="text-slate-500 font-bold">{durationMode === "prescription" ? globalDays : m.days}d</span>
+                                <div key={m.id} className="text-xs text-slate-300 flex justify-between items-center py-0.5">
+                                    <span className="truncate max-w-[200px] font-medium">• {m.name}</span>
+                                    <span className="text-slate-400 font-bold text-[10px] bg-slate-800 px-2 py-0.5 rounded">
+                                        {durationMode === "prescription" ? globalDays : m.days}d
+                                    </span>
                                 </div>
                             ))}
                         </div>
@@ -503,80 +439,147 @@ export default function PrescriptionFlow() {
 
                 {/* Vendors Right */}
                 <div className="lg:col-span-2 space-y-4">
-                    <div className="font-black text-slate-400 text-[10px] uppercase tracking-[0.3em] mb-2">Nearby Featured Vendors</div>
+                    <div className="flex justify-between items-center px-1">
+                        <span className="font-black text-slate-400 text-[10px] uppercase tracking-[0.2em]">Nearby Licensed Stores</span>
+                        <span className="text-xs font-bold text-emerald-600">{pharmacies.length} Available</span>
+                    </div>
 
                     {isLoadingPharmacies ? (
-                        <div className="flex flex-col items-center justify-center bg-white border border-slate-200 rounded-[32px] p-20 text-emerald-600 font-bold text-xs uppercase tracking-widest gap-2">
-                            <FiLoader className="animate-spin text-2xl" /> Finding nearby stores...
+                        <div className="flex flex-col items-center justify-center bg-white border border-slate-200 rounded-[32px] p-20 text-emerald-600 font-bold text-xs uppercase tracking-widest gap-3 shadow-xs">
+                            <FiLoader className="animate-spin text-3xl" /> Finding closest licensed stores...
                         </div>
                     ) : pharmacies.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center bg-white border border-dashed border-slate-200 rounded-[32px] p-20 text-slate-400 font-bold text-xs uppercase tracking-widest">
-                            No pharmacies found around your active coordinates.
+                        <div className="flex flex-col items-center justify-center bg-white border border-dashed border-slate-200 rounded-[32px] p-20 text-slate-400 font-bold text-xs uppercase tracking-widest shadow-xs">
+                            No pharmacies found in your coverage zone.
                         </div>
                     ) : (
-                        pharmacies.map((pharma, i) => {
-                            const isSelected = selectedPharmacy?._id === pharma._id || (selectedPharmacy?.name === pharma.name);
-                            return (
-                                <div
-                                    key={pharma._id || i}
-                                    onClick={() => setSelectedPharmacy(pharma)}
-                                    className={`bg-white p-6 rounded-[24px] border-2 flex items-center justify-between group transition-all cursor-pointer hover:shadow-xl
-                                        ${isSelected
-                                            ? "border-emerald-500 shadow-xl shadow-emerald-500/5 bg-emerald-50/5"
-                                            : "border-slate-200"}`}
-                                >
-                                    <div className="flex items-center gap-5">
-                                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl transition-colors
-                                            ${isSelected ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white"}`}>
-                                            {pharma.name ? pharma.name.charAt(0) : "P"}
+                        <div className="space-y-3.5">
+                            {pharmacies.map((pharma, i) => {
+                                const isSelected = selectedPharmacy?._id === pharma._id;
+
+                                // Resolve Full Address with fallbacks
+                                const computedAddress = pharma.address || [pharma.city, pharma.state, pharma.country].filter(Boolean).join(", ") || "City Medical Market";
+
+                                const distanceNum = parseFloat(pharma.distance);
+                                const distanceDisplay = !isNaN(distanceNum) ? `${distanceNum.toFixed(1)} km away` : (pharma.dist || "Nearby");
+
+                                return (
+                                    <div
+                                        key={pharma._id || i}
+                                        onClick={() => setSelectedPharmacy(pharma)}
+                                        className={`bg-white p-5 md:p-6 rounded-[28px] border-2 transition-all cursor-pointer relative group flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:shadow-xl hover:-translate-y-0.5
+                                            ${isSelected
+                                                ? "border-emerald-500 shadow-xl shadow-emerald-500/10 bg-emerald-50/10"
+                                                : "border-slate-200/90 hover:border-slate-300"}`}
+                                    >
+                                        <div className="flex items-start gap-4 flex-1 min-w-0">
+                                            {/* Store Profile Avatar */}
+                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg transition-all shrink-0 overflow-hidden border ${
+                                                isSelected 
+                                                    ? "bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20" 
+                                                    : "bg-emerald-50 text-emerald-600 border-emerald-100 group-hover:bg-emerald-600 group-hover:text-white"
+                                            }`}>
+                                                {pharma.profileImage ? (
+                                                    <img 
+                                                        src={getReportFileUrl(pharma.profileImage)} 
+                                                        alt={pharma.name} 
+                                                        className="w-full h-full object-cover" 
+                                                    />
+                                                ) : (
+                                                    <MdOutlineLocalPharmacy size={26} />
+                                                )}
+                                            </div>
+
+                                            {/* Store Info & Address */}
+                                            <div className="space-y-1.5 flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <h3 className="font-black text-slate-900 text-base capitalize tracking-tight truncate">
+                                                        {pharma.name}
+                                                    </h3>
+                                                    {pharma.openStatus && (
+                                                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
+                                                            pharma.openStatus === "Open Now" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"
+                                                        }`}>
+                                                            {pharma.openStatus}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Full Detailed Address Block */}
+                                                <div className="flex items-start gap-1.5 text-xs text-slate-600 font-medium">
+                                                    <FiMapPin className="text-emerald-600 shrink-0 mt-0.5" size={13} />
+                                                    <p className="line-clamp-2 leading-relaxed">
+                                                        {computedAddress}
+                                                    </p>
+                                                </div>
+
+                                                {/* Tags Row */}
+                                                <div className="flex items-center gap-2 flex-wrap pt-1 text-[10px] font-bold">
+                                                    <span className="inline-flex items-center gap-1 text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider font-mono">
+                                                        <FiNavigation size={10} className="text-[#08B36A]" /> {distanceDisplay}
+                                                    </span>
+
+                                                    {pharma.isHomeDeliveryAvailable && (
+                                                        <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                                                            <FiTruck size={10} /> Home Delivery
+                                                        </span>
+                                                    )}
+
+                                                    {pharma.is24x7 && (
+                                                        <span className="inline-flex items-center gap-1 text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                                                            <FiClock size={10} /> 24x7 Open
+                                                        </span>
+                                                    )}
+
+                                                    <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">
+                                                        <HiStar className="text-amber-500" /> {pharma.rating || "4.8"}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h3 className="font-black text-slate-800 text-base">{pharma.name}</h3>
-                                            <div className="flex items-center gap-4 text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-tight">
-                                                <span className="flex items-center gap-1">
-                                                    <FiMapPin className="text-emerald-500" />
-                                                    {pharma.distance ? `${parseFloat(pharma.distance).toFixed(1)} km` : `${pharma.dist || pharma.city || 'Nearby'}`}
-                                                </span>
-                                                <span className="flex items-center gap-1 text-amber-500">
-                                                    <FiStar className="fill-amber-500" /> {pharma.rating || "4.5"}
-                                                </span>
-                                                <span className="flex items-center gap-1">
-                                                    <FiClock /> {pharma.time || pharma.deliveryTime || "30-45 mins"}
-                                                </span>
+
+                                        {/* Selection Checkmark Button */}
+                                        <div className="self-end sm:self-center shrink-0">
+                                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+                                                isSelected 
+                                                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30 scale-105" 
+                                                    : "bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-700"
+                                            }`}>
+                                                {isSelected ? <FiCheck size={18} className="stroke-[3]" /> : <FiChevronRight size={18} />}
                                             </div>
                                         </div>
                                     </div>
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all
-                                        ${isSelected ? "bg-emerald-600 text-white scale-110" : "bg-slate-50 text-slate-300 group-hover:bg-emerald-600 group-hover:text-white"}`}>
-                                        {isSelected ? <FiCheckCircle size={18} /> : <FiChevronRight size={20} />}
-                                    </div>
-                                </div>
-                            );
-                        })
+                                );
+                            })}
+                        </div>
                     )}
                 </div>
             </main>
 
             {/* Bottom Sticky Action Bar when a Pharmacy is selected */}
             {selectedPharmacy && (
-                <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-8 py-4 shadow-2xl z-20 animate-in slide-in-from-bottom duration-300">
+                <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-8 py-4 shadow-2xl z-20 animate-in slide-in-from-bottom duration-300">
                     <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="text-center sm:text-left">
-                            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em]">Selected Vendor</p>
-                            <h4 className="text-base font-black text-slate-900">{selectedPharmacy.name}</h4>
+                            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest block">Selected Partner Pharmacy</span>
+                            <h4 className="text-base font-black text-slate-900 capitalize">{selectedPharmacy.name}</h4>
+                            <p className="text-[11px] text-slate-400 font-medium truncate max-w-sm">
+                                {selectedPharmacy.address || [selectedPharmacy.city, selectedPharmacy.state].filter(Boolean).join(", ")}
+                            </p>
                         </div>
                         <button
                             disabled={isSubmitting}
                             onClick={handleSendRequest}
-                            className="w-full sm:w-auto px-8 py-4 bg-emerald-600 hover:bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/10"
+                            className="w-full sm:w-auto px-10 py-4 bg-[#08B36A] hover:bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2.5 shadow-xl shadow-emerald-600/20 active:scale-95 cursor-pointer disabled:opacity-50"
                         >
                             {isSubmitting ? (
                                 <>
-                                    <FiLoader className="animate-spin" /> Dispatching...
+                                    <FiLoader className="animate-spin text-sm" /> Transmitting Prescription...
                                 </>
                             ) : (
                                 <>
-                                    Send Request <FiSend />
+                                    <span>Send Prescription Inquiry</span>
+                                    <FiSend />
                                 </>
                             )}
                         </button>
@@ -600,7 +603,7 @@ export default function PrescriptionFlow() {
                         </p>
                     </div>
                     {step === 2 && (
-                        <button onClick={() => { setStep(1); setMedicines([]); setRawFile(null); }} className="p-3 bg-slate-50 text-slate-400 rounded-full hover:bg-rose-50 hover:text-rose-500 transition-all">
+                        <button onClick={() => { setStep(1); setMedicines([]); setRawFile(null); }} className="p-3 bg-slate-50 text-slate-400 rounded-full hover:bg-rose-50 hover:text-rose-500 transition-all cursor-pointer">
                             <FiTrash2 size={16} />
                         </button>
                     )}
@@ -609,28 +612,26 @@ export default function PrescriptionFlow() {
 
             <main className="max-w-6xl mx-auto px-8 mt-8">
                 {step === 1 ? (
-                    /* Web Optimized Step 1 - Centered Card Container */
                     <div className="max-w-2xl mx-auto space-y-6 pt-12 animate-in fade-in zoom-in-95 duration-500">
                         <div
-                            onClick={() => fileInputRef.current.click()}
+                            onClick={() => fileInputRef.current?.click()}
                             className="bg-white border-4 border-dashed border-slate-200 rounded-[40px] p-20 text-center hover:border-emerald-500 hover:bg-emerald-50/20 transition-all cursor-pointer group shadow-sm"
                         >
-                            <input type="file" hidden ref={fileInputRef} onChange={handleFileUpload} accept="image/*" />
+                            <input type="file" hidden ref={fileInputRef} onChange={handleFileUpload} accept="image/*,application/pdf" />
                             <div className="w-24 h-24 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform shadow-inner">
                                 <FiUploadCloud size={40} />
                             </div>
-                            <h3 className="text-2xl font-black text-slate-800 tracking-tight">Select Prescription</h3>
-                            <p className="text-slate-400 mt-2 text-xs font-bold uppercase tracking-[0.2em]">Automatic medicine detection</p>
+                            <h3 className="text-2xl font-black text-slate-800 tracking-tight">Select Prescription Image / PDF</h3>
+                            <p className="text-slate-400 mt-2 text-xs font-bold uppercase tracking-[0.2em]">Automatic OCR medicine extraction</p>
                         </div>
                         <div className="flex items-center gap-4 py-2 text-slate-300 uppercase font-black text-[10px] tracking-widest">
                             <div className="h-px bg-slate-200 flex-1"></div> Or <div className="h-px bg-slate-200 flex-1"></div>
                         </div>
-                        <button onClick={() => setStep(2)} className="w-full py-5 bg-white border border-slate-200 rounded-[24px] text-slate-800 font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-900 hover:text-white transition-all shadow-sm">
+                        <button onClick={() => setStep(2)} className="w-full py-5 bg-white border border-slate-200 rounded-[24px] text-slate-800 font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-900 hover:text-white transition-all shadow-sm cursor-pointer">
                             Add Items Manually
                         </button>
                     </div>
                 ) : (
-                    /* Web Optimized Step 2 - Two Column Desktop Grid Layout */
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
                         {/* Left Side: Parameters & Configuration Controls (4/12 Columns) */}
@@ -673,14 +674,14 @@ export default function PrescriptionFlow() {
                             <div className="bg-white rounded-[28px] p-2 border border-slate-200 shadow-sm flex flex-col gap-2">
                                 <button
                                     onClick={() => setDurationType("prescription")}
-                                    className={`w-full py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2
+                                    className={`w-full py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer
                                     ${durationMode === 'prescription' ? "bg-slate-900 text-white shadow-lg" : "text-slate-400 hover:bg-slate-50"}`}
                                 >
                                     <FiFileText size={14} /> Global Duration
                                 </button>
                                 <button
                                     onClick={() => setDurationType("custom")}
-                                    className={`w-full py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2
+                                    className={`w-full py-4 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer
                                     ${durationMode === 'custom' ? "bg-slate-900 text-white shadow-lg" : "text-slate-400 hover:bg-slate-50"}`}
                                 >
                                     <FiClock size={14} /> Custom Item Days
@@ -695,9 +696,9 @@ export default function PrescriptionFlow() {
                                         <p className="text-4xl font-black mt-1">{globalDays} Days</p>
                                     </div>
                                     <div className="flex items-center justify-between bg-white/10 p-2 rounded-2xl mt-4">
-                                        <button onClick={() => setGlobalDays(Math.max(1, globalDays - 1))} className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"><FiMinus size={16} /></button>
+                                        <button onClick={() => setGlobalDays(Math.max(1, globalDays - 1))} className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"><FiMinus size={16} /></button>
                                         <span className="text-xs font-bold">Adjust Global Count</span>
-                                        <button onClick={() => setGlobalDays(globalDays + 1)} className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"><FiPlus size={16} /></button>
+                                        <button onClick={() => setGlobalDays(globalDays + 1)} className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"><FiPlus size={16} /></button>
                                     </div>
                                 </div>
                             )}
@@ -706,7 +707,7 @@ export default function PrescriptionFlow() {
                             <button
                                 disabled={medicines.length === 0 || isAnalyzing}
                                 onClick={() => setStep(3)}
-                                className={`w-full py-5 rounded-[24px] font-black text-xs uppercase tracking-[0.25em] transition-all shadow-xl flex items-center justify-center gap-3
+                                className={`w-full py-5 rounded-[24px] font-black text-xs uppercase tracking-[0.25em] transition-all shadow-xl flex items-center justify-center gap-3 cursor-pointer
                                     ${medicines.length > 0 && !isAnalyzing
                                         ? "bg-emerald-600 text-white shadow-emerald-600/10 hover:bg-slate-900"
                                         : "bg-slate-200 text-slate-400 cursor-not-allowed"}`}
@@ -743,13 +744,13 @@ export default function PrescriptionFlow() {
                                                         <p className="text-[10px] font-bold text-emerald-600 uppercase mt-0.5">Inheriting {globalDays} Days</p>
                                                     ) : (
                                                         <div className="flex items-center gap-2 mt-2">
-                                                            <button onClick={() => updateDays(med.id, -1)} className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-colors"><FiMinus size={10} /></button>
+                                                            <button onClick={() => updateDays(med.id, -1)} className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"><FiMinus size={10} /></button>
                                                             <span className="text-xs font-black text-slate-700 min-w-[48px] text-center">{med.days} Days</span>
-                                                            <button onClick={() => updateDays(med.id, 1)} className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-colors"><FiPlus size={10} /></button>
+                                                            <button onClick={() => updateDays(med.id, 1)} className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"><FiPlus size={10} /></button>
                                                         </div>
                                                     )}
                                                 </div>
-                                                <button onClick={() => removeMed(med.id)} className="p-3 text-slate-300 hover:text-rose-500 transition-colors shrink-0">
+                                                <button onClick={() => removeMed(med.id)} className="p-3 text-slate-300 hover:text-rose-500 transition-colors shrink-0 cursor-pointer">
                                                     <FiTrash2 size={16} />
                                                 </button>
                                             </div>
@@ -775,7 +776,7 @@ export default function PrescriptionFlow() {
                                                 </div>
                                             )}
                                         </div>
-                                        <button type="submit" className="w-14 h-14 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-emerald-600 transition-all shadow-md shrink-0">
+                                        <button type="submit" className="w-14 h-14 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-emerald-600 transition-all shadow-md shrink-0 cursor-pointer">
                                             <FiPlus size={20} />
                                         </button>
                                     </form>
@@ -828,7 +829,7 @@ export default function PrescriptionFlow() {
                     <div className="relative max-w-4xl max-h-[85vh] w-full h-full flex items-center justify-center">
                         <button 
                             onClick={() => setZoomedImage(null)}
-                            className="absolute top-4 right-4 z-50 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors flex items-center justify-center"
+                            className="absolute top-4 right-4 z-50 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors flex items-center justify-center cursor-pointer"
                         >
                             <span className="text-white font-bold text-xl">×</span>
                         </button>

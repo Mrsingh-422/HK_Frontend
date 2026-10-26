@@ -6,12 +6,13 @@ import toast from 'react-hot-toast';
 import UserAPI from '@/app/services/UserAPI';
 import {
     FiX, FiActivity, FiSearch, FiRefreshCw, FiChevronLeft, FiChevronRight,
-    FiMapPin, FiClock, FiCreditCard, FiLoader, FiTrash2, FiAlertTriangle
+    FiMapPin, FiClock, FiCreditCard, FiLoader, FiTrash2, FiAlertTriangle,
+    FiUser, FiPhone, FiCheckCircle, FiNavigation, FiKey, FiShield
 } from 'react-icons/fi';
 import { HiStar } from 'react-icons/hi';
 import { FaFileMedical, FaUserNurse } from 'react-icons/fa';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://192.168.1.26:5002";
 
 // Helper to resolve files and assets from the backend server
 const getReportFileUrl = (path) => {
@@ -22,6 +23,15 @@ const getReportFileUrl = (path) => {
     const cleanedPath = path.replace(/^\/+/, '');
     return `${BACKEND_URL}/${cleanedPath}`;
 };
+
+const NURSE_VISIT_STAGES = [
+    { key: 'Confirmed', label: 'Booking Confirmed' },
+    { key: 'Assigned', label: 'Nurse Assigned' },
+    { key: 'On-The-Way', label: 'On The Way' },
+    { key: 'Arrived', label: 'Nurse Arrived' },
+    { key: 'Service-Started', label: 'Service Started' },
+    { key: 'Completed', label: 'Completed' }
+];
 
 function NursePrescriptionOrders() {
     const themeColor = "#08B36A";
@@ -43,6 +53,11 @@ function NursePrescriptionOrders() {
     const [proposalsModal, setProposalsModal] = useState({ isOpen: false, data: null, proposals: [] });
     const [cancelModal, setCancelModal] = useState({ isOpen: false, data: null });
     const [cancelling, setCancelling] = useState(false);
+
+    // Phase 2 Live Tracking Modal State
+    const [trackingModal, setTrackingModal] = useState({ isOpen: false, data: null });
+    const [isLoadingTracking, setIsLoadingTracking] = useState(false);
+
     const [mounted, setMounted] = useState(false);
 
     // 1. Handle Mounting for Portals (Next.js SSR safety)
@@ -53,19 +68,20 @@ function NursePrescriptionOrders() {
 
     // 2. Prevent body scroll when modals are open
     useEffect(() => {
-        if (detailsModal.isOpen || proposalsModal.isOpen || cancelModal.isOpen) {
+        if (detailsModal.isOpen || proposalsModal.isOpen || cancelModal.isOpen || trackingModal.isOpen) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [detailsModal.isOpen, proposalsModal.isOpen, cancelModal.isOpen]);
+    }, [detailsModal.isOpen, proposalsModal.isOpen, cancelModal.isOpen, trackingModal.isOpen]);
 
-    // Fetch Broadcast History List
+    // Fetch Broadcast History List (GET /user/nurse/prescription/history)
     const loadRequestsHistory = useCallback(async (page = 1) => {
         setLoading(true);
         try {
-            const response = await UserAPI.getNurseProposals();
+            const apiMethod = UserAPI.getNursePrescriptionHistory || UserAPI.getNurseProposals;
+            const response = await apiMethod();
             if (response && response.success) {
                 setOrders(response.data || []);
                 setPagination({
@@ -86,7 +102,7 @@ function NursePrescriptionOrders() {
         loadRequestsHistory();
     }, [loadRequestsHistory]);
 
-    // --- VIEW INCOMING PROPOSALS ---
+    // --- PHASE 1: VIEW INCOMING PROPOSALS (GET /user/nurse/prescription/proposals/:requestId) ---
     const handleViewProposals = async (request) => {
         const reqId = request.requestId || request._id;
         setProposalsModal({ isOpen: true, data: request, proposals: [] });
@@ -96,7 +112,7 @@ function NursePrescriptionOrders() {
             if (response && response.success) {
                 setProposalsModal(prev => ({
                     ...prev,
-                    proposals: response.proposals || []
+                    proposals: response.proposals || response.data || []
                 }));
             }
         } catch (err) {
@@ -104,6 +120,25 @@ function NursePrescriptionOrders() {
             toast.error("Could not fetch incoming proposals.");
         } finally {
             setProposalsLoading(false);
+        }
+    };
+
+    // --- PHASE 2: LIVE NURSE HOME VISIT TRACKING (GET /user/nurse/track/:id) ---
+    const handleOpenLiveTracking = async (order) => {
+        const targetId = order.confirmedBookingId || order.bookingId || order.appointmentId || order._id;
+        setTrackingModal({ isOpen: true, data: { ...order, bookingId: targetId } });
+        setIsLoadingTracking(true);
+        try {
+            if (UserAPI.trackNurseBooking) {
+                const res = await UserAPI.trackNurseBooking(targetId);
+                if (res?.success && res.data) {
+                    setTrackingModal({ isOpen: true, data: res.data });
+                }
+            }
+        } catch (err) {
+            console.error("Live tracking error:", err);
+        } finally {
+            setIsLoadingTracking(false);
         }
     };
 
@@ -206,6 +241,14 @@ function NursePrescriptionOrders() {
                                 toast.success(verifyRes.message || "Payment verified! Booking confirmed successfully.");
                                 setProposalsModal({ isOpen: false, data: null, proposals: [] });
                                 loadRequestsHistory();
+
+                                // Launch Phase 2 Tracking immediately
+                                const createdBookingId = verifyRes.bookingId || verifyRes.data?.bookingId || response.appointmentId;
+                                handleOpenLiveTracking({
+                                    ...activeRequest,
+                                    confirmedBookingId: createdBookingId,
+                                    bookingId: createdBookingId
+                                });
                             } else {
                                 toast.error(verifyRes?.message || "Payment verification failed.");
                             }
@@ -253,7 +296,6 @@ function NursePrescriptionOrders() {
         return 'text-amber-700 bg-amber-50 border border-amber-200';
     };
 
-    // Filter requests list locally based on search
     const filteredRequests = orders.filter(req => {
         const idMatch = req.requestId?.toLowerCase().includes(searchTerm.toLowerCase());
         const statusMatch = req.status?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -264,16 +306,18 @@ function NursePrescriptionOrders() {
         setDetailsModal({ isOpen: true, data });
     };
 
-    // --- MODAL PORTAL COMPONENT: REQUEST DETAILS VIEW ---
+    // ==============================================================
+    // 🔍 MODAL PORTAL: REQUEST DETAILS (PRE-PAYMENT)
+    // ==============================================================
     const NurseRequestDetailsModal = ({ data, onClose }) => {
         if (!mounted || !data) return null;
         const isCancellable = data.status !== 'Cancelled' && data.status !== 'Completed';
 
         return createPortal(
-            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6">
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6 font-sans">
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300" onClick={onClose} />
 
-                <div className="relative bg-white w-full max-w-2xl rounded-[2.5rem] md:rounded-[3.5rem] shadow-[0_30px_80px_-15px_rgba(0,0,0,0.5)] overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95 fade-in duration-300">
+                <div className="relative bg-white w-full max-w-2xl rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
 
                     {/* Header */}
                     <div className="p-6 md:p-8 border-b flex justify-between items-center bg-slate-50/30 shrink-0">
@@ -305,7 +349,7 @@ function NursePrescriptionOrders() {
                                 {data.prescriptionImage && (
                                     <div className="space-y-2">
                                         <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Prescription Image</p>
-                                        <div className="border border-slate-150 rounded-[2rem] overflow-hidden max-h-48 bg-slate-50 flex items-center justify-center p-2">
+                                        <div className="border border-slate-200 rounded-[2rem] overflow-hidden max-h-48 bg-slate-50 flex items-center justify-center p-2">
                                             <img
                                                 src={getReportFileUrl(data.prescriptionImage)}
                                                 alt="Prescription"
@@ -361,7 +405,7 @@ function NursePrescriptionOrders() {
                                         </div>
                                         <p className="text-[10px] text-slate-400 font-bold uppercase">{svc.description}</p>
                                         {svc.notes && (
-                                            <p className="text-xs text-[#08B36A] font-semibold italic border-t border-slate-200/60 pt-1.5 mt-1.5">Note: "{svc.notes}"</p>
+                                            <p className="text-xs text-[#08B36A] font-semibold italic border-t border-slate-200/60 pt-1.5 mt-1.5">Note: &quot;{svc.notes}&quot;</p>
                                         )}
                                     </div>
                                 ))}
@@ -400,15 +444,17 @@ function NursePrescriptionOrders() {
         );
     };
 
-    // --- MODAL PORTAL COMPONENT: PROPOSALS DETAIL VIEW ---
+    // ==============================================================
+    // 📋 MODAL PORTAL: PHASE 1 PROPOSALS DETAIL VIEW
+    // ==============================================================
     const NurseProposalsModal = ({ isOpen, onClose, data, proposalsList }) => {
         if (!mounted || !isOpen || !data) return null;
 
         return createPortal(
-            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6">
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6 font-sans">
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300" onClick={onClose} />
 
-                <div className="relative bg-white w-full max-w-2xl rounded-[2.5rem] md:rounded-[3.5rem] shadow-[0_30px_80px_-15px_rgba(0,0,0,0.5)] overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95 fade-in duration-300">
+                <div className="relative bg-white w-full max-w-2xl rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
 
                     {/* Header */}
                     <div className="p-6 md:p-8 border-b flex justify-between items-center bg-slate-50/30 shrink-0">
@@ -445,7 +491,7 @@ function NursePrescriptionOrders() {
                                         <div key={svc._id || i} className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs space-y-1">
                                             <p className="font-bold text-slate-800">{svc.title}</p>
                                             <p className="text-[10px] text-slate-400 font-semibold">{svc.description}</p>
-                                            {svc.notes && <p className="text-[9px] text-[#08B36A] italic font-bold">Note: "{svc.notes}"</p>}
+                                            {svc.notes && <p className="text-[9px] text-[#08B36A] italic font-bold">Note: &quot;{svc.notes}&quot;</p>}
                                         </div>
                                     ))}
                                 </div>
@@ -455,12 +501,12 @@ function NursePrescriptionOrders() {
                         {proposalsLoading ? (
                             <div className="flex flex-col items-center justify-center py-20 text-slate-400 font-bold text-xs uppercase tracking-wider gap-3">
                                 <FiRefreshCw className="animate-spin text-[#08B36A]" size={24} />
-                                <span>Syncing live nurse offers...</span>
+                                <span>Syncing live nurse bureau offers...</span>
                             </div>
                         ) : proposalsList && proposalsList.length > 0 ? (
                             <div className="space-y-6">
                                 {proposalsList.map((proposal) => (
-                                    <div key={proposal._id} className="bg-white border border-slate-200 rounded-[2rem] shadow-sm p-6 space-y-5 animate-in slide-in-from-top-4 duration-200">
+                                    <div key={proposal._id} className="bg-white border border-slate-200 rounded-[2rem] shadow-sm p-6 space-y-5">
 
                                         {/* Nurse Header */}
                                         <div className="flex items-center justify-between border-b pb-4 border-slate-100">
@@ -565,7 +611,7 @@ function NursePrescriptionOrders() {
                             </div>
                         ) : (
                             <div className="p-12 text-center text-slate-400 font-medium text-sm">
-                                No proposals submitted for this request yet.
+                                No proposals submitted for this request yet. Nearest bureaus have received your broadcast.
                             </div>
                         )}
 
@@ -577,13 +623,165 @@ function NursePrescriptionOrders() {
         );
     };
 
+    // ==============================================================
+    // 🩺 MODAL PORTAL: PHASE 2 LIVE NURSE HOME VISIT TRACKING
+    // ==============================================================
+    const LiveNurseTrackingModal = ({ trackingData, onClose, isLoading }) => {
+        if (!mounted || !trackingData) return null;
+
+        const currentStage = trackingData.status || trackingData.trackingStatus || 'Confirmed';
+        const nurse = trackingData.nurse || trackingData.staff || trackingData.assignedNurse || {};
+        const serviceOTP = trackingData.serviceOTP || trackingData.startOtp || trackingData.otp;
+        const completionOTP = trackingData.completionOTP || trackingData.endOtp;
+
+        const getStageIndex = (stage) => {
+            const idx = NURSE_VISIT_STAGES.findIndex(s => s.key.toLowerCase() === (stage || '').toLowerCase());
+            return idx === -1 ? 0 : idx;
+        };
+
+        const activeIndex = getStageIndex(currentStage);
+
+        return createPortal(
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 md:p-6 font-sans">
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300" onClick={onClose} />
+
+                <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    
+                    {/* Header */}
+                    <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-6 md:p-8 pb-6 flex justify-between items-start shrink-0">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1 text-emerald-400">
+                                <FaUserNurse size={14} />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Live Nurse Home Visit</span>
+                            </div>
+                            <h3 className="text-xl font-bold font-mono">
+                                #{trackingData.bookingId || trackingData._id || "NURSE-ACTIVE"}
+                            </h3>
+                            <p className="text-xs text-slate-400 mt-1">Status: <strong className="text-emerald-400">{currentStage}</strong></p>
+                        </div>
+                        <button onClick={onClose} className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white/80 hover:text-white transition cursor-pointer">
+                            <FiX size={20} />
+                        </button>
+                    </div>
+
+                    <div className="p-6 md:p-8 overflow-y-auto space-y-6 flex-1 custom-scrollbar text-xs">
+                        
+                        {isLoading && (
+                            <div className="py-2 text-center text-xs font-bold text-emerald-600 animate-pulse flex items-center justify-center gap-2">
+                                <div className="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                                Synchronizing live nurse location...
+                            </div>
+                        )}
+
+                        {/* Security OTP Verification Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {serviceOTP && (
+                                <div className="bg-emerald-50 border-2 border-dashed border-emerald-300 rounded-2xl p-4 text-center">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 block mb-1">
+                                        Start Visit PIN
+                                    </span>
+                                    <div className="text-2xl font-black tracking-[0.2em] text-[#08B36A] font-mono">
+                                        {serviceOTP}
+                                    </div>
+                                    <p className="text-[9px] text-slate-500 font-medium mt-1">Share when nurse arrives</p>
+                                </div>
+                            )}
+
+                            {completionOTP && (
+                                <div className="bg-blue-50 border-2 border-dashed border-blue-300 rounded-2xl p-4 text-center">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-800 block mb-1">
+                                        End Visit PIN
+                                    </span>
+                                    <div className="text-2xl font-black tracking-[0.2em] text-blue-600 font-mono">
+                                        {completionOTP}
+                                    </div>
+                                    <p className="text-[9px] text-slate-500 font-medium mt-1">Share when care finishes</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Progress Stepper */}
+                        <div className="space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Visit Stepper</p>
+                            <div className="space-y-3 pl-2 border-l-2 border-slate-100">
+                                {NURSE_VISIT_STAGES.map((stage, idx) => {
+                                    const isDone = idx <= activeIndex;
+                                    const isCurrent = idx === activeIndex;
+
+                                    return (
+                                        <div key={stage.key} className="relative flex items-center gap-3 pl-4">
+                                            <div className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                                isDone ? 'bg-[#08B36A] border-[#08B36A] text-white' : 'bg-white border-slate-200'
+                                            }`}>
+                                                {isDone && <FiCheckCircle size={10} />}
+                                            </div>
+                                            <div>
+                                                <p className={`text-xs font-bold ${isCurrent ? 'text-emerald-700' : isDone ? 'text-slate-800' : 'text-slate-400'}`}>
+                                                    {stage.label}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Assigned Nurse Card */}
+                        {nurse?.name && (
+                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+                                    Attending Homecare Nurse
+                                </span>
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-emerald-100 text-[#08B36A] flex items-center justify-center font-bold">
+                                            <FiUser size={18} />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-slate-900 text-xs">{nurse.name}</p>
+                                            <p className="text-[10px] text-slate-500">{nurse.qualification || "Registered Nurse"}</p>
+                                        </div>
+                                    </div>
+                                    {nurse.phone && (
+                                        <a href={`tel:${nurse.phone}`} className="p-2.5 bg-white border border-slate-200 rounded-xl text-emerald-600 hover:bg-emerald-50">
+                                            <FiPhone size={14} />
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Location / Patient Address */}
+                        {trackingData.location?.address && (
+                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Patient Home Location</span>
+                                <p className="text-slate-700 text-[11px] leading-relaxed">
+                                    House {trackingData.location.address.houseNo}, {trackingData.location.address.city}, {trackingData.location.address.state} - {trackingData.location.address.pincode}
+                                </p>
+                            </div>
+                        )}
+
+                    </div>
+
+                    <div className="p-5 bg-slate-50 border-t border-slate-100 flex justify-end">
+                        <button onClick={onClose} className="px-8 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl text-xs uppercase cursor-pointer">
+                            Close
+                        </button>
+                    </div>
+
+                </div>
+            </div>,
+            document.body
+        );
+    };
+
     return (
-        <div className="bg-white border border-slate-200 rounded-[24px] md:rounded-[32px] overflow-hidden shadow-sm animate-fadeIn w-full">
+        <div className="bg-white border border-slate-200 rounded-[24px] md:rounded-[32px] overflow-hidden shadow-sm animate-fadeIn w-full font-sans">
             {/* Header with Search */}
             <div className="p-5 md:p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h3 className="font-black text-slate-900 text-lg md:text-xl tracking-tight">Nurse Broadcasts</h3>
-                    <p className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest mt-1">Found {pagination.totalCount} Broadcasts</p>
+                    <h3 className="font-black text-slate-900 text-lg md:text-xl tracking-tight">Nurse Prescription Broadcasts</h3>
+                    <p className="text-slate-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest mt-1">Found {pagination.totalCount} Inquiries</p>
                 </div>
                 <div className="relative w-full sm:w-72">
                     <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -608,7 +806,7 @@ function NursePrescriptionOrders() {
                     <div className="text-center py-16 text-slate-400 text-xs font-medium">No nurse broadcasts available.</div>
                 ) : (
                     <>
-                        {/* Desktop Table View with Protected Min-Width and Scroll */}
+                        {/* Desktop Table View */}
                         <div className="hidden lg:block w-full overflow-x-auto custom-scrollbar">
                             <table className="w-full min-w-[960px] text-left border-collapse table-auto">
                                 <thead>
@@ -625,6 +823,7 @@ function NursePrescriptionOrders() {
                                 <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                                     {filteredRequests.map((req, index) => {
                                         const isCancellable = req.status !== 'Cancelled' && req.status !== 'Completed';
+                                        const isConvertedToBooking = req.status === 'Completed' || req.status === 'Confirmed' || Boolean(req.bookingId || req.confirmedBookingId);
 
                                         return (
                                             <tr
@@ -657,12 +856,23 @@ function NursePrescriptionOrders() {
 
                                                 <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                                                     <div className="inline-flex justify-end gap-2 whitespace-nowrap items-center">
-                                                        <button
-                                                            onClick={() => handleViewProposals(req)}
-                                                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#08B36A] hover:bg-[#079c5c] text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
-                                                        >
-                                                            <FaUserNurse size={12} /> View Proposals
-                                                        </button>
+                                                        {/* If booked & paid, open Phase 2 Live Tracking */}
+                                                        {isConvertedToBooking ? (
+                                                            <button
+                                                                onClick={() => handleOpenLiveTracking(req)}
+                                                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl shadow-md transition-all cursor-pointer active:scale-95"
+                                                            >
+                                                                <FaUserNurse size={12} /> Track Nurse
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => handleViewProposals(req)}
+                                                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#08B36A] hover:bg-[#079c5c] text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+                                                            >
+                                                                <FaUserNurse size={12} /> View Proposals
+                                                            </button>
+                                                        )}
+
                                                         {isCancellable && (
                                                             <button
                                                                 onClick={() => setCancelModal({ isOpen: true, data: req })}
@@ -685,6 +895,7 @@ function NursePrescriptionOrders() {
                         <div className="block lg:hidden divide-y divide-slate-100 px-4">
                             {filteredRequests.map((req) => {
                                 const isCancellable = req.status !== 'Cancelled' && req.status !== 'Completed';
+                                const isConvertedToBooking = req.status === 'Completed' || req.status === 'Confirmed' || Boolean(req.bookingId || req.confirmedBookingId);
 
                                 return (
                                     <div key={req.requestId || req._id} className="py-5 flex flex-col gap-3.5">
@@ -696,12 +907,22 @@ function NursePrescriptionOrders() {
                                             <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${getStatusStyles(req.status)}`}>{req.status}</span>
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
-                                            <button
-                                                onClick={() => handleViewProposals(req)}
-                                                className="w-full bg-[#08B36A] hover:bg-[#079c5c] py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center text-white flex items-center justify-center gap-1 shadow-md shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer"
-                                            >
-                                                <FaUserNurse /> View Proposals
-                                            </button>
+                                            {isConvertedToBooking ? (
+                                                <button
+                                                    onClick={() => handleOpenLiveTracking(req)}
+                                                    className="w-full bg-indigo-600 hover:bg-indigo-700 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center text-white flex items-center justify-center gap-1 shadow-md active:scale-95 transition-all cursor-pointer"
+                                                >
+                                                    <FaUserNurse /> Track Nurse
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleViewProposals(req)}
+                                                    className="w-full bg-[#08B36A] hover:bg-[#079c5c] py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-center text-white flex items-center justify-center gap-1 shadow-md shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer"
+                                                >
+                                                    <FaUserNurse /> View Proposals
+                                                </button>
+                                            )}
+
                                             {isCancellable ? (
                                                 <button
                                                     onClick={() => setCancelModal({ isOpen: true, data: req })}
@@ -735,7 +956,7 @@ function NursePrescriptionOrders() {
                 </div>
             </div>
 
-            {/* --- Portal Modals --- */}
+            {/* --- Modals --- */}
             {detailsModal.isOpen && detailsModal.data && (
                 <NurseRequestDetailsModal
                     data={detailsModal.data}
@@ -749,6 +970,14 @@ function NursePrescriptionOrders() {
                     data={proposalsModal.data}
                     proposalsList={proposalsModal.proposals}
                     onClose={() => setProposalsModal({ isOpen: false, data: null, proposals: [] })}
+                />
+            )}
+
+            {trackingModal.isOpen && trackingModal.data && (
+                <LiveNurseTrackingModal
+                    trackingData={trackingModal.data}
+                    onClose={() => setTrackingModal({ isOpen: false, data: null })}
+                    isLoading={isLoadingTracking}
                 />
             )}
 

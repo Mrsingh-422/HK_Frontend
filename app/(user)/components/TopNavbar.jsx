@@ -21,7 +21,9 @@ import {
   FaCapsules,
   FaMicroscope,
   FaUserNurse,
-  FaStethoscope, FaUserCircle
+  FaStethoscope,
+  FaUserCircle,
+  FaBell
 } from "react-icons/fa";
 
 import MainLogin from "./loginComponents/MainLogin";
@@ -52,10 +54,40 @@ export default function TopNavbar() {
   const [cityInput, setCityInput] = useState("");
   const [citySuggestions, setCitySuggestions] = useState([]);
 
+  // --- NOTIFICATION STATE ---
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+
   const { cartItemIds } = useCart();
   const { openModal, modalType, closeModal } = useGlobalContext();
 
   const DELHI_COORDS = { lat: 28.6139, lng: 77.209 };
+
+  // --- NOTIFICATIONS COUNT FETCHING ---
+  useEffect(() => {
+    const fetchNotificationCount = async () => {
+      if (!userToken) {
+        setUnreadNotificationsCount(0);
+        return;
+      }
+      try {
+        if (typeof UserAPI.getUserNotifications === "function") {
+          const res = await UserAPI.getUserNotifications();
+          if (res?.success) {
+            const list = Array.isArray(res.data) ? res.data : (res.notifications || []);
+            const unread = list.filter(item => !item.isRead && !item.read).length;
+            setUnreadNotificationsCount(res.unreadCount ?? unread ?? list.length);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch user notifications:", err);
+      }
+    };
+
+    fetchNotificationCount();
+    // Polling interval to keep count fresh
+    const interval = setInterval(fetchNotificationCount, 30000);
+    return () => clearInterval(interval);
+  }, [userToken]);
 
   // --- SEARCH LOGIC ---
   useEffect(() => {
@@ -249,6 +281,7 @@ export default function TopNavbar() {
 
   const menuItems = [
     { icon: <FaUserCircle />, label: "My Account", link: "/userscreens/myaccount" },
+    { icon: <FaBell />, label: "Notifications", link: "/userscreens/notifications" },
     { icon: <FaHistory />, label: "My Orders", link: "/userscreens/previousorders" },
     { icon: <FaHospital />, label: "Hospital Booking", link: "/userscreens/hospitalappointment" },
     { icon: <FaUserMd />, label: "Doctor Appointment", link: "/userscreens/doctorappointment" },
@@ -267,7 +300,7 @@ export default function TopNavbar() {
 
   return (
     <>
-      <nav className="w-full bg-[#08b36a] py-3 text-white shadow-md">
+      <nav className="w-full bg-[#08b36a] py-3 text-white shadow-md font-sans">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-2.5 px-5 md:flex-nowrap md:gap-5">
 
           {/* LOCATION */}
@@ -350,7 +383,7 @@ export default function TopNavbar() {
             )}
           </div>
 
-          {/* ACTIONS */}
+          {/* ACTIONS (LOGIN, PROFILE, CART & NOTIFICATIONS) */}
           <div className="flex shrink-0 items-center gap-4 order-2 md:order-3">
             {!userToken ? (
               <div className="flex items-center gap-2">
@@ -367,7 +400,8 @@ export default function TopNavbar() {
               </div>
             )}
 
-            <Link href="/userscreens/usercart" className="flex items-center gap-2 text-white no-underline relative">
+            {/* CART ICON */}
+            <Link href="/userscreens/usercart" className="flex items-center gap-2 text-white no-underline relative hover:opacity-90 transition-opacity">
               <FaShoppingCart className="text-xl" />
               {cartItemIds.length > 0 && (
                 <span className="absolute -top-2 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold animate-bounce">
@@ -375,6 +409,20 @@ export default function TopNavbar() {
                 </span>
               )}
               <span className="hidden lg:inline text-sm font-medium">Cart</span>
+            </Link>
+
+            {/* NOTIFICATION BELL ICON (RIGHT OF CART WITH LEFT SPACING) */}
+            <Link 
+              href="/userscreens/notifications" 
+              className="ml-2.5 sm:ml-3 flex items-center gap-2 text-white no-underline relative hover:opacity-90 transition-opacity"
+              title="Notifications"
+            >
+              <FaBell className="text-xl" />
+              {unreadNotificationsCount > 0 && (
+                <span className="absolute -top-2 -right-2 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white shadow-sm animate-pulse">
+                  {unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount}
+                </span>
+              )}
             </Link>
           </div>
         </div>
