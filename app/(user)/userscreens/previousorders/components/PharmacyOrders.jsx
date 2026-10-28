@@ -104,9 +104,8 @@ const PaymentBadge = ({ paymentInfo, paymentStatus, paymentMethod }) => {
     );
 };
 
-// --- UNIFIED VERTICAL STATUS STEPPER (ELIMINATES DESIGN FLICKER) ---
+// --- UNIFIED VERTICAL STATUS STEPPER ---
 const StatusStepper = ({ status, trackingTimeline }) => {
-    // Standard baseline steps to avoid empty or changing layouts
     const defaultSteps = [
         {
             key: "Placed",
@@ -145,7 +144,6 @@ const StatusStepper = ({ status, trackingTimeline }) => {
 
     const currentOrderLevel = statusOrderMap[status] ?? 0;
 
-    // Use timeline from API if present, otherwise use mapped default steps immediately
     const timelineToRender = (trackingTimeline && trackingTimeline.length > 0)
         ? trackingTimeline
         : defaultSteps.map((step) => ({
@@ -165,7 +163,6 @@ const StatusStepper = ({ status, trackingTimeline }) => {
 
                     return (
                         <div key={index} className="relative group">
-                            {/* Circle Pin indicator */}
                             <div className={`absolute -left-[29px] top-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors duration-300 ${
                                 isDone
                                     ? "bg-emerald-500 border-emerald-400 text-white"
@@ -176,7 +173,6 @@ const StatusStepper = ({ status, trackingTimeline }) => {
                                 {isDone && <FiCheck size={10} className="stroke-[3]" />}
                             </div>
 
-                            {/* Details */}
                             <div>
                                 <div className="flex items-center justify-between">
                                     <h5 className={`text-xs font-black uppercase tracking-wider transition-colors ${
@@ -233,7 +229,7 @@ const ReturnStatusBadge = ({ returnDetails }) => {
 // --- HELPER: CLIENT-SIDE WINDOW ELIGIBILITY CHECK ---
 const checkOrderReturnWindow = (order) => {
     if (order.status !== "Delivered") {
-        return { isEligible: false, daysRemaining: 0, reason: "Order not delivered yet." };
+        return { isEligible: false, daysRemaining: 0, reason: "Return can only be requested after the order has been delivered." };
     }
 
     if (order.returnDetails && order.returnDetails.status && order.returnDetails.status !== 'None') {
@@ -320,9 +316,8 @@ function PharmacyOrders() {
         loadOrders();
     }, [loadOrders]);
 
-    // --- OPEN DETAILS & TRACKING MODAL (FETCH IMMEDIATELY) ---
+    // --- OPEN DETAILS & TRACKING MODAL ---
     const handleOpenOrderDetails = async (order) => {
-        // Open modal with current data immediately
         setModal({ isOpen: true, data: order, trackingData: order });
         try {
             const res = await UserAPI.getPharmacyOrderTracking(order.orderId || order._id);
@@ -407,6 +402,17 @@ function PharmacyOrders() {
 
     // Open Return Modal with live eligibility check
     const handleOpenReturnModal = async (order) => {
+        // Validation Rule 2 & 5: Order MUST be Delivered and not already returned
+        if (order.status !== "Delivered") {
+            toast.error("Return can only be requested after the order has been delivered.");
+            return;
+        }
+
+        if (order.returnDetails && order.returnDetails.status && order.returnDetails.status !== 'None') {
+            toast.error(`Return already requested: Current status is ${order.returnDetails.status}.`);
+            return;
+        }
+
         try {
             const trackingRes = await UserAPI.getPharmacyOrderTracking(order.orderId || order._id);
             const eligibility = trackingRes?.data?.returnEligibility || trackingRes?.returnEligibility;
@@ -671,11 +677,12 @@ function PharmacyOrders() {
         );
     };
 
-    // --- MODAL: RETURN & REPLACEMENT ---
+    // --- MODAL: RETURN & REPLACEMENT (STRICT FIX FOR 400 ERROR) ---
     const PharmacyReturnModal = ({ isOpen, onClose, order, eligibility }) => {
         const canReturn = eligibility ? eligibility.canReturn : true;
         const canReplace = eligibility ? eligibility.canReplace : true;
 
+        // Strict Enum Casing: Must be 'Return' or 'Replacement' with capital 'R'
         const [requestType, setRequestType] = useState(canReturn ? 'Return' : canReplace ? 'Replacement' : 'Return');
         const [reason, setReason] = useState('');
         const [userComments, setUserComments] = useState('');
@@ -725,7 +732,21 @@ function PharmacyOrders() {
 
         const handleSubmit = async (e) => {
             e.preventDefault();
-            if (!reason) {
+
+            // Validation Rule 2: Order must be Delivered
+            if (order.status !== "Delivered") {
+                toast.error("Return can only be requested after the order has been delivered.");
+                return;
+            }
+
+            // Validation Rule 5: Cannot submit duplicate return
+            if (order.returnDetails && order.returnDetails.status && order.returnDetails.status !== 'None') {
+                toast.error(`Return already requested: Current status is ${order.returnDetails.status}.`);
+                return;
+            }
+
+            // Validation Rule 4: Mandatory reason selection
+            if (!reason || !reason.trim()) {
                 toast.error("Please select a reason for your request.");
                 return;
             }
@@ -733,19 +754,27 @@ function PharmacyOrders() {
             setSubmitting(true);
             try {
                 const formData = new FormData();
-                formData.append('requestType', requestType);
-                formData.append('reason', reason);
-                if (userComments) formData.append('userComments', userComments);
                 
+                // Rule 3: Strict Enum value ('Return' | 'Replacement')
+                const validatedRequestType = requestType === 'Replacement' ? 'Replacement' : 'Return';
+                formData.append('requestType', validatedRequestType);
+                formData.append('reason', reason.trim());
+                
+                if (userComments && userComments.trim()) {
+                    formData.append('userComments', userComments.trim());
+                }
+                
+                // Rule 1: Strictly append with key 'proofImages' for Multer { name: 'proofImages', maxCount: 5 }
                 proofImages.forEach((img) => {
                     formData.append('proofImages', img);
                 });
 
+                // Target MongoDB ObjectId first, fallback to orderId
                 const targetOrderId = order._id || order.orderId;
                 const res = await UserAPI.submitPharmacyReturnRequest(targetOrderId, formData);
 
                 if (res && res.success) {
-                    toast.success(res.message || `${requestType} request submitted successfully!`);
+                    toast.success(res.message || `${validatedRequestType} request submitted successfully!`);
                     onClose();
                     loadOrders();
                 } else {
@@ -753,7 +782,7 @@ function PharmacyOrders() {
                 }
             } catch (err) {
                 console.error("Return submission failed:", err);
-                const errorMsg = err.response?.data?.message || err.message || "Failed to submit request.";
+                const errorMsg = err.response?.data?.message || err.message || "Failed to submit return request.";
                 toast.error(errorMsg, { duration: 5000 });
             } finally {
                 setSubmitting(false);
@@ -845,7 +874,7 @@ function PharmacyOrders() {
 
                         {/* Comments */}
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Patient's Comments (Optional)</label>
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Patient&apos;s Comments (Optional)</label>
                             <textarea
                                 value={userComments}
                                 onChange={(e) => setUserComments(e.target.value)}
@@ -855,7 +884,7 @@ function PharmacyOrders() {
                             />
                         </div>
 
-                        {/* Proof Photos */}
+                        {/* Proof Photos (Key: proofImages) */}
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Proof Images (Max 5)</label>
@@ -1290,7 +1319,7 @@ function PharmacyOrders() {
                                 </div>
                                 <p className="text-xs font-bold text-slate-700"><strong>Reason:</strong> {data.returnDetails.reason}</p>
                                 {data.returnDetails.userComments && (
-                                    <p className="text-xs font-medium text-slate-600 italic leading-relaxed">"{data.returnDetails.userComments}"</p>
+                                    <p className="text-xs font-medium text-slate-600 italic leading-relaxed">&ldquo;{data.returnDetails.userComments}&rdquo;</p>
                                 )}
                                 {data.returnDetails.rejectionReason && (
                                     <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl">

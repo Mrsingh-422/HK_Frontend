@@ -75,7 +75,7 @@ const UnifiedOrderDetailModal = ({
     const [consumableSearch, setConsumableSearch] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [addedConsumables, setAddedConsumables] = useState([]);
-    const [taxAmount, setTaxAmount] = useState(35); 
+
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDeclining, setIsDeclining] = useState(false);
 
@@ -83,7 +83,7 @@ const UnifiedOrderDetailModal = ({
         if (isOpen && order) {
             setServicePrices({});
             setAddedConsumables([]);
-            setTaxAmount(35);
+            
         }
     }, [isOpen, order]);
 
@@ -147,7 +147,7 @@ const UnifiedOrderDetailModal = ({
 
     const baseServicePriceTotal = Object.values(servicePrices).reduce((acc, curr) => acc + (Number(curr) || 0), 0);
     const consumablesTotal = addedConsumables.reduce((acc, curr) => acc + (Number(curr.price) || 0), 0);
-    const estimatedTotal = baseServicePriceTotal + consumablesTotal + (Number(taxAmount) || 0);
+    const estimatedTotal = baseServicePriceTotal + consumablesTotal  || 0;
 
     const activeTravelFee = order.travelFee ?? order.deliveryCharge ?? order.priceBreakdown?.travelFee ?? order.priceBreakdown?.deliveryCharge ?? 0;
 
@@ -174,7 +174,7 @@ const UnifiedOrderDetailModal = ({
                     name: c.name,
                     price: Number(c.price) || 0
                 })),
-                taxAmount: Number(taxAmount) || 0
+               
             };
 
             const res = await NurseAPI.submitPrescriptionProposal(payload);
@@ -214,374 +214,397 @@ const UnifiedOrderDetailModal = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
-            <div className="bg-white w-full max-w-3xl my-8 rounded-[40px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
-                
-                {/* Modal Header */}
-                <div className={`${isRejected ? 'bg-red-500' : isIncomingPrescription ? 'bg-indigo-600' : 'bg-[#08B36A]'} p-6 text-white flex justify-between items-center`}>
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center border border-white/30 backdrop-blur-sm shrink-0">
-                            <FaIdCard size={24} />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <h2 className="text-xl font-bold">
-                                    {isIncomingPrescription ? 'Create Pricing Proposal' : (order.serviceDetails?.title || 'Prescription Details')}
-                                </h2>
-                                {isPriorityOrder && (
-                                    <span className="px-2.5 py-0.5 bg-amber-400 text-amber-950 font-black text-[10px] rounded-full uppercase tracking-wider flex items-center gap-1 animate-pulse shadow-sm">
-                                        <FaTag size={8} /> PRIORITY BOOKING
-                                    </span>
-                                )}
-                            </div>
-                            <p className="text-xs text-white/90 mt-1 uppercase tracking-widest">
-                                ID: {order.bookingId || order._id?.slice(-8)}
-                            </p>
-                        </div>
-                    </div>
-                    <button onClick={onClose} className="text-white hover:text-red-200 transition-colors">
-                        <FaTimesCircle size={28} />
-                    </button>
+       <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto">
+    <div className="bg-white w-full max-w-3xl my-8 rounded-[32px] overflow-hidden shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-300">
+        
+        {/* Modal Header */}
+        <div className={`${isRejected ? 'bg-gradient-to-r from-red-600 to-rose-600' : 'bg-gradient-to-r from-[#08B36A] to-[#069959]'} p-6 sm:p-7 text-white flex justify-between items-center shadow-md relative overflow-hidden`}>
+            {/* Ambient Background Glow Effect */}
+            <div className="absolute -right-10 -top-10 w-36 h-36 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="flex items-center gap-4 relative z-10">
+                <div className="w-13 h-13 bg-white/20 rounded-2xl flex items-center justify-center border border-white/30 backdrop-blur-sm shadow-inner shrink-0 p-3">
+                    <FaIdCard size={24} className="text-white drop-shadow-sm" />
                 </div>
-
-                {/* Modal Content */}
-                <div className="p-8 max-h-[65vh] overflow-y-auto custom-scrollbar space-y-6">
-
-                    {/* PRIORITY TAG BANNER */}
-                    {isPriorityOrder && (
-                        <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-center justify-between shadow-xs">
-                            <div className="flex items-center gap-2 text-amber-800 font-extrabold text-xs uppercase tracking-wider">
-                                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-                                <FaTag className="text-amber-600" size={12} />
-                                Priority Booking Request
-                            </div>
-                            <span className="px-3 py-1 bg-amber-500 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-xs">
-                                EXPRESS PRIORITY
+                <div>
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                        <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
+                            {isIncomingPrescription ? 'Create Pricing Proposal' : (order.serviceDetails?.title || 'Prescription Details')}
+                        </h2>
+                        {isPriorityOrder && (
+                            <span className="px-2.5 py-0.5 bg-amber-400 text-amber-950 font-black text-[10px] rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                                <FaTag size={8} /> Priority Booking
                             </span>
-                        </div>
-                    )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        
-                        {/* Profile Details */}
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-2 border-b pb-2">
-                                <FaUserAlt className={isIncomingPrescription ? 'text-indigo-600' : isRejected ? 'text-red-500' : 'text-[#08B36A]'} />
-                                <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Patient Profile</h3>
-                            </div>
-                            <div className="space-y-3 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-gray-400">Name:</span> 
-                                    <span className="font-bold text-gray-800">
-                                        {order.userId?.name || order.patients?.[0]?.name || order.address?.name || 'N/A'}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-400">Gender / Age:</span> 
-                                    <span className="font-bold text-gray-800">
-                                        {order.userId?.gender || 'N/A'}{order.userId?.age ? ` / ${order.userId.age} yrs` : ''}
-                                    </span>
-                                </div>
-
-                                {/* Payment Details */}
-                                <div className="flex justify-between items-center">
-                                    <span className="text-gray-400">Payment:</span>
-                                    <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-100">
-                                        {order.paymentDisplayLabel || (order.isPaid ? 'Paid Online' : order.isCod ? 'Cash on Delivery' : 'Payment Pending')}
-                                    </span>
-                                </div>
-                                
-                                {/* ORDER DATE & TIME DISPLAY */}
-                                <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-                                    <span className="text-gray-400 flex items-center gap-1">
-                                        <FaClock className="text-gray-400" size={10} /> Order Date & Time:
-                                    </span> 
-                                    <span className="font-bold text-gray-900 text-xs">
-                                        {formatOrderDateTime(
-                                            order.createdAt || order.bookingDate || order.schedule?.startDate, 
-                                            order.appointmentTime || order.timeSlot || order.schedule?.startTime
-                                        )}
-                                    </span>
-                                </div>
-
-                                {/* SCHEDULED SERVICE DATE & TIME */}
-                                {(order.schedule?.startDate || order.appointmentDate) && (
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-gray-400 flex items-center gap-1">
-                                            <FaCalendarAlt className="text-gray-400" size={10} /> Scheduled Slot:
-                                        </span> 
-                                        <span className="font-bold text-gray-800 text-xs">
-                                            {formatOrderDateTime(
-                                                order.schedule?.startDate || order.appointmentDate, 
-                                                order.schedule?.startTime || order.appointmentTime || order.timeSlot
-                                            )}
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Prescription Extraction Details */}
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-2 border-b pb-2">
-                                <FaFileMedical className={isIncomingPrescription ? 'text-indigo-600' : 'text-[#08B36A]'} />
-                                <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Extracted Text</h3>
-                            </div>
-                            <div className="space-y-3 text-sm">
-                                <p className="text-xs bg-gray-50 border p-3 rounded-xl text-gray-600 leading-relaxed italic">
-                                    {order.extractedText ? `"${order.extractedText}"` : "No instruction text extracted from prescription attachment."}
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Interactive Pricing Proposal Section */}
-                        {isIncomingPrescription && (
-                            <div className="md:col-span-2 space-y-6 bg-indigo-50/40 p-6 rounded-[32px] border border-indigo-100">
-                                <div className="flex items-center gap-2 border-b border-indigo-100 pb-2">
-                                    <FaFileMedical className="text-indigo-600" />
-                                    <h3 className="font-black text-indigo-900 uppercase text-xs tracking-wider">Configure Pricing & Services</h3>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <label className="block text-xs font-bold text-indigo-900 uppercase">Set Base Pricing per Service</label>
-                                    {(order.services || order.detectedServices || []).map((srv, idx) => (
-                                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-indigo-100">
-                                            <div>
-                                                <h4 className="font-bold text-sm text-gray-800">{srv.title}</h4>
-                                                <p className="text-xs text-gray-400 mt-0.5">{srv.description}</p>
-                                                {srv.notes && <p className="text-[10px] text-indigo-500 italic mt-1">Note: {srv.notes}</p>}
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-bold text-gray-500">₹</span>
-                                                <input 
-                                                    type="number"
-                                                    placeholder="Rate"
-                                                    className="w-24 px-3 py-2 border rounded-xl text-sm font-bold focus:outline-indigo-500 text-right"
-                                                    value={servicePrices[srv.title] ?? ''}
-                                                    onChange={(e) => handleServicePriceChange(srv.title, e.target.value)}
-                                                />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="space-y-4 mt-6">
-                                    <label className="block text-xs font-bold text-indigo-900 uppercase">Select Consumables Utilized</label>
-                                    
-                                    <div className="relative">
-                                        <div className="flex items-center bg-white border border-indigo-100 rounded-xl px-3 py-1">
-                                            <FaSearch className="text-gray-400 mr-2" />
-                                            <input 
-                                                type="text" 
-                                                placeholder="Search consumables (e.g. Cotton, Sterile Gauze, Gloves)"
-                                                className="w-full py-2 focus:outline-none text-sm bg-transparent"
-                                                value={consumableSearch}
-                                                onChange={handleConsumableSearch}
-                                            />
-                                        </div>
-
-                                        {searchResults.length > 0 && (
-                                            <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto z-10 divide-y">
-                                                {searchResults.map((item, idx) => (
-                                                    <button 
-                                                        key={idx}
-                                                        type="button"
-                                                        onClick={() => addConsumable(item)}
-                                                        className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-indigo-50 text-gray-700 transition-colors flex justify-between"
-                                                    >
-                                                        <span>{item.name}</span>
-                                                        <span className="text-indigo-600">₹{item.price}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {addedConsumables.length > 0 && (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                                            {addedConsumables.map((c, idx) => (
-                                                <div key={idx} className="flex justify-between items-center p-3 bg-white border border-indigo-50 rounded-xl text-xs font-bold shadow-sm">
-                                                    <div>
-                                                        <span className="text-gray-700">{c.name}</span>
-                                                        <span className="text-indigo-600 ml-2">₹{c.price}</span>
-                                                    </div>
-                                                    <button onClick={() => removeConsumable(idx)} className="text-red-500 hover:text-red-700 transition-colors p-1">
-                                                        <FaTrashAlt size={10} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-                                    <div>
-                                        <label className="block text-xs font-bold text-indigo-900 uppercase mb-2">Taxes / Fees</label>
-                                        <div className="flex items-center bg-white border border-indigo-100 rounded-xl px-3 py-2">
-                                            <span className="text-sm font-bold text-gray-500 mr-2">₹</span>
-                                            <input 
-                                                type="number"
-                                                value={taxAmount}
-                                                className="w-full focus:outline-none text-sm font-bold"
-                                                onChange={(e) => setTaxAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                                            />
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="bg-white/60 rounded-2xl border p-4 text-xs space-y-2 font-bold text-gray-600">
-                                        <div className="flex justify-between">
-                                            <span>Base Services:</span>
-                                            <span>₹{baseServicePriceTotal}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span>Consumables:</span>
-                                            <span>₹{consumablesTotal}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span>Taxes:</span>
-                                            <span>₹{Number(taxAmount) || 0}</span>
-                                        </div>
-                                        <div className="flex justify-between text-indigo-900 font-extrabold text-sm border-t pt-2">
-                                            <span>Total Price:</span>
-                                            <span>₹{estimatedTotal}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Location Details */}
-                        <div className="md:col-span-2 space-y-3">
-                            <div className="flex items-center gap-2 border-b pb-2">
-                                <FaMapMarkerAlt className={isIncomingPrescription ? 'text-indigo-600' : isRejected ? 'text-red-500' : 'text-[#08B36A]'} />
-                                <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Service Location</h3>
-                            </div>
-                            <p className="bg-gray-50 p-4 rounded-2xl text-sm text-gray-600 leading-relaxed border border-gray-100 font-medium">
-                                {formattedAddress}
-                            </p>
-                        </div>
-
-                        {/* Prescribed Services */}
-                        {!isIncomingPrescription && (order.servicesPricing?.length > 0 || order.services?.length > 0) && (
-                            <div className="md:col-span-2 space-y-3">
-                                <div className="flex items-center gap-2 border-b pb-2">
-                                    <FaFileMedical className="text-[#08B36A]" />
-                                    <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Mapped Services & Pricing</h3>
-                                </div>
-                                <div className="space-y-2">
-                                    {(order.servicesPricing || order.services).map((srv, i) => (
-                                        <div key={i} className="flex justify-between p-3 bg-gray-50 border rounded-xl text-xs font-bold text-gray-700">
-                                            <span>{srv.title}</span>
-                                            {srv.price && <span className="text-[#08B36A]">₹{srv.price}</span>}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Consumables */}
-                        {!isIncomingPrescription && order.consumablesUsed?.length > 0 && (
-                            <div className="md:col-span-2 space-y-3">
-                                <div className="flex items-center gap-2 border-b pb-2">
-                                    <FaBoxOpen className="text-[#08B36A]" />
-                                    <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Consumables Details</h3>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {order.consumablesUsed.map((c, i) => (
-                                        <div key={i} className="flex justify-between p-3 bg-gray-50 rounded-xl text-xs border border-gray-100 font-bold">
-                                            <span>{c.name}</span>
-                                            <span className="text-[#08B36A]">₹{c.price}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Price Breakdown Preview with Travel Fee */}
-                        {!isIncomingPrescription && (
-                            <div className="md:col-span-2 space-y-3">
-                                <div className="bg-gray-50 p-4 rounded-2xl border space-y-2 text-xs font-bold text-gray-600">
-                                    {activeTravelFee > 0 && (
-                                        <div className="flex justify-between">
-                                            <span>Travel / Delivery Fee:</span>
-                                            <span className="text-gray-900">+ ₹{activeTravelFee}</span>
-                                        </div>
-                                    )}
-                                    <div className="flex justify-between text-sm border-t pt-2 items-center">
-                                        <span className="text-gray-500">Total Charged Price:</span>
-                                        <span className="text-[#08B36A] text-lg font-black">
-                                            ₹{order.totalAmount || order.priceBreakdown?.totalPrice || order.totalPrice || 'N/A'}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Prescription Media */}
-                        {order.prescriptionImage && (
-                            <div className="md:col-span-2 space-y-3">
-                                <div className="flex items-center gap-2 border-b pb-2">
-                                    <FaImage className={isIncomingPrescription ? 'text-indigo-600' : 'text-[#08B36A]'} />
-                                    <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Prescription Attachment</h3>
-                                </div>
-                                <div className="rounded-2xl border-2 border-dashed border-gray-200 p-2 overflow-hidden bg-gray-50">
-                                    <img 
-                                        src={getPrescriptionImageUrl(order.prescriptionImage, imageBaseUrl)} 
-                                        alt="Prescription" 
-                                        onError={handleImageError}
-                                        className="w-full h-auto rounded-xl object-contain max-h-80 mx-auto" 
-                                    />
-                                </div>
-                            </div>
                         )}
                     </div>
-                </div>
-
-                {/* Footer Action Buttons */}
-                <div className="p-6 bg-gray-50 flex flex-col sm:flex-row justify-end gap-3 border-t">
-                    {isIncomingPrescription ? (
-                        <>
-                            <button 
-                                onClick={handleDeclineRequest}
-                                disabled={isDeclining || isSubmitting}
-                                className="px-6 py-3.5 rounded-2xl bg-red-100 text-red-600 hover:bg-red-200 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2"
-                            >
-                                {isDeclining ? <FaSpinner className="animate-spin" /> : 'Decline Request'}
-                            </button>
-                            <button 
-                                onClick={handleProposalSubmit}
-                                disabled={isDeclining || isSubmitting}
-                                className="px-8 py-3.5 rounded-2xl bg-indigo-600 text-white hover:bg-indigo-700 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md"
-                            >
-                                {isSubmitting ? <FaSpinner className="animate-spin" /> : 'Submit Proposal'}
-                            </button>
-                        </>
-                    ) : (
-                        <>
-                            {activeTab === 'Approved' && (
-                                <button 
-                                    onClick={() => { onClose(); onAssignClick(order); }}
-                                    className="px-6 py-3 rounded-2xl bg-[#08B36A] text-white font-bold hover:bg-green-700 transition-colors uppercase text-xs tracking-wider flex items-center gap-2"
-                                >
-                                    <FaUserNurse /> Assign Staff
-                                </button>
-                            )}
-                            {activeTab === 'Prescription Nursing' && prescriptionSubTab === 'Confirmed' && (
-                                <button 
-                                    onClick={() => { onClose(); onAssignClick(order); }}
-                                    className="px-6 py-3 rounded-2xl bg-[#08B36A] text-white font-bold hover:bg-green-700 transition-colors uppercase text-xs tracking-wider flex items-center gap-2"
-                                >
-                                    <FaUserNurse /> Assign Staff
-                                </button>
-                            )}
-                            <button onClick={onClose} className="px-8 py-3 rounded-2xl bg-gray-200 text-gray-700 font-bold hover:bg-gray-300 transition-colors uppercase text-xs tracking-wider">
-                                Close
-                            </button>
-                        </>
-                    )}
+                    <p className="text-xs font-semibold text-white/80 mt-1 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white/80"></span>
+                        Booking ID: <span className="text-white font-bold">{order.bookingId || order._id?.slice(-8)}</span>
+                    </p>
                 </div>
             </div>
+            <button 
+                onClick={onClose} 
+                className="relative z-10 text-white/80 hover:text-white hover:bg-white/15 p-2 rounded-xl transition-all duration-200"
+                aria-label="Close Modal"
+            >
+                <FaTimesCircle size={24} />
+            </button>
         </div>
+
+        {/* Modal Content */}
+        <div className="p-6 sm:p-8 max-h-[70vh] overflow-y-auto space-y-6 scrollbar-thin scrollbar-thumb-gray-200 hover:scrollbar-thumb-gray-300">
+
+            {/* PRIORITY TAG BANNER */}
+            {isPriorityOrder && (
+                <div className="bg-amber-50/80 border border-amber-200/80 p-3.5 rounded-2xl flex items-center justify-between shadow-xs">
+                    <div className="flex items-center gap-2.5 text-amber-900 font-bold text-xs uppercase tracking-wider">
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                        </span>
+                        <FaTag className="text-amber-600" size={12} />
+                        Priority Booking Request
+                    </div>
+                    <span className="px-3 py-1 bg-amber-500 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-xs">
+                        Express
+                    </span>
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Profile Details Card */}
+                <div className="bg-slate-50/60 p-5 rounded-2xl border border-gray-100 space-y-3.5">
+                    <div className="flex items-center gap-2 border-b border-gray-200/80 pb-2.5">
+                        <div className={`p-1.5 rounded-lg ${isRejected ? 'bg-red-50 text-red-500' : 'bg-[#08B36A]/10 text-[#08B36A]'}`}>
+                            <FaUserAlt size={13} />
+                        </div>
+                        <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Patient Profile</h3>
+                    </div>
+                    
+                    <div className="space-y-2.5 text-xs">
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-500 font-medium">Name</span> 
+                            <span className="font-bold text-gray-800">
+                                {order.userId?.name || order.patients?.[0]?.name || order.address?.name || 'N/A'}
+                            </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-500 font-medium">Gender / Age</span> 
+                            <span className="font-bold text-gray-800">
+                                {order.userId?.gender || 'N/A'}{order.userId?.age ? ` / ${order.userId.age} yrs` : ''}
+                            </span>
+                        </div>
+
+                        {/* Payment Details */}
+                        <div className="flex justify-between items-center">
+                            <span className="text-gray-500 font-medium">Payment Status</span>
+                            <span className="text-[11px] font-bold text-[#08B36A] bg-[#08B36A]/10 px-2.5 py-0.5 rounded-full border border-[#08B36A]/20">
+                                {order.paymentDisplayLabel || (order.isPaid ? 'Paid Online' : order.isCod ? 'Cash on Delivery' : 'Payment Pending')}
+                            </span>
+                        </div>
+                        
+                        {/* Order Date & Time */}
+                        <div className="flex justify-between items-center pt-2 border-t border-gray-200/60">
+                            <span className="text-gray-500 font-medium flex items-center gap-1.5">
+                                <FaClock className="text-gray-400" size={11} /> Order Placed
+                            </span> 
+                            <span className="font-semibold text-gray-800">
+                                {formatOrderDateTime(
+                                    order.createdAt || order.bookingDate || order.schedule?.startDate, 
+                                    order.appointmentTime || order.timeSlot || order.schedule?.startTime
+                                )}
+                            </span>
+                        </div>
+
+                        {/* Scheduled Service Slot */}
+                        {(order.schedule?.startDate || order.appointmentDate) && (
+                            <div className="flex justify-between items-center">
+                                <span className="text-gray-500 font-medium flex items-center gap-1.5">
+                                    <FaCalendarAlt className="text-[#08B36A]" size={11} /> Scheduled Slot
+                                </span> 
+                                <span className="font-bold text-[#08B36A]">
+                                    {formatOrderDateTime(
+                                        order.schedule?.startDate || order.appointmentDate, 
+                                        order.schedule?.startTime || order.appointmentTime || order.timeSlot
+                                    )}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Prescription Extracted Details Card */}
+                <div className="bg-slate-50/60 p-5 rounded-2xl border border-gray-100 flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center gap-2 border-b border-gray-200/80 pb-2.5">
+                            <div className="p-1.5 rounded-lg bg-[#08B36A]/10 text-[#08B36A]">
+                                <FaFileMedical size={13} />
+                            </div>
+                            <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Doctor Notes / Extracted Text</h3>
+                        </div>
+                        <div className="mt-3.5">
+                            <p className="text-xs bg-white border border-gray-200/80 p-3.5 rounded-xl text-gray-600 leading-relaxed italic shadow-2xs min-h-[70px]">
+                                {order.extractedText ? `"${order.extractedText}"` : "No instruction text extracted from prescription attachment."}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Interactive Pricing Proposal Section */}
+                {isIncomingPrescription && (
+                    <div className="md:col-span-2 space-y-5 bg-[#08B36A]/5 p-6 rounded-3xl border border-[#08B36A]/20">
+                        <div className="flex items-center gap-2 border-b border-[#08B36A]/15 pb-3">
+                            <div className="p-1.5 rounded-lg bg-[#08B36A] text-white">
+                                <FaFileMedical size={13} />
+                            </div>
+                            <h3 className="font-black text-[#08B36A] uppercase text-xs tracking-wider">Configure Pricing & Proposal</h3>
+                        </div>
+
+                        {/* Service Rates Configuration */}
+                        <div className="space-y-3">
+                            <label className="block text-xs font-black text-gray-700 uppercase tracking-wider">Base Service Pricing</label>
+                            <div className="grid grid-cols-1 gap-2.5">
+                                {(order.services || order.detectedServices || []).map((srv, idx) => (
+                                    <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-gray-200/80 shadow-2xs hover:border-[#08B36A]/40 transition-colors">
+                                        <div>
+                                            <h4 className="font-bold text-xs text-gray-800">{srv.title}</h4>
+                                            {srv.description && <p className="text-[11px] text-gray-400 mt-0.5">{srv.description}</p>}
+                                            {srv.notes && <p className="text-[10px] text-[#08B36A] font-medium italic mt-1">Note: {srv.notes}</p>}
+                                        </div>
+                                        <div className="flex items-center gap-1.5 self-end sm:self-center bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-200 focus-within:border-[#08B36A] focus-within:ring-2 focus-within:ring-[#08B36A]/20 transition-all">
+                                            <span className="text-xs font-black text-gray-500">₹</span>
+                                            <input 
+                                                type="number"
+                                                placeholder="0"
+                                                className="w-20 bg-transparent text-xs font-black text-gray-800 text-right focus:outline-none"
+                                                value={servicePrices[srv.title] ?? ''}
+                                                onChange={(e) => handleServicePriceChange(srv.title, e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Consumables Selector */}
+                        <div className="space-y-3 pt-2">
+                            <label className="block text-xs font-black text-gray-700 uppercase tracking-wider">Consumables Used</label>
+                            
+                            <div className="relative">
+                                <div className="flex items-center bg-white border border-gray-200 rounded-xl px-3.5 py-2 focus-within:border-[#08B36A] focus-within:ring-2 focus-within:ring-[#08B36A]/20 transition-all">
+                                    <FaSearch className="text-gray-400 mr-2.5 text-xs" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search consumables (e.g., Gloves, Sterile Gauze, Syringe)..."
+                                        className="w-full text-xs font-medium bg-transparent focus:outline-none placeholder-gray-400"
+                                        value={consumableSearch}
+                                        onChange={handleConsumableSearch}
+                                    />
+                                </div>
+
+                                {searchResults.length > 0 && (
+                                    <div className="absolute left-0 right-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto z-20 divide-y divide-gray-100">
+                                        {searchResults.map((item, idx) => (
+                                            <button 
+                                                key={idx}
+                                                type="button"
+                                                onClick={() => addConsumable(item)}
+                                                className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-[#08B36A]/10 text-gray-700 transition-colors flex justify-between items-center"
+                                            >
+                                                <span>{item.name}</span>
+                                                <span className="text-[#08B36A] font-bold">₹{item.price}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {addedConsumables.length > 0 && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                                    {addedConsumables.map((c, idx) => (
+                                        <div key={idx} className="flex justify-between items-center p-2.5 px-3 bg-white border border-[#08B36A]/20 rounded-xl text-xs font-semibold shadow-2xs">
+                                            <div className="truncate mr-2">
+                                                <span className="text-gray-700">{c.name}</span>
+                                                <span className="text-[#08B36A] font-bold ml-2">₹{c.price}</span>
+                                            </div>
+                                            <button 
+                                                onClick={() => removeConsumable(idx)} 
+                                                className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                                title="Remove consumable"
+                                            >
+                                                <FaTrashAlt size={11} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Price Summary Breakdown (Tax Completely Removed) */}
+                        <div className="bg-white rounded-2xl border border-[#08B36A]/25 p-4 sm:p-5 text-xs space-y-2.5 shadow-xs">
+                            <div className="flex justify-between items-center text-gray-600 font-medium">
+                                <span>Total Base Services</span>
+                                <span className="font-bold text-gray-800">₹{baseServicePriceTotal || 0}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-gray-600 font-medium">
+                                <span>Consumables Total</span>
+                                <span className="font-bold text-gray-800">₹{consumablesTotal || 0}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-gray-900 font-extrabold text-sm border-t border-gray-100 pt-3">
+                                <span className="text-[#08B36A]">Total Estimated Proposal:</span>
+                                <span className="text-lg font-black text-[#08B36A]">
+                                    ₹{estimatedTotal || (Number(baseServicePriceTotal || 0) + Number(consumablesTotal || 0))}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Location Details */}
+                <div className="md:col-span-2 space-y-2.5">
+                    <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                        <div className="p-1.5 rounded-lg bg-[#08B36A]/10 text-[#08B36A]">
+                            <FaMapMarkerAlt size={13} />
+                        </div>
+                        <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Service Location</h3>
+                    </div>
+                    <div className="bg-slate-50/70 p-4 rounded-2xl border border-gray-100 text-xs sm:text-sm text-gray-700 leading-relaxed font-medium">
+                        {formattedAddress || 'No address provided'}
+                    </div>
+                </div>
+
+                {/* Standard Mode - Prescribed Services */}
+                {!isIncomingPrescription && (order.servicesPricing?.length > 0 || order.services?.length > 0) && (
+                    <div className="md:col-span-2 space-y-2.5">
+                        <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                            <div className="p-1.5 rounded-lg bg-[#08B36A]/10 text-[#08B36A]">
+                                <FaFileMedical size={13} />
+                            </div>
+                            <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Mapped Services & Pricing</h3>
+                        </div>
+                        <div className="space-y-2">
+                            {(order.servicesPricing || order.services).map((srv, i) => (
+                                <div key={i} className="flex justify-between items-center p-3.5 bg-slate-50/70 border border-gray-100 rounded-xl text-xs font-bold text-gray-700">
+                                    <span>{srv.title}</span>
+                                    {srv.price && <span className="text-[#08B36A] font-extrabold">₹{srv.price}</span>}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Standard Mode - Consumables */}
+                {!isIncomingPrescription && order.consumablesUsed?.length > 0 && (
+                    <div className="md:col-span-2 space-y-2.5">
+                        <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                            <div className="p-1.5 rounded-lg bg-[#08B36A]/10 text-[#08B36A]">
+                                <FaBoxOpen size={13} />
+                            </div>
+                            <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Consumables Used</h3>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {order.consumablesUsed.map((c, i) => (
+                                <div key={i} className="flex justify-between items-center p-3 bg-slate-50/70 rounded-xl text-xs border border-gray-100 font-bold">
+                                    <span className="text-gray-700">{c.name}</span>
+                                    <span className="text-[#08B36A] font-extrabold">₹{c.price}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Standard Mode - Price Breakdown (Tax Removed) */}
+                {!isIncomingPrescription && (
+                    <div className="md:col-span-2">
+                        <div className="bg-slate-50/80 p-4.5 rounded-2xl border border-gray-100 space-y-2 text-xs font-bold text-gray-600">
+                            {activeTravelFee > 0 && (
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500 font-medium">Travel / Delivery Fee:</span>
+                                    <span className="text-gray-900">+ ₹{activeTravelFee}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between text-sm border-t border-gray-200/60 pt-2.5 items-center">
+                                <span className="text-gray-700 font-bold">Total Charged Price:</span>
+                                <span className="text-[#08B36A] text-xl font-black">
+                                    ₹{order.totalAmount || order.priceBreakdown?.totalPrice || order.totalPrice || 'N/A'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Prescription Media Attachment */}
+                {order.prescriptionImage && (
+                    <div className="md:col-span-2 space-y-2.5">
+                        <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                            <div className="p-1.5 rounded-lg bg-[#08B36A]/10 text-[#08B36A]">
+                                <FaImage size={13} />
+                            </div>
+                            <h3 className="font-bold text-gray-800 uppercase text-xs tracking-wider">Prescription Attachment</h3>
+                        </div>
+                        <div className="rounded-2xl border-2 border-dashed border-gray-200 p-3 overflow-hidden bg-slate-50/50">
+                            <img 
+                                src={getPrescriptionImageUrl(order.prescriptionImage, imageBaseUrl)} 
+                                alt="Prescription" 
+                                onError={handleImageError}
+                                className="w-full h-auto rounded-xl object-contain max-h-80 mx-auto shadow-2xs" 
+                            />
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+
+        {/* Footer Action Buttons */}
+        <div className="p-5 sm:p-6 bg-slate-50/80 flex flex-col-reverse sm:flex-row justify-end gap-3 border-t border-gray-100">
+            {isIncomingPrescription ? (
+                <>
+                    <button 
+                        onClick={handleDeclineRequest}
+                        disabled={isDeclining || isSubmitting}
+                        className="px-6 py-3 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 border border-rose-200/60 disabled:opacity-50"
+                    >
+                        {isDeclining ? <FaSpinner className="animate-spin" /> : 'Decline Request'}
+                    </button>
+                    <button 
+                        onClick={handleProposalSubmit}
+                        disabled={isDeclining || isSubmitting}
+                        className="px-8 py-3 rounded-xl bg-[#08B36A] text-white hover:bg-[#079f5e] font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#08B36A]/20 disabled:opacity-50"
+                    >
+                        {isSubmitting ? <FaSpinner className="animate-spin" /> : 'Submit Proposal'}
+                    </button>
+                </>
+            ) : (
+                <>
+                    {activeTab === 'Approved' && (
+                        <button 
+                            onClick={() => { onClose(); onAssignClick(order); }}
+                            className="px-6 py-3 rounded-xl bg-[#08B36A] text-white font-bold hover:bg-[#079f5e] transition-all uppercase text-xs tracking-wider flex items-center justify-center gap-2 shadow-md shadow-[#08B36A]/20"
+                        >
+                            <FaUserNurse /> Assign Staff
+                        </button>
+                    )}
+                    {activeTab === 'Prescription Nursing' && prescriptionSubTab === 'Confirmed' && (
+                        <button 
+                            onClick={() => { onClose(); onAssignClick(order); }}
+                            className="px-6 py-3 rounded-xl bg-[#08B36A] text-white font-bold hover:bg-[#079f5e] transition-all uppercase text-xs tracking-wider flex items-center justify-center gap-2 shadow-md shadow-[#08B36A]/20"
+                        >
+                            <FaUserNurse /> Assign Staff
+                        </button>
+                    )}
+                    <button 
+                        onClick={onClose} 
+                        className="px-7 py-3 rounded-xl bg-gray-200 text-gray-700 font-bold hover:bg-gray-300 transition-colors uppercase text-xs tracking-wider"
+                    >
+                        Close
+                    </button>
+                </>
+            )}
+        </div>
+    </div>
+</div>
     );
 };
 

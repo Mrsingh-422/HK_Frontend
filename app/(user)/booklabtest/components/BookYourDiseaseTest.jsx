@@ -54,7 +54,7 @@ function BookYourDiseaseTest() {
     try {
       const res = await UserAPI.getGlobalSearchSuggestions(searchTerm, "labprovider");
       if (res.success) {
-        setSuggestions(res.data);
+        setSuggestions(res.data || []);
         setShowSuggestions(true);
       }
     } catch (err) {
@@ -77,14 +77,58 @@ function BookYourDiseaseTest() {
 
   const handleManualSearch = () => {
     if (searchTerm.trim() !== "") {
-      router.push(`/booklabtest/seealltests?query=${encodeURIComponent(searchTerm)}`);
+      router.push(`/booklabtest/seealltests?search=${encodeURIComponent(searchTerm.trim())}`);
     }
   };
 
   const handleSuggestionClick = (item) => {
     setSearchTerm(item.title);
     setShowSuggestions(false);
-    router.push(`/booklabtest/singlelabdetal/${item.id}`);
+
+    // Extract all possible variations of the ID from different payload contracts
+    const rawType = (item.type || item.category || "").toLowerCase();
+    const itemData = item.data || {};
+
+    const targetId = 
+      item.id || 
+      item._id || 
+      itemData._id ||
+      itemData.id ||
+      item.testId || 
+      item.masterTestId ||
+      item.masterId ||
+      item.labId || 
+      item.packageId;
+
+    // 1. Diagnostic Center / Lab Profile
+    if (rawType.includes("lab") && !rawType.includes("test") && !rawType.includes("package")) {
+      if (targetId) {
+        router.push(`/booklabtest/singlelabdetail/${targetId}`);
+        return;
+      }
+    }
+
+    // 2. Lab Package Details
+    if (rawType.includes("package")) {
+      if (targetId) {
+        router.push(`/booklabtest/packagedetails/${targetId}`);
+        return;
+      }
+    }
+
+    // 3. Lab Test Details:
+    // Look up in the already fetched catalog if targetId is a vendor test instead of a master catalog ID
+    const matchedCatalogTest = labTests.find(
+      t => t._id === targetId || t.testName?.toLowerCase() === item.title?.toLowerCase()
+    );
+
+    const resolvedTestId = matchedCatalogTest?._id || targetId;
+
+    if (resolvedTestId) {
+      router.push(`/booklabtest/testdetails/${resolvedTestId}?name=${encodeURIComponent(item.title)}`);
+    } else {
+      router.push(`/booklabtest/seealltests?search=${encodeURIComponent(item.title)}`);
+    }
   };
 
   // --- DATA FETCHING ---
@@ -93,7 +137,7 @@ function BookYourDiseaseTest() {
       try {
         setLoading(true);
         const res = await UserAPI.getStandardTestCatalog();
-        if (res?.success) setLabTests(res.data);
+        if (res?.success) setLabTests(res.data || []);
       } catch (error) {
         console.error("Error fetching lab tests:", error);
       } finally {
@@ -105,7 +149,7 @@ function BookYourDiseaseTest() {
 
   const filteredPackages = useMemo(() => {
     return labTests.filter((pkg) => {
-      const matchesSearch = pkg.testName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (pkg.testName || "").toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = activeCategory === "All" ||
         pkg.mainCategory === activeCategory ||
         pkg.category === activeCategory;
@@ -121,14 +165,14 @@ function BookYourDiseaseTest() {
   const getDisplayData = (pkg, index) => ({
     id: pkg._id,
     name: pkg.testName,
-    vendor: `${pkg.vendorCount} Verified Labs`,
-    price: `₹${pkg.standardMRP}`,
-    discountPrice: `₹${pkg.minPrice}`,
+    vendor: `${pkg.vendorCount || 1} Verified Labs`,
+    price: `₹${pkg.standardMRP || 0}`,
+    discountPrice: `₹${pkg.minPrice || pkg.standardMRP || 0}`,
     category: pkg.mainCategory,
     image: STATIC_TEST_IMAGES[index % 4],
     rating: 4.8,
     tests: `${pkg.parameters?.length || 0} Parameters`,
-    isTrending: pkg.vendorCount > 2
+    isTrending: (pkg.vendorCount || 0) > 2
   });
   
   return (
@@ -153,7 +197,7 @@ function BookYourDiseaseTest() {
             </p>
           </div>
 
-          {/* Right Column: AI Prescription Onboarding Panel (New Interactive CTA Card) */}
+          {/* Right Column: AI Prescription Onboarding Panel */}
           <div className="flex justify-center lg:justify-end">
             <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-6 sm:p-8 rounded-[2rem] shadow-xl text-white space-y-4 max-w-md w-full lg:ml-auto">
               <div className="flex items-center gap-3">
@@ -170,7 +214,7 @@ function BookYourDiseaseTest() {
               </p>
               <button 
                 onClick={() => router.push('/booklabtest/prescriptionorder')}
-                className="w-full py-4 bg-white text-[#08B36A] hover:bg-slate-900 hover:text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                className="w-full py-4 bg-white text-[#08B36A] hover:bg-slate-900 hover:text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
               >
                 Upload Prescription <FaArrowRight size={10} />
               </button>
@@ -197,7 +241,7 @@ function BookYourDiseaseTest() {
               {searchTerm && (
                 <button 
                   onClick={() => {setSearchTerm(""); setSuggestions([]);}}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-300 hover:text-slate-500 hover:bg-slate-100 z-20 transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-300 hover:text-slate-500 hover:bg-slate-100 z-20 transition-colors cursor-pointer"
                 >
                   <FaTimes className="text-xs" />
                 </button>
@@ -206,7 +250,7 @@ function BookYourDiseaseTest() {
             
             <button
               onClick={handleManualSearch}
-              className="w-full sm:w-auto bg-slate-900 text-white px-8 py-4 rounded-xl font-black text-xs uppercase tracking-wider whitespace-nowrap shadow-md hover:bg-[#08B36A] transition-all active:scale-[0.98]"
+              className="w-full sm:w-auto bg-slate-900 text-white px-8 py-4 rounded-xl font-black text-xs uppercase tracking-wider whitespace-nowrap shadow-md hover:bg-[#08B36A] transition-all active:scale-[0.98] cursor-pointer"
             >
               Search Tests
             </button>
@@ -222,7 +266,7 @@ function BookYourDiseaseTest() {
                 <div className="mt-1 space-y-0.5">
                   {suggestions.map((item) => (
                     <div
-                      key={item.id}
+                      key={item.id || item._id || item.title}
                       onClick={() => handleSuggestionClick(item)}
                       className="flex items-center gap-4 px-4 py-3 cursor-pointer rounded-xl hover:bg-emerald-50/60 group transition-all duration-150"
                     >
@@ -279,7 +323,7 @@ function BookYourDiseaseTest() {
               <h2 className="text-2xl sm:text-3xl font-black text-slate-800 uppercase leading-none">Popular Lab Tests</h2>
               <p className="text-[#08B36A] font-bold text-[10px] sm:text-xs mt-2 uppercase tracking-widest">Verified by NABL Labs</p>
             </div>
-            <button onClick={handleSeeAll} className="text-slate-400 font-black text-[10px] sm:text-xs uppercase hover:text-[#08B36A] flex items-center gap-2">Explore Full Inventory <FaArrowRight /></button>
+            <button onClick={handleSeeAll} className="text-slate-400 font-black text-[10px] sm:text-xs uppercase hover:text-[#08B36A] flex items-center gap-2 cursor-pointer">Explore Full Inventory <FaArrowRight /></button>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -308,7 +352,7 @@ function BookYourDiseaseTest() {
                         <span className="text-base sm:text-lg font-black text-slate-900">{display.discountPrice}</span>
                         <span className="text-[9px] text-slate-300 line-through font-bold">{display.price}</span>
                       </div>
-                      <button className="w-full bg-slate-900 text-white py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#08B36A] transition-all">Book Now</button>
+                      <button className="w-full bg-slate-900 text-white py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#08B36A] transition-all cursor-pointer">Book Now</button>
                     </div>
                   </div>
                 </div>
@@ -327,7 +371,7 @@ function BookYourDiseaseTest() {
         <section className="bg-white rounded-[2rem] border border-slate-100 p-8 sm:p-16 text-center space-y-4 sm:space-y-6">
           <h3 className="text-2xl sm:text-4xl font-black text-slate-900 leading-tight">Accurate Reports. <br /><span className="text-[#08B36A]">Better Decisions.</span></h3>
           <p className="text-slate-500 max-w-xl mx-auto font-medium text-xs sm:text-base">Don't settle for less. We partner with the top 5% of labs in India to bring you quality diagnostics.</p>
-          <button onClick={handleSeeAll} className="bg-[#08B36A] text-white px-8 py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-900 shadow-lg transition-colors">View All Available Health Tests</button>
+          <button onClick={handleSeeAll} className="bg-[#08B36A] text-white px-8 py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-900 shadow-lg transition-colors cursor-pointer">View All Available Health Tests</button>
         </section>
       </main>
 

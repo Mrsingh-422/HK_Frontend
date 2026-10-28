@@ -476,6 +476,14 @@ requestMrpIncrease: async (payload) => {
     },
     // --- PHARMACY RETURN REVERSE LOGISTICS (PART 2) ---
 
+    // 2. Reject Return Request Directly
+rejectReturnRequest: async (orderId, rejectionReason) => {
+    const response = await pharmacyVendorApi.post('/provider/pharmacy/orders/return/reject', {
+        orderId,
+        rejectionReason
+    });
+    return response.data;
+},
 // 1. Get Filtered Return Orders (GET /provider/pharmacy/orders/list?returnStatus=Requested)
 getReturnOrdersList: (returnStatus = 'Requested') => 
     pharmacyVendorApi.get('/provider/pharmacy/orders/list', { params: { returnStatus } }),
@@ -493,9 +501,20 @@ confirmStoreReceipt: (orderId, decision, remarks = '') =>
     pharmacyVendorApi.post('/provider/pharmacy/orders/return/confirm-store-receipt', { orderId, decision, remarks }),
 
 // 5. Direct Reject Action (PUT /provider/pharmacy/orders/return-action/:orderId)
-reviewReturnAction: (orderId, payload) => 
-    pharmacyVendorApi.put(`/provider/pharmacy/orders/return-action/${orderId}`, payload),
-// 3.1 Submit Pharmacy Issue Ticket (multipart/form-data)
+// ==================== RETURN WORKFLOW ====================
+
+reviewReturnAction: async (orderId, payloadOrAction = 'Approved') => {
+    // If a string like "Approved" was passed, automatically wrap it into { action: "Approved" }
+    const body = typeof payloadOrAction === 'string'
+        ? { action: payloadOrAction }
+        : payloadOrAction;
+
+    const response = await pharmacyVendorApi.put(
+        `/provider/pharmacy/orders/return-action/${orderId}`,
+        body // 👈 Sends { "action": "Approved" }
+    );
+    return response.data;
+},
   createIssue: (formData) => {
     return pharmacyVendorApi.post('/api/user-vendor/issues/create', formData, {
       headers: {

@@ -9,10 +9,10 @@ import {
     FiFileText, FiCornerDownRight, FiHash, FiClock,
     FiX, FiActivity, FiLayers, FiHome, FiSearch, FiRefreshCw,
     FiChevronLeft, FiChevronRight, FiUser, FiMapPin,
-    FiDownload, FiPhone, FiTruck, FiKey, FiFile
+    FiDownload, FiPhone, FiTruck, FiKey, FiFile, FiCheck, FiNavigation
 } from 'react-icons/fi';
 import { MdOutlineLocalPharmacy } from 'react-icons/md';
-import { FaMoneyBillWave, FaVial } from 'react-icons/fa';
+import { FaMoneyBillWave, FaVial, FaFilePdf } from 'react-icons/fa';
 
 const IMAGE_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://192.168.1.26:5002";
 
@@ -42,15 +42,30 @@ const loadRazorpayScript = () => {
     });
 };
 
-const LAB_TRACKING_STAGES = [
-    { key: 'Confirmed', label: 'Order Confirmed' },
-    { key: 'Phlebotomist Assigned', label: 'Phlebotomist Assigned' },
-    { key: 'Arrived', label: 'Arrived at Location' },
-    { key: 'Sample Collected', label: 'Sample Collected' },
-    { key: 'Sample Deposited', label: 'Sample at Lab' },
-    { key: 'Testing', label: 'Testing in Progress' },
-    { key: 'Report Generated', label: 'Report Generated' },
-    { key: 'Completed', label: 'Completed' }
+// Default fallback 9-step lifecycle stages matching API spec
+const DEFAULT_LIFECYCLE_STAGES = [
+    { title: "Order Confirmed", key: "Confirmed", step: 1 },
+    { title: "Phlebotomist Assigned", key: "Phlebotomist Assigned", step: 2 },
+    { title: "Arrived at Location", key: "Arrived", step: 3 },
+    { title: "Sample Collected", key: "Sample Collected", step: 4 },
+    { title: "Sample on the way to lab", key: "Sample on the way to lab", step: 5 },
+    { title: "Sample Delivered to Lab", key: "Sample Delivered to Lab", step: 6 },
+    { title: "Testing in Progress", key: "Testing", step: 7 },
+    { title: "Report Generated", key: "Report Generated", step: 8 },
+    { title: "Completed", key: "Completed", step: 9 }
+];
+
+const TRACKABLE_STATUSES = [
+    'Confirmed',
+    'Paid',
+    'Phlebotomist Assigned',
+    'Arrived',
+    'Sample Collected',
+    'Sample on the way to lab',
+    'Sample Delivered to Lab',
+    'Testing',
+    'Report Generated',
+    'Completed'
 ];
 
 export default function LabPrescriptionRequestsPage() {
@@ -123,9 +138,9 @@ export default function LabPrescriptionRequestsPage() {
         }
     };
 
-    // Phase 2: Open Post-Payment Live Phlebotomist Tracking Modal
+    // Phase 2: Open Post-Payment Live Phlebotomist Tracking Modal (GET /user/labs/details/:id/track)
     const handleOpenLiveTracking = async (request) => {
-        const bookingTarget = request.bookingId || request.confirmedBookingId || request._id;
+        const bookingTarget = request.bookingId || request.confirmedBookingId || request.appointmentId || request._id;
         setIsLoadingTracking(true);
         setTrackingData({ bookingId: bookingTarget, initialData: request });
         try {
@@ -144,13 +159,31 @@ export default function LabPrescriptionRequestsPage() {
 
     const getStatusStyle = (status) => {
         switch (status) {
-            case 'Pending Review': return 'bg-amber-50 text-amber-600 border-amber-200';
-            case 'Reviewing': return 'bg-blue-50 text-blue-600 border-blue-200';
-            case 'Bill Generated': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-            case 'Confirmed': return 'bg-green-50 text-green-700 border-green-200';
-            case 'Completed': return 'bg-teal-50 text-teal-700 border-teal-200';
-            case 'Rejected': return 'bg-rose-50 text-rose-600 border-rose-200';
-            default: return 'bg-slate-50 text-slate-500 border-slate-200';
+            case 'Pending Review': 
+            case 'Pending':
+                return 'bg-amber-50 text-amber-700 border-amber-200';
+            case 'Reviewing': 
+                return 'bg-blue-50 text-blue-700 border-blue-200';
+            case 'Bill Generated': 
+                return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+            case 'Confirmed': 
+            case 'Paid':
+                return 'bg-emerald-100 text-emerald-900 border-emerald-300';
+            case 'Phlebotomist Assigned':
+            case 'Arrived':
+            case 'Sample Collected':
+            case 'Sample on the way to lab':
+            case 'Sample Delivered to Lab':
+            case 'Testing':
+                return 'bg-purple-50 text-purple-700 border-purple-200';
+            case 'Report Generated':
+            case 'Completed': 
+                return 'bg-teal-50 text-teal-700 border-teal-200';
+            case 'Rejected': 
+            case 'Cancelled':
+                return 'bg-rose-50 text-rose-700 border-rose-200';
+            default: 
+                return 'bg-slate-50 text-slate-600 border-slate-200';
         }
     };
 
@@ -219,7 +252,12 @@ export default function LabPrescriptionRequestsPage() {
                                     fetchRequestsHistory(pagination.current);
 
                                     const targetBookingId = verificationRes.bookingId || verificationRes.data?.bookingId || request._id;
-                                    handleOpenLiveTracking({ ...request, confirmedBookingId: targetBookingId, bookingId: targetBookingId });
+                                    handleOpenLiveTracking({ 
+                                        ...request, 
+                                        confirmedBookingId: targetBookingId, 
+                                        bookingId: targetBookingId, 
+                                        status: 'Confirmed' 
+                                    });
                                 } else {
                                     alert(verificationRes?.message || "Payment verification failed.");
                                 }
@@ -251,13 +289,18 @@ export default function LabPrescriptionRequestsPage() {
         }
     };
 
+    // Helper: Detect if a request is already confirmed/paid and eligible for live tracking
+    const isTrackable = (request) => {
+        return TRACKABLE_STATUSES.includes(request.status) || Boolean(request.bookingId || request.confirmedBookingId);
+    };
+
     // ==============================================================
     // 🔍 MODAL PORTAL: PHASE 1 (PRE-PAYMENT PRESCRIPTION DETAILS)
     // ==============================================================
     const PrescriptionDetailsModal = ({ request, onClose, onCheckout, isSubmitting, isLoading }) => {
         if (!mounted || !request) return null;
 
-        const isPaid = request.status === 'Confirmed' || Boolean(request.isPaid);
+        const isPaid = isTrackable(request);
         const verifiedTests = request.verifiedBill?.tests || request.verifiedTests || [];
 
         return createPortal(
@@ -275,7 +318,7 @@ export default function LabPrescriptionRequestsPage() {
                             </div>
                             <h3 className="text-2xl font-bold text-slate-900 font-mono">#{request.requestId}</h3>
                         </div>
-                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors cursor-pointer">
                             <FiXCircle size={26} className="text-slate-300 hover:text-slate-600" />
                         </button>
                     </div>
@@ -290,7 +333,7 @@ export default function LabPrescriptionRequestsPage() {
                             </div>
                         )}
 
-                        {/* Status Check / Reason for Rejection */}
+                        {/* Rejection Alert */}
                         {request.status === 'Rejected' && (
                             <div className="p-5 bg-rose-50 border border-rose-200 rounded-[2rem] flex items-start gap-3 text-rose-800">
                                 <FiXCircle className="text-rose-500 mt-0.5 shrink-0" size={18} />
@@ -317,6 +360,12 @@ export default function LabPrescriptionRequestsPage() {
                                     <span className="font-semibold text-emerald-700">{request.appointmentTime}</span>
                                 </div>
                             )}
+                            <div className="flex justify-between items-center text-xs border-t border-slate-200/60 pt-2 mt-2">
+                                <span className="font-bold text-slate-400 uppercase tracking-wider">Current Status</span>
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border ${getStatusStyle(request.status)}`}>
+                                    {request.status}
+                                </span>
+                            </div>
                         </div>
 
                         {/* Uploaded Prescription Image Section */}
@@ -375,7 +424,6 @@ export default function LabPrescriptionRequestsPage() {
                                 </div>
                             </div>
                         ) : (
-                            /* Fallback to Inquired Tests */
                             request.requestedTests && request.requestedTests.length > 0 && (
                                 <div className="space-y-2.5">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Inquired Tests</p>
@@ -440,7 +488,7 @@ export default function LabPrescriptionRequestsPage() {
                         )}
 
                         {/* Reviewing State Banner */}
-                        {(request.status === 'Pending Review' || request.status === 'Reviewing') && (
+                        {(request.status === 'Pending Review' || request.status === 'Reviewing' || request.status === 'Pending') && (
                             <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-center gap-3">
                                 <FiClock size={20} className="text-blue-600 animate-spin shrink-0" />
                                 <p className="text-xs font-semibold text-blue-900 leading-relaxed">
@@ -496,17 +544,21 @@ export default function LabPrescriptionRequestsPage() {
     const SampleTrackingModal = ({ tracking, onClose, isLoading }) => {
         if (!mounted || !tracking) return null;
 
-        const currentStage = tracking.status || tracking.trackingStatus || 'Confirmed';
+        const currentStatus = tracking.currentStatus || tracking.status || tracking.trackingStatus || 'Confirmed';
         const phlebotomist = tracking.phlebotomist || tracking.driver || tracking.agent || {};
         const pickupOtp = tracking.pickupOtp || tracking.otp || tracking.securityPin;
         const reportPdf = tracking.reportPdf || tracking.reportUrl;
 
-        const getStageIndex = (stage) => {
-            const idx = LAB_TRACKING_STAGES.findIndex(s => s.key.toLowerCase() === (stage || '').toLowerCase());
-            return idx === -1 ? 0 : idx;
-        };
-
-        const activeIndex = getStageIndex(currentStage);
+        // Render from live backend lifecycleProgress array per Documentation Section 4
+        const lifecycleStages = (Array.isArray(tracking.lifecycleProgress) && tracking.lifecycleProgress.length > 0)
+            ? tracking.lifecycleProgress
+            : DEFAULT_LIFECYCLE_STAGES.map((s, idx) => ({
+                title: s.title,
+                key: s.key,
+                step: s.step,
+                isCompleted: idx === 0,
+                isCurrent: idx === 0
+            }));
 
         return createPortal(
             <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 font-sans">
@@ -524,9 +576,9 @@ export default function LabPrescriptionRequestsPage() {
                             <h3 className="text-xl font-bold font-mono">
                                 #{tracking.bookingId || tracking.initialData?.bookingId || "LAB-CONFIRMED"}
                             </h3>
-                            <p className="text-xs text-slate-400 mt-1">Status: <strong className="text-emerald-400">{currentStage}</strong></p>
+                            <p className="text-xs text-slate-400 mt-1">Status: <strong className="text-emerald-400">{currentStatus}</strong></p>
                         </div>
-                        <button onClick={onClose} className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white/80 hover:text-white transition">
+                        <button onClick={onClose} className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white/80 hover:text-white transition cursor-pointer">
                             <FiX size={20} />
                         </button>
                     </div>
@@ -578,25 +630,48 @@ export default function LabPrescriptionRequestsPage() {
                             </div>
                         )}
 
-                        {/* Lifecycle Stepper */}
+                        {/* 9-Step Lifecycle Progress Stepper (Iterating data.lifecycleProgress per Documentation) */}
                         <div className="space-y-3">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sample Lifecycle Progress</p>
-                            <div className="space-y-3 pl-2 border-l-2 border-slate-100">
-                                {LAB_TRACKING_STAGES.map((stage, idx) => {
-                                    const isDone = idx <= activeIndex;
-                                    const isCurrent = idx === activeIndex;
+                            <div className="flex items-center justify-between text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                                <span>Sample Lifecycle Progress</span>
+                                <span>Step {tracking.stepNumber || 1} of {tracking.totalSteps || lifecycleStages.length}</span>
+                            </div>
+
+                            <div className="space-y-4 pl-3 border-l-2 border-slate-100">
+                                {lifecycleStages.map((stage) => {
+                                    const isDone = Boolean(stage.isCompleted);
+                                    const isCurrent = Boolean(stage.isCurrent);
 
                                     return (
-                                        <div key={stage.key} className="relative flex items-center gap-3 pl-4">
-                                            <div className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                                                isDone ? 'bg-[#08B36A] border-[#08B36A] text-white' : 'bg-white border-slate-200'
+                                        <div key={stage.step || stage.key || stage.title} className="relative flex items-center gap-3.5 pl-4">
+                                            {/* Stepper Pin */}
+                                            <div className={`absolute -left-[19px] w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                                                isCurrent 
+                                                    ? 'bg-[#08B36A] border-emerald-300 ring-4 ring-emerald-50 text-white shadow-md' 
+                                                    : isDone 
+                                                    ? 'bg-[#08B36A] border-[#08B36A] text-white' 
+                                                    : 'bg-white border-slate-200 text-transparent'
                                             }`}>
-                                                {isDone && <FiCheckCircle size={10} />}
+                                                {isDone && <FiCheck size={11} className="stroke-[3]" />}
+                                                {isCurrent && !isDone && <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping" />}
                                             </div>
+
+                                            {/* Stage Title */}
                                             <div>
-                                                <p className={`text-xs font-bold ${isCurrent ? 'text-emerald-700' : isDone ? 'text-slate-800' : 'text-slate-400'}`}>
-                                                    {stage.label}
+                                                <p className={`text-xs font-bold leading-tight ${
+                                                    isCurrent 
+                                                        ? 'text-[#08B36A] font-black' 
+                                                        : isDone 
+                                                        ? 'text-slate-900 font-bold' 
+                                                        : 'text-slate-400 font-medium'
+                                                }`}>
+                                                    {stage.title}
                                                 </p>
+                                                {isCurrent && (
+                                                    <span className="text-[9px] text-[#08B36A] font-black uppercase tracking-wider block mt-0.5">
+                                                        ● Current Stage
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     );
@@ -663,7 +738,7 @@ export default function LabPrescriptionRequestsPage() {
 
             <div className="space-y-4">
                 {requests.map((request) => {
-                    const isPaidOrTracking = request.status === 'Confirmed' || request.status === 'Completed' || Boolean(request.isPaid);
+                    const isConfirmedOrTracking = isTrackable(request);
 
                     return (
                         <div key={request._id} className="bg-white border border-slate-100 rounded-3xl p-6 transition-all hover:border-emerald-200 hover:shadow-xl hover:shadow-slate-200/40 group">
@@ -700,7 +775,7 @@ export default function LabPrescriptionRequestsPage() {
                                     <div className="lg:text-right lg:px-6">
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Quoted Total</p>
                                         <p className="text-lg font-bold text-slate-900">
-                                            {request.status === 'Bill Generated' || isPaidOrTracking 
+                                            {request.status === 'Bill Generated' || isConfirmedOrTracking 
                                                 ? `₹${request.verifiedBill?.totalAmount || request.totalAmount}` 
                                                 : 'Pending Review'}
                                         </p>
@@ -714,7 +789,8 @@ export default function LabPrescriptionRequestsPage() {
                                             View Details
                                         </button>
 
-                                        {isPaidOrTracking && (
+                                        {/* Dynamic Track Button */}
+                                        {isConfirmedOrTracking && (
                                             <button
                                                 onClick={() => handleOpenLiveTracking(request)}
                                                 className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[11px] font-bold uppercase tracking-widest transition-all shadow-md cursor-pointer flex items-center gap-1.5"

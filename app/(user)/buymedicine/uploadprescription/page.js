@@ -8,7 +8,8 @@ import {
     FiDownload, FiSearch, FiRefreshCw, FiChevronLeft, FiChevronRight,
     FiUser, FiMapPin, FiClock, FiCreditCard, FiStar, FiCheckCircle,
     FiUploadCloud, FiTrash2, FiFileText, FiMinus, FiPlus, FiSend, FiArrowLeft, FiLoader,
-    FiTruck, FiCheck, FiMap, FiNavigation
+    FiTruck, FiCheck, FiMap, FiNavigation, FiBox, FiCheckSquare, FiCalendar, FiArrowRight,
+    FiPhone, FiEye
 } from 'react-icons/fi';
 import { HiStar } from 'react-icons/hi';
 import { MdOutlineLocalPharmacy, MdOutlineDeliveryDining } from 'react-icons/md';
@@ -28,7 +29,7 @@ const getReportFileUrl = (path) => {
 };
 
 export default function PrescriptionFlow() {
-    // 1: Upload, 2: Review, 3: Address Selection, 4: Pharmacy Selection
+    // 1: Upload, 2: Review, 3: Address Selection, 4: Pharmacy Selection, 5: Order Confirmation
     const [step, setStep] = useState(1);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [medicines, setMedicines] = useState([]);
@@ -57,6 +58,9 @@ export default function PrescriptionFlow() {
     const [selectedPharmacy, setSelectedPharmacy] = useState(null);
     const [isLoadingPharmacies, setIsLoadingPharmacies] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // --- CONFIRMED ORDER RESULT DATA ---
+    const [confirmedOrderData, setConfirmedOrderData] = useState(null);
 
     const fileInputRef = useRef(null);
     const router = useRouter();
@@ -203,12 +207,20 @@ export default function PrescriptionFlow() {
             const response = await UserAPI.createPrescriptionRequest(formData);
 
             if (response.success) {
-                router.push("/userscreens/previousorders");
-                setStep(1);
-                setMedicines([]);
-                setRawFile(null);
-                setFilePreview(null);
-                setSelectedPharmacy(null);
+                // Set full confirmation details and switch to Confirmation Step 5
+                setConfirmedOrderData({
+                    requestId: response.data?.requestId || response.requestId || `REQ-${Date.now().toString().slice(-6)}`,
+                    status: response.data?.status || "Pending Review",
+                    pharmacy: selectedPharmacy,
+                    address: selectedAddress,
+                    medicines: requestedMeds,
+                    durationMode: durationMode === "prescription" ? `${globalDays} Days (Full Course)` : "Custom Item Days",
+                    doctorName: scanMeta.doctor || "Medical Practitioner",
+                    prescriptionDate: scanMeta.date || new Date().toLocaleDateString(),
+                    prescriptionPreview: filePreview,
+                    createdAt: new Date().toLocaleDateString()
+                });
+                setStep(5);
             } else {
                 alert(response.message || "Failed to submit request.");
             }
@@ -264,10 +276,22 @@ export default function PrescriptionFlow() {
     // --- STEP 2: LOGIC ---
     const addManualMedicine = (e) => {
         e.preventDefault();
-        if (!manualInput.trim()) return;
+        const trimmedName = manualInput.trim();
+        if (!trimmedName) return;
+
+        // Check for duplicate medicine name (case-insensitive)
+        const isDuplicate = medicines.some(
+            m => m.name.trim().toLowerCase() === trimmedName.toLowerCase()
+        );
+
+        if (isDuplicate) {
+            toast.error(`"${trimmedName}" is already added!`);
+            return;
+        }
+
         setMedicines([...medicines, {
             id: `manual-${Date.now()}`,
-            name: manualInput,
+            name: trimmedName,
             days: durationMode === "prescription" ? globalDays : 7,
             dosage: "1-0-1"
         }]);
@@ -589,6 +613,165 @@ export default function PrescriptionFlow() {
         </div>
     );
 
+    // --- RENDER STEP 5: BEAUTIFIED CARD CONFIRMATION DESIGN ---
+    if (step === 5 && confirmedOrderData) return (
+        <div className="min-h-screen bg-[#F8FAFC] py-12 px-4 sm:px-6 flex items-center justify-center font-sans animate-in fade-in zoom-in-95 duration-500">
+            <div className="max-w-xl w-full bg-white rounded-[3rem] shadow-[0_30px_90px_-20px_rgba(0,0,0,0.12)] border border-slate-100 overflow-hidden flex flex-col">
+                
+                {/* Visual Gradient Header */}
+                <div className="bg-gradient-to-br from-[#08B36A] via-emerald-600 to-teal-800 p-8 text-white text-center relative overflow-hidden">
+                    {/* Background Texture Decor */}
+                    <div className="absolute right-[-20px] top-[-20px] w-40 h-40 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+                    <div className="absolute left-[-20px] bottom-[-20px] w-32 h-32 bg-black/10 rounded-full blur-xl pointer-events-none" />
+
+                    <div className="relative z-10 space-y-3">
+                        <div className="w-16 h-16 rounded-3xl bg-white text-[#08B36A] flex items-center justify-center mx-auto shadow-xl shadow-black/10">
+                            <FiCheckCircle size={36} />
+                        </div>
+                        <div>
+                            <span className="inline-block px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest text-emerald-100 mb-1">
+                                Prescription Request Transmitted
+                            </span>
+                            <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                                Inquiry Confirmed!
+                            </h2>
+                        </div>
+                        <p className="text-xs text-emerald-100 font-medium max-w-sm mx-auto leading-relaxed">
+                            Your prescription has been forwarded to the licensed pharmacy partner for verification.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Card Body */}
+                <div className="p-6 sm:p-8 space-y-6">
+
+                    {/* Reference & Status Bar */}
+                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Reference Code</span>
+                            <span className="text-sm font-black text-slate-900 font-mono tracking-wider">#{confirmedOrderData.requestId}</span>
+                        </div>
+                        <span className="px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                            ● {confirmedOrderData.status}
+                        </span>
+                    </div>
+
+                    {/* Fulfilling Pharmacy & Delivery Location */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        {/* Pharmacy Summary */}
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-emerald-600">
+                                <MdOutlineLocalPharmacy size={14} /> Fulfilling Store
+                            </div>
+                            <h4 className="text-xs font-black text-slate-900 capitalize truncate">{confirmedOrderData.pharmacy?.name}</h4>
+                            <p className="text-[11px] text-slate-500 font-medium line-clamp-2 leading-relaxed">
+                                {confirmedOrderData.pharmacy?.address || [confirmedOrderData.pharmacy?.city, confirmedOrderData.pharmacy?.state].filter(Boolean).join(", ")}
+                            </p>
+                        </div>
+
+                        {/* Address Summary */}
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                <FiMapPin size={13} className="text-[#08B36A]" /> Delivery Address
+                            </div>
+                            <h4 className="text-xs font-black text-slate-900 truncate">
+                                {confirmedOrderData.address?.name} ({confirmedOrderData.address?.addressType || "Home"})
+                            </h4>
+                            <p className="text-[11px] text-slate-500 font-medium line-clamp-2 leading-relaxed">
+                                {confirmedOrderData.address?.houseNo}, Sector {confirmedOrderData.address?.sector}, {confirmedOrderData.address?.city}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Prescribed Medicines Summary */}
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between px-1">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                                <FiBox className="text-emerald-600" /> Prescribed Items ({confirmedOrderData.medicines?.length})
+                            </span>
+                            <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                                {confirmedOrderData.durationMode}
+                            </span>
+                        </div>
+
+                        <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                            {confirmedOrderData.medicines?.map((med, idx) => (
+                                <div key={idx} className="flex justify-between items-center p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                                    <div className="truncate max-w-[240px]">
+                                        <p className="font-bold text-slate-900 uppercase truncate">{med.name}</p>
+                                        <p className="text-[10px] text-slate-400 font-medium">Dosage: {med.dosage}</p>
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-700 bg-white border border-slate-200 px-2.5 py-1 rounded-lg">
+                                        {med.days} Days
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Prescription Document Preview Thumbnail */}
+                    {confirmedOrderData.prescriptionPreview && (
+                        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-11 h-11 rounded-xl overflow-hidden border border-slate-200 bg-white shrink-0">
+                                    <img src={confirmedOrderData.prescriptionPreview} alt="Prescription" className="w-full h-full object-cover" />
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold text-slate-800">Prescription Attached</p>
+                                    <p className="text-[10px] text-slate-400 font-medium">Transmitted with request</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setZoomedImage(confirmedOrderData.prescriptionPreview)}
+                                className="px-3.5 py-1.5 bg-white border border-slate-200 hover:border-emerald-500 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                                <FiEye size={12} /> View
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Helper text */}
+                    <div className="p-3.5 bg-emerald-50/60 border border-emerald-100 rounded-2xl text-center">
+                        <p className="text-[11px] text-emerald-800 font-medium leading-relaxed">
+                            💡 You will receive an in-app alert with the verified invoice amount as soon as the pharmacist checks stock.
+                        </p>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setStep(1);
+                                setMedicines([]);
+                                setRawFile(null);
+                                setFilePreview(null);
+                                setSelectedPharmacy(null);
+                                setConfirmedOrderData(null);
+                                router.push('/');
+                            }}
+                            className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider rounded-2xl transition cursor-pointer"
+                        >
+                            Return to Home
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => router.push('/userscreens/previousorders')}
+                            className="flex-1 py-4 bg-[#08B36A] hover:bg-slate-900 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition shadow-lg shadow-emerald-600/20 active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                        >
+                            <span>Go to Orders</span>
+                            <FiArrowRight size={14} />
+                        </button>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    );
+
     return (
         <div className="min-h-screen bg-slate-50 pb-20 font-sans">
             {/* Header */}
@@ -789,9 +972,19 @@ export default function PrescriptionFlow() {
                                                     <div
                                                         key={item.id}
                                                         onClick={() => {
+                                                            const selectedName = item.name.trim();
+                                                            const isDuplicate = medicines.some(
+                                                                m => m.name.trim().toLowerCase() === selectedName.toLowerCase()
+                                                            );
+
+                                                            if (isDuplicate) {
+                                                                toast.error(`"${selectedName}" is already added!`);
+                                                                return;
+                                                            }
+
                                                             setMedicines(prev => [...prev, {
                                                                 id: `manual-${Date.now()}-${item.id}`,
-                                                                name: item.name,
+                                                                name: selectedName,
                                                                 days: durationMode === "prescription" ? globalDays : 7,
                                                                 dosage: "1-0-1"
                                                             }]);
