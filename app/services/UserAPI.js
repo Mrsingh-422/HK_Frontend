@@ -1699,6 +1699,14 @@ cancelAmbulanceBooking: async (bookingId, cancelData = {}) => {
         const response = await authApi.patch(`/user/hospital/cancel/${id}`, { reason });
         return response.data;
     },
+    // ==================== HOSPITAL WARDS & BEDS API ====================
+
+// Get live wards and bed availability list for a hospital
+getHospitalWards: async (hospitalId) => {
+    // If using axios instance (e.g., userApi / publicApi):
+    const response = await authApi.get(`/user/hospital/wards?hospitalId=${hospitalId}`);
+    return response.data;
+},
 // ==========================================
   // MODULE 2: PATIENT ADMISSION HOLD & BOOKINGS
   // ==========================================

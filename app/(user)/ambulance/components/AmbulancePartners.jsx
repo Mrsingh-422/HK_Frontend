@@ -46,12 +46,15 @@ function AmbulancePartners() {
         fetchAmbulances();
     }, []);
 
-    // --- PREPARE DATA FOR SEAMLESS LOOP ---
-    // We double the 6 items to 12 so the animation loop is invisible to the user
+    // Check if movement is required (only when more than 3)
+    const shouldAnimate = ambulances.length > 3;
+
+    // --- PREPARE DATA ---
+    // Only double the array if animation is needed for seamless loop
     const displayPartners = useMemo(() => {
         if (ambulances.length === 0) return [];
-        return [...ambulances, ...ambulances];
-    }, [ambulances]);
+        return shouldAnimate ? [...ambulances, ...ambulances] : ambulances;
+    }, [ambulances, shouldAnimate]);
 
     if (loading) {
         return (
@@ -93,22 +96,34 @@ function AmbulancePartners() {
                 </p>
             </div>
 
-            {/* Marquee Container */}
+            {/* Container: If > 3 it scrolls with marquee; if <= 3 it stays centered and static */}
             <div
-                className="relative w-full cursor-grab active:cursor-grabbing"
-                onMouseEnter={() => setIsPaused(true)}
-                onMouseLeave={() => setIsPaused(false)}
+                className={`relative w-full ${shouldAnimate ? "cursor-grab active:cursor-grabbing" : ""}`}
+                onMouseEnter={() => shouldAnimate && setIsPaused(true)}
+                onMouseLeave={() => shouldAnimate && setIsPaused(false)}
             >
-                {/* Side Fades for Premium Look */}
-                <div className="absolute inset-y-0 left-0 w-24 md:w-60 bg-gradient-to-r from-[#F8FAFC] to-transparent z-20 pointer-events-none"></div>
-                <div className="absolute inset-y-0 right-0 w-24 md:w-60 bg-gradient-to-l from-[#F8FAFC] to-transparent z-20 pointer-events-none"></div>
+                {/* Side Fades only displayed when animating */}
+                {shouldAnimate && (
+                    <>
+                        <div className="absolute inset-y-0 left-0 w-24 md:w-60 bg-gradient-to-r from-[#F8FAFC] to-transparent z-20 pointer-events-none"></div>
+                        <div className="absolute inset-y-0 right-0 w-24 md:w-60 bg-gradient-to-l from-[#F8FAFC] to-transparent z-20 pointer-events-none"></div>
+                    </>
+                )}
 
                 <div
-                    className="flex gap-6 md:gap-10 animate-ambulance-marquee"
-                    style={{
-                        animationPlayState: isPaused ? 'paused' : 'running',
-                        width: 'max-content'
-                    }}
+                    className={`flex gap-6 md:gap-10 ${
+                        shouldAnimate
+                            ? "animate-ambulance-marquee"
+                            : "justify-center flex-wrap max-w-7xl mx-auto px-4"
+                    }`}
+                    style={
+                        shouldAnimate
+                            ? {
+                                  animationPlayState: isPaused ? 'paused' : 'running',
+                                  width: 'max-content'
+                              }
+                            : {}
+                    }
                 >
                     {displayPartners.map((amb, index) => (
                         <div
@@ -166,22 +181,24 @@ function AmbulancePartners() {
                 </div>
             </div>
 
-            {/* Animation Styles */}
-            <style dangerouslySetInnerHTML={{
-                __html: `
-                @keyframes ambulance-marquee {
-                    0% { transform: translateX(0); }
-                    100% { transform: translateX(-50%); }
-                }
-                .animate-ambulance-marquee {
-                    animation: ambulance-marquee 45s linear infinite;
-                }
-                @media (max-width: 768px) {
-                    .animate-ambulance-marquee {
-                        animation: ambulance-marquee 25s linear infinite;
+            {/* Animation Styles (Active only when > 3 items) */}
+            {shouldAnimate && (
+                <style dangerouslySetInnerHTML={{
+                    __html: `
+                    @keyframes ambulance-marquee {
+                        0% { transform: translateX(0); }
+                        100% { transform: translateX(-50%); }
                     }
-                }
-            `}} />
+                    .animate-ambulance-marquee {
+                        animation: ambulance-marquee 45s linear infinite;
+                    }
+                    @media (max-width: 768px) {
+                        .animate-ambulance-marquee {
+                            animation: ambulance-marquee 25s linear infinite;
+                        }
+                    }
+                `}} />
+            )}
         </div>
     );
 }

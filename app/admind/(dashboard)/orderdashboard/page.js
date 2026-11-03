@@ -8,7 +8,8 @@ import {
     Wallet, ChevronLeft, ChevronRight, User,
     Phone, Mail, MapPin, Stethoscope, FileText,
     X, Tag, ShoppingBag, Navigation,
-    Image as ImageIcon, Loader2, AlertTriangle, Filter
+    Image as ImageIcon, Loader2, AlertTriangle, Filter,
+    DoorOpen, Ticket, Bed
 } from 'lucide-react';
 
 const VENDOR_UI = {
@@ -27,7 +28,7 @@ export default function OrderDashboard() {
     const [loading, setLoading] = useState(true);
     const [tableLoading, setTableLoading] = useState(false);
 
-    // --- FILTER STATES (Defaulted to 'all' to show everything) ---
+    // Filter States
     const [timeRange, setTimeRange] = useState('all');
     const [selectedVendor, setSelectedVendor] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
@@ -44,24 +45,22 @@ export default function OrderDashboard() {
     const [detailsLoading, setDetailsLoading] = useState(false);
 
     // --- API FETCH FUNCTIONS ---
-
     const fetchStats = async () => {
         try {
-            // Only send params if they are not 'all'
             const params = {
                 timeRange: timeRange === 'all' ? undefined : timeRange,
                 vendor: selectedVendor === 'all' ? undefined : selectedVendor
             };
             const res = await AdminAPI.adminStatDashboard(params);
-            if (res.success) setStats(res.data);
-        } catch (err) { console.error("Stats Error:", err); }
+            if (res && res.success) setStats(res.data);
+        } catch (err) { 
+            console.error("Stats Error:", err); 
+        }
     };
 
     const fetchOrders = useCallback(async (page) => {
         try {
             setTableLoading(true);
-
-            // Passing Filters as query params. If 'all', we send undefined.
             const res = await AdminAPI.getLiveOrders(
                 page,
                 limit,
@@ -70,13 +69,15 @@ export default function OrderDashboard() {
                 searchQuery
             );
 
-            if (res.success) {
-                setLiveOrders(res.data);
-                setTotalPages(res.totalPages);
-                setTotalOrders(res.totalOrders);
-                setCurrentPage(res.currentPage);
+            if (res && res.success) {
+                setLiveOrders(res.data || []);
+                setTotalPages(res.totalPages || 1);
+                setTotalOrders(res.totalOrders || 0);
+                setCurrentPage(res.currentPage || 1);
             }
-        } catch (err) { console.error("Table Error:", err); } finally {
+        } catch (err) { 
+            console.error("Table Error:", err); 
+        } finally {
             setTableLoading(false);
             setLoading(false);
         }
@@ -87,19 +88,13 @@ export default function OrderDashboard() {
             setSelectedOrderId(orderId);
             setDetailsLoading(true);
             const res = await AdminAPI.getOrderDetails(orderId);
-            if (res.success) setOrderDetails(res);
-        } catch (err) { console.error("Detail Error:", err); } finally {
+            if (res && res.success) setOrderDetails(res);
+        } catch (err) { 
+            console.error("Detail Error:", err); 
+        } finally {
             setDetailsLoading(false);
         }
     };
-
-    // setInterval(() => {
-    //     fetchStats();
-    //     fetchOrders(currentPage);
-    //     setSearchQuery('');
-    //     setTimeRange('all');
-    //     setSelectedVendor('all');
-    // }, 5000);
 
     // Refetch when page or filters change
     useEffect(() => {
@@ -108,7 +103,6 @@ export default function OrderDashboard() {
     }, [fetchOrders, currentPage, timeRange, selectedVendor]);
 
     // --- HELPERS ---
-
     const handlePageChange = (newPage) => {
         if (newPage >= 1 && newPage <= totalPages) {
             setCurrentPage(newPage);
@@ -118,9 +112,9 @@ export default function OrderDashboard() {
     const getStatusStyle = (status) => {
         const s = status?.toLowerCase() || '';
         if (s.includes('pending') || s.includes('placed')) return 'bg-amber-50 text-amber-700 border-amber-100';
-        if (s.includes('confirmed') || s.includes('progress')) return 'bg-blue-50 text-blue-700 border-blue-100';
+        if (s.includes('confirmed') || s.includes('progress') || s.includes('active')) return 'bg-blue-50 text-blue-700 border-blue-100';
         if (s.includes('completed')) return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-        if (s.includes('cancelled')) return 'bg-rose-50 text-rose-700 border-rose-100';
+        if (s.includes('cancelled') || s.includes('rejected')) return 'bg-rose-50 text-rose-700 border-rose-100';
         return 'bg-slate-50 text-slate-700 border-slate-100';
     };
 
@@ -177,7 +171,8 @@ export default function OrderDashboard() {
 
                             <button
                                 onClick={() => { fetchStats(); fetchOrders(1); }}
-                                className="p-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-sm transition-all"
+                                className="p-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-sm transition-all cursor-pointer"
+                                title="Refresh Dashboard"
                             >
                                 <RefreshCcw size={18} />
                             </button>
@@ -245,34 +240,54 @@ export default function OrderDashboard() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
-                                {liveOrders.length > 0 ? liveOrders.map((order) => (
-                                    <tr key={order.id || order.orderId} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-8 py-5 font-mono font-bold text-indigo-600 text-sm tracking-tight">#{order.orderId}</td>
-                                        <td className="px-8 py-5">
-                                            <div className="flex items-center gap-2">
-                                                <div className={`p-1.5 rounded-lg ${VENDOR_UI[order.vendor?.toLowerCase()]?.bg || 'bg-slate-100'}`}>
-                                                    {React.createElement(VENDOR_UI[order.vendor?.toLowerCase()]?.icon || Building2, { size: 14, className: VENDOR_UI[order.vendor?.toLowerCase()]?.text })}
+                                {liveOrders.length > 0 ? liveOrders.map((order) => {
+                                    const isHospital = order.vendor?.toLowerCase() === 'hospital';
+                                    const bookingType = order.bookingType || (order.service?.includes('OPD') ? 'OPD' : (order.service?.includes('Admission') ? 'Admission' : null));
+
+                                    return (
+                                        <tr key={order.id || order.orderId} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-8 py-5 font-mono font-bold text-indigo-600 text-sm tracking-tight">
+                                                #{order.orderId}
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`p-1.5 rounded-lg ${VENDOR_UI[order.vendor?.toLowerCase()]?.bg || 'bg-slate-100'}`}>
+                                                        {React.createElement(VENDOR_UI[order.vendor?.toLowerCase()]?.icon || Building2, { size: 14, className: VENDOR_UI[order.vendor?.toLowerCase()]?.text })}
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase text-slate-500">{order.vendor}</span>
                                                 </div>
-                                                <span className="text-[10px] font-black uppercase text-slate-500">{order.vendor}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-5 text-sm font-bold text-slate-800">{order.service}</td>
-                                        <td className="px-8 py-5 text-sm font-black text-slate-900 tracking-tighter">₹{order.amount?.toLocaleString()}</td>
-                                        <td className="px-8 py-5">
-                                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${getStatusStyle(order.status)}`}>
-                                                {order.status?.replace(/-/g, ' ')}
-                                            </span>
-                                        </td>
-                                        <td className="px-8 py-5 text-right">
-                                            <button
-                                                onClick={() => handleViewDetails(order.orderId)}
-                                                className="p-2 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-xl transition-all border border-transparent hover:border-indigo-100"
-                                            >
-                                                <ExternalLink size={18} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                )) : (
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-bold text-slate-800">{order.service}</span>
+                                                    {isHospital && bookingType && (
+                                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${
+                                                            bookingType === 'OPD' 
+                                                                ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                                                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                        }`}>
+                                                            {bookingType}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-5 text-sm font-black text-slate-900 tracking-tighter">₹{order.amount?.toLocaleString()}</td>
+                                            <td className="px-8 py-5">
+                                                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${getStatusStyle(order.status)}`}>
+                                                    {order.status?.replace(/-/g, ' ')}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-5 text-right">
+                                                <button
+                                                    onClick={() => handleViewDetails(order.orderId)}
+                                                    className="p-2 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-xl transition-all border border-transparent hover:border-indigo-100 cursor-pointer"
+                                                >
+                                                    <ExternalLink size={18} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                }) : (
                                     <tr>
                                         <td colSpan={6} className="px-8 py-20 text-center">
                                             <div className="flex flex-col items-center opacity-40">
@@ -296,14 +311,14 @@ export default function OrderDashboard() {
                             <button
                                 onClick={() => handlePageChange(currentPage - 1)}
                                 disabled={currentPage === 1 || tableLoading}
-                                className="flex items-center gap-1 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 disabled:opacity-50 transition-all hover:border-indigo-600"
+                                className="flex items-center gap-1 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 disabled:opacity-50 transition-all hover:border-indigo-600 cursor-pointer"
                             >
                                 <ChevronLeft size={18} /> Prev
                             </button>
                             <button
                                 onClick={() => handlePageChange(currentPage + 1)}
                                 disabled={currentPage === totalPages || tableLoading}
-                                className="flex items-center gap-1 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 disabled:opacity-50 transition-all hover:border-indigo-600"
+                                className="flex items-center gap-1 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 disabled:opacity-50 transition-all hover:border-indigo-600 cursor-pointer"
                             >
                                 Next <ChevronRight size={18} />
                             </button>
@@ -326,7 +341,7 @@ export default function OrderDashboard() {
                                     <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{orderDetails?.vendor} Service Manifest</p>
                                 </div>
                             </div>
-                            <button onClick={() => { setSelectedOrderId(null); setOrderDetails(null); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-900 transition-all">
+                            <button onClick={() => { setSelectedOrderId(null); setOrderDetails(null); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-900 transition-all cursor-pointer">
                                 <X size={28} />
                             </button>
                         </div>
@@ -339,9 +354,9 @@ export default function OrderDashboard() {
                                     <div className="lg:col-span-1 space-y-6">
                                         <DetailCard title="Customer Profile" icon={<User size={18} />}>
                                             <div className="space-y-4">
-                                                <InfoItem label="Name" value={orderDetails?.data?.userId?.name} />
-                                                <InfoItem label="Email" value={orderDetails?.data?.userId?.email} />
-                                                <InfoItem label="Contact" value={orderDetails?.data?.userId?.phone} />
+                                                <InfoItem label="Name" value={orderDetails?.data?.userId?.name || orderDetails?.data?.userName} />
+                                                <InfoItem label="Email" value={orderDetails?.data?.userId?.email || orderDetails?.data?.userEmail} />
+                                                <InfoItem label="Contact" value={orderDetails?.data?.userId?.phone || orderDetails?.data?.userPhone} />
                                             </div>
                                         </DetailCard>
 
@@ -358,34 +373,68 @@ export default function OrderDashboard() {
                                     </div>
 
                                     <div className="lg:col-span-2 space-y-6">
-                                        {(orderDetails?.vendor === 'Hospital' || orderDetails?.vendor === 'Doctor' || orderDetails?.vendor === 'Nurse') && (
-                                            <>
-                                                <DetailCard title="Service Information" icon={<Building2 size={18} />}>
+                                        {/* HOSPITAL ORDERS: OPD vs. ADMISSION (Category 1 documentation) */}
+                                        {orderDetails?.vendor === 'Hospital' && (
+                                            orderDetails?.data?.bookingType === 'OPD' ? (
+                                                <DetailCard title="Hospital OPD Consultation Details" icon={<Ticket size={18} />}>
                                                     <div className="grid grid-cols-2 gap-6">
-                                                        <InfoItem label="Facility/Provider" value={orderDetails?.data?.hospitalId?.name || orderDetails?.data?.doctorId?.name || orderDetails?.data?.nurseId?.name} />
-                                                        <InfoItem label="Category" value={orderDetails?.data?.bedBookingType || orderDetails?.data?.consultationType || 'Home Service'} />
+                                                        <InfoItem label="Hospital Facility" value={orderDetails?.data?.hospitalId?.name || orderDetails?.data?.hospitalName} />
+                                                        <InfoItem label="Consulting Doctor" value={orderDetails?.data?.doctorId?.name || orderDetails?.data?.doctorName || 'Assigned Physician'} />
+                                                        <InfoItem label="Daily Token Number" value={orderDetails?.data?.tokenNumber ? `#${orderDetails?.data?.tokenNumber}` : 'Token Assigned at Desk'} />
+                                                        <InfoItem label="OPD Cabin / Room" value={orderDetails?.data?.opdRoomNumber || orderDetails?.data?.roomNumber || 'Room Assigned on Arrival'} />
+                                                        <InfoItem label="Consultation Type" value="OPD Daily Queue" />
                                                         <InfoItem label="Location" value={`${orderDetails?.data?.hospitalId?.city || ''}, ${orderDetails?.data?.hospitalId?.state || ''}`} />
-                                                        <InfoItem label="Booking Type" value={orderDetails?.data?.bookingType} />
                                                     </div>
                                                 </DetailCard>
-                                                <DetailCard title="Patient Details" icon={<UserRound size={18} />}>
-                                                    <div className="grid grid-cols-1 gap-3">
-                                                        {orderDetails?.data?.patients?.map((p, i) => (
-                                                            <div key={i} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex justify-between items-center">
-                                                                <div><p className="font-bold text-slate-800">{p.patientName}</p><p className="text-[10px] font-bold text-slate-400 uppercase">{p.gender} • {p.patientAge} Years</p></div>
-                                                                <span className="text-[10px] font-black px-3 py-1 bg-white rounded-lg border text-slate-500 uppercase">{p.relation}</span>
-                                                            </div>
-                                                        ))}
-                                                        {!orderDetails?.data?.patients && (
-                                                            <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
-                                                                <InfoItem label="Patient Name" value={orderDetails?.data?.patientName} />
-                                                            </div>
-                                                        )}
+                                            ) : (
+                                                <DetailCard title="Hospital Inpatient (IPD) Admission Details" icon={<Bed size={18} />}>
+                                                    <div className="grid grid-cols-2 gap-6">
+                                                        <InfoItem label="Hospital Facility" value={orderDetails?.data?.hospitalId?.name || orderDetails?.data?.hospitalName} />
+                                                        <InfoItem label="Ward Name" value={orderDetails?.data?.wardName || orderDetails?.data?.bedBookingType || 'Inpatient Ward'} />
+                                                        <InfoItem label="Allocated Bed" value={orderDetails?.data?.bedNumber ? `Bed #${orderDetails?.data?.bedNumber}` : 'Bed Unassigned'} />
+                                                        <InfoItem label="Reserved Stay" value={orderDetails?.data?.stayDuration ? `${orderDetails?.data?.stayDuration} Days` : '1 Day'} />
+                                                        <InfoItem label="Attending Doctor" value={orderDetails?.data?.doctorId?.name || orderDetails?.data?.doctorName || 'Assigned on Admission'} />
+                                                        <InfoItem label="Triage Priority" value={orderDetails?.data?.triageLevel || 'Routine'} />
                                                     </div>
                                                 </DetailCard>
-                                            </>
+                                            )
                                         )}
 
+                                        {/* INDEPENDENT DOCTOR OR NURSE CONSULTATIONS */}
+                                        {(orderDetails?.vendor === 'Doctor' || orderDetails?.vendor === 'Nurse') && (
+                                            <DetailCard title="Service Information" icon={<Building2 size={18} />}>
+                                                <div className="grid grid-cols-2 gap-6">
+                                                    <InfoItem label="Provider Name" value={orderDetails?.data?.doctorId?.name || orderDetails?.data?.nurseId?.name} />
+                                                    <InfoItem label="Speciality / Role" value={orderDetails?.data?.doctorId?.speciality || orderDetails?.data?.consultationType || 'Home Healthcare'} />
+                                                    <InfoItem label="Consultation Type" value={orderDetails?.data?.consultationType || 'Direct Appointment'} />
+                                                    <InfoItem label="Booking Reference" value={orderDetails?.data?.bookingType || 'Standard'} />
+                                                </div>
+                                            </DetailCard>
+                                        )}
+
+                                        {/* PATIENT DETAILS CARD FOR CLINICAL ORDERS */}
+                                        {(orderDetails?.vendor === 'Hospital' || orderDetails?.vendor === 'Doctor' || orderDetails?.vendor === 'Nurse') && (
+                                            <DetailCard title="Patient Profile" icon={<UserRound size={18} />}>
+                                                <div className="grid grid-cols-1 gap-3">
+                                                    {orderDetails?.data?.patients?.map((p, i) => (
+                                                        <div key={i} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex justify-between items-center">
+                                                            <div>
+                                                                <p className="font-bold text-slate-800">{p.patientName}</p>
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase">{p.gender} &bull; {p.patientAge} Years</p>
+                                                            </div>
+                                                            <span className="text-[10px] font-black px-3 py-1 bg-white rounded-lg border text-slate-500 uppercase">{p.relation || 'Self'}</span>
+                                                        </div>
+                                                    ))}
+                                                    {!orderDetails?.data?.patients && (
+                                                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                                                            <InfoItem label="Patient Name" value={orderDetails?.data?.patientName || orderDetails?.data?.userId?.name} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </DetailCard>
+                                        )}
+
+                                        {/* AMBULANCE ORDERS */}
                                         {orderDetails?.vendor === 'Ambulance' && (
                                             <>
                                                 <DetailCard title="Ambulance Timeline" icon={<Navigation size={18} />}>
@@ -404,17 +453,18 @@ export default function OrderDashboard() {
                                                 </DetailCard>
                                                 <DetailCard title="Emergency Response" icon={<AlertTriangle size={18} />}>
                                                     <div className="grid grid-cols-2 gap-4">
-                                                        <InfoItem label="Vehicle Type" value={orderDetails?.data?.ambulanceId?.vehicleType} />
+                                                        <InfoItem label="Vehicle Type" value={orderDetails?.data?.ambulanceId?.vehicleType || 'Emergency Ambulance'} />
                                                         <InfoItem label="Service Requested" value={orderDetails?.data?.serviceType} />
                                                     </div>
                                                     <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
                                                         <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Pickup Address</p>
-                                                        <p className="text-xs font-medium text-slate-600 leading-relaxed">{orderDetails?.data?.pickupLocation?.address}</p>
+                                                        <p className="text-xs font-medium text-slate-600 leading-relaxed">{orderDetails?.data?.pickupLocation?.address || 'GPS Location Dispatched'}</p>
                                                     </div>
                                                 </DetailCard>
                                             </>
                                         )}
 
+                                        {/* PHARMACY OR DIAGNOSTIC LAB ORDERS */}
                                         {(orderDetails?.vendor === 'Pharmacy' || orderDetails?.vendor === 'Lab') && (
                                             <>
                                                 <DetailCard title="Request Items" icon={<ShoppingBag size={18} />}>
@@ -449,7 +499,7 @@ export default function OrderDashboard() {
                         </div>
 
                         <div className="p-8 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3 rounded-b-[2.5rem]">
-                            <button onClick={() => setSelectedOrderId(null)} className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-600 transition-all">Close Details</button>
+                            <button onClick={() => setSelectedOrderId(null)} className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-600 transition-all cursor-pointer">Close Details</button>
                         </div>
                     </div>
                 </div>
@@ -459,7 +509,6 @@ export default function OrderDashboard() {
 }
 
 // UI SUB-COMPONENTS
-
 function DetailCard({ title, icon, children }) {
     return (
         <div className="bg-white border border-slate-100 rounded-[2rem] p-6 shadow-sm">

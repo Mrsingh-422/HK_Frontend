@@ -30,7 +30,7 @@ export default function AdmitToWardModal({
   const [selectedBed, setSelectedBed] = useState(null);
 
   // Form Fields
-  const [triageLevel, setTriageLevel] = useState("Emergency");
+  const [triageLevel, setTriageLevel] = useState("Urgent");
   const [initialStayDays, setInitialStayDays] = useState(1);
   const [admissionReason, setAdmissionReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -41,17 +41,17 @@ export default function AdmitToWardModal({
       fetchBeds();
       setSelectedBed(null);
       setErrorMsg("");
-      setTriageLevel("Emergency");
+      setTriageLevel("Urgent");
       setInitialStayDays(1);
       setAdmissionReason(
         appointment?.reasonForVisit || appointment?.chiefComplaints
           ? `Acute condition observed during OPD: ${appointment.reasonForVisit || appointment.chiefComplaints}. Immediate in-patient care ordered.`
-          : "Acute in-patient monitoring required. Shift to in-patient ward."
+          : "Patient requires inpatient monitoring and continuous clinical care."
       );
     }
   }, [isOpen, appointment]);
 
-  // 3.1 View Available Wards & Beds (GET /hospital-doctor/panel/opd/available-beds)
+  // View Available Wards & Beds (GET /hospital-doctor/panel/opd/available-beds)
   const fetchBeds = async () => {
     try {
       setLoadingBeds(true);
@@ -76,7 +76,7 @@ export default function AdmitToWardModal({
   const currentWard = wardsData.find((w) => (w.wardId || w._id) === selectedWardId);
   const depositPayable = (selectedBed?.pricePerDay || 0) * Number(initialStayDays || 1);
 
-  // 3.2 Initiate Bed Admission Hold (POST /hospital-doctor/panel/opd/initiate-admission)
+  // Initiate Bed Admission Hold (POST /hospital-doctor/panel/opd/initiate-admission)
   const handleSubmitAdmission = async (e) => {
     e.preventDefault();
     if (!selectedBed) {
@@ -88,12 +88,21 @@ export default function AdmitToWardModal({
       setSubmitting(true);
       setErrorMsg("");
 
+      const stayDays = Number(initialStayDays) || 1;
+      const notes = admissionReason.trim();
+      const targetOpdId = appointment?._id || appointment?.appointmentId || appointment?.id || appointment?.bookingId;
+
+      // Fully normalized payload adhering to the API specification
       const payload = {
-        opdAppointmentId: appointment?._id || appointment?.appointmentId || appointment?.bookingId,
+        opdAppointmentId: targetOpdId,
+        appointmentId: targetOpdId,
         bedId: selectedBed.bedId || selectedBed._id,
-        admissionReason: admissionReason.trim(),
-        triageLevel: triageLevel,
-        initialStayDays: Number(initialStayDays) || 1
+        stayDuration: stayDays,
+        initialStayDays: stayDays,
+        triageLevel: triageLevel, // 'Emergency' | 'Very Urgent' | 'Urgent' | 'Routine'
+        bookingReason: notes,
+        admissionReason: notes,
+        admissionNotes: notes
       };
 
       const res = await HospitalDoctorAPI.initiateBedAdmission(payload);
@@ -154,7 +163,7 @@ export default function AdmitToWardModal({
             <div className="space-y-0.5">
               <p className="font-black text-indigo-950 text-xs">How 30-Minute Bed Hold Works:</p>
               <p className="text-[11px] text-indigo-800 leading-relaxed font-medium">
-                Selecting a bed locks it under <strong>'Reserved'</strong> status for 30 minutes. Current OPD consultation will be marked <strong>Completed</strong>, and the patient receives a live 30-minute payment countdown on their app and at the reception counter.
+                Selecting a bed locks it under <strong>&apos;Reserved&apos;</strong> status for 30 minutes. Current OPD consultation will be marked <strong>Completed</strong>, and the patient receives a live 30-minute payment countdown on their app and at the reception counter.
               </p>
             </div>
           </div>
@@ -293,7 +302,7 @@ export default function AdmitToWardModal({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
-                Initial Deposit Days *
+                Initial Deposit Days (stayDuration) *
               </label>
               <input
                 type="number"
@@ -309,7 +318,7 @@ export default function AdmitToWardModal({
 
             <div className="sm:col-span-2">
               <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
-                Admission Clinical Order &amp; Reason *
+                Clinical Reason for Admission (bookingReason) *
               </label>
               <textarea
                 rows="2"
@@ -317,7 +326,7 @@ export default function AdmitToWardModal({
                 value={admissionReason}
                 onChange={(e) => setAdmissionReason(e.target.value)}
                 placeholder="e.g. Acute cardiac monitoring required. Shift to Cardiac ICU."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 resize-none"
               />
             </div>
           </div>

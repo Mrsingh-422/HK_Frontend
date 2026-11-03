@@ -17,11 +17,9 @@ const AMBULANCE_TYPES = [
         title: "Accidental",
         subtitle: "Critical / ALS",
         description: "Advanced Life Support with Ventilators",
-        icon: <ShieldAlert className="w-8 h-8 text-red-600" />,
+        icon: <ShieldAlert className="w-8 h-8 text-red-600 transition-colors duration-300" />,
         accent: "bg-red-600",
         lightBg: "bg-red-50",
-        hoverBorder: "hover:border-red-500",
-        ringColor: "ring-red-500/20",
         serviceType: "Accident emergency"
     },
     {
@@ -30,12 +28,10 @@ const AMBULANCE_TYPES = [
         title: "Medical",
         subtitle: "Non-Critical / BLS",
         description: "Basic Life Support for hospital transfers",
-        icon: <Stethoscope className="w-8 h-8 text-blue-600" />,
-        accent: "bg-blue-600",
+        icon: <Stethoscope className="w-8 h-8 text-blue-600 group-hover:text-red-600 transition-colors duration-300" />,
+        accent: "bg-red-600",
         lightBg: "bg-blue-50",
-        serviceType: "Medical Ambulance",
-        hoverBorder: "hover:border-blue-500",
-        ringColor: "ring-blue-500/20"
+        serviceType: "Medical Ambulance"
     },
     {
         id: "referral",
@@ -43,11 +39,9 @@ const AMBULANCE_TYPES = [
         title: "Referral",
         subtitle: "Trauma / PTV",
         description: "Immediate response for road accidents",
-        icon: <Truck className="w-8 h-8 text-orange-600" />,
-        accent: "bg-orange-600",
+        icon: <Truck className="w-8 h-8 text-orange-600 group-hover:text-red-600 transition-colors duration-300" />,
+        accent: "bg-red-600",
         lightBg: "bg-orange-50",
-        hoverBorder: "hover:border-orange-500",
-        ringColor: "ring-orange-500/20",
         serviceType: "Referral Ambulance"
     }
 ];
@@ -106,23 +100,28 @@ const AmbulanceHero = () => {
                                     <button
                                         key={item.id}
                                         onClick={() => handleServiceClick(item.id, item.slug, item.serviceType)}
-                                        className={`group relative flex flex-row md:flex-col items-center md:items-start p-4 md:p-6 rounded-[2rem] transition-all duration-300 border-2 text-left
+                                        className={`group relative flex flex-row md:flex-col items-center md:items-start p-4 md:p-6 rounded-[2rem] transition-all duration-300 border-2 text-left cursor-pointer
+                                            hover:border-red-500 hover:bg-red-50 hover:shadow-lg hover:ring-4 hover:ring-red-500/20
                                             ${selectedType === item.id
-                                                ? `${item.hoverBorder} ${item.lightBg} shadow-lg ring-4 ${item.ringColor}`
-                                                : "bg-white border-slate-100 hover:border-slate-200"
+                                                ? "border-red-500 bg-red-50 shadow-lg ring-4 ring-red-500/20"
+                                                : "bg-white border-slate-100"
                                             }`}
                                     >
-                                        <div className={`${item.lightBg} p-3 md:p-4 rounded-2xl mb-0 md:mb-4 mr-4 md:mr-0 transition-transform group-hover:scale-110 duration-300`}>
+                                        {/* Icon Container - Turns red-100 on hover */}
+                                        <div className={`${item.lightBg} group-hover:bg-red-100 p-3 md:p-4 rounded-2xl mb-0 md:mb-4 mr-4 md:mr-0 transition-all group-hover:scale-110 duration-300`}>
                                             {item.icon}
                                         </div>
                                         <div className="flex-1">
                                             <div className="flex items-center justify-between md:mb-1">
-                                                <h4 className="font-bold text-slate-900 text-lg md:text-xl leading-tight">
+                                                {/* Title - Turns red-600 on hover */}
+                                                <h4 className="font-bold text-slate-900 group-hover:text-red-600 transition-colors text-lg md:text-xl leading-tight">
                                                     {item.title}
                                                 </h4>
-                                                <ChevronRight className={`w-4 h-4 transition-transform ${selectedType === item.id ? 'translate-x-1' : 'opacity-0 group-hover:opacity-100'}`} />
+                                                {/* Chevron - Turns red-600 on hover */}
+                                                <ChevronRight className={`w-4 h-4 transition-all group-hover:text-red-600 ${selectedType === item.id ? 'translate-x-1 text-red-600 opacity-100' : 'opacity-0 group-hover:opacity-100 group-hover:translate-x-1'}`} />
                                             </div>
-                                            <p className={`text-xs md:text-sm font-semibold mb-1 ${selectedType === item.id ? 'text-slate-700' : 'text-slate-400'}`}>
+                                            {/* Subtitle - Turns red-600 on hover */}
+                                            <p className={`text-xs md:text-sm font-semibold mb-1 transition-colors ${selectedType === item.id ? 'text-red-600' : 'text-slate-400 group-hover:text-red-600'}`}>
                                                 {item.subtitle}
                                             </p>
                                             <p className="hidden md:block text-[11px] text-slate-500 leading-snug">
@@ -130,7 +129,7 @@ const AmbulanceHero = () => {
                                             </p>
                                         </div>
                                         {selectedType === item.id && (
-                                            <div className={`absolute top-4 right-4 w-2 h-2 rounded-full ${item.accent}`}></div>
+                                            <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-red-600"></div>
                                         )}
                                     </button>
                                 ))}

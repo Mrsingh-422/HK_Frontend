@@ -439,11 +439,11 @@ getHospitalApprovals: (params = {}) => {
         return response.data;
     },
 
-    // --- DRIVER / VENDOR ADMIN FUNCTIONS ---
-    adminGetAllDrivers: async () => {
-        const response = await api.get('/admin/drivers/vendor/list');
-        return response.data;
-    },
+  // --- DRIVER / VENDOR ADMIN FUNCTIONS ---
+adminGetAllDrivers: async (params = {}) => {
+    const response = await api.get('/admin/drivers/vendor/list', { params });
+    return response.data;
+},
     adminGetDriverDetails: async (id) => {
         const response = await api.get(`/admin/drivers/vendor/details/${id}`);
         return response.data;

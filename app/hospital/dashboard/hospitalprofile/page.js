@@ -10,6 +10,16 @@ import {
 import HospitalAPI from '@/app/services/HospitalAPI';
 import UserAPI from '@/app/services/UserAPI';
 
+// Safe URL resolver helper
+const getSafeImageUrl = (path) => {
+  if (!path) return null;
+  if (typeof path !== 'string') return null;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const base = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5002').replace(/\/$/, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${cleanPath}`;
+};
+
 export default function HospitalProfilePage() {
   const { loading: authLoading } = useAuth();
   const [hospitalData, setHospitalData] = useState(null);
@@ -24,7 +34,16 @@ export default function HospitalProfilePage() {
   const [stagedRequest, setStagedRequest] = useState(null);
 
   // Available Master Insurance Companies List
-  const [masterInsuranceCompanies, setMasterInsuranceCompanies] = useState([]);
+  const [masterInsuranceCompanies, setMasterInsuranceCompanies] = useState([
+    "HDFC ERGO",
+    "Star Health",
+    "Care Health",
+    "Ayushman Bharat (PM-JAY)",
+    "ICICI Lombard",
+    "Bajaj Allianz",
+    "Niva Bupa (Max Bupa)",
+    "Reliance General"
+  ]);
   const [customInsuranceInput, setCustomInsuranceInput] = useState("");
 
   // Form States
@@ -51,36 +70,43 @@ export default function HospitalProfilePage() {
   const fetchProfile = async () => {
     setIsFetching(true);
     try {
-      // 1. Fetch profile update staging status (if implemented)
+      // 1. Fetch profile update staging status (if supported)
       try {
-        if (HospitalAPI.getHospitalProfileUpdateStatus) {
+        if (typeof HospitalAPI.getHospitalProfileUpdateStatus === 'function') {
           const statusRes = await HospitalAPI.getHospitalProfileUpdateStatus();
           if (statusRes?.success) {
             setStagedRequest(statusRes.data);
           }
         }
-      } catch (err) {
-        console.warn("Staged request status not found or unsupported", err);
-      }
+      } catch (err) {}
 
       // 2. Fetch primary active profile
       const response = await HospitalAPI.getHospitalProfile();
       if (response?.success) {
-        setHospitalData(response.data.hospital);
+        setHospitalData(response.data?.hospital || response.data);
       }
 
       // 3. Fetch Master Insurance list for dropdown selection
       try {
-        const insRes = await UserAPI.getUserHealthInsuranses();
-        const rawList = insRes?.data || [];
-        // Extract unique insurance / provider names
-        const names = [...new Set(rawList.map(item => item.insuranceName || item.provider).filter(Boolean))];
-        setMasterInsuranceCompanies(names);
-      } catch (err) {
-        console.error("Failed to load master insurance companies list", err);
-      }
+        let names = [];
+        if (typeof HospitalAPI.getMasterDropdownData === 'function') {
+          const dropRes = await HospitalAPI.getMasterDropdownData();
+          if (dropRes?.success) {
+            const compList = dropRes.companies || dropRes.data?.insuranceProviders || [];
+            names = compList.map(c => c.insuranceName || c.name || c.provider || c).filter(Boolean);
+          }
+        }
+        if (names.length === 0 && typeof UserAPI.getUserHealthInsuranses === 'function') {
+          const insRes = await UserAPI.getUserHealthInsuranses();
+          const rawList = insRes?.data || [];
+          names = rawList.map(item => item.insuranceName || item.provider).filter(Boolean);
+        }
+        if (names.length > 0) {
+          setMasterInsuranceCompanies(prev => [...new Set([...prev, ...names])]);
+        }
+      } catch (err) {}
     } catch (error) {
-      console.error("Error fetching hospital profile", error);
+      console.error("Error fetching hospital profile:", error);
     } finally {
       setIsFetching(false);
     }
@@ -90,7 +116,7 @@ export default function HospitalProfilePage() {
     fetchProfile();
   }, []);
 
-  // Modal Open Handler (populating text fields)
+  // Modal Open Handler (populating fields)
   const openEditModal = () => {
     setFormData({
       name: hospitalData?.name || '',
@@ -149,13 +175,12 @@ export default function HospitalProfilePage() {
     }));
   };
 
-  // Submit Update Profile Details
+  // Submit Update Profile Details (PUT /api/auth/hospital/profile/update)
   const handleUpdateSubmit = async (e) => {
     e.preventDefault();
     setIsUpdating(true);
 
-    // JSON Payload matches the endpoint spec:
-    // PUT /api/auth/hospital/profile/update
+    // JSON Payload matches Section 1 format (JSON Array acceptedInsurances)
     const payload = {
       name: formData.name,
       address: formData.address,
@@ -182,7 +207,7 @@ export default function HospitalProfilePage() {
 
     try {
       const res = await HospitalAPI.updateHospitalProfile(payload);
-      if (res.success) {
+      if (res && res.success) {
         alert(res.message || "Profile and Insurance acceptance updated successfully.");
         if (res.data?.status) {
           setStagedRequest(res.data);
@@ -190,11 +215,10 @@ export default function HospitalProfilePage() {
         setIsEditModalOpen(false);
         fetchProfile(); 
       } else {
-        alert(res.message || "Failed to update profile");
+        alert(res?.message || "Failed to update profile");
       }
     } catch (error) {
-      console.error("Error updating profile", error);
-      alert(error?.response?.data?.message || "An error occurred while updating.");
+      alert(error?.response?.data?.message || error?.message || "An error occurred while updating.");
     } finally {
       setIsUpdating(false);
     }
@@ -213,9 +237,8 @@ export default function HospitalProfilePage() {
   );
 
   // --- Data Extraction & Formatting ---
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") || "";
-  const profileImage = hospitalData?.hospitalImage?.[0] ? `${backendUrl}${hospitalData.hospitalImage[0]}` : null;
-  const licenseImage = hospitalData?.licenseDocument?.[0] ? `${backendUrl}${hospitalData.licenseDocument[0]}` : null;
+  const profileImage = hospitalData?.hospitalImage?.[0] ? getSafeImageUrl(hospitalData.hospitalImage[0]) : null;
+  const licenseImage = hospitalData?.licenseDocument?.[0] ? getSafeImageUrl(hospitalData.licenseDocument[0]) : null;
   const otherDocs = hospitalData?.otherDocuments || [];
   
   const city = hospitalData?.city || "";
@@ -238,7 +261,7 @@ export default function HospitalProfilePage() {
 
   return (
     <>
-      <div className="max-w-6xl mx-auto space-y-6 pb-12">
+      <div className="max-w-6xl mx-auto space-y-6 pb-12 font-sans">
 
         {/* --- STAGED PROFILE UPDATE BANNERS --- */}
         {stagedRequest && stagedRequest.status === 'Pending' && (
@@ -318,7 +341,7 @@ export default function HospitalProfilePage() {
               {/* Edit Button */}
               <button 
                 onClick={openEditModal}
-                className="bg-white border-2 border-gray-100 text-gray-700 px-6 py-2.5 rounded-2xl font-bold hover:border-[#08B36A] hover:text-[#08B36A] hover:shadow-lg hover:shadow-green-500/10 transition-all flex items-center gap-2"
+                className="bg-white border-2 border-gray-100 text-gray-700 px-6 py-2.5 rounded-2xl font-bold hover:border-[#08B36A] hover:text-[#08B36A] hover:shadow-lg hover:shadow-green-500/10 transition-all flex items-center gap-2 cursor-pointer"
               >
                 <FaEdit /> Edit Profile
               </button>
@@ -450,7 +473,7 @@ export default function HospitalProfilePage() {
             </div>
 
             {/* Documents Grid (Strictly Read-Only) */}
-            <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100 flex-1 font-sans">
+            <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100 flex-1">
               <div className="flex items-center justify-between mb-5">
                 <h3 className="text-lg font-extrabold text-gray-800 flex items-center gap-2">
                   <FaRegIdCard className="text-[#08B36A]" /> Verification Records
@@ -483,12 +506,12 @@ export default function HospitalProfilePage() {
 
                 {/* Map Any Other Documents from API */}
                 {otherDocs.length > 0 && otherDocs.map((doc, idx) => {
-                  const docUrl = `${backendUrl}${doc}`;
+                  const docUrl = getSafeImageUrl(doc);
                   return (
                     <div 
                       key={idx}
                       className="group relative aspect-square rounded-2xl overflow-hidden border-2 border-transparent cursor-pointer shadow-md"
-                      onClick={() => setZoomedImage(docUrl)}
+                      onClick={() => docUrl && setZoomedImage(docUrl)}
                     >
                       <img src={docUrl} alt={`Doc ${idx}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-3">
@@ -510,7 +533,7 @@ export default function HospitalProfilePage() {
           <div className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl flex flex-col relative">
             <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-5 flex items-center justify-between z-10 rounded-t-3xl">
               <h2 className="text-xl font-extrabold text-gray-800 flex items-center gap-2"><FaEdit className="text-[#08B36A]"/> Edit Profile & Insurance Settings</h2>
-              <button onClick={() => setIsEditModalOpen(false)} className="p-2 bg-gray-50 text-gray-500 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors">
+              <button onClick={() => setIsEditModalOpen(false)} className="p-2 bg-gray-50 text-gray-500 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors cursor-pointer">
                 <FaTimes />
               </button>
             </div>
@@ -545,7 +568,7 @@ export default function HospitalProfilePage() {
                       Select Approved Providers & Schemes
                     </label>
 
-                    {/* Pre-populated master list toggles */}
+                    {/* Master list toggles */}
                     <div className="flex flex-wrap gap-2">
                       {masterInsuranceCompanies.map((nameStr, idx) => {
                         const isSelected = formData.acceptedInsurances.includes(nameStr);
@@ -554,7 +577,7 @@ export default function HospitalProfilePage() {
                             type="button"
                             key={idx}
                             onClick={() => handleToggleInsurance(nameStr)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border cursor-pointer ${
                               isSelected
                                 ? 'bg-[#08B36A] text-white border-[#08B36A] shadow-sm'
                                 : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
@@ -587,7 +610,7 @@ export default function HospitalProfilePage() {
                         <button
                           type="button"
                           onClick={handleAddCustomInsurance}
-                          className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition flex items-center gap-1"
+                          className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition flex items-center gap-1 cursor-pointer"
                         >
                           <FaPlus size={10} /> Add
                         </button>
@@ -608,7 +631,7 @@ export default function HospitalProfilePage() {
                               <button 
                                 type="button" 
                                 onClick={() => handleRemoveInsurance(item)}
-                                className="text-gray-400 hover:text-red-500"
+                                className="text-gray-400 hover:text-red-500 cursor-pointer"
                               >
                                 <FaTimes size={10} />
                               </button>
@@ -715,10 +738,10 @@ export default function HospitalProfilePage() {
 
               {/* Actions */}
               <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100">
-                <button type="button" onClick={() => setIsEditModalOpen(false)} disabled={isUpdating} className="px-6 py-3 rounded-2xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition">
+                <button type="button" onClick={() => setIsEditModalOpen(false)} disabled={isUpdating} className="px-6 py-3 rounded-2xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition cursor-pointer">
                   Cancel
                 </button>
-                <button type="submit" disabled={isUpdating} className="px-8 py-3 rounded-2xl font-bold text-white bg-[#08B36A] hover:bg-emerald-600 transition shadow-lg shadow-green-500/30 flex items-center gap-2">
+                <button type="submit" disabled={isUpdating} className="px-8 py-3 rounded-2xl font-bold text-white bg-[#08B36A] hover:bg-emerald-600 transition shadow-lg shadow-green-500/30 flex items-center gap-2 cursor-pointer">
                   {isUpdating ? <><FaSpinner className="animate-spin" /> Saving...</> : 'Save Changes'}
                 </button>
               </div>
@@ -730,7 +753,7 @@ export default function HospitalProfilePage() {
       {/* --- ZOOMED IMAGE MODAL --- */}
       {zoomedImage && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setZoomedImage(null)}>
-          <button className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors" onClick={() => setZoomedImage(null)}>
+          <button className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors cursor-pointer" onClick={() => setZoomedImage(null)}>
             <FaTimes size={24} />
           </button>
           <img src={zoomedImage} alt="Zoomed Fullscreen" className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl scale-100 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()} />

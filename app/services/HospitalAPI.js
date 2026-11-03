@@ -232,14 +232,15 @@ const HospitalAPI = {
   // ==========================================
 
   // 1. Get All Wards List
-  getWardsList: async () => {
-    try {
-      const response = await hospitalVendorApi.get('/hospital/panel/wards/list');
-      return response.data;
-    } catch (error) {
-      return { success: false, message: error.response?.data?.message || "Failed to fetch wards" };
-    }
-  },
+ // 1. Get All Wards List
+getWardsList: async () => {
+  try {
+    const response = await hospitalVendorApi.get('/hospital/panel/wards/list');
+    return response.data;
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || "Failed to fetch wards" };
+  }
+},
 
   // 2. Update Ward Info
   updateWard: async (wardId, data) => {
@@ -508,10 +509,19 @@ const HospitalAPI = {
     const response = await hospitalVendorApi.get(`/hospital/panel/referral-bookings?type=${type}`);
     return response.data;
   },
-  getDailyOccupancy: async (wardId, date) => {
-    const response = await hospitalVendorApi.get(`/hospital/panel/daily-occupancy?wardId=${wardId}&date=${date}`);
+ // 2. Get Daily Occupancy Analytics & Bed State
+getDailyOccupancy: async (wardId, date) => {
+  try {
+    const params = new URLSearchParams();
+    if (wardId) params.append('wardId', wardId);
+    if (date) params.append('date', date);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const response = await hospitalVendorApi.get(`/hospital/panel/daily-occupancy${query}`);
     return response.data;
-  },
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || "Failed to fetch occupancy" };
+  }
+},
 
   /* PUT /hospital/panel/bed/update-price
      */

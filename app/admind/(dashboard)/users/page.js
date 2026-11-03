@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { 
     FaEye, FaSearch, FaUserCheck, FaUsers, FaUserTimes, 
-    FaCheckCircle, FaExclamationCircle, FaSyncAlt 
+    FaCheckCircle, FaExclamationCircle, FaSyncAlt, FaBan 
 } from "react-icons/fa";
 import { IoChevronBack, IoChevronForward, IoClose } from "react-icons/io5";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
@@ -46,23 +46,25 @@ export default function UserManagementPage() {
         return `${cleanURL}${cleanPath}`;
     };
 
-    // --- FETCH USERS ---
+    // --- FETCH USERS (LIST OR SEARCH) ---
     const fetchUsers = useCallback(async () => {
         setLoading(true);
         try {
-            let res = search.trim().length > 0 
-                ? await AdminAPI.adminSearchUsers(search) 
+            const queryText = search.trim();
+            let res = queryText.length > 0 
+                ? await AdminAPI.adminSearchUsers(queryText) 
                 : await AdminAPI.adminGetUsers(currentPage);
 
-            if (res.data?.success || res.success || res.status === 200) {
-                const list = res.data?.users || res.data || [];
+            if (res.data?.success || res.success || res.status === 200 || Array.isArray(res.data) || Array.isArray(res)) {
+                // Extracts user list matching response keys
+                const list = res.data?.users || (Array.isArray(res.data) ? res.data : (Array.isArray(res) ? res : res.users || []));
                 setUsers(list);
                 setTotalPages(res.data?.totalPages || res.pages || res.totalPages || 1);
                 setTotalUsers(res.data?.totalUsers || res.total || res.totalUsers || list.length);
             }
         } catch (err) { 
             console.error("Error loading users:", err);
-            showAlert(err.response?.data?.message || "Failed to load user records", "error");
+            showAlert(err.response?.data?.message || err.message || "Failed to load user records", "error");
         } finally { 
             setLoading(false); 
         }
@@ -84,12 +86,12 @@ export default function UserManagementPage() {
             const res = await AdminAPI.adminToggleUserStatus(userId);
             
             if (res.data?.success || res.success || res.status === 200) {
-                const isNowActive = res.data?.isActive ?? res.isActive;
+                const isNowActive = res.data?.isActive ?? res.isActive ?? res.active;
                 const message = res.data?.message || res.message || `User status updated to ${isNowActive ? 'Active' : 'Inactive'}.`;
                 
                 // Optimistic Local State Update
                 setUsers(prevUsers => prevUsers.map(u => {
-                    const currentId = u._id || u.id;
+                    const currentId = u.id || u._id;
                     if (currentId === userId) {
                         return { 
                             ...u, 
@@ -104,11 +106,11 @@ export default function UserManagementPage() {
             } else {
                 showAlert(res.data?.message || res.message || "Failed to update user status", "error");
             }
-        } catch (err) {
+        } catch (err) { 
             console.error("Toggle user status error:", err);
-            showAlert(err.response?.data?.message || "Error updating status", "error");
-        } finally {
-            setTogglingId(null);
+            showAlert(err.response?.data?.message || err.message || "Error updating status", "error");
+        } finally { 
+            setTogglingId(null); 
         }
     };
 
@@ -121,23 +123,23 @@ export default function UserManagementPage() {
                 setSelectedUserDetail(res.data?.data || res.data);
                 setIsModalOpen(true);
             } else {
-                showAlert(res.data?.message || "Could not retrieve user profile", "error");
+                showAlert(res.data?.message || res.message || "Could not retrieve user profile", "error");
             }
         } catch (err) { 
             console.error("Error loading user profile:", err);
-            showAlert(err.response?.data?.message || "Error loading user details", "error"); 
+            showAlert(err.response?.data?.message || err.message || "Error loading user details", "error"); 
         } finally { 
             setFetchingDetailId(null); 
         }
     };
 
     const isUserActive = (user) => {
-        if (typeof user.isActive !== 'undefined') return Boolean(user.isActive);
         if (typeof user.active !== 'undefined') return Boolean(user.active);
+        if (typeof user.isActive !== 'undefined') return Boolean(user.isActive);
         return true;
     };
 
-    const activeCount = users.filter(u => isUserActive(u)).length;
+    const activeCount = users.filter(u => isUserActive(u) && !u.isBanned).length;
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] p-4 lg:p-8 font-sans text-slate-800">
@@ -156,7 +158,7 @@ export default function UserManagementPage() {
                             {alertBanner.type === "error" ? <FaExclamationCircle size={16} /> : <FaCheckCircle size={16} />}
                             <span>{alertBanner.message}</span>
                         </div>
-                        <button onClick={() => setAlertBanner(null)} className="p-1 hover:opacity-70">
+                        <button onClick={() => setAlertBanner(null)} className="p-1 hover:opacity-70 cursor-pointer">
                             <IoClose size={16} />
                         </button>
                     </div>
@@ -178,7 +180,7 @@ export default function UserManagementPage() {
                         <button 
                             onClick={fetchUsers}
                             disabled={loading}
-                            className="p-3.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-2xl shadow-sm transition disabled:opacity-50"
+                            className="p-3.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-2xl shadow-sm transition disabled:opacity-50 cursor-pointer"
                             title="Refresh User List"
                         >
                             <FaSyncAlt className={loading ? "animate-spin text-[#08B36A]" : ""} />
@@ -235,39 +237,64 @@ export default function UserManagementPage() {
                                     </tr>
                                 ) : (
                                     users.map((user) => {
-                                        const userId = user._id || user.id;
+                                        // Standardized Keys mapping per documentation
+                                        const userId = user.id || user._id;
                                         const active = isUserActive(user);
+                                        const isBanned = Boolean(user.isBanned);
                                         const isToggling = togglingId === userId;
                                         const isFetchingThisDetail = fetchingDetailId === userId;
+                                        const phoneDisplay = user.number || user.phone || "N/A";
+                                        const profileStatus = user.profileStatus || (user.isApproved ? "Approved" : null);
 
                                         return (
                                             <tr key={userId} className="hover:bg-slate-50/80 transition-all duration-300 group">
                                                 {/* Identity & Avatar */}
                                                 <td className="px-8 py-4">
                                                     <div className="flex items-center gap-4">
-                                                        <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-white shadow-md bg-slate-100 flex-shrink-0">
+                                                        <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-white shadow-md bg-slate-100 flex-shrink-0 relative">
                                                             <img 
                                                                 src={getFullImageUrl(user.profilePic || user.profilePicture, user.name)} 
-                                                                className="w-full h-full object-cover transition-transform group-hover:scale-110" 
+                                                                className={`w-full h-full object-cover transition-transform group-hover:scale-110 ${isBanned ? 'grayscale' : ''}`} 
                                                                 alt={user.name || "User"} 
                                                             />
+                                                            {isBanned && (
+                                                                <div className="absolute inset-0 bg-red-600/30 flex items-center justify-center text-white" title="User is Banned">
+                                                                    <FaBan size={14} />
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         <div>
-                                                            <p className="font-black text-slate-800 text-sm uppercase tracking-tight truncate max-w-[180px]">
-                                                                {user.name || "Unnamed User"}
-                                                            </p>
-                                                            <span className="text-[10px] text-slate-400 font-mono">
-                                                                ID: {userId}
+                                                            <div className="flex items-center gap-1.5">
+                                                                <p className="font-black text-slate-800 text-sm uppercase tracking-tight truncate max-w-[180px]">
+                                                                    {user.name || "Unnamed User"}
+                                                                </p>
+                                                                {isBanned && (
+                                                                    <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-rose-50 text-rose-600 border border-rose-200">
+                                                                        Banned
+                                                                    </span>
+                                                                )}
+                                                                {profileStatus && (
+                                                                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                                                                        profileStatus === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                                                        profileStatus === 'Rejected' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                                                                        'bg-amber-50 text-amber-700 border border-amber-200'
+                                                                    }`}>
+                                                                        {profileStatus}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                                                                ID: #{String(userId).slice(-6).toUpperCase()}
                                                             </span>
                                                         </div>
                                                     </div>
                                                 </td>
 
-                                                {/* Contact Details */}
+                                                {/* Contact Details (number & email) */}
                                                 <td className="px-6 py-4">
-                                                    <p className="text-[11px] text-slate-500 font-bold lowercase">{user.email || "No email linked"}</p>
+                                                    <p className="text-[11px] text-slate-500 font-bold lowercase">{user.email && user.email !== "N/A" ? user.email : "No email linked"}</p>
                                                     <p className="text-[11px] text-[#08B36A] font-black mt-0.5 tracking-wider font-mono">
-                                                        +91 {user.phone || user.number || "N/A"}
+                                                        +91 {phoneDisplay}
                                                     </p>
                                                 </td>
 
@@ -275,23 +302,23 @@ export default function UserManagementPage() {
                                                 <td className="px-6 py-4 text-center">
                                                     <div className="flex flex-col items-center justify-center gap-1">
                                                         <button 
-                                                            disabled={isToggling}
+                                                            disabled={isToggling || isBanned}
                                                             onClick={() => toggleStatus(userId)}
                                                             className={`w-12 h-6 rounded-full relative transition-all duration-300 shadow-inner flex items-center ${
-                                                                active ? "bg-[#08B36A]" : "bg-slate-300"
-                                                            } ${isToggling ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-                                                            title={active ? "Click to Deactivate account" : "Click to Activate account"}
+                                                                isBanned ? "bg-rose-300 cursor-not-allowed" : active ? "bg-[#08B36A]" : "bg-slate-300"
+                                                            } ${(isToggling || isBanned) ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                                                            title={isBanned ? "User account is suspended" : active ? "Click to Deactivate account" : "Click to Activate account"}
                                                         >
                                                             <div 
                                                                 className={`absolute top-1 bg-white w-4 h-4 rounded-full shadow-md transition-all duration-300 ${
-                                                                    active ? "left-7" : "left-1"
+                                                                    active && !isBanned ? "left-7" : "left-1"
                                                                 }`} 
                                                             />
                                                         </button>
                                                         <span className={`text-[9px] font-black uppercase tracking-widest ${
-                                                            active ? "text-emerald-600" : "text-slate-400"
+                                                            isBanned ? "text-rose-600" : active ? "text-emerald-600" : "text-slate-400"
                                                         }`}>
-                                                            {isToggling ? "Updating..." : active ? "Active" : "Inactive"}
+                                                            {isToggling ? "Updating..." : isBanned ? "Suspended" : active ? "Active" : "Inactive"}
                                                         </span>
                                                     </div>
                                                 </td>
@@ -301,7 +328,7 @@ export default function UserManagementPage() {
                                                     <button 
                                                         disabled={isFetchingThisDetail}
                                                         onClick={() => handleViewDetail(userId)}
-                                                        className="p-3 bg-emerald-50 hover:bg-[#08B36A] text-[#08B36A] hover:text-white rounded-2xl transition-all shadow-sm active:scale-90 inline-flex items-center justify-center"
+                                                        className="p-3 bg-emerald-50 hover:bg-[#08B36A] text-[#08B36A] hover:text-white rounded-2xl transition-all shadow-sm active:scale-90 inline-flex items-center justify-center cursor-pointer"
                                                         title="View Complete Profile & Bookings"
                                                     >
                                                         {isFetchingThisDetail ? (
@@ -329,14 +356,14 @@ export default function UserManagementPage() {
                                 <button 
                                     disabled={currentPage === 1 || loading} 
                                     onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} 
-                                    className="p-2.5 rounded-xl bg-white border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition"
+                                    className="p-2.5 rounded-xl bg-white border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition cursor-pointer"
                                 >
                                     <IoChevronBack size={14} />
                                 </button>
                                 <button 
                                     disabled={currentPage === totalPages || loading} 
                                     onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} 
-                                    className="p-2.5 rounded-xl bg-white border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition"
+                                    className="p-2.5 rounded-xl bg-white border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition cursor-pointer"
                                 >
                                     <IoChevronForward size={14} />
                                 </button>

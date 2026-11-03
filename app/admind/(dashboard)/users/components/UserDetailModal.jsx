@@ -7,7 +7,7 @@ import {
     FaUserCircle, FaUserShield, FaClock, FaHome, FaShoppingBag,
     FaStethoscope, FaFlask, FaPills, FaAmbulance, FaUserNurse,
     FaExternalLinkAlt, FaChevronLeft, FaChevronRight, FaCopy, FaCheckCircle,
-    FaEye, FaFilePdf, FaDownload
+    FaEye, FaFilePdf, FaDownload, FaHospital, FaDoorOpen, FaBed, FaTicketAlt
 } from "react-icons/fa";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import AdminAPI from "@/app/services/AdminAPI";
@@ -91,6 +91,7 @@ export default function UserDetailModal({ isOpen, onClose, user }) {
     const getCategoryIcon = (type) => {
         switch (type?.toLowerCase()) {
             case "doctor": return <FaStethoscope className="text-blue-500" />;
+            case "hospital": return <FaHospital className="text-rose-500" />;
             case "lab": return <FaFlask className="text-purple-500" />;
             case "pharmacy": return <FaPills className="text-emerald-500" />;
             case "ambulance": return <FaAmbulance className="text-rose-500" />;
@@ -104,7 +105,7 @@ export default function UserDetailModal({ isOpen, onClose, user }) {
         if (s.includes('delivered') || s.includes('completed') || s.includes('approved')) {
             return 'bg-emerald-50 text-emerald-700 border-emerald-200';
         }
-        if (s.includes('placed') || s.includes('pending') || s.includes('processing') || s.includes('in-progress')) {
+        if (s.includes('placed') || s.includes('pending') || s.includes('processing') || s.includes('in-progress') || s.includes('confirmed')) {
             return 'bg-amber-50 text-amber-700 border-amber-200';
         }
         if (s.includes('cancelled') || s.includes('rejected')) {
@@ -122,9 +123,11 @@ export default function UserDetailModal({ isOpen, onClose, user }) {
         { id: "emergency", label: `SOS Contacts (${user.emergencyContact?.length || 0})`, icon: <FaExclamationTriangle /> },
     ];
 
+    // Added 'Hospital' Category per Endpoint 1 specification
     const orderCategories = [
         { id: "All", label: "All Orders" },
-        { id: "Doctor", label: "Doctor Consults" },
+        { id: "Doctor", label: "Independent Doctors" },
+        { id: "Hospital", label: "Hospital Visits & IPD" },
         { id: "Lab", label: "Lab Tests" },
         { id: "Pharmacy", label: "Pharmacy Orders" },
         { id: "Nurse", label: "Nurse Care" },
@@ -143,7 +146,7 @@ export default function UserDetailModal({ isOpen, onClose, user }) {
                 <div className="bg-slate-950 p-8 text-white relative shrink-0">
                     <button 
                         onClick={onClose} 
-                        className="absolute top-6 right-6 p-2.5 bg-white/10 hover:bg-white/20 rounded-full transition-all text-slate-300 hover:text-white"
+                        className="absolute top-6 right-6 p-2.5 bg-white/10 hover:bg-white/20 rounded-full transition-all text-slate-300 hover:text-white cursor-pointer"
                     >
                         <FaTimes size={16} />
                     </button>
@@ -187,7 +190,7 @@ export default function UserDetailModal({ isOpen, onClose, user }) {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center gap-2 py-4 px-1 border-b-2 transition-all whitespace-nowrap text-xs font-extrabold uppercase tracking-wider ${
+                                className={`flex items-center gap-2 py-4 px-1 border-b-2 transition-all whitespace-nowrap text-xs font-extrabold uppercase tracking-wider cursor-pointer ${
                                     activeTab === tab.id
                                         ? "border-[#08B36A] text-[#08B36A]"
                                         : "border-transparent text-slate-400 hover:text-slate-700"
@@ -220,7 +223,7 @@ export default function UserDetailModal({ isOpen, onClose, user }) {
                     {activeTab === "orders" && (
                         <div className="space-y-6 animate-in fade-in duration-300">
                             
-                            {/* Category Filter Pills */}
+                            {/* Category Filter Pills (Now including Hospital) */}
                             <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
                                 {orderCategories.map((cat) => (
                                     <button
@@ -229,7 +232,7 @@ export default function UserDetailModal({ isOpen, onClose, user }) {
                                             setOrderType(cat.id);
                                             setOrderPage(1);
                                         }}
-                                        className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                                        className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                                             orderType === cat.id
                                                 ? "bg-slate-900 text-white shadow-sm"
                                                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -260,7 +263,7 @@ export default function UserDetailModal({ isOpen, onClose, user }) {
                                                     <th className="py-3.5 px-5">Service Category</th>
                                                     <th className="py-3.5 px-5">Booking Details</th>
                                                     <th className="py-3.5 px-5">Total Amount</th>
-                                                    <th className="py-3.5 px-5">Date & Time</th>
+                                                    <th className="py-3.5 px-5">Date &amp; Time</th>
                                                     <th className="py-3.5 px-5">Status</th>
                                                     <th className="py-3.5 px-5 text-right">Inspect</th>
                                                 </tr>
@@ -270,10 +273,11 @@ export default function UserDetailModal({ isOpen, onClose, user }) {
                                                     <tr key={item.orderId || item.mongoId} className="hover:bg-slate-50/70 transition">
                                                         <td className="py-3.5 px-5 font-mono font-bold text-slate-900">
                                                             <div className="flex items-center gap-1.5">
-                                                                <span>{item.orderId || item.mongoId?.slice(-8)}</span>
+                                                                <span>#{item.orderId || item.mongoId?.slice(-8)}</span>
                                                                 <button 
                                                                     onClick={() => handleCopy(item.orderId || item.mongoId, item.orderId)}
-                                                                    className="text-slate-300 hover:text-slate-600"
+                                                                    className="text-slate-300 hover:text-slate-600 cursor-pointer"
+                                                                    title="Copy Order ID"
                                                                 >
                                                                     {copiedId === item.orderId ? <FaCheckCircle className="text-emerald-500" /> : <FaCopy size={11} />}
                                                                 </button>
@@ -309,7 +313,7 @@ export default function UserDetailModal({ isOpen, onClose, user }) {
                                                         <td className="py-3.5 px-5 text-right">
                                                             <button
                                                                 onClick={() => setSelectedOrderForInspection(item)}
-                                                                className="px-3 py-1 bg-slate-900 hover:bg-black text-white rounded-lg text-[11px] font-bold shadow-sm inline-flex items-center gap-1 transition"
+                                                                className="px-3 py-1 bg-slate-900 hover:bg-black text-white rounded-lg text-[11px] font-bold shadow-sm inline-flex items-center gap-1 transition cursor-pointer"
                                                             >
                                                                 <FaEye size={10} /> View Details
                                                             </button>
@@ -329,7 +333,7 @@ export default function UserDetailModal({ isOpen, onClose, user }) {
                                             <button
                                                 onClick={() => setOrderPage(p => Math.max(1, p - 1))}
                                                 disabled={orderPage === 1 || ordersLoading}
-                                                className="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-30"
+                                                className="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-30 cursor-pointer"
                                             >
                                                 <FaChevronLeft size={10} />
                                             </button>
@@ -337,7 +341,7 @@ export default function UserDetailModal({ isOpen, onClose, user }) {
                                             <button
                                                 onClick={() => setOrderPage(p => Math.min(orderTotalPages, p + 1))}
                                                 disabled={orderPage === orderTotalPages || ordersLoading}
-                                                className="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-30"
+                                                className="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-30 cursor-pointer"
                                             >
                                                 <FaChevronRight size={10} />
                                             </button>
@@ -385,11 +389,11 @@ export default function UserDetailModal({ isOpen, onClose, user }) {
                                 user.familyMember.map((member, idx) => (
                                     <div key={idx} className="flex items-center gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100">
                                         <div className="w-14 h-14 bg-emerald-100 text-[#08B36A] rounded-2xl flex items-center justify-center font-black text-lg shrink-0">
-                                            {member.profilePic ? <img src={getImageUrl(member.profilePic)} className="w-full h-full object-cover rounded-2xl" /> : member.memberName?.charAt(0)}
+                                            {member.profilePic ? <img src={getImageUrl(member.profilePic)} className="w-full h-full object-cover rounded-2xl" alt="" /> : member.memberName?.charAt(0)}
                                         </div>
                                         <div className="min-w-0">
                                             <h4 className="text-sm font-black text-slate-900 uppercase truncate">{member.memberName}</h4>
-                                            <p className="text-[#08B36A] text-[10px] font-extrabold uppercase tracking-wider">{member.relation} • {member.age} Yrs • {member.gender}</p>
+                                            <p className="text-[#08B36A] text-[10px] font-extrabold uppercase tracking-wider">{member.relation} &bull; {member.age} Yrs &bull; {member.gender}</p>
                                             <p className="text-slate-400 text-xs font-mono mt-1 flex items-center gap-1.5"><FaPhone size={10} /> {member.phone || "No phone"}</p>
                                         </div>
                                     </div>
@@ -428,7 +432,7 @@ export default function UserDetailModal({ isOpen, onClose, user }) {
                 <div className="p-5 border-t border-slate-100 shrink-0 bg-slate-50 flex justify-end">
                     <button 
                         onClick={onClose} 
-                        className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold uppercase tracking-wider text-xs hover:bg-black transition shadow-sm"
+                        className="px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold uppercase tracking-wider text-xs hover:bg-black transition shadow-sm cursor-pointer"
                     >
                         Close Modal
                     </button>
@@ -462,7 +466,7 @@ function UserOrderDetailModal({ isOpen, onClose, orderInfo }) {
     };
 
     useEffect(() => {
-        if (isOpen && orderInfo?.type && orderInfo?.mongoId) {
+        if (isOpen && orderInfo?.type && (orderInfo?.mongoId || orderInfo?.orderId)) {
             fetchDetails();
         }
     }, [isOpen, orderInfo]);
@@ -471,11 +475,13 @@ function UserOrderDetailModal({ isOpen, onClose, orderInfo }) {
         setLoading(true);
         setErrorMsg(null);
         try {
-            const res = await AdminAPI.adminGetOrderDetails(orderInfo.type, orderInfo.mongoId);
+            // Endpoint 2: GET /admin/users/orders/details/:type/:id
+            const targetId = orderInfo.mongoId || orderInfo.orderId;
+            const res = await AdminAPI.adminGetOrderDetails(orderInfo.type, targetId);
             if (res.data?.success || res.success) {
                 setDetailData(res.data?.data || res.data || {});
             } else {
-                setErrorMsg(res.data?.message || "Failed to retrieve order details");
+                setErrorMsg(res.data?.message || res.message || "Failed to retrieve order details");
             }
         } catch (err) {
             console.error("Order details fetch error:", err);
@@ -494,7 +500,7 @@ function UserOrderDetailModal({ isOpen, onClose, orderInfo }) {
         if (s.includes("delivered") || s.includes("completed") || s.includes("approved")) {
             return "bg-emerald-100 text-emerald-800 border-emerald-200";
         }
-        if (s.includes("in-progress") || s.includes("service-started") || s.includes("placed")) {
+        if (s.includes("in-progress") || s.includes("service-started") || s.includes("placed") || s.includes("confirmed")) {
             return "bg-amber-100 text-amber-800 border-amber-200";
         }
         if (s.includes("cancelled") || s.includes("rejected")) {
@@ -514,6 +520,7 @@ function UserOrderDetailModal({ isOpen, onClose, orderInfo }) {
                     <div className="flex items-center gap-3">
                         <div className="p-3 bg-white/10 rounded-2xl">
                             {type === "Doctor" && <FaStethoscope className="text-blue-400" size={20} />}
+                            {type === "Hospital" && <FaHospital className="text-rose-400" size={20} />}
                             {type === "Lab" && <FaFlask className="text-purple-400" size={20} />}
                             {type === "Pharmacy" && <FaPills className="text-emerald-400" size={20} />}
                             {type === "Nurse" && <FaUserNurse className="text-pink-400" size={20} />}
@@ -529,7 +536,7 @@ function UserOrderDetailModal({ isOpen, onClose, orderInfo }) {
                         </div>
                     </div>
 
-                    <button onClick={onClose} className="p-2.5 bg-white/10 hover:bg-white/20 rounded-full text-slate-300 hover:text-white transition">
+                    <button onClick={onClose} className="p-2.5 bg-white/10 hover:bg-white/20 rounded-full text-slate-300 hover:text-white transition cursor-pointer">
                         <FaTimes size={16} />
                     </button>
                 </div>
@@ -558,53 +565,77 @@ function UserOrderDetailModal({ isOpen, onClose, orderInfo }) {
                                 <div className="text-left sm:text-right">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Total Payable</span>
                                     <span className="text-xl font-black text-slate-900">
-                                        ₹{Number(detailData.totalAmount || detailData.billSummary?.totalAmount || detailData.priceBreakdown?.totalPrice || detailData.pricing?.total || 0).toLocaleString('en-IN')}
+                                        ₹{Number(detailData.totalAmount || detailData.billSummary?.totalAmount || detailData.priceBreakdown?.totalPrice || detailData.pricing?.total || detailData.total || 0).toLocaleString('en-IN')}
                                     </span>
                                 </div>
                             </div>
 
-                            {/* DOCTOR VIEW */}
-                            {type === "Doctor" && (
+                            {/* HOSPITAL VIEW (OPD Visit vs. Bed Admission) */}
+                            {type === "Hospital" && (
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <Card title="Practitioner & Facility">
-                                            <DetailRow label="Doctor Name" value={detailData.doctorId?.name || "N/A"} bold />
-                                            <DetailRow label="Speciality" value={detailData.doctorId?.speciality || "General Physician"} />
-                                            <DetailRow label="Hospital Facility" value={detailData.hospitalId?.name || "Independent Clinic"} />
+                                        <Card title="Hospital Facility & Doctor">
+                                            <DetailRow label="Hospital Name" value={detailData.hospitalId?.name || detailData.hospitalName || "Hospital Facility"} bold />
+                                            <DetailRow label="Consulting / Attending Doctor" value={detailData.doctorId?.name || detailData.doctorName || "Assigned Doctor"} />
+                                            <DetailRow label="Speciality / Department" value={detailData.doctorId?.speciality || detailData.department || "Clinical Medicine"} />
                                             {detailData.hospitalId?.address && <DetailRow label="Address" value={detailData.hospitalId?.address} />}
                                         </Card>
 
-                                        <Card title="Appointment / Admission Info">
-                                            <DetailRow label="Booking Type" value={detailData.bookingType || "Appointment"} highlight />
-                                            {detailData.bookingType === "Admission" ? (
+                                        <Card title={detailData.bookingType === "OPD" ? "OPD Consultation Ticket" : "Inpatient (IPD) Admission"}>
+                                            <DetailRow label="Booking Type" value={detailData.bookingType === "OPD" ? "Hospital OPD Visit" : "Bed Admission"} highlight />
+                                            {detailData.bookingType === "OPD" ? (
                                                 <>
-                                                    <DetailRow label="Bed Category" value={detailData.bedBookingType || "General Ward"} />
-                                                    <DetailRow label="Assigned Bed" value={detailData.bedId?.bedNumber || "Pending Allocation"} bold />
-                                                    <DetailRow label="Bed Price / Day" value={`₹${detailData.bedId?.pricePerDay || 0}`} />
+                                                    <DetailRow label="Token Number" value={`#${detailData.tokenNumber || "N/A"}`} bold />
+                                                    <DetailRow label="Cabin / Room" value={detailData.opdRoomNumber || detailData.roomNumber || "OPD Cabin"} />
+                                                    <DetailRow label="Appointment Date" value={detailData.appointmentDate ? formatDate(detailData.appointmentDate) : "Scheduled Visit"} />
                                                 </>
                                             ) : (
                                                 <>
-                                                    <DetailRow label="Appointment Date" value={detailData.appointmentDate} />
-                                                    <DetailRow label="Consultation Time" value={detailData.appointmentTime} />
+                                                    <DetailRow label="Ward Name" value={detailData.wardName || detailData.bedBookingType || "Inpatient Ward"} />
+                                                    <DetailRow label="Allotted Bed" value={detailData.bedNumber ? `Bed #${detailData.bedNumber}` : (detailData.bedId?.bedNumber || "Pending Allocation")} bold />
+                                                    <DetailRow label="Stay Duration" value={detailData.stayDuration ? `${detailData.stayDuration} Days` : "1 Day"} />
+                                                    <DetailRow label="Triage Priority" value={detailData.triageLevel || "Routine"} />
                                                 </>
                                             )}
                                         </Card>
                                     </div>
 
-                                    {detailData.clinicalLogs && detailData.clinicalLogs.length > 0 && (
-                                        <Card title="Clinical Logs & Observations">
+                                    {detailData.patients && detailData.patients.length > 0 && (
+                                        <Card title="Patient Profile">
                                             <div className="space-y-2">
-                                                {detailData.clinicalLogs.map((log, idx) => (
+                                                {detailData.patients.map((p, idx) => (
                                                     <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center">
-                                                        <span className="font-medium text-slate-700">{log.observation}</span>
-                                                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[10px] font-bold">
-                                                            {log.patientCondition}
+                                                        <div>
+                                                            <p className="font-bold text-slate-800">{p.patientName}</p>
+                                                            <p className="text-[10px] text-slate-400 font-bold">{p.gender} &bull; {p.patientAge} Yrs</p>
+                                                        </div>
+                                                        <span className="px-2.5 py-0.5 bg-white border rounded text-[10px] font-bold text-slate-600 uppercase">
+                                                            {p.relation || "Self"}
                                                         </span>
                                                     </div>
                                                 ))}
                                             </div>
                                         </Card>
                                     )}
+                                </div>
+                            )}
+
+                            {/* INDEPENDENT DOCTOR VIEW */}
+                            {type === "Doctor" && (
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <Card title="Practitioner & Clinic">
+                                            <DetailRow label="Doctor Name" value={detailData.doctorId?.name || "N/A"} bold />
+                                            <DetailRow label="Speciality" value={detailData.doctorId?.speciality || "General Physician"} />
+                                            <DetailRow label="Consultation Type" value={detailData.consultationType || "Private Clinic"} />
+                                        </Card>
+
+                                        <Card title="Appointment Info">
+                                            <DetailRow label="Appointment Date" value={detailData.appointmentDate} />
+                                            <DetailRow label="Consultation Time" value={detailData.appointmentTime} />
+                                            <DetailRow label="Booking Type" value={detailData.bookingType || "Appointment"} highlight />
+                                        </Card>
+                                    </div>
                                 </div>
                             )}
 
@@ -627,7 +658,7 @@ function UserOrderDetailModal({ isOpen, onClose, orderInfo }) {
                                         </Card>
                                     </div>
 
-                                    <Card title="Prescribed Tests & Health Packages">
+                                    <Card title="Prescribed Tests &amp; Health Packages">
                                         <div className="divide-y divide-slate-100">
                                             {detailData.items?.tests?.map((t, idx) => (
                                                 <div key={idx} className="py-2.5 flex items-center justify-between">
@@ -666,7 +697,7 @@ function UserOrderDetailModal({ isOpen, onClose, orderInfo }) {
                             {type === "Pharmacy" && (
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <Card title="Delivery & Payment">
+                                        <Card title="Delivery &amp; Payment">
                                             <DetailRow label="Payment Method" value={detailData.paymentMethod || "COD"} bold />
                                             <DetailRow label="Payment Status" value={detailData.paymentStatus || "Paid"} highlight />
                                             {detailData.driverId && (
@@ -710,7 +741,7 @@ function UserOrderDetailModal({ isOpen, onClose, orderInfo }) {
                             {type === "Nurse" && (
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <Card title="Care Package & Timing">
+                                        <Card title="Care Package &amp; Timing">
                                             <DetailRow label="Service Title" value={detailData.serviceDetails?.title || "Nursing Care"} bold />
                                             <DetailRow label="Duration" value={detailData.schedule?.duration || "Multiple Days"} />
                                             <DetailRow label="Start Date" value={detailData.schedule?.startDate} />
@@ -730,41 +761,18 @@ function UserOrderDetailModal({ isOpen, onClose, orderInfo }) {
                             {type === "Ambulance" && (
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <Card title="Emergency Dispatch & Triage">
+                                        <Card title="Emergency Dispatch &amp; Triage">
                                             <DetailRow label="Service Type" value={detailData.serviceType || "Emergency Ambulance"} bold highlight />
                                             <DetailRow label="Case Ref" value={detailData.caseReference || "N/A"} />
                                             <DetailRow label="Triage Level" value={detailData.triageLevel || "Critical"} />
                                             <DetailRow label="Patient Condition" value={detailData.patientDetails?.condition || "Severe"} />
                                         </Card>
 
-                                        <Card title="Pickup Location & Fare">
+                                        <Card title="Pickup Location &amp; Fare">
                                             <DetailRow label="Pickup Landmark" value={detailData.pickupLocation?.address || "GPS Location"} />
                                             <DetailRow label="Fare Billed" value={detailData.pricing?.total === 0 ? "₹0 (Free Emergency SOS)" : `₹${detailData.pricing?.total}`} bold />
                                         </Card>
                                     </div>
-
-                                    {detailData.handoffDetails && (
-                                        <Card title="Hospital Handoff & Completion Audit">
-                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                                <div className="p-3 bg-slate-50 rounded-xl">
-                                                    <span className="text-[10px] text-slate-400 font-bold block">Doctor</span>
-                                                    <span className="font-bold text-slate-900">{detailData.handoffDetails.doctorName}</span>
-                                                </div>
-                                                <div className="p-3 bg-slate-50 rounded-xl">
-                                                    <span className="text-[10px] text-slate-400 font-bold block">Ward</span>
-                                                    <span className="font-bold text-slate-900">{detailData.handoffDetails.wardName}</span>
-                                                </div>
-                                                <div className="p-3 bg-slate-50 rounded-xl">
-                                                    <span className="text-[10px] text-slate-400 font-bold block">Travel Time</span>
-                                                    <span className="font-bold text-slate-900">{detailData.handoffDetails.travelTime}</span>
-                                                </div>
-                                                <div className="p-3 bg-slate-50 rounded-xl">
-                                                    <span className="text-[10px] text-slate-400 font-bold block">Distance</span>
-                                                    <span className="font-bold text-slate-900">{detailData.handoffDetails.totalDistance}</span>
-                                                </div>
-                                            </div>
-                                        </Card>
-                                    )}
                                 </div>
                             )}
                         </>
@@ -773,7 +781,7 @@ function UserOrderDetailModal({ isOpen, onClose, orderInfo }) {
 
                 {/* --- FOOTER --- */}
                 <div className="p-5 border-t border-slate-100 bg-white flex justify-end shrink-0">
-                    <button onClick={onClose} className="px-6 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-bold transition shadow-sm">
+                    <button onClick={onClose} className="px-6 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer">
                         Close Inspection
                     </button>
                 </div>

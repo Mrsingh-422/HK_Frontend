@@ -6,6 +6,22 @@ import BedAllocationModal from './components/BedAllocationModal';
 import AdmissionDetailsModal from './components/AdmissionDetailsModal';
 import { SpinnerIcon } from './components/InfoSection';
 
+// Safe helper to prevent React child object crash
+const safeText = (val, fallback = '') => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string' || typeof val === 'number') return val;
+  if (typeof val === 'object') {
+    if (val.roomNumber) {
+      return `${val.roomNumber}${val.isEmergency ? ' (Emergency)' : ''}`;
+    }
+    if (val.isEmergency) return 'Emergency';
+    if (val.isNormal) return 'Normal / Routine';
+    if (val.name) return val.name;
+    return fallback;
+  }
+  return String(val);
+};
+
 const getStatusColor = (status) => {
   const statusLower = (status || '').toLowerCase();
   if (statusLower === 'confirmed' || statusLower === 'in-progress' || statusLower === 'active' || statusLower === 'stable') {
@@ -173,17 +189,18 @@ const ManageAdmissionsPage = () => {
     }
   };
 
-  // Doctor Memoized Helpers supporting assignedDoctor & doctorId
+  // Doctor Memoized Helpers
   const currentDocId = useMemo(() => {
     if (!selectedAdmission) return null;
-    const doc = selectedAdmission.assignedDoctor || selectedAdmission.doctorId;
+    const doc = selectedAdmission.doctor || selectedAdmission.assignedDoctor || selectedAdmission.doctorId;
     if (!doc) return null;
     return doc._id || doc;
   }, [selectedAdmission]);
 
   const currentDocName = useMemo(() => {
     if (!selectedAdmission) return 'Unassigned';
-    const doc = selectedAdmission.assignedDoctor || selectedAdmission.doctorId;
+    if (selectedAdmission.doctorDisplayName) return selectedAdmission.doctorDisplayName;
+    const doc = selectedAdmission.doctor || selectedAdmission.assignedDoctor || selectedAdmission.doctorId;
     if (!doc) return 'Unassigned';
     if (doc.name) return doc.name;
     const found = doctorList.find(d => d._id === (doc._id || doc));
@@ -195,7 +212,7 @@ const ManageAdmissionsPage = () => {
     return doctorList.filter(doc => doc._id !== currentDocId);
   }, [doctorList, currentDocId]);
 
-  // Tab Filtering logic (Admissions)
+  // Tab Filtering logic
   const pendingAdmissions = useMemo(() => {
     return admissions.filter(adm => (adm.status || '').toLowerCase() === 'hospital-pending');
   }, [admissions]);
@@ -280,9 +297,12 @@ const ManageAdmissionsPage = () => {
 
     setIsProcessing(true);
     try {
+      const targetId = selectedAdmission._id || selectedAdmission.appointmentId || selectedAdmission.id;
       const payload = {
-        appointmentId: selectedAdmission._id,
-        newBedId: selectedTransferBed._id
+        admissionId: targetId,
+        appointmentId: targetId,
+        bookingId: selectedAdmission.bookingId,
+        newBedId: selectedTransferBed._id || selectedTransferBed.bedId
       };
       
       const response = await HospitalAPI.transferBed(payload);
@@ -301,7 +321,8 @@ const ManageAdmissionsPage = () => {
     }
   };
 
-  const startAssignDoctorFlow = async () => {
+  const startAssignDoctorFlow = async (admissionItem = null) => {
+    if (admissionItem) setSelectedAdmission(admissionItem);
     setIsProcessing(true);
     try {
       const response = await HospitalAPI.getHospitalDoctors();
@@ -312,25 +333,44 @@ const ManageAdmissionsPage = () => {
       } else {
         alert(response?.message || 'Could not fetch doctors list.');
       }
-    } catch (error) { alert('Error fetching doctors.'); } 
-    finally { setIsProcessing(false); }
+    } catch (error) { 
+      alert('Error fetching doctors.'); 
+    } finally { 
+      setIsProcessing(false); 
+    }
   };
 
+  // ✅ UPDATED: Exact API implementation per specification
   const handleAssignDoctor = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (!selectedDoctorId) return alert('Please select a doctor!');
+    if (!selectedAdmission) return alert('No admission selected!');
+
     setIsProcessing(true);
     try {
-      const payload = { appointmentId: selectedAdmission._id, doctorId: selectedDoctorId };
+      // Backend expects MongoDB _id or bookingId under 'appointmentId'
+      const targetAdmissionId = selectedAdmission._id || selectedAdmission.appointmentId || selectedAdmission.bookingId;
+
+      const payload = {
+        appointmentId: targetAdmissionId,
+        doctorId: selectedDoctorId
+      };
+
       const response = await HospitalAPI.assignDoctorToAdmission(payload);
       if (response?.success) {
-        alert('Doctor assigned successfully! Admission Approved.');
+        alert(response.message || 'Doctor successfully assigned to admission.');
         setActiveAction(null);
         setSelectedAdmission(null); 
         fetchAdmissions(); 
-      } else { alert('Error: ' + response.message); }
-    } catch (error) { alert('Something went wrong while assigning doctor!'); } 
-    finally { setIsProcessing(false); }
+      } else { 
+        alert(response?.message || "Failed to assign doctor."); 
+      }
+    } catch (error) { 
+      const errMsg = error.response?.data?.message || error.message || 'Something went wrong while assigning doctor!';
+      alert(`Error: ${errMsg}`); 
+    } finally { 
+      setIsProcessing(false); 
+    }
   };
 
   const startReassignDoctorFlow = async () => {
@@ -345,29 +385,44 @@ const ManageAdmissionsPage = () => {
       } else {
         alert(response?.message || 'Could not fetch doctors list.');
       }
-    } catch (error) { alert('Error fetching doctors.'); } 
-    finally { setIsProcessing(false); }
+    } catch (error) { 
+      alert('Error fetching doctors.'); 
+    } finally { 
+      setIsProcessing(false); 
+    }
   };
 
   const handleReassignDoctor = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (!selectedDoctorId) return alert('Please select a new doctor!');
+    if (!selectedAdmission) return alert('No admission selected!');
+
     setIsProcessing(true);
     try {
+      const targetId = selectedAdmission._id || selectedAdmission.appointmentId || selectedAdmission.id || selectedAdmission.bookingId;
+
       const payload = { 
-        appointmentId: selectedAdmission._id, 
+        appointmentId: targetId,
+        admissionId: targetId,
+        doctorId: selectedDoctorId,
         newDoctorId: selectedDoctorId,
         reason: reassignReason || 'Reassigned from Hospital Admin Panel'
       };
-      const response = await HospitalAPI.reassignDoctor(payload);
+
+      const response = await HospitalAPI.reassignDoctor(payload, selectedDoctorId);
       if (response?.success) {
-        alert('Doctor assigned successfully!');
+        alert(response?.message || 'Doctor reassigned successfully!');
         setActiveAction(null);
         setSelectedAdmission(null); 
         fetchAdmissions(); 
-      } else { alert('Error: ' + response.message); }
-    } catch (error) { alert('Something went wrong while reassigning doctor!'); } 
-    finally { setIsProcessing(false); }
+      } else { 
+        alert('Error: ' + (response?.message || "Failed to reassign doctor")); 
+      }
+    } catch (error) { 
+      alert(error.response?.data?.message || 'Something went wrong while reassigning doctor!'); 
+    } finally { 
+      setIsProcessing(false); 
+    }
   };
 
   const startAssignDriverFlow = async () => {
@@ -423,13 +478,16 @@ const ManageAdmissionsPage = () => {
 
     setIsProcessing(true);
     try {
+      const targetId = selectedAdmission._id || selectedAdmission.appointmentId || selectedAdmission.id;
       const basePrice = selectedDriver.ambulanceId?.price || selectedDriver.price || selectedDriver.charge || 1500;
       const surgePrice = selectedLocation.surcharge;
       const destinationName = selectedLocation.id === 'custom' ? "Custom Destination Address" : selectedLocation.name;
       const customAddressText = selectedLocation.id === 'custom' ? customLocationText.trim() : "";
 
       const payload = { 
-        appointmentId: selectedAdmission._id, 
+        admissionId: targetId,
+        appointmentId: targetId,
+        bookingId: selectedAdmission.bookingId,
         ambulanceId: selectedDriver.ambulanceId?._id || selectedDriver.ambulanceId || selectedDriver._id,
         destinationName: destinationName,
         customAddressText: customAddressText,
@@ -464,7 +522,8 @@ const ManageAdmissionsPage = () => {
     
     setIsProcessing(true);
     try {
-      const response = await HospitalAPI.rejectAdmission(selectedAdmission._id, rejectionReason.trim());
+      const targetId = selectedAdmission._id || selectedAdmission.appointmentId || selectedAdmission.id;
+      const response = await HospitalAPI.rejectAdmission(targetId, rejectionReason.trim());
       if (response?.success) {
         alert('Admission has been rejected.');
         setActiveAction(null);
@@ -549,7 +608,7 @@ const ManageAdmissionsPage = () => {
               />
               <button
                 type="submit"
-                className="bg-[#08B36A] hover:bg-[#079E5E] text-white text-xs font-black px-4 py-2 rounded-xl transition-all shrink-0"
+                className="bg-[#08B36A] hover:bg-[#079E5E] text-white text-xs font-black px-4 py-2 rounded-xl transition-all shrink-0 cursor-pointer"
               >
                 Search
               </button>
@@ -557,7 +616,7 @@ const ManageAdmissionsPage = () => {
                 <button
                   type="button"
                   onClick={() => { setTrackedSearch(''); fetchTrackedCases(1, ''); }}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-black px-3 py-2 rounded-xl transition-all"
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-black px-3 py-2 rounded-xl transition-all cursor-pointer"
                 >
                   Clear
                 </button>
@@ -588,28 +647,30 @@ const ManageAdmissionsPage = () => {
                       <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 text-[10px] uppercase tracking-[0.15em] font-black">
                         <th className="px-5 py-4">Booking ID / Triage</th>
                         <th className="px-5 py-4">Patient Profile</th>
-                        <th className="px-5 py-4">Assigned Ward & Bed</th>
+                        <th className="px-5 py-4">Assigned Ward &amp; Bed</th>
                         <th className="px-5 py-4">Attending Doctor</th>
-                        <th className="px-5 py-4">Billing & Amount</th>
+                        <th className="px-5 py-4">Billing &amp; Amount</th>
                         <th className="px-5 py-4">Status</th>
                         <th className="px-5 py-4 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {trackedCases.map((item) => {
-                        const patient = item.patientDetails || item.patientProfile || item.patients?.[0] || {};
-                        const fallbackName = patient.patientName || patient.name || item.patientName || 'Unknown Patient';
+                        const patient = item.patient || item.patientDetails || item.patientProfile || item.patients?.[0] || {};
+                        const fallbackName = patient.name || patient.patientName || item.patientName || 'Unknown Patient';
                         const fallbackAge = patient.age !== undefined ? patient.age : (patient.patientAge || 'N/A');
                         const fallbackGender = patient.gender || '';
                         const bloodGroup = patient.bloodGroup;
-                        const reason = patient.reasonForVisit;
+                        const reason = item.bookingReason || patient.reasonForVisit;
 
-                        const bed = item.bedDetails || {};
-                        const doctor = item.assignedDoctor || item.doctorId || null;
-                        const billing = item.billing || {};
-                        const totalAmt = billing.totalAmount !== undefined ? billing.totalAmount : (item.totalAmount || 0);
-                        const paymentStat = billing.paymentStatus || item.paymentStatus || 'Pending';
-                        const paymentMeth = billing.paymentMethod || item.paymentMethod;
+                        const bed = item.bed || item.bedDetails || {};
+                        const doctor = item.doctor || item.assignedDoctor || item.doctorId || null;
+                        const totalAmt = item.totalAmount !== undefined ? item.totalAmount : (item.billing?.totalAmount || 0);
+                        const paymentStat = item.paymentStatus || item.billing?.paymentStatus || 'Pending';
+                        const paymentMeth = item.paymentMethod || item.billing?.paymentMethod;
+
+                        const triageText = safeText(item.triageLevel, 'Routine');
+                        const isEmergency = triageText.toLowerCase().includes('emergency');
 
                         return (
                           <tr 
@@ -623,17 +684,17 @@ const ManageAdmissionsPage = () => {
                                 <span className="text-[11px] font-extrabold text-gray-800 bg-gray-50 px-2.5 py-1 rounded border border-gray-200">
                                   #{item.bookingId || item.caseDetails?.bookingId || 'N/A'}
                                 </span>
-                                {item.triageLevel && (
+                                {triageText && (
                                   <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${
-                                    item.triageLevel === 'Emergency' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-slate-100 text-slate-600 border-slate-200'
+                                    isEmergency ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-slate-100 text-slate-600 border-slate-200'
                                   }`}>
-                                    {item.triageLevel}
+                                    {triageText}
                                   </span>
                                 )}
                               </div>
-                              {item.stayDuration && (
+                              {(item.stayDurationDays || item.stayDuration) && (
                                 <p className="text-[9px] font-bold text-gray-400 mt-1">
-                                  Stay: {item.stayDuration} Day{item.stayDuration > 1 ? 's' : ''}
+                                  Stay: {item.stayDurationDays || item.stayDuration} Days
                                 </p>
                               )}
                             </td>
@@ -698,7 +759,7 @@ const ManageAdmissionsPage = () => {
                                   )}
                                   <div>
                                     <p className="text-xs font-bold text-gray-800">
-                                      {doctor.name.startsWith('Dr.') ? doctor.name : `Dr. ${doctor.name}`}
+                                      {item.doctorDisplayName || (doctor.name.startsWith('Dr.') ? doctor.name : `Dr. ${doctor.name}`)}
                                     </p>
                                     <p className="text-[9px] font-bold text-emerald-600 uppercase">
                                       {doctor.speciality || 'Attending Physician'}
@@ -736,7 +797,7 @@ const ManageAdmissionsPage = () => {
                             <td className="px-5 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                               <button 
                                 onClick={() => fetchSingleTrackedDetails(item._id || item.appointmentId)}
-                                className="bg-[#08B36A] hover:bg-[#079E5E] text-white text-[10px] font-black px-4 py-2 rounded-lg transition-all shadow-sm"
+                                className="bg-[#08B36A] hover:bg-[#079E5E] text-white text-[10px] font-black px-4 py-2 rounded-lg transition-all shadow-sm cursor-pointer"
                               >
                                 View Super Details
                               </button>
@@ -758,7 +819,7 @@ const ManageAdmissionsPage = () => {
                   <button 
                     onClick={() => setTrackedPage(prev => Math.max(1, prev - 1))} 
                     disabled={trackedPage === 1}
-                    className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-lg hover:bg-[#08B36A] hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 transition-all text-gray-600"
+                    className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-lg hover:bg-[#08B36A] hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 transition-all text-gray-600 cursor-pointer"
                   >
                     Prev
                   </button>
@@ -766,7 +827,7 @@ const ManageAdmissionsPage = () => {
                     <button
                       key={i}
                       onClick={() => setTrackedPage(i + 1)}
-                      className={`w-9 h-9 text-[10px] font-black rounded-lg border transition-all ${trackedPage === i + 1 ? 'bg-[#08B36A] text-white border-[#08B36A]' : 'bg-white text-gray-600 border-gray-100 hover:border-[#08B36A]'}`}
+                      className={`w-9 h-9 text-[10px] font-black rounded-lg border transition-all cursor-pointer ${trackedPage === i + 1 ? 'bg-[#08B36A] text-white border-[#08B36A]' : 'bg-white text-gray-600 border-gray-100 hover:border-[#08B36A]'}`}
                     >
                       {i + 1}
                     </button>
@@ -774,7 +835,7 @@ const ManageAdmissionsPage = () => {
                   <button 
                     onClick={() => setTrackedPage(prev => Math.min(trackedTotalPages, prev + 1))} 
                     disabled={trackedPage === trackedTotalPages}
-                    className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-lg hover:bg-[#08B36A] hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 transition-all text-gray-600"
+                    className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-lg hover:bg-[#08B36A] hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 transition-all text-gray-600 cursor-pointer"
                   >
                     Next
                   </button>
@@ -802,9 +863,11 @@ const ManageAdmissionsPage = () => {
                 <table className="w-full text-left border-collapse whitespace-nowrap">
                   <thead>
                     <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 text-[10px] uppercase tracking-[0.15em] font-black">
-                      <th className="px-5 py-4">ID</th>
+                      <th className="px-5 py-4">ID &amp; Details</th>
                       <th className="px-5 py-4">Patient Profile</th>
+                      <th className="px-5 py-4">Ward &amp; Bed</th>
                       <th className="px-5 py-4">Physician Assignee</th>
+                      <th className="px-5 py-4">Special Services</th>
                       <th className="px-5 py-4">Amount Paid</th>
                       <th className="px-5 py-4">Status</th>
                       <th className="px-5 py-4 text-center">Action</th>
@@ -812,17 +875,27 @@ const ManageAdmissionsPage = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {currentItems.map((adm) => {
-                      const patient = adm.patientDetails || adm.patients?.[0] || {};
-                      const patientName = patient.patientName || patient.name || 'Unknown';
+                      const patient = adm.patient || adm.patientDetails || adm.patients?.[0] || {};
+                      const patientName = patient.name || patient.patientName || 'Unknown Patient';
                       const patientAge = patient.age !== undefined ? patient.age : patient.patientAge;
                       const patientGender = patient.gender || '';
-                      
-                      const doctor = adm.assignedDoctor || adm.doctorId || null;
+                      const bloodGroup = patient.bloodGroup;
 
-                      const totalAmt = adm.billing?.totalAmount !== undefined ? adm.billing.totalAmount : adm.totalAmount || 0;
-                      const paymentStat = adm.billing?.paymentStatus || adm.paymentStatus || 'Pending';
+                      const doctor = adm.doctor || adm.assignedDoctor || adm.doctorId || null;
+                      const doctorDisplay = adm.doctorDisplayName || (doctor?.name ? (doctor.name.startsWith('Dr.') ? `${doctor.name} (${doctor.speciality || ''})` : `Dr. ${doctor.name} (${doctor.speciality || ''})`) : null);
 
-                      const isEmergency = adm.triageLevel === 'Emergency';
+                      const bed = adm.bed || adm.bedDetails || {};
+                      const bedNumber = bed.bedNumber;
+
+                      const ambulance = adm.ambulance;
+                      const specialServices = Array.isArray(adm.specialServices) ? adm.specialServices : [];
+
+                      const totalAmt = adm.totalAmount !== undefined ? adm.totalAmount : (adm.billing?.totalAmount || 0);
+                      const paymentStat = adm.paymentStatus || adm.billing?.paymentStatus || 'Pending';
+                      const paymentMethod = adm.paymentMethod || adm.billing?.paymentMethod;
+
+                      const triageText = safeText(adm.triageLevel, 'Routine');
+                      const isEmergency = triageText.toLowerCase().includes('emergency');
                       const isPending = (adm.status || '').toLowerCase() === 'hospital-pending';
                       const cancelReason = adm.cancellationDetails?.reason || adm.cancellationReason || adm.rejectReason || adm.rescheduleReason;
 
@@ -832,13 +905,27 @@ const ManageAdmissionsPage = () => {
                           className="hover:bg-slate-50 transition-colors duration-200 group cursor-pointer"
                           onClick={() => { setSelectedAdmission(adm); setActiveAction(null); }}
                         >
-                          <td className="px-5 py-3.5">
-                            <span className="text-[11px] font-extrabold text-gray-600 bg-gray-50 px-2.5 py-1 rounded border border-gray-200">
-                              #{adm.bookingId}
-                            </span>
+                          {/* ID & Details */}
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-extrabold text-gray-800 bg-gray-50 px-2 py-0.5 rounded border border-gray-200">
+                                #{adm.bookingId}
+                              </span>
+                              {isEmergency && (
+                                <span className="text-red-600 text-[8px] font-black bg-red-50 px-1.5 py-0.5 rounded border border-red-200 uppercase tracking-wider">
+                                  Emergency
+                                </span>
+                              )}
+                            </div>
+                            {adm.stayDurationDays && (
+                              <p className="text-[9px] font-bold text-gray-400 mt-1">
+                                Stay: {adm.stayDurationDays} Days
+                              </p>
+                            )}
                           </td>
 
-                          <td className="px-5 py-3.5">
+                          {/* Patient Profile */}
+                          <td className="px-5 py-4">
                             <div className="flex items-center gap-3">
                               <div className="w-8 h-8 rounded-lg bg-[#08B36A]/10 text-[#08B36A] flex items-center justify-center font-black text-xs border border-[#08B36A]/20 shrink-0">
                                 {patientName.charAt(0) || '?'}
@@ -846,31 +933,107 @@ const ManageAdmissionsPage = () => {
                               <div>
                                 <div className="flex items-center gap-1.5">
                                   <p className="text-xs font-extrabold text-gray-900 leading-none">{patientName}</p>
-                                  {isEmergency && <span className="text-red-500 text-[9px] font-black bg-red-50 px-1.5 py-0.5 rounded border border-red-100 uppercase tracking-wider">Emergency</span>}
+                                  {bloodGroup && (
+                                    <span className="text-[8px] font-black text-rose-600 bg-rose-50 px-1 py-0.2 rounded border border-rose-100">
+                                      {bloodGroup}
+                                    </span>
+                                  )}
                                 </div>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mt-1">
-                                  {patientGender} {patientAge !== undefined ? `• ${patientAge}y` : ''}
+                                  {patientGender} {patientAge !== undefined ? `• ${patientAge}y` : ''} {patient.relation ? `(${patient.relation})` : ''}
                                 </p>
+
+                                {ambulance && (
+                                  <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-700 text-[9px] font-bold">
+                                    <span>🚑</span>
+                                    <span>Arrived via Ambulance #{ambulance.vehicleNumber || ambulance.name}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </td>
 
-                          <td className="px-5 py-3.5">
-                            {doctor?.name ? (
-                              <p className="text-xs font-bold text-gray-700">Dr. {doctor.name}</p>
+                          {/* Ward & Bed Info */}
+                          <td className="px-5 py-4">
+                            {bedNumber ? (
+                              <div className="flex flex-col">
+                                <span className="text-xs font-black text-[#08B36A] flex items-center gap-1">
+                                  Bed: {bedNumber}
+                                  {bed.isVentilatorAvailable && (
+                                    <span className="text-[8px] font-bold bg-teal-50 text-teal-700 px-1 rounded border border-teal-200">VENT</span>
+                                  )}
+                                </span>
+                                <span className="text-[10px] font-semibold text-slate-500">
+                                  {bed.wardName || 'Ward Allocated'}
+                                </span>
+                              </div>
                             ) : (
-                              <span className="text-[11px] text-gray-400 italic">Unassigned</span>
+                              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
+                                Bed Unassigned
+                              </span>
                             )}
                           </td>
 
-                          <td className="px-5 py-3.5">
-                            <p className="text-xs font-extrabold text-gray-800">₹{totalAmt}</p>
-                            <p className={`text-[9px] font-black uppercase mt-0.5 ${paymentStat === 'Paid' ? 'text-[#08B36A]' : 'text-amber-600'}`}>
-                              {paymentStat}
-                            </p>
+                          {/* Physician Assignee */}
+                          <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
+                            {doctor ? (
+                              <div>
+                                <p className="text-xs font-bold text-gray-800">
+                                  {doctorDisplay || `Dr. ${doctor.name}`}
+                                </p>
+                                {doctor.department && (
+                                  <p className="text-[9px] font-bold text-gray-400">
+                                    {safeText(doctor.department)}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => startAssignDoctorFlow(adm)}
+                                className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
+                              >
+                                <span>➕</span>
+                                <span>Unassigned (Tap to Assign)</span>
+                              </button>
+                            )}
                           </td>
 
-                          <td className="px-5 py-3.5">
+                          {/* Special Services Chips */}
+                          <td className="px-5 py-4">
+                            {specialServices.length > 0 ? (
+                              <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                {specialServices.map((srv, idx) => (
+                                  <span 
+                                    key={srv.serviceId || idx}
+                                    className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-100 text-[9px] font-bold"
+                                    title={srv.description}
+                                  >
+                                    {srv.serviceName} {srv.price ? `(₹${srv.price})` : ''}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-gray-400 italic">None</span>
+                            )}
+                          </td>
+
+                          {/* Amount Paid */}
+                          <td className="px-5 py-4">
+                            <p className="text-xs font-extrabold text-gray-800">₹{totalAmt}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className={`text-[9px] font-black uppercase ${paymentStat === 'Paid' ? 'text-[#08B36A]' : 'text-amber-600'}`}>
+                                {paymentStat}
+                              </span>
+                              {paymentMethod && (
+                                <span className="text-[8px] font-bold text-gray-400 uppercase">
+                                  • {paymentMethod}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Status */}
+                          <td className="px-5 py-4">
                             <div className="flex flex-col items-start gap-1">
                               <span className={`text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${getStatusColor(adm.status)}`}>
                                 {adm.status}
@@ -883,18 +1046,19 @@ const ManageAdmissionsPage = () => {
                             </div>
                           </td>
 
-                          <td className="px-5 py-3.5 text-center" onClick={(e) => e.stopPropagation()}>
+                          {/* Actions */}
+                          <td className="px-5 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                             <div className="flex justify-center items-center gap-2">
                               <button 
                                 onClick={() => { setSelectedAdmission(adm); setActiveAction(null); }}
-                                className="bg-white border border-gray-200 hover:bg-slate-100 text-gray-700 text-[10px] font-black px-3.5 py-1.5 rounded-lg transition-all"
+                                className="bg-white border border-gray-200 hover:bg-slate-100 text-gray-700 text-[10px] font-black px-3.5 py-1.5 rounded-lg transition-all cursor-pointer"
                               >
                                 Manage
                               </button>
                               {isPending && (
                                 <button 
                                   onClick={(e) => handleDirectReject(e, adm)}
-                                  className="bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 border border-rose-100 text-[10px] font-black px-3.5 py-1.5 rounded-lg transition-all"
+                                  className="bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 border border-rose-100 text-[10px] font-black px-3.5 py-1.5 rounded-lg transition-all cursor-pointer"
                                 >
                                   Reject
                                 </button>
@@ -918,7 +1082,7 @@ const ManageAdmissionsPage = () => {
                 <button 
                   onClick={(e) => { e.stopPropagation(); paginate(currentPage - 1); }} 
                   disabled={currentPage === 1}
-                  className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-lg hover:bg-[#08B36A] hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 transition-all text-gray-600"
+                  className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-lg hover:bg-[#08B36A] hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 transition-all text-gray-600 cursor-pointer"
                 >
                   Prev
                 </button>
@@ -926,7 +1090,7 @@ const ManageAdmissionsPage = () => {
                   <button
                     key={i}
                     onClick={(e) => { e.stopPropagation(); paginate(i + 1); }}
-                    className={`w-9 h-9 text-[10px] font-black rounded-lg border transition-all ${currentPage === i + 1 ? 'bg-[#08B36A] text-white border-[#08B36A]' : 'bg-white text-gray-600 border-gray-100 hover:border-[#08B36A]'}`}
+                    className={`w-9 h-9 text-[10px] font-black rounded-lg border transition-all cursor-pointer ${currentPage === i + 1 ? 'bg-[#08B36A] text-white border-[#08B36A]' : 'bg-white text-gray-600 border-gray-100 hover:border-[#08B36A]'}`}
                   >
                     {i + 1}
                   </button>
@@ -934,7 +1098,7 @@ const ManageAdmissionsPage = () => {
                 <button 
                   onClick={(e) => { e.stopPropagation(); paginate(currentPage + 1); }} 
                   disabled={currentPage === totalPages}
-                  className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-lg hover:bg-[#08B36A] hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 transition-all text-gray-600"
+                  className="px-4 py-2 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-lg hover:bg-[#08B36A] hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 transition-all text-gray-600 cursor-pointer"
                 >
                   Next
                 </button>
@@ -1021,7 +1185,7 @@ const ManageAdmissionsPage = () => {
               </div>
               <button 
                 onClick={() => setSelectedTrackedId(null)}
-                className="bg-white/10 hover:bg-white/20 text-white rounded-full p-2.5 text-xs transition-all font-bold focus:outline-none"
+                className="bg-white/10 hover:bg-white/20 text-white rounded-full p-2.5 text-xs transition-all font-bold focus:outline-none cursor-pointer"
               >
                 ✕
               </button>
@@ -1037,14 +1201,14 @@ const ManageAdmissionsPage = () => {
               ) : trackedDetails ? (
                 (() => {
                   const caseDetails = trackedDetails.caseDetails || {};
-                  const patient = caseDetails.patientProfile || caseDetails.patientDetails || {};
-                  const bed = caseDetails.bedDetails || {};
+                  const patient = caseDetails.patient || caseDetails.patientProfile || caseDetails.patientDetails || {};
+                  const bed = caseDetails.bed || caseDetails.bedDetails || {};
                   const timeline = trackedDetails.treatmentTimeline || [];
 
                   return (
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                       
-                      {/* Left Column: Patient Profile & Bed Allocation Info (4 cols) */}
+                      {/* Left Column: Patient Profile & Bed Allocation Info */}
                       <div className="lg:col-span-4 space-y-5">
                         
                         {/* Patient Profile Card */}
@@ -1067,7 +1231,7 @@ const ManageAdmissionsPage = () => {
                               )}
                               <div>
                                 <p className="text-base font-black text-slate-800">
-                                  {patient.patientName || patient.name || 'Unknown Patient'}
+                                  {patient.name || patient.patientName || 'Unknown Patient'}
                                 </p>
                                 <p className="text-xs font-bold text-slate-500 mt-0.5">
                                   {patient.age ? `${patient.age} yrs` : ''} {patient.gender ? `• ${patient.gender}` : ''} {patient.relation ? `(${patient.relation})` : ''}
@@ -1079,7 +1243,7 @@ const ManageAdmissionsPage = () => {
                             <div className="bg-amber-50/80 border border-amber-200/80 p-3 rounded-xl">
                               <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Reason For Admission</p>
                               <p className="text-xs font-extrabold text-amber-900 mt-1">
-                                {patient.reasonForVisit || 'Not specified'}
+                                {patient.reasonForVisit || caseDetails.bookingReason || 'Not specified'}
                               </p>
                             </div>
 
@@ -1102,7 +1266,7 @@ const ManageAdmissionsPage = () => {
                         {/* Bed Allocation Card */}
                         <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
                           <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-3 mb-4">
-                            Bed & Ward Allocation
+                            Bed &amp; Ward Allocation
                           </h4>
                           <div className="space-y-3">
                             <div className="flex items-center justify-between bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
@@ -1119,11 +1283,11 @@ const ManageAdmissionsPage = () => {
                             <div className="grid grid-cols-2 gap-2 text-left">
                               <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                                 <p className="text-[9px] font-bold text-slate-400 uppercase">Ward Name</p>
-                                <p className="text-xs font-extrabold text-slate-700 mt-0.5">{bed.wardId?.name || bed.wardName || 'General Ward'}</p>
+                                <p className="text-xs font-extrabold text-slate-700 mt-0.5">{bed.wardName || bed.wardId?.name || 'General Ward'}</p>
                               </div>
                               <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                                 <p className="text-[9px] font-bold text-slate-400 uppercase">Ward Type</p>
-                                <p className="text-xs font-extrabold text-slate-700 mt-0.5">{bed.wardId?.type || bed.wardType || 'Standard'}</p>
+                                <p className="text-xs font-extrabold text-slate-700 mt-0.5">{bed.wardType || bed.wardId?.type || 'Standard'}</p>
                               </div>
                             </div>
                           </div>
@@ -1137,13 +1301,13 @@ const ManageAdmissionsPage = () => {
 
                       </div>
 
-                      {/* Right Column: Full Treatment Timeline & Clinical Logs (8 cols) */}
+                      {/* Right Column: Treatment Timeline & Clinical Logs */}
                       <div className="lg:col-span-8 space-y-4">
                         <div className="bg-white rounded-2xl p-5 md:p-6 border border-slate-200/80 shadow-sm">
                           <div className="flex items-center justify-between mb-6 pb-3 border-b border-slate-100">
                             <div>
                               <h4 className="text-sm font-black uppercase tracking-wider text-slate-800">
-                                Treatment & Clinical Timeline
+                                Treatment &amp; Clinical Timeline
                               </h4>
                               <p className="text-[11px] font-medium text-slate-400 mt-0.5">Chronological record of specialist notes, rounds, and medications</p>
                             </div>
@@ -1293,7 +1457,7 @@ const ManageAdmissionsPage = () => {
             <div className="bg-white border-t border-gray-200 px-6 py-4 flex justify-end shrink-0">
               <button 
                 onClick={() => setSelectedTrackedId(null)}
-                className="bg-slate-900 hover:bg-black text-white text-xs font-black px-6 py-2.5 rounded-xl transition-all shadow-md"
+                className="bg-slate-900 hover:bg-black text-white text-xs font-black px-6 py-2.5 rounded-xl transition-all shadow-md cursor-pointer"
               >
                 Close Case File
               </button>

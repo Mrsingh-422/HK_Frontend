@@ -11,9 +11,9 @@ import { AiOutlineLoading3Quarters } from 'react-icons/ai';
 // API Service
 import AdminAPI from '@/app/services/AdminAPI';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5002";
 const SUBCATEGORIES = ['Health', 'Medical'];
-// const SUBCATEGORIES = ['Health', 'Medical', 'Mental Health', 'Nutrition', 'Yoga'];
+const MAX_ARTICLE_IMAGES = 10; // Backend Multer limit for /admin/articles/add
 
 export default function AdminArticleManager() {
     // --- STATES ---
@@ -28,7 +28,12 @@ export default function AdminArticleManager() {
 
     // Form State
     const [formData, setFormData] = useState({
-        title: "", author: "", content: "", category: "Wellness", subCategory: "Health", status: "Published"
+        title: "", 
+        author: "", 
+        content: "", 
+        category: "Wellness", 
+        subCategory: "Health", 
+        status: "Published"
     });
     const [imageFiles, setImageFiles] = useState([]); // Array of File objects
     const [previews, setPreviews] = useState([]);     // Array of URL strings
@@ -38,34 +43,44 @@ export default function AdminArticleManager() {
     // --- HELPERS ---
     const getImageUrl = (path) => {
         if (!path) return "";
-        if (path.startsWith('http')) return path;
+        if (path.startsWith('http://') || path.startsWith('https://')) return path;
         const cleanURL = BACKEND_URL.endsWith('/') ? BACKEND_URL.slice(0, -1) : BACKEND_URL;
         const cleanPath = path.startsWith('/') ? path : `/${path}`;
         return `${cleanURL}${cleanPath}`;
     };
 
     // --- DATA FETCHING ---
-    useEffect(() => { fetchArticles(); }, []);
+    useEffect(() => { 
+        fetchArticles(); 
+    }, []);
 
     const fetchArticles = async () => {
         try {
             setLoading(true);
             const res = await AdminAPI.adminGetArticles();
-            setArticles(res.data || []);
-        } catch (error) { console.error(error); }
-        finally { setLoading(false); }
+            setArticles(res?.data || res || []);
+        } catch (error) { 
+            console.error("Admin Fetch Articles Error:", error); 
+        } finally { 
+            setLoading(false); 
+        }
     };
 
     // --- FILE MANAGER HANDLERS ---
     const handleImageUpload = (e) => {
         const files = Array.from(e.target.files);
-        if (files.length > 0) {
-            const newPreviews = files.map(file => URL.createObjectURL(file));
+        if (files.length === 0) return;
 
-            // Merge with existing selection if desired, or replace:
-            setImageFiles(prev => [...prev, ...files]);
-            setPreviews(prev => [...prev, ...newPreviews]);
+        // Check against max 10 images limit
+        if (imageFiles.length + files.length > MAX_ARTICLE_IMAGES) {
+            alert(`You can upload a maximum of ${MAX_ARTICLE_IMAGES} images per article.`);
+            return;
         }
+
+        const newPreviews = files.map(file => URL.createObjectURL(file));
+
+        setImageFiles(prev => [...prev, ...files]);
+        setPreviews(prev => [...prev, ...newPreviews]);
     };
 
     const removeImage = (index) => {
@@ -78,52 +93,93 @@ export default function AdminArticleManager() {
     // --- FORM HANDLERS ---
     const handleOpenEdit = (art) => {
         setModalMode("edit");
-        setSelectedId(art._id);
-        const existingPreviews = (art.images || []).map(path => getImageUrl(path));
+        setSelectedId(art._id || art.id);
+        
+        // Handles both art.image and art.images arrays
+        const existingImages = Array.isArray(art.image) 
+            ? art.image 
+            : (Array.isArray(art.images) ? art.images : (art.image ? [art.image] : []));
+        const existingPreviews = existingImages.map(path => getImageUrl(path));
 
         setFormData({
-            title: art.title,
-            author: art.author,
-            content: art.content,
+            title: art.title || "",
+            author: art.author || "",
+            content: art.content || "",
             category: art.category || "Wellness",
             subCategory: art.subCategory || "Health",
             status: art.status || "Published"
         });
-        setImageFiles([]); // Reset new files
-        setPreviews(existingPreviews); // Set current images as previews
+        setImageFiles([]); 
+        setPreviews(existingPreviews);
         setIsModalOpen(true);
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (modalMode === "add" && imageFiles.length === 0) {
+            return alert("Please upload at least one image for this article.");
+        }
+
+        if (imageFiles.length > MAX_ARTICLE_IMAGES) {
+            return alert(`Maximum ${MAX_ARTICLE_IMAGES} images are allowed.`);
+        }
+
         const data = new FormData();
-        data.append("title", formData.title);
-        data.append("author", formData.author);
-        data.append("content", formData.content);
+        data.append("title", formData.title.trim());
+        data.append("author", formData.author.trim());
+        data.append("content", formData.content.trim());
         data.append("category", formData.category);
         data.append("subCategory", formData.subCategory);
         data.append("status", formData.status);
 
-        // Append multiple files
-        imageFiles.forEach(file => data.append("images", file));
+        // ⚠️ CRITICAL FIX: Append key 'image' (never 'images') per backend multer spec
+        imageFiles.forEach(file => {
+            data.append("image", file);
+        });
 
         try {
             setActionLoading(true);
-            modalMode === "add" ? await AdminAPI.adminCreateArticle(data) : await AdminAPI.adminUpdateArticle(selectedId, data);
+            if (modalMode === "add") {
+                await AdminAPI.adminCreateArticle(data);
+                alert("Article created successfully!");
+            } else {
+                await AdminAPI.adminUpdateArticle(selectedId, data);
+                alert("Article updated successfully!");
+            }
             setIsModalOpen(false);
             fetchArticles();
-        } catch (error) { alert("Action failed"); }
-        finally { setActionLoading(false); }
+        } catch (error) { 
+            console.error("Save Article Error:", error);
+            const backendMsg = error?.response?.data?.message || error?.message || "Action failed";
+            const errorType = error?.response?.data?.errorType;
+            if (errorType === "MULTER_FIELD_MISMATCH") {
+                alert(`Upload Error: Field mismatch (${backendMsg}). Please ensure key 'image' is used.`);
+            } else {
+                alert(backendMsg);
+            }
+        } finally { 
+            setActionLoading(false); 
+        }
     };
 
     const handleDelete = async (id) => {
         if (!window.confirm("Delete this article permanently?")) return;
-        try { await AdminAPI.adminDeleteArticle(id); fetchArticles(); } catch (error) { alert("Delete failed"); }
+        try { 
+            await AdminAPI.adminDeleteArticle(id); 
+            fetchArticles(); 
+        } catch (error) { 
+            alert(error?.response?.data?.message || "Delete failed"); 
+        }
     };
 
     const filteredArticles = useMemo(() => {
         return articles.filter(art => {
-            const matchesSearch = art.title.toLowerCase().includes(searchTerm.toLowerCase());
+            const title = (art.title || "").toLowerCase();
+            const author = (art.author || "").toLowerCase();
+            const search = searchTerm.toLowerCase().trim();
+
+            const matchesSearch = !search || title.includes(search) || author.includes(search);
             const matchesSubCat = selectedSubCat === "All" || art.subCategory === selectedSubCat;
             return matchesSearch && matchesSubCat;
         });
@@ -137,7 +193,7 @@ export default function AdminArticleManager() {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                         <h1 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic">Article Manager</h1>
-                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Editorial & Blog Control</p>
+                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Editorial &amp; Blog Control (Key: &apos;image&apos;, Max 10)</p>
                     </div>
                     <button
                         onClick={() => {
@@ -147,7 +203,7 @@ export default function AdminArticleManager() {
                             setImageFiles([]);
                             setPreviews([]);
                         }}
-                        className="bg-[#08B36A] hover:bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center gap-3 shadow-xl transition-all active:scale-95"
+                        className="bg-[#08B36A] hover:bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center gap-3 shadow-xl transition-all active:scale-95 cursor-pointer"
                     >
                         <HiOutlinePlus size={20} /> Create Post
                     </button>
@@ -159,15 +215,21 @@ export default function AdminArticleManager() {
                         <HiOutlineSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
                         <input
                             type="text"
-                            placeholder="Search articles..."
-                            className="w-full pl-14 pr-6 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-[#08B36A] transition-all"
+                            placeholder="Search articles by title or author..."
+                            className="w-full pl-14 pr-6 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-[#08B36A] transition-all outline-none"
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
                     <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full py-1">
                         <div className="p-2 text-slate-200 shrink-0"><HiOutlineFilter size={20} /></div>
                         {["All", ...SUBCATEGORIES].map(sub => (
-                            <button key={sub} onClick={() => setSelectedSubCat(sub)} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${selectedSubCat === sub ? 'bg-[#08B36A] text-white' : 'bg-white border border-slate-100 text-slate-400'}`}>
+                            <button 
+                                key={sub} 
+                                onClick={() => setSelectedSubCat(sub)} 
+                                className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap cursor-pointer ${
+                                    selectedSubCat === sub ? 'bg-[#08B36A] text-white shadow-md' : 'bg-white border border-slate-100 text-slate-400 hover:bg-slate-50'
+                                }`}
+                            >
                                 {sub}
                             </button>
                         ))}
@@ -180,7 +242,7 @@ export default function AdminArticleManager() {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    <th className="px-8 py-6">Headline & Author</th>
+                                    <th className="px-8 py-6">Headline &amp; Author</th>
                                     <th className="px-8 py-6">Category</th>
                                     <th className="px-8 py-6">Status</th>
                                     <th className="px-8 py-6 text-center">Actions</th>
@@ -188,32 +250,75 @@ export default function AdminArticleManager() {
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                                 {loading ? (
-                                    <tr><td colSpan="4" className="py-24 text-center"><AiOutlineLoading3Quarters className="animate-spin mx-auto text-[#08B36A]" size={32} /></td></tr>
-                                ) : filteredArticles.map((art) => (
-                                    <tr key={art._id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-8 py-5">
-                                            <div className="flex items-center gap-5">
-                                                <img src={getImageUrl(art.images?.[0])} className="w-14 h-14 rounded-xl object-cover border" alt="" />
-                                                <div className="min-w-0">
-                                                    <p className="font-black text-slate-800 text-sm uppercase truncate max-w-[250px]">{art.title}</p>
-                                                    <p className="text-[10px] text-[#08B36A] font-bold uppercase">By {art.author}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase">{art.subCategory}</td>
-                                        <td className="px-8 py-5">
-                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${art.status === 'Published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                                {art.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-8 py-5">
-                                            <div className="flex justify-center gap-2">
-                                                <button onClick={() => handleOpenEdit(art)} className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><HiOutlinePencilAlt size={20} /></button>
-                                                <button onClick={() => handleDelete(art._id)} className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><HiOutlineTrash size={20} /></button>
-                                            </div>
+                                    <tr>
+                                        <td colSpan="4" className="py-24 text-center">
+                                            <AiOutlineLoading3Quarters className="animate-spin mx-auto text-[#08B36A]" size={32} />
                                         </td>
                                     </tr>
-                                ))}
+                                ) : filteredArticles.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="4" className="py-24 text-center text-slate-400 font-bold uppercase text-xs">
+                                            No articles found.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredArticles.map((art) => {
+                                        const artImages = Array.isArray(art.image) 
+                                            ? art.image 
+                                            : (Array.isArray(art.images) ? art.images : (art.image ? [art.image] : []));
+                                        const primaryImage = artImages[0];
+
+                                        return (
+                                            <tr key={art._id || art.id} className="hover:bg-slate-50 transition-colors">
+                                                <td className="px-8 py-5">
+                                                    <div className="flex items-center gap-5">
+                                                        <img 
+                                                            src={getImageUrl(primaryImage)} 
+                                                            className="w-14 h-14 rounded-xl object-cover border border-slate-100 shadow-xs shrink-0" 
+                                                            alt={art.title} 
+                                                        />
+                                                        <div className="min-w-0">
+                                                            <p className="font-black text-slate-800 text-sm uppercase truncate max-w-[280px]">
+                                                                {art.title}
+                                                            </p>
+                                                            <p className="text-[10px] text-[#08B36A] font-bold uppercase mt-0.5">
+                                                                By {art.author || "Editorial Team"}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase">
+                                                    {art.subCategory || art.category}
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${
+                                                        art.status === 'Published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                                                    }`}>
+                                                        {art.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <div className="flex justify-center gap-2">
+                                                        <button 
+                                                            onClick={() => handleOpenEdit(art)} 
+                                                            className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all cursor-pointer"
+                                                            title="Edit Article"
+                                                        >
+                                                            <HiOutlinePencilAlt size={20} />
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleDelete(art._id || art.id)} 
+                                                            className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                                                            title="Delete Article"
+                                                        >
+                                                            <HiOutlineTrash size={20} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -228,21 +333,36 @@ export default function AdminArticleManager() {
 
                         <div className="p-10 pb-6 flex justify-between items-center bg-white border-b border-slate-50 shrink-0">
                             <div>
-                                <h2 className="text-2xl font-black text-slate-800 uppercase italic">{modalMode === 'add' ? 'New Post' : 'Edit Post'}</h2>
-                                <p className="text-[#08B36A] text-[9px] font-black uppercase tracking-widest mt-1">Multi-Image Manager</p>
+                                <h2 className="text-2xl font-black text-slate-800 uppercase italic">
+                                    {modalMode === 'add' ? 'New Post' : 'Edit Post'}
+                                </h2>
+                                <p className="text-[#08B36A] text-[9px] font-black uppercase tracking-widest mt-1">
+                                    Multi-Image (Up to 10) &bull; Key: &apos;image&apos;
+                                </p>
                             </div>
-                            <button onClick={() => setIsModalOpen(false)} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100"><HiOutlineX size={20} /></button>
+                            <button onClick={() => setIsModalOpen(false)} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 cursor-pointer">
+                                <HiOutlineX size={20} />
+                            </button>
                         </div>
 
                         <form onSubmit={handleSubmit} className="p-10 pt-6 flex-grow overflow-y-auto no-scrollbar space-y-8">
                             {/* PROFESSIONAL FILE MANAGER DROPZONE */}
                             <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-3 block">Gallery Manager</label>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-3 block">
+                                    Gallery Manager (Max 10 images)
+                                </label>
                                 <div
                                     onClick={() => fileInputRef.current.click()}
                                     className="w-full min-h-[160px] bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] flex flex-wrap items-center justify-center p-6 gap-4 cursor-pointer hover:border-[#08B36A] transition-all group"
                                 >
-                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" multiple onChange={handleImageUpload} />
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef} 
+                                        className="hidden" 
+                                        accept="image/*" 
+                                        multiple 
+                                        onChange={handleImageUpload} 
+                                    />
 
                                     {previews.length > 0 ? (
                                         previews.map((src, idx) => (
@@ -251,7 +371,7 @@ export default function AdminArticleManager() {
                                                 <button
                                                     type="button"
                                                     onClick={(e) => { e.stopPropagation(); removeImage(idx); }}
-                                                    className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-md opacity-0 group-hover/img:opacity-100 transition-opacity"
+                                                    className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-md opacity-0 group-hover/img:opacity-100 transition-opacity cursor-pointer"
                                                 >
                                                     <HiOutlineX size={12} />
                                                 </button>
@@ -264,7 +384,9 @@ export default function AdminArticleManager() {
                                         </div>
                                     )}
                                     <div className="w-full text-center mt-2">
-                                        <span className="text-[9px] font-black text-[#08B36A] uppercase tracking-tighter cursor-pointer underline">Click to add more images</span>
+                                        <span className="text-[9px] font-black text-[#08B36A] uppercase tracking-tighter cursor-pointer underline">
+                                            Click to add more images ({previews.length}/{MAX_ARTICLE_IMAGES})
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -272,32 +394,32 @@ export default function AdminArticleManager() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="md:col-span-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-2 block">Post Title</label>
-                                    <input value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#08B36A] font-bold text-sm" placeholder="e.g. Benefits of Yoga" required />
+                                    <input value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#08B36A] font-bold text-sm outline-none" placeholder="e.g. Benefits of Yoga" required />
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-2 block">Author</label>
-                                    <input value={formData.author} onChange={(e) => setFormData({ ...formData, author: e.target.value })} className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#08B36A] font-bold text-sm" placeholder="Author Name" required />
+                                    <input value={formData.author} onChange={(e) => setFormData({ ...formData, author: e.target.value })} className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#08B36A] font-bold text-sm outline-none" placeholder="Author Name" required />
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-2 block">SubCategory</label>
-                                    <select value={formData.subCategory} onChange={(e) => setFormData({ ...formData, subCategory: e.target.value })} className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#08B36A] font-bold text-sm appearance-none">
+                                    <select value={formData.subCategory} onChange={(e) => setFormData({ ...formData, subCategory: e.target.value })} className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#08B36A] font-bold text-sm appearance-none outline-none cursor-pointer">
                                         {SUBCATEGORIES.map(s => <option key={s} value={s}>{s}</option>)}
                                     </select>
                                 </div>
                                 <div className="md:col-span-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-2 block">Article Content</label>
-                                    <textarea rows={6} value={formData.content} onChange={(e) => setFormData({ ...formData, content: e.target.value })} className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#08B36A] font-bold text-sm" placeholder="Write content here..." required />
+                                    <textarea rows={6} value={formData.content} onChange={(e) => setFormData({ ...formData, content: e.target.value })} className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#08B36A] font-bold text-sm outline-none resize-none" placeholder="Write content here..." required />
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-2 block">Status</label>
-                                    <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#08B36A] font-bold text-sm appearance-none">
+                                    <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#08B36A] font-bold text-sm appearance-none outline-none cursor-pointer">
                                         <option value="Published">Published</option>
                                         <option value="Draft">Draft</option>
                                     </select>
                                 </div>
                             </div>
 
-                            <button type="submit" disabled={actionLoading} className="w-full py-5 bg-[#08B36A] text-white rounded-3xl font-black text-xs uppercase tracking-[0.4em] shadow-xl hover:bg-black transition-all flex items-center justify-center gap-3 disabled:opacity-50">
+                            <button type="submit" disabled={actionLoading} className="w-full py-5 bg-[#08B36A] text-white rounded-3xl font-black text-xs uppercase tracking-[0.4em] shadow-xl hover:bg-black transition-all flex items-center justify-center gap-3 disabled:opacity-50 cursor-pointer">
                                 {actionLoading ? <AiOutlineLoading3Quarters className="animate-spin" /> : 'Finalize & Save'}
                             </button>
                         </form>
