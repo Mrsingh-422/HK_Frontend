@@ -44,7 +44,7 @@ const HospitalHero = () => {
         try {
             const res = await UserAPI.getGlobalSearchSuggestions(searchTerm, "hospital");
             if (res.success) {
-                setSuggestions(res.data);
+                setSuggestions(res.data || []);
                 setShowSuggestions(true);
             }
         } catch (err) {
@@ -68,7 +68,36 @@ const HospitalHero = () => {
     const handleSuggestionClick = (item) => {
         setSearchTerm(item.title);
         setShowSuggestions(false);
-        router.push(`/hospital/hospitaldetail/${item.id}`);
+
+        const targetId = item.id || item._id;
+        const rawType = (item.type || "").toLowerCase();
+
+        // Hospital Doctor Routing Rule: item.role === "hospital-doctor" or hospitalId !== null
+        if (
+            item.role === "hospital-doctor" ||
+            (item.hospitalId && item.hospitalId !== null) ||
+            rawType === "hospital doctor"
+        ) {
+            if (targetId) {
+                router.push(`/user/hospital/doctors/${targetId}/opd-slots`);
+                return;
+            }
+        }
+
+        // Independent Doctor Routing Rule: item.role === "doctor"
+        if (item.role === "doctor" || rawType === "doctor") {
+            if (targetId) {
+                router.push(`/user/doctors/details/${targetId}`);
+                return;
+            }
+        }
+
+        // Default Hospital Profile Routing
+        if (targetId) {
+            router.push(`/hospital/hospitaldetail/${targetId}`);
+        } else {
+            router.push(`/userscreens/hospitalappointment?query=${encodeURIComponent(item.title)}`);
+        }
     };
 
     const handleManualSearch = () => {
@@ -148,7 +177,6 @@ const HospitalHero = () => {
                                 color="bg-emerald-500"
                             />
                             <QuickActionCard
-
                                 onClick={() => router.push("/drappointment/seealldoctors")}
                                 icon={<Stethoscope className="w-5 h-5 md:w-6 md:h-6" />}
                                 title="Find Specialist"
@@ -215,12 +243,16 @@ const HospitalHero = () => {
                                 <div className="mt-1 space-y-0.5">
                                     {suggestions.map((item) => (
                                         <div
-                                            key={item.id}
+                                            key={item.id || item._id || item.title}
                                             onClick={() => handleSuggestionClick(item)}
                                             className="flex items-center gap-4 px-4 py-3 cursor-pointer rounded-xl transition-all hover:bg-emerald-50/70 group"
                                         >
                                             <div className="h-11 w-11 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0 border border-emerald-100/40 group-hover:bg-white transition-colors">
-                                                <Building2 className="w-5 h-5 text-emerald-600" />
+                                                {item.role === "hospital-doctor" || item.role === "doctor" || (item.type && item.type.toLowerCase().includes("doctor")) ? (
+                                                    <Stethoscope className="w-5 h-5 text-emerald-600" />
+                                                ) : (
+                                                    <Building2 className="w-5 h-5 text-emerald-600" />
+                                                )}
                                             </div>
                                             <div className="flex-1 text-left">
                                                 <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-1">

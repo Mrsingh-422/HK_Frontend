@@ -55,7 +55,7 @@ export default function LandingFindDoctor() {
     try {
       const res = await UserAPI.getGlobalSearchSuggestions(searchTerm, "doctor");
       if (res.success) {
-        setSuggestions(res.data);
+        setSuggestions(res.data || []);
         setShowSuggestions(true);
       }
     } catch (err) {
@@ -87,7 +87,27 @@ export default function LandingFindDoctor() {
   const handleSuggestionClick = (item) => {
     setSearchTerm(item.title);
     setShowSuggestions(false);
-    router.push(`/drappointment/doctordetail/${item.id}`);
+
+    const targetId = item.id || item._id;
+
+    // Hospital Doctor Routing Rule: item.role === "hospital-doctor" or hospitalId !== null
+    if (
+      item.role === "hospital-doctor" ||
+      (item.hospitalId && item.hospitalId !== null) ||
+      item.type === "Hospital Doctor"
+    ) {
+      router.push(`/user/hospital/doctors/${targetId}/opd-slots`);
+      return;
+    }
+
+    // Independent Doctor Routing Rule: item.role === "doctor"
+    if (item.role === "doctor" || item.type === "Doctor") {
+      router.push(`/user/doctors/details/${targetId}`);
+      return;
+    }
+
+    // Default Fallback
+    router.push(`/user/doctors/details/${targetId}`);
   };
 
   return (
@@ -193,7 +213,7 @@ export default function LandingFindDoctor() {
                 <div className="mt-1 space-y-1">
                   {suggestions.map((doctor) => (
                     <div
-                      key={doctor.id}
+                      key={doctor.id || doctor._id}
                       onClick={() => handleSuggestionClick(doctor)}
                       className="flex items-center gap-4 px-4 py-3 cursor-pointer rounded-2xl transition-all duration-150 hover:bg-emerald-50 group"
                     >

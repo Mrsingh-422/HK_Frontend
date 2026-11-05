@@ -24,13 +24,13 @@ const safeText = (val, fallback = '') => {
 
 const getStatusColor = (status) => {
   const statusLower = (status || '').toLowerCase();
-  if (statusLower === 'confirmed' || statusLower === 'in-progress' || statusLower === 'active' || statusLower === 'stable') {
+  if (statusLower === 'confirmed' || statusLower === 'in-progress' || statusLower === 'active' || statusLower === 'stable' || statusLower === 'completed') {
     return 'bg-emerald-50 text-emerald-700 border-emerald-200';
   }
-  if (statusLower === 'hospital-pending' || statusLower === 'recovering') {
+  if (statusLower === 'hospital-pending' || statusLower === 'recovering' || statusLower === 'pending' || statusLower === 'accepted') {
     return 'bg-amber-50 text-amber-700 border-amber-200';
   }
-  if (statusLower.startsWith('cancelled') || statusLower.startsWith('rejected') || statusLower === 'critical') {
+  if (statusLower.startsWith('cancelled') || statusLower.startsWith('rejected') || statusLower === 'critical' || statusLower === 'deteriorating') {
     return 'bg-rose-50 text-rose-700 border-rose-200';
   }
   return 'bg-slate-50 text-slate-700 border-slate-200';
@@ -44,6 +44,14 @@ const getEventBadgeStyle = (eventType) => {
       return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: '💊' };
     case 'CLINICAL_ROUND':
       return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: '📋' };
+    case 'Initial-Assignment':
+      return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: '👨‍⚕️' };
+    case 'Transfer-Initiated':
+      return { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: '🔄' };
+    case 'Transfer-Accepted':
+      return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: '✅' };
+    case 'Discharged':
+      return { bg: 'bg-slate-100', text: 'text-slate-800', border: 'border-slate-300', icon: '🏁' };
     default:
       return { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', icon: '⏱️' };
   }
@@ -80,6 +88,7 @@ const ManageAdmissionsPage = () => {
   const [selectedTrackedId, setSelectedTrackedId] = useState(null);
   const [trackedDetails, setTrackedDetails] = useState(null);
   const [loadingTrackedDetails, setLoadingTrackedDetails] = useState(false);
+  const [activeDossierTab, setActiveDossierTab] = useState('timeline'); // 'timeline' | 'history' | 'meds' | 'bedside' | 'prescriptions'
 
   // Selected Admission & Modal Control State
   const [selectedAdmission, setSelectedAdmission] = useState(null);
@@ -105,6 +114,7 @@ const ManageAdmissionsPage = () => {
   // Physician & Rejection States
   const [doctorList, setDoctorList] = useState([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
+  const [doctorAssignNotes, setDoctorAssignNotes] = useState('');
   const [reassignReason, setReassignReason] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
 
@@ -174,6 +184,7 @@ const ManageAdmissionsPage = () => {
     setSelectedTrackedId(id);
     setLoadingTrackedDetails(true);
     setTrackedDetails(null);
+    setActiveDossierTab('timeline');
     try {
       const response = await HospitalAPI.getTrackedCaseDetails(id);
       if (response?.success) {
@@ -329,6 +340,7 @@ const ManageAdmissionsPage = () => {
       if (response?.success) {
         setDoctorList(response.data || []);
         setSelectedDoctorId('');
+        setDoctorAssignNotes('');
         setActiveAction('doctor');
       } else {
         alert(response?.message || 'Could not fetch doctors list.');
@@ -340,7 +352,7 @@ const ManageAdmissionsPage = () => {
     }
   };
 
-  // ✅ UPDATED: Exact API implementation per specification
+  // Updated per 3-Way Synchronization Documentation: POST /hospital/panel/admissions/assign-doctor
   const handleAssignDoctor = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!selectedDoctorId) return alert('Please select a doctor!');
@@ -348,12 +360,12 @@ const ManageAdmissionsPage = () => {
 
     setIsProcessing(true);
     try {
-      // Backend expects MongoDB _id or bookingId under 'appointmentId'
       const targetAdmissionId = selectedAdmission._id || selectedAdmission.appointmentId || selectedAdmission.bookingId;
 
       const payload = {
         appointmentId: targetAdmissionId,
-        doctorId: selectedDoctorId
+        doctorId: selectedDoctorId,
+        notes: doctorAssignNotes.trim() || 'Assigned by Hospital Administration Panel'
       };
 
       const response = await HospitalAPI.assignDoctorToAdmission(payload);
@@ -392,6 +404,7 @@ const ManageAdmissionsPage = () => {
     }
   };
 
+  // Updated per 3-Way Synchronization Documentation: POST /hospital/panel/reassign-doctor
   const handleReassignDoctor = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!selectedDoctorId) return alert('Please select a new doctor!');
@@ -665,6 +678,7 @@ const ManageAdmissionsPage = () => {
 
                         const bed = item.bed || item.bedDetails || {};
                         const doctor = item.doctor || item.assignedDoctor || item.doctorId || null;
+                        const pendingDoctor = item.pendingDoctorId;
                         const totalAmt = item.totalAmount !== undefined ? item.totalAmount : (item.billing?.totalAmount || 0);
                         const paymentStat = item.paymentStatus || item.billing?.paymentStatus || 'Pending';
                         const paymentMeth = item.paymentMethod || item.billing?.paymentMethod;
@@ -749,22 +763,29 @@ const ManageAdmissionsPage = () => {
                             {/* Attending Doctor */}
                             <td className="px-5 py-4">
                               {doctor?.name ? (
-                                <div className="flex items-center gap-2">
-                                  {doctor.profileImage && (
-                                    <img 
-                                      src={getFormattedImageUrl(doctor.profileImage)} 
-                                      alt={doctor.name} 
-                                      className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
-                                    />
-                                  )}
-                                  <div>
-                                    <p className="text-xs font-bold text-gray-800">
-                                      {item.doctorDisplayName || (doctor.name.startsWith('Dr.') ? doctor.name : `Dr. ${doctor.name}`)}
-                                    </p>
-                                    <p className="text-[9px] font-bold text-emerald-600 uppercase">
-                                      {doctor.speciality || 'Attending Physician'}
-                                    </p>
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    {doctor.profileImage && (
+                                      <img 
+                                        src={getFormattedImageUrl(doctor.profileImage)} 
+                                        alt={doctor.name} 
+                                        className="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0"
+                                      />
+                                    )}
+                                    <div>
+                                      <p className="text-xs font-bold text-gray-800">
+                                        {item.doctorDisplayName || (doctor.name.startsWith('Dr.') ? doctor.name : `Dr. ${doctor.name}`)}
+                                      </p>
+                                      <p className="text-[9px] font-bold text-emerald-600 uppercase">
+                                        {doctor.speciality || 'Attending Physician'}
+                                      </p>
+                                    </div>
                                   </div>
+                                  {pendingDoctor && (
+                                    <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                      🔄 Transfer In-Progress
+                                    </span>
+                                  )}
                                 </div>
                               ) : (
                                 <span className="text-[11px] text-gray-400 italic">Unassigned</span>
@@ -1156,9 +1177,9 @@ const ManageAdmissionsPage = () => {
         isProcessing={isProcessing}
       />
 
-      {/* UNIFIED "SUPER DETAILS" CASE FILE MODAL */}
+      {/* UNIFIED "SUPER DETAILS" CASE FILE MODAL (Updated per 3-Way Synchronization Documentation) */}
       {selectedTrackedId && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 md:p-6 animate-fade-in">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 md:p-6 animate-fade-in font-sans">
           <div className="bg-white rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-gray-100">
             
             {/* Modal Header */}
@@ -1170,7 +1191,7 @@ const ManageAdmissionsPage = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="text-[10px] font-black text-[#08B36A] uppercase tracking-widest leading-none">
-                      Hospital Case Record
+                      Hospital Case Dossier &amp; Doctor Audit
                     </p>
                     {trackedDetails?.caseDetails?.status && (
                       <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${getStatusColor(trackedDetails.caseDetails.status)}`}>
@@ -1179,7 +1200,7 @@ const ManageAdmissionsPage = () => {
                     )}
                   </div>
                   <h3 className="text-base md:text-lg font-black tracking-tight mt-1 text-slate-100">
-                    Case #{trackedDetails?.caseDetails?.bookingId || 'N/A'}
+                    Case #{trackedDetails?.caseDetails?.bookingId || trackedDetails?.bookingId || 'N/A'}
                   </h3>
                 </div>
               </div>
@@ -1192,7 +1213,7 @@ const ManageAdmissionsPage = () => {
             </div>
 
             {/* Modal Body */}
-            <div className="p-4 md:p-6 overflow-y-auto space-y-6 bg-slate-50/60">
+            <div className="p-4 md:p-6 overflow-y-auto space-y-6 bg-slate-50/60 flex-grow">
               {loadingTrackedDetails ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-3">
                   <SpinnerIcon className="w-10 h-10 text-[#08B36A] animate-spin" />
@@ -1200,247 +1221,563 @@ const ManageAdmissionsPage = () => {
                 </div>
               ) : trackedDetails ? (
                 (() => {
-                  const caseDetails = trackedDetails.caseDetails || {};
+                  const caseDetails = trackedDetails.caseDetails || trackedDetails || {};
                   const patient = caseDetails.patient || caseDetails.patientProfile || caseDetails.patientDetails || {};
                   const bed = caseDetails.bed || caseDetails.bedDetails || {};
-                  const timeline = trackedDetails.treatmentTimeline || [];
+                  const doctorObj = caseDetails.doctorId || caseDetails.doctor || caseDetails.assignedDoctor;
+                  const pendingDoctor = caseDetails.pendingDoctorId;
+
+                  // Arrays from documentation
+                  const treatmentHistory = trackedDetails.treatmentHistory || caseDetails.treatmentHistory || [];
+                  const clinicalLogs = trackedDetails.clinicalLogs || caseDetails.clinicalLogs || [];
+                  const bedsideCareTeam = trackedDetails.bedsideCareTeam || caseDetails.bedsideCareTeam || [];
+                  const activeMedications = trackedDetails.activeMedications || caseDetails.activeMedications || [];
+                  const prescriptions = trackedDetails.prescriptions || caseDetails.prescriptions || [];
+                  const ambulanceJourney = trackedDetails.ambulanceJourney || caseDetails.ambulanceJourney || null;
+                  const linkedIpdAdmission = trackedDetails.linkedIpdAdmission || caseDetails.linkedIpdAdmission || null;
+                  const fallbackTimeline = trackedDetails.treatmentTimeline || [];
 
                   return (
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    <div className="space-y-6">
                       
-                      {/* Left Column: Patient Profile & Bed Allocation Info */}
-                      <div className="lg:col-span-4 space-y-5">
-                        
-                        {/* Patient Profile Card */}
-                        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">Patient Demographics</h4>
-                            <span className="text-xs font-black bg-rose-50 text-rose-600 px-2 py-0.5 rounded border border-rose-100">
-                              {patient.bloodGroup ? `Blood: ${patient.bloodGroup}` : 'Blood: N/A'}
-                            </span>
-                          </div>
-
-                          <div className="space-y-3.5">
-                            <div className="flex items-center gap-3">
-                              {patient.profilePic && (
-                                <img 
-                                  src={getFormattedImageUrl(patient.profilePic)} 
-                                  alt="Avatar" 
-                                  className="w-12 h-12 rounded-xl object-cover border border-slate-200"
-                                />
-                              )}
-                              <div>
-                                <p className="text-base font-black text-slate-800">
-                                  {patient.name || patient.patientName || 'Unknown Patient'}
-                                </p>
-                                <p className="text-xs font-bold text-slate-500 mt-0.5">
-                                  {patient.age ? `${patient.age} yrs` : ''} {patient.gender ? `• ${patient.gender}` : ''} {patient.relation ? `(${patient.relation})` : ''}
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* Reason for visit */}
-                            <div className="bg-amber-50/80 border border-amber-200/80 p-3 rounded-xl">
-                              <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Reason For Admission</p>
-                              <p className="text-xs font-extrabold text-amber-900 mt-1">
-                                {patient.reasonForVisit || caseDetails.bookingReason || 'Not specified'}
+                      {/* Doctor Handover Transfer Alert Banner (if pendingDoctorId is active) */}
+                      {pendingDoctor && (
+                        <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center justify-between text-xs text-amber-900 shadow-sm animate-pulse">
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">⚠️</span>
+                            <div>
+                              <h4 className="font-black uppercase tracking-wider text-[11px] text-amber-800">
+                                Doctor Handover In-Progress
+                              </h4>
+                              <p className="font-semibold text-amber-700 mt-0.5">
+                                Case handover has been initiated to {pendingDoctor.name ? (pendingDoctor.name.startsWith('Dr.') ? pendingDoctor.name : `Dr. ${pendingDoctor.name}`) : 'New Doctor'}. Waiting for handover sign-off.
                               </p>
                             </div>
+                          </div>
+                          <span className="text-[10px] font-black uppercase px-2.5 py-1 bg-amber-100 rounded-lg border border-amber-300">
+                            Transfer-Initiated
+                          </span>
+                        </div>
+                      )}
 
-                            {/* Contact & Account details */}
-                            <div className="grid grid-cols-2 gap-2 text-left pt-1">
-                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                <p className="text-[9px] font-bold text-slate-400 uppercase">Contact Phone</p>
-                                <p className="text-xs font-extrabold text-slate-700 mt-0.5">{patient.phone || 'N/A'}</p>
+                      {/* Linked IPD Admission Banner (if patient was admitted from OPD) */}
+                      {linkedIpdAdmission && (
+                        <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex items-center justify-between text-xs text-emerald-900 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">🛏️</span>
+                            <div>
+                              <h4 className="font-black uppercase tracking-wider text-[11px] text-emerald-800">
+                                Linked IPD Bed Admission
+                              </h4>
+                              <p className="font-semibold text-emerald-700 mt-0.5">
+                                Patient transferred to IPD Bed: <strong>{linkedIpdAdmission.bedNumber}</strong> ({linkedIpdAdmission.wardName}). Booking ID: #{linkedIpdAdmission.bookingId}
+                              </p>
+                            </div>
+                          </div>
+                          {linkedIpdAdmission.admissionHoldExpiresAt && (
+                            <span className="text-[10px] font-bold text-slate-500">
+                              Hold Expires: {new Date(linkedIpdAdmission.admissionHoldExpiresAt).toLocaleTimeString()}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                        
+                        {/* Left Column: Patient Profile & Bed Allocation Info */}
+                        <div className="lg:col-span-4 space-y-5">
+                          
+                          {/* Patient Profile Card */}
+                          <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                              <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">Patient Demographics</h4>
+                              <span className="text-xs font-black bg-rose-50 text-rose-600 px-2 py-0.5 rounded border border-rose-100">
+                                {patient.bloodGroup ? `Blood: ${patient.bloodGroup}` : 'Blood: N/A'}
+                              </span>
+                            </div>
+
+                            <div className="space-y-3.5">
+                              <div className="flex items-center gap-3">
+                                {patient.profilePic && (
+                                  <img 
+                                    src={getFormattedImageUrl(patient.profilePic)} 
+                                    alt="Avatar" 
+                                    className="w-12 h-12 rounded-xl object-cover border border-slate-200"
+                                  />
+                                )}
+                                <div>
+                                  <p className="text-base font-black text-slate-800">
+                                    {patient.name || patient.patientName || 'Unknown Patient'}
+                                  </p>
+                                  <p className="text-xs font-bold text-slate-500 mt-0.5">
+                                    {patient.age ? `${patient.age} yrs` : ''} {patient.gender ? `• ${patient.gender}` : ''} {patient.relation ? `(${patient.relation})` : ''}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                <p className="text-[9px] font-bold text-slate-400 uppercase">Account Holder</p>
-                                <p className="text-xs font-extrabold text-slate-700 mt-0.5 truncate" title={patient.accountHolderName}>
-                                  {patient.accountHolderName || 'N/A'}
+
+                              {/* Reason for visit */}
+                              <div className="bg-amber-50/80 border border-amber-200/80 p-3 rounded-xl">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Reason For Admission</p>
+                                <p className="text-xs font-extrabold text-amber-900 mt-1">
+                                  {patient.reasonForVisit || caseDetails.bookingReason || 'Not specified'}
                                 </p>
                               </div>
-                            </div>
-                          </div>
-                        </div>
 
-                        {/* Bed Allocation Card */}
-                        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
-                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-3 mb-4">
-                            Bed &amp; Ward Allocation
-                          </h4>
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
-                              <div>
-                                <p className="text-[10px] font-bold text-emerald-600 uppercase">Assigned Bed</p>
-                                <p className="text-sm font-black text-emerald-900">{bed.bedNumber || 'Unassigned'}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-[10px] font-bold text-emerald-600 uppercase">Daily Rate</p>
-                                <p className="text-sm font-black text-emerald-900">₹{bed.pricePerDay ? `${bed.pricePerDay}/day` : '0'}</p>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2 text-left">
-                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                <p className="text-[9px] font-bold text-slate-400 uppercase">Ward Name</p>
-                                <p className="text-xs font-extrabold text-slate-700 mt-0.5">{bed.wardName || bed.wardId?.name || 'General Ward'}</p>
-                              </div>
-                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                <p className="text-[9px] font-bold text-slate-400 uppercase">Ward Type</p>
-                                <p className="text-xs font-extrabold text-slate-700 mt-0.5">{bed.wardType || bed.wardId?.type || 'Standard'}</p>
+                              {/* Contact & Account details */}
+                              <div className="grid grid-cols-2 gap-2 text-left pt-1">
+                                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                  <p className="text-[9px] font-bold text-slate-400 uppercase">Contact Phone</p>
+                                  <p className="text-xs font-extrabold text-slate-700 mt-0.5">{patient.phone || 'N/A'}</p>
+                                </div>
+                                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                  <p className="text-[9px] font-bold text-slate-400 uppercase">Account Holder</p>
+                                  <p className="text-xs font-extrabold text-slate-700 mt-0.5 truncate" title={patient.accountHolderName}>
+                                    {patient.accountHolderName || 'N/A'}
+                                  </p>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Appointment Internal Reference */}
-                        <div className="bg-slate-100/70 p-3 rounded-xl border border-slate-200 text-[11px] text-slate-500 font-medium">
-                          <p className="font-bold text-slate-600">Appointment ID:</p>
-                          <p className="font-mono text-[10px] text-slate-400 truncate select-all">{caseDetails.appointmentId || caseDetails._id}</p>
-                        </div>
-
-                      </div>
-
-                      {/* Right Column: Treatment Timeline & Clinical Logs */}
-                      <div className="lg:col-span-8 space-y-4">
-                        <div className="bg-white rounded-2xl p-5 md:p-6 border border-slate-200/80 shadow-sm">
-                          <div className="flex items-center justify-between mb-6 pb-3 border-b border-slate-100">
-                            <div>
-                              <h4 className="text-sm font-black uppercase tracking-wider text-slate-800">
-                                Treatment &amp; Clinical Timeline
+                          {/* Attending Primary Doctor Banner */}
+                          {doctorObj && (
+                            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+                              <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-3 mb-3">
+                                Attending Physician
                               </h4>
-                              <p className="text-[11px] font-medium text-slate-400 mt-0.5">Chronological record of specialist notes, rounds, and medications</p>
+                              <div className="flex items-center gap-3">
+                                {doctorObj.profileImage ? (
+                                  <img 
+                                    src={getFormattedImageUrl(doctorObj.profileImage)} 
+                                    alt={doctorObj.name} 
+                                    className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-12 h-12 rounded-xl bg-slate-900 text-white flex items-center justify-center text-xl shrink-0">
+                                    👨‍⚕️
+                                  </div>
+                                )}
+                                <div>
+                                  <h5 className="font-extrabold text-slate-900 text-sm">
+                                    {doctorObj.name ? (doctorObj.name.startsWith('Dr.') ? doctorObj.name : `Dr. ${doctorObj.name}`) : 'Doctor'}
+                                  </h5>
+                                  <p className="text-[10px] text-emerald-600 font-bold uppercase mt-0.5">
+                                    {doctorObj.speciality || 'General Medicine'} {doctorObj.qualification && `• ${doctorObj.qualification}`}
+                                  </p>
+                                  {doctorObj.phone && (
+                                    <p className="text-[10px] text-slate-400 mt-0.5">Phone: {doctorObj.phone}</p>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <span className="bg-[#08B36A]/10 text-[#08B36A] font-black text-xs px-3 py-1 rounded-full border border-[#08B36A]/20">
-                              {timeline.length} Milestone{timeline.length === 1 ? '' : 's'}
-                            </span>
+                          )}
+
+                          {/* Bed Allocation Card */}
+                          <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-3 mb-4">
+                              Bed &amp; Ward Allocation
+                            </h4>
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
+                                <div>
+                                  <p className="text-[10px] font-bold text-emerald-600 uppercase">Assigned Bed</p>
+                                  <p className="text-sm font-black text-emerald-900">{bed.bedNumber || 'Unassigned'}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-[10px] font-bold text-emerald-600 uppercase">Daily Rate</p>
+                                  <p className="text-sm font-black text-emerald-900">₹{bed.pricePerDay ? `${bed.pricePerDay}/day` : '0'}</p>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 text-left">
+                                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                  <p className="text-[9px] font-bold text-slate-400 uppercase">Ward Name</p>
+                                  <p className="text-xs font-extrabold text-slate-700 mt-0.5">{bed.wardName || bed.wardId?.name || 'General Ward'}</p>
+                                </div>
+                                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                  <p className="text-[9px] font-bold text-slate-400 uppercase">Ward Type</p>
+                                  <p className="text-xs font-extrabold text-slate-700 mt-0.5">{bed.wardType || bed.wardId?.type || 'Standard'}</p>
+                                </div>
+                              </div>
+                            </div>
                           </div>
 
-                          {timeline.length === 0 ? (
-                            <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                              <p className="text-slate-400 text-xs font-bold">No timeline logs recorded for this patient yet.</p>
+                          {/* Ambulance Transit Card (if ambulanceJourney exists) */}
+                          {ambulanceJourney && (
+                            <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-4 space-y-2.5 shadow-2xs">
+                              <span className="text-[10px] font-black uppercase text-blue-900 tracking-wider flex items-center gap-1.5">
+                                🚑 Ambulance Arrival Transit
+                              </span>
+                              <div className="bg-white p-3 rounded-xl border border-blue-100 text-xs space-y-1">
+                                <p><span className="text-slate-400 font-bold">Vehicle:</span> <strong className="text-slate-800">{ambulanceJourney.vehicleNumber || ambulanceJourney.vehicleName || "Emergency ALS Unit"}</strong></p>
+                                <p><span className="text-slate-400 font-bold">Driver:</span> <strong className="text-slate-800">{ambulanceJourney.driverName || ambulanceJourney.name || "On-Duty Driver"}</strong></p>
+                                {ambulanceJourney.phone && <p><span className="text-slate-400 font-bold">Phone:</span> <strong className="text-blue-700">{ambulanceJourney.phone}</strong></p>}
+                              </div>
                             </div>
-                          ) : (
-                            <div className="relative border-l-2 border-slate-200 ml-4 md:ml-6 space-y-8 py-2">
-                              {timeline.map((event, index) => {
-                                const badge = getEventBadgeStyle(event.eventType);
-                                const eventTime = event.timestamp ? new Date(event.timestamp).toLocaleString(undefined, {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                }) : 'Time not logged';
+                          )}
 
-                                return (
-                                  <div key={index} className="relative pl-6 md:pl-8 group">
-                                    {/* Timeline Marker Dot */}
-                                    <div className="absolute -left-[17px] top-1 w-8 h-8 rounded-full bg-white border-2 border-slate-300 group-hover:border-[#08B36A] shadow-sm flex items-center justify-center text-sm transition-all">
-                                      {badge.icon}
-                                    </div>
+                        </div>
 
-                                    {/* Event Card */}
-                                    <div className="bg-slate-50/80 group-hover:bg-slate-50 transition-colors p-4 md:p-5 rounded-2xl border border-slate-200/90 space-y-3.5 shadow-sm">
-                                      
-                                      {/* Header: Category & Timestamp */}
-                                      <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2">
-                                          <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md border ${badge.bg} ${badge.text} ${badge.border}`}>
-                                            {event.category || event.eventType}
-                                          </span>
-                                          {event.patientCondition && (
-                                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${getStatusColor(event.patientCondition)}`}>
-                                              Condition: {event.patientCondition}
+                        {/* Right Column: Treatment Timeline, Clinical Logs & Prescriptions Tabs */}
+                        <div className="lg:col-span-8 space-y-4">
+                          
+                          {/* Inner Tabs for Doctor Audit Dossier */}
+                          <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200/80 gap-1 overflow-x-auto shadow-sm">
+                            <button
+                              onClick={() => setActiveDossierTab('timeline')}
+                              className={`flex-1 py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+                                activeDossierTab === 'timeline' 
+                                  ? 'bg-[#08B36A] text-white shadow-sm' 
+                                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                              }`}
+                            >
+                              📋 Clinical Logs ({clinicalLogs.length || fallbackTimeline.length})
+                            </button>
+                            <button
+                              onClick={() => setActiveDossierTab('history')}
+                              className={`flex-1 py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+                                activeDossierTab === 'history' 
+                                  ? 'bg-[#08B36A] text-white shadow-sm' 
+                                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                              }`}
+                            >
+                              🔄 Doctor History ({treatmentHistory.length})
+                            </button>
+                            <button
+                              onClick={() => setActiveDossierTab('meds')}
+                              className={`flex-1 py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+                                activeDossierTab === 'meds' 
+                                  ? 'bg-[#08B36A] text-white shadow-sm' 
+                                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                              }`}
+                            >
+                              💊 Medications ({activeMedications.length})
+                            </button>
+                            <button
+                              onClick={() => setActiveDossierTab('bedside')}
+                              className={`flex-1 py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+                                activeDossierTab === 'bedside' 
+                                  ? 'bg-[#08B36A] text-white shadow-sm' 
+                                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                              }`}
+                            >
+                              🩺 Bedside Team ({bedsideCareTeam.length})
+                            </button>
+                            {prescriptions.length > 0 && (
+                              <button
+                                onClick={() => setActiveDossierTab('prescriptions')}
+                                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+                                  activeDossierTab === 'prescriptions' 
+                                    ? 'bg-[#08B36A] text-white shadow-sm' 
+                                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                                }`}
+                              >
+                                📄 Prescriptions ({prescriptions.length})
+                              </button>
+                            )}
+                          </div>
+
+                          {/* TAB 1: CLINICAL LOGS & OBSERVATIONS */}
+                          {activeDossierTab === 'timeline' && (
+                            <div className="bg-white rounded-2xl p-5 md:p-6 border border-slate-200/80 shadow-sm animate-in fade-in duration-150">
+                              <div className="flex items-center justify-between mb-6 pb-3 border-b border-slate-100">
+                                <div>
+                                  <h4 className="text-sm font-black uppercase tracking-wider text-slate-800">
+                                    Clinical Rounds &amp; Doctor Observations
+                                  </h4>
+                                  <p className="text-[11px] font-medium text-slate-400 mt-0.5">Chronological record of specialist notes, rounds, and vitals</p>
+                                </div>
+                                <span className="bg-[#08B36A]/10 text-[#08B36A] font-black text-xs px-3 py-1 rounded-full border border-[#08B36A]/20">
+                                  {clinicalLogs.length || fallbackTimeline.length} Logs
+                                </span>
+                              </div>
+
+                              {(clinicalLogs.length === 0 && fallbackTimeline.length === 0) ? (
+                                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                  <p className="text-slate-400 text-xs font-bold">No clinical logs recorded for this patient yet.</p>
+                                </div>
+                              ) : (
+                                <div className="space-y-4">
+                                  {(clinicalLogs.length > 0 ? clinicalLogs : fallbackTimeline).map((log, index) => {
+                                    const logTime = log.loggedAt || log.timestamp ? new Date(log.loggedAt || log.timestamp).toLocaleString('en-IN', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    }) : 'Time not logged';
+
+                                    const docName = log.doctorName || log.doctorId?.name || log.doctor?.name || 'Attending Doctor';
+                                    const docSpec = log.doctorSpeciality || log.doctorId?.speciality || log.doctor?.speciality || 'Specialist';
+
+                                    return (
+                                      <div key={log._id || index} className="bg-slate-50/80 hover:bg-slate-50 p-4 md:p-5 rounded-2xl border border-slate-200 space-y-3 transition-colors shadow-2xs">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                          <div className="flex items-center gap-2">
+                                            <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-md border ${getStatusColor(log.patientCondition)}`}>
+                                              Condition: {log.patientCondition || 'Stable'}
                                             </span>
-                                          )}
-                                        </div>
-                                        <span className="text-[11px] font-bold text-slate-400">
-                                          🕒 {eventTime}
-                                        </span>
-                                      </div>
-
-                                      {/* Doctor Card */}
-                                      {event.doctor && (
-                                        <div className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200/60">
-                                          <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 font-black text-xs">
-                                            👨‍⚕️
-                                          </div>
-                                          <div>
-                                            <p className="text-xs font-black text-slate-800 leading-tight">{event.doctor.name}</p>
-                                            <p className="text-[10px] font-bold text-slate-400">
-                                              {event.doctor.speciality} {event.doctor.role ? `• ${event.doctor.role}` : ''}
-                                            </p>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {/* Clinical Observation */}
-                                      {event.observation && (
-                                        <div className="bg-white p-3.5 rounded-xl border border-slate-200/70">
-                                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Clinical Observation</p>
-                                          <p className="text-xs font-semibold text-slate-700 italic leading-relaxed">
-                                            "{event.observation}"
-                                          </p>
-                                        </div>
-                                      )}
-
-                                      {/* Medication Order Box */}
-                                      {event.medication && (
-                                        <div className="bg-blue-50/60 border border-blue-200/80 p-3.5 rounded-xl space-y-2">
-                                          <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-base">💊</span>
-                                              <p className="text-xs font-black text-blue-900">{event.medication.name}</p>
-                                            </div>
-                                            {event.medication.status && (
-                                              <span className="text-[9px] font-black uppercase bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-                                                {event.medication.status}
+                                            {log.priorityRating && (
+                                              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${
+                                                log.priorityRating === 'Critical' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-100 text-slate-700 border-slate-200'
+                                              }`}>
+                                                {log.priorityRating}
                                               </span>
                                             )}
                                           </div>
-                                          <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                                            <p className="text-blue-800 font-medium">
-                                              <span className="font-bold text-blue-950">Dosage:</span> {event.medication.dosage || 'N/A'}
-                                            </p>
-                                            <p className="text-blue-800 font-medium">
-                                              <span className="font-bold text-blue-950">Frequency:</span> {event.medication.frequency || 'N/A'}
-                                            </p>
+                                          <span className="text-[11px] font-bold text-slate-400">🕒 {logTime}</span>
+                                        </div>
+
+                                        <div className="flex items-center gap-2.5 bg-white p-2.5 rounded-xl border border-slate-100">
+                                          <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
+                                            👨‍⚕️
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-bold text-slate-800">{docName.startsWith('Dr.') ? docName : `Dr. ${docName}`}</p>
+                                            <p className="text-[9px] font-semibold text-slate-400">{docSpec}</p>
                                           </div>
                                         </div>
-                                      )}
 
-                                      {/* Vitals Snapshot */}
-                                      {event.vitals && (
-                                        <div className="pt-1">
-                                          <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-2">Recorded Vitals at check</p>
-                                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                            <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
-                                              <p className="text-[8px] font-bold text-slate-400 uppercase">BP</p>
-                                              <p className="text-xs font-black text-slate-800 mt-0.5">{event.vitals.bp || '—'}</p>
+                                        {log.observation && (
+                                          <div className="bg-white p-3 rounded-xl border border-slate-150">
+                                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">Observation Note</p>
+                                            <p className="text-xs font-semibold text-slate-700 italic">"{log.observation}"</p>
+                                          </div>
+                                        )}
+
+                                        {log.vitals && (
+                                          <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                                            <div className="bg-white p-2 rounded-xl border border-slate-150">
+                                              <span className="text-[8px] font-bold text-slate-400 uppercase block">BP</span>
+                                              <strong className="text-slate-800">{log.vitals.bp || '—'}</strong>
                                             </div>
-                                            <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
-                                              <p className="text-[8px] font-bold text-slate-400 uppercase">Pulse</p>
-                                              <p className="text-xs font-black text-slate-800 mt-0.5">{event.vitals.pulse ? `${event.vitals.pulse} bpm` : '—'}</p>
+                                            <div className="bg-white p-2 rounded-xl border border-slate-150">
+                                              <span className="text-[8px] font-bold text-slate-400 uppercase block">Pulse</span>
+                                              <strong className="text-slate-800">{log.vitals.pulse ? `${log.vitals.pulse} bpm` : '—'}</strong>
                                             </div>
-                                            <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
-                                              <p className="text-[8px] font-bold text-slate-400 uppercase">Temp</p>
-                                              <p className="text-xs font-black text-slate-800 mt-0.5">{event.vitals.temp ? `${event.vitals.temp}°F` : '—'}</p>
+                                            <div className="bg-white p-2 rounded-xl border border-slate-150">
+                                              <span className="text-[8px] font-bold text-slate-400 uppercase block">Temp</span>
+                                              <strong className="text-slate-800">{log.vitals.temp ? `${log.vitals.temp}°F` : '—'}</strong>
                                             </div>
-                                            <div className="bg-white p-2 rounded-lg border border-slate-200 text-center">
-                                              <p className="text-[8px] font-bold text-slate-400 uppercase">SpO2</p>
-                                              <p className="text-xs font-black text-emerald-600 mt-0.5">{event.vitals.spo2 ? `${event.vitals.spo2}%` : '—'}</p>
+                                            <div className="bg-white p-2 rounded-xl border border-slate-150">
+                                              <span className="text-[8px] font-bold text-slate-400 uppercase block">SpO2</span>
+                                              <strong className="text-emerald-600">{log.vitals.spo2 ? `${log.vitals.spo2}%` : '—'}</strong>
                                             </div>
                                           </div>
-                                        </div>
-                                      )}
-
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           )}
+
+                          {/* TAB 2: DOCTOR ASSIGNMENT & HANDOVER HISTORY */}
+                          {activeDossierTab === 'history' && (
+                            <div className="bg-white rounded-2xl p-5 md:p-6 border border-slate-200/80 shadow-sm animate-in fade-in duration-150 space-y-4">
+                              <div className="border-b border-slate-100 pb-3">
+                                <h4 className="text-sm font-black uppercase tracking-wider text-slate-800">
+                                  Doctor Assignment &amp; Handover History
+                                </h4>
+                                <p className="text-[11px] font-medium text-slate-400 mt-0.5">Audit log of physician allocations, case transfers, and active periods</p>
+                              </div>
+
+                              {treatmentHistory.length === 0 ? (
+                                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                  <p className="text-slate-400 text-xs font-bold">No doctor handover history recorded yet.</p>
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  {treatmentHistory.map((item, hIdx) => {
+                                    const actionBadge = getEventBadgeStyle(item.action);
+                                    const eventDate = item.timestamp ? new Date(item.timestamp).toLocaleString('en-IN', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    }) : 'N/A';
+
+                                    return (
+                                      <div key={item._id || hIdx} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                          <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-md border ${actionBadge.bg} ${actionBadge.text} ${actionBadge.border}`}>
+                                            {item.action || 'Assignment'}
+                                          </span>
+                                          <span className="text-[10px] font-bold text-slate-400">🕒 {eventDate}</span>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                                          {item.fromDoctorName && (
+                                            <div className="bg-white p-2.5 rounded-xl border border-slate-150">
+                                              <span className="text-[8px] font-bold text-slate-400 uppercase block">Transferred From:</span>
+                                              <strong className="text-slate-800 font-extrabold">{item.fromDoctorName}</strong>
+                                            </div>
+                                          )}
+                                          <div className="bg-white p-2.5 rounded-xl border border-slate-150">
+                                            <span className="text-[8px] font-bold text-slate-400 uppercase block">Assigned To:</span>
+                                            <strong className="text-emerald-700 font-extrabold">{item.toDoctorName || 'N/A'}</strong>
+                                            {item.toDoctorSpeciality && <span className="text-[9px] text-slate-400 block">{item.toDoctorSpeciality}</span>}
+                                          </div>
+                                        </div>
+
+                                        {item.notes && (
+                                          <p className="text-xs text-slate-600 font-semibold italic bg-white p-2 rounded-xl border border-slate-100">
+                                            "{item.notes}"
+                                          </p>
+                                        )}
+
+                                        {item.durationDisplay && (
+                                          <div className="text-right">
+                                            <span className="text-[10px] font-black uppercase text-[#08B36A]">
+                                              Duration: {item.durationDisplay}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* TAB 3: ACTIVE MEDICATIONS */}
+                          {activeDossierTab === 'meds' && (
+                            <div className="bg-white rounded-2xl p-5 md:p-6 border border-slate-200/80 shadow-sm animate-in fade-in duration-150 space-y-4">
+                              <div className="border-b border-slate-100 pb-3">
+                                <h4 className="text-sm font-black uppercase tracking-wider text-slate-800">
+                                  Prescribed Active Inpatient Medications
+                                </h4>
+                                <p className="text-[11px] font-medium text-slate-400 mt-0.5">Live medicine schedule ordered by attending physician</p>
+                              </div>
+
+                              {activeMedications.length === 0 ? (
+                                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                  <p className="text-slate-400 text-xs font-bold">No active medications prescribed for this patient.</p>
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {activeMedications.map((med, mIdx) => (
+                                    <div key={med._id || mIdx} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+                                      <div className="flex items-center justify-between">
+                                        <h5 className="font-extrabold text-slate-900 text-xs">{med.medicineName}</h5>
+                                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                          med.status === 'Active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                                        }`}>
+                                          {med.status || 'Active'}
+                                        </span>
+                                      </div>
+                                      <div className="text-[11px] text-slate-600 font-semibold space-y-0.5">
+                                        <p><span className="text-slate-400">Dosage:</span> {med.dosage || 'N/A'}</p>
+                                        <p><span className="text-slate-400">Frequency:</span> {med.frequency || 'N/A'}</p>
+                                        {med.instructions && <p className="text-slate-500 italic mt-1">"{med.instructions}"</p>}
+                                      </div>
+                                      {med.addedBy?.name && (
+                                        <p className="text-[9px] font-bold text-slate-400 border-t border-slate-200/60 pt-1">
+                                          Prescribed by {med.addedBy.name}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* TAB 4: BEDSIDE CARE TEAM */}
+                          {activeDossierTab === 'bedside' && (
+                            <div className="bg-white rounded-2xl p-5 md:p-6 border border-slate-200/80 shadow-sm animate-in fade-in duration-150 space-y-4">
+                              <div className="border-b border-slate-100 pb-3">
+                                <h4 className="text-sm font-black uppercase tracking-wider text-slate-800">
+                                  Bedside Specialist Consultations
+                                </h4>
+                                <p className="text-[11px] font-medium text-slate-400 mt-0.5">On-demand cross-specialty clinical consultations</p>
+                              </div>
+
+                              {bedsideCareTeam.length === 0 ? (
+                                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                  <p className="text-slate-400 text-xs font-bold">No cross-specialist consultations called for this patient.</p>
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  {bedsideCareTeam.map((team, bIdx) => {
+                                    const specialist = team.doctorId || {};
+                                    return (
+                                      <div key={team._id || bIdx} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                          <div>
+                                            <h5 className="font-extrabold text-slate-900 text-xs">
+                                              {specialist.name ? (specialist.name.startsWith('Dr.') ? specialist.name : `Dr. ${specialist.name}`) : 'Specialist'}
+                                            </h5>
+                                            <p className="text-[10px] text-emerald-600 font-bold uppercase">{specialist.speciality || 'Consultant'}</p>
+                                          </div>
+                                          <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full border ${getStatusColor(team.status)}`}>
+                                            {team.status || 'Pending'}
+                                          </span>
+                                        </div>
+                                        {team.requestReason && (
+                                          <p className="text-xs text-slate-600 font-semibold italic bg-white p-2.5 rounded-xl border border-slate-150">
+                                            Request Reason: "{team.requestReason}"
+                                          </p>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* TAB 5: DIGITAL PRESCRIPTIONS (If present in case) */}
+                          {activeDossierTab === 'prescriptions' && prescriptions.length > 0 && (
+                            <div className="bg-white rounded-2xl p-5 md:p-6 border border-slate-200/80 shadow-sm animate-in fade-in duration-150 space-y-4">
+                              <div className="border-b border-slate-100 pb-3">
+                                <h4 className="text-sm font-black uppercase tracking-wider text-slate-800">
+                                  Digital Prescriptions &amp; Clinical Documents
+                                </h4>
+                                <p className="text-[11px] font-medium text-slate-400 mt-0.5">Hospital generated prescriptions, diet charts and clinical files</p>
+                              </div>
+
+                              <div className="space-y-3">
+                                {prescriptions.map((rx, rIdx) => (
+                                  <div key={rx._id || rIdx} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                    <div>
+                                      <h5 className="font-extrabold text-slate-900 text-xs">Prescription #{rIdx + 1}</h5>
+                                      <p className="text-[10px] text-slate-500 font-bold mt-0.5">
+                                        Issued by {rx.doctorName || 'Attending Physician'}
+                                      </p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      {rx.pdfUrl && (
+                                        <a
+                                          href={getFormattedImageUrl(rx.pdfUrl)}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="px-3 py-1.5 bg-[#08B36A] hover:bg-[#079E5E] text-white text-[10px] font-black rounded-lg transition-all"
+                                        >
+                                          Download Prescription PDF
+                                        </a>
+                                      )}
+                                      {rx.dietPlanPdf && (
+                                        <a
+                                          href={getFormattedImageUrl(rx.dietPlanPdf)}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="px-3 py-1.5 bg-slate-800 hover:bg-black text-white text-[10px] font-black rounded-lg transition-all"
+                                        >
+                                          Diet Plan PDF
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                         </div>
+
                       </div>
 
                     </div>

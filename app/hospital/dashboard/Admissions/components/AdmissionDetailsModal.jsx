@@ -1,10 +1,13 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   FaTimes, FaBan, FaTimesCircle, FaUser, FaBed, FaMoneyBillWave, 
   FaShieldAlt, FaUserMd, FaCalendarAlt, FaProcedures, FaAmbulance, 
-  FaConciergeBell, FaLungs, FaPhoneAlt
+  FaConciergeBell, FaLungs, FaPhoneAlt, FaPills, FaHeartbeat, 
+  FaExchangeAlt, FaFilePdf, FaNotesMedical, FaHistory, FaCheckCircle,
+  FaFileDownload, FaClock, FaClipboardList, FaRoute, FaCheckDouble,
+  FaHospitalUser, FaUserClock
 } from 'react-icons/fa';
 import { InfoSection, InfoItem, SpinnerIcon } from './InfoSection';
 
@@ -31,13 +34,13 @@ const displayDate = (dateString) => {
 
 const getStatusColor = (status) => {
   const statusLower = (status || '').toLowerCase();
-  if (statusLower === 'confirmed' || statusLower === 'in-progress' || statusLower === 'active' || statusLower === 'stable') {
+  if (statusLower === 'confirmed' || statusLower === 'in-progress' || statusLower === 'active' || statusLower === 'stable' || statusLower === 'completed' || statusLower === 'delivered') {
     return 'bg-emerald-50 text-emerald-700 border-emerald-200';
   }
-  if (statusLower === 'hospital-pending' || statusLower === 'recovering') {
+  if (statusLower === 'hospital-pending' || statusLower === 'recovering' || statusLower === 'pending' || statusLower === 'accepted' || statusLower === 'en-route') {
     return 'bg-amber-50 text-amber-700 border-amber-200';
   }
-  if (statusLower.startsWith('cancelled') || statusLower.startsWith('rejected') || statusLower === 'critical') {
+  if (statusLower.startsWith('cancelled') || statusLower.startsWith('rejected') || statusLower === 'critical' || statusLower === 'deteriorating') {
     return 'bg-rose-50 text-rose-700 border-rose-200';
   }
   return 'bg-slate-50 text-slate-700 border-slate-200';
@@ -46,6 +49,15 @@ const getStatusColor = (status) => {
 const formatDoctorName = (name) => {
   if (!name) return 'Doctor';
   return name.trim().startsWith('Dr.') ? name : `Dr. ${name}`;
+};
+
+const getFullUrl = (path) => {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5002';
+  const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${cleanBase}${cleanPath}`;
 };
 
 const AdmissionDetailsModal = ({
@@ -81,19 +93,46 @@ const AdmissionDetailsModal = ({
   handleRejectAdmission,
   isProcessing
 }) => {
+  const [assignNotes, setAssignNotes] = useState('Assigned lead physician on admission');
+  const [dossierSection, setDossierSection] = useState('overview'); // 'overview' | 'doctors' | 'clinical' | 'ambulance'
+
   if (!admission) return null;
 
   // Normalized Field Accessors
-  const patient = admission.patient || admission.patientDetails || admission.patients?.[0] || {};
+  const patient = admission.patient || admission.patientDetails || admission.patients?.[0] || admission.userId || {};
   const bed = admission.bed || admission.bedDetails || admission.bedId || {};
   const doctor = admission.doctor || admission.assignedDoctor || admission.doctorId || null;
+  const pendingDoctor = admission.pendingDoctorId || null;
   const ambulance = admission.ambulance || null;
+  const ambulanceJourney = admission.ambulanceJourney || null;
+  const linkedIpdAdmission = admission.linkedIpdAdmission || null;
   const specialServices = Array.isArray(admission.specialServices) ? admission.specialServices : [];
 
   const billing = admission.billing || admission.pricingBreakdown || {};
-  const insurance = admission.insurance || admission.insuranceDetails || {};
   const bookedBy = admission.bookedBy || admission.userId || {};
   const clinical = admission.clinicalSummary || {};
+
+  // Arrays from documentation contract
+  const treatmentHistory = admission.treatmentHistory || [];
+  const clinicalLogs = admission.clinicalLogs || [];
+  const bedsideCareTeam = admission.bedsideCareTeam || [];
+  const activeMedications = admission.activeMedications || [];
+  const prescriptions = admission.prescriptions || [];
+
+  // Identify Previous Doctors from treatmentHistory
+  const previousDoctors = treatmentHistory.filter(item => !item.isCurrentlyActive && (item.toDoctorName || item.fromDoctorName));
+  const activeHistoryItem = treatmentHistory.find(item => item.isCurrentlyActive);
+
+  // Insurance normalization
+  const insuranceSummary = admission.insuranceSummary || {};
+  const insuranceDetails = admission.insuranceDetails || admission.insurance || {};
+  const masterInsurance = insuranceDetails.masterInsuranceId || {};
+  const hasInsurance = admission.hasInsurance ?? insuranceDetails.hasInsurance ?? insuranceSummary.hasInsurance ?? false;
+  const insuranceClaimStatus = admission.insuranceClaimStatus || insuranceSummary.approvalStatus || insuranceDetails.approvalStatus || "Pending";
+  const insCompany = insuranceSummary.companyName || insuranceDetails.companyName || masterInsurance.insuranceName || "N/A";
+  const insProvider = insuranceSummary.provider || masterInsurance.provider || "N/A";
+  const insPolicyNumber = insuranceSummary.insuranceNumber || insuranceDetails.insuranceNumber || "N/A";
+  const insType = insuranceSummary.insuranceType || insuranceDetails.insuranceType || masterInsurance.type || "Cashless";
 
   const statusLower = (admission.status || '').toLowerCase();
   const isPending = statusLower === 'hospital-pending';
@@ -107,8 +146,14 @@ const AdmissionDetailsModal = ({
 
   const stayDays = admission.stayDurationDays || admission.stayDuration || 1;
 
+  const handleCustomAssignDoctor = (e) => {
+    if (typeof handleAssignDoctor === 'function') {
+      handleAssignDoctor(e, assignNotes);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-3 md:p-6 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-3 md:p-6 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200 font-sans">
       <div className="bg-white w-full max-w-6xl max-h-[92vh] rounded-[2rem] shadow-2xl relative flex flex-col overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200">
         
         {/* Modal Top Header Bar */}
@@ -121,10 +166,15 @@ const AdmissionDetailsModal = ({
                   Emergency
                 </span>
               )}
+              {hasInsurance && (
+                <span className="bg-[#08B36A]/20 text-emerald-400 border border-emerald-500/40 text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider ml-1">
+                  🛡️ {insType} ({insuranceClaimStatus})
+                </span>
+              )}
             </h2>
             <p className="text-slate-400 font-bold text-xs uppercase tracking-wide mt-0.5">
               Booking ID: <span className="text-[#08B36A]">#{admission.bookingId}</span>
-              <span className="ml-3 text-slate-500">Type: <span className="text-slate-300">{admission.bookingType || 'Inpatient Admission'}</span></span>
+              <span className="ml-3 text-slate-500">Type: <span className="text-slate-300">{admission.bookingType || (admission.isOpd ? 'OPD Visit' : 'Inpatient Admission')}</span></span>
             </p>
           </div>
           <button 
@@ -133,6 +183,44 @@ const AdmissionDetailsModal = ({
           >
             <FaTimes size={16} />
           </button>
+        </div>
+
+        {/* Modal Navigation Filter Ribbon */}
+        <div className="flex bg-slate-100/80 px-6 py-2 gap-2 border-b border-slate-200 overflow-x-auto shrink-0">
+          <button
+            onClick={() => setDossierSection('overview')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+              dossierSection === 'overview' ? 'bg-[#08B36A] text-white shadow-sm' : 'text-slate-600 hover:bg-white'
+            }`}
+          >
+            📋 Case Overview
+          </button>
+          <button
+            onClick={() => setDossierSection('doctors')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              dossierSection === 'doctors' ? 'bg-[#08B36A] text-white shadow-sm' : 'text-slate-600 hover:bg-white'
+            }`}
+          >
+            <FaUserMd /> Doctor Logs &amp; Handover ({treatmentHistory.length})
+          </button>
+          <button
+            onClick={() => setDossierSection('clinical')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              dossierSection === 'clinical' ? 'bg-[#08B36A] text-white shadow-sm' : 'text-slate-600 hover:bg-white'
+            }`}
+          >
+            <FaNotesMedical /> Clinical Rounds &amp; Vitals ({clinicalLogs.length})
+          </button>
+          {(ambulance || ambulanceJourney) && (
+            <button
+              onClick={() => setDossierSection('ambulance')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                dossierSection === 'ambulance' ? 'bg-[#08B36A] text-white shadow-sm' : 'text-slate-600 hover:bg-white'
+              }`}
+            >
+              <FaAmbulance /> Live Ambulance Transit
+            </button>
+          )}
         </div>
 
         {/* Modal Main Body */}
@@ -161,131 +249,502 @@ const AdmissionDetailsModal = ({
                 </div>
               </div>
 
-              {/* 1. Patient Details */}
-              <InfoSection title="👤 Patient Details">
-                <InfoItem label="Patient Name" value={patient.name || patient.patientName || "N/A"} />
-                <InfoItem label="Age" value={patient.age ? `${patient.age} Years` : (patient.patientAge ? `${patient.patientAge} Years` : "N/A")} />
-                <InfoItem label="Gender" value={patient.gender || "N/A"} />
-                <InfoItem label="Relation with User" value={patient.relation || "Self"} />
-                <InfoItem label="Blood Group" value={patient.bloodGroup || clinical.bloodGroup || "N/A"} />
-                <InfoItem label="Contact Phone" value={patient.phone || bookedBy.phone || "N/A"} />
-                <InfoItem label="Admission Reason" value={admission.bookingReason || patient.reasonForVisit || "Hospital Inpatient Stay"} />
-
-                {clinical.diagnosis && (
-                  <div className="col-span-full bg-slate-50/70 p-3.5 border border-slate-100 rounded-xl space-y-1 mt-1">
-                    <span className="text-[9px] text-slate-400 font-extrabold uppercase">Dynamic Clinical Diagnosis</span>
-                    <p className="text-xs font-black text-[#08B36A]">{clinical.diagnosis}</p>
-                  </div>
-                )}
-              </InfoSection>
-
-              {/* 2. Ambulance Transport Details (If present) */}
-              {ambulance && (
-                <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-4 space-y-2.5 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase text-blue-900 tracking-wider flex items-center gap-1.5">
-                      <FaAmbulance className="text-blue-600" /> Ambulance Transit Record
-                    </span>
-                    <span className="text-[9px] font-black uppercase bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full">
-                      {ambulance.vehicleType || "Ambulance Arrival"}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 text-xs bg-white/80 p-3 rounded-xl border border-blue-100">
+              {/* Handover In-Progress Banner (If doctor transfer is active) */}
+              {pendingDoctor && (
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center justify-between text-xs text-amber-900 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">🔄</span>
                     <div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">Vehicle Model</p>
-                      <p className="font-black text-slate-900">{ambulance.name || "Emergency ALS Unit"}</p>
+                      <p className="font-extrabold text-[11px] uppercase tracking-wider text-amber-800">
+                        Shift Handover In-Progress
+                      </p>
+                      <p className="text-[11px] font-semibold text-amber-700 mt-0.5">
+                        Transfer pending acceptance by {pendingDoctor.name ? (pendingDoctor.name.startsWith('Dr.') ? pendingDoctor.name : `Dr. ${pendingDoctor.name}`) : 'New Doctor'} ({pendingDoctor.speciality || 'Specialist'}).
+                      </p>
                     </div>
+                  </div>
+                  <span className="text-[9px] font-black uppercase px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg border border-amber-300 shrink-0">
+                    Pending Sign-Off
+                  </span>
+                </div>
+              )}
+
+              {/* Linked IPD Admission Banner (if patient was admitted from OPD) */}
+              {linkedIpdAdmission && (
+                <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl flex items-center justify-between text-xs text-emerald-900 shadow-2xs">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xl">🛏️</span>
                     <div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">License Plate</p>
-                      <p className="font-mono font-bold text-blue-800">{ambulance.vehicleNumber || "N/A"}</p>
+                      <p className="font-extrabold text-[11px] uppercase tracking-wider text-emerald-800">
+                        Linked Inpatient (IPD) Admission
+                      </p>
+                      <p className="text-[10px] font-semibold text-emerald-700 mt-0.5">
+                        Patient transferred to IPD Bed: <strong>{linkedIpdAdmission.bedNumber}</strong> ({linkedIpdAdmission.wardName}). Booking: #{linkedIpdAdmission.bookingId}
+                      </p>
                     </div>
-                    {ambulance.phone && (
-                      <div className="col-span-full flex items-center gap-1.5 pt-1 text-[11px] font-bold text-slate-700">
-                        <FaPhoneAlt className="text-blue-600 text-xs" />
-                        <span>Driver Helpline: {ambulance.phone}</span>
+                  </div>
+                  <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded border border-emerald-300 shrink-0">
+                    Admitted to IPD
+                  </span>
+                </div>
+              )}
+
+              {/* SECTION: OVERVIEW */}
+              {dossierSection === 'overview' && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  {/* 1. Patient Details */}
+                  <InfoSection title="👤 Patient Details">
+                    <InfoItem label="Patient Name" value={patient.name || patient.patientName || "N/A"} />
+                    <InfoItem label="Age" value={patient.age ? `${patient.age} Years` : (patient.patientAge ? `${patient.patientAge} Years` : "N/A")} />
+                    <InfoItem label="Gender" value={patient.gender || "N/A"} />
+                    <InfoItem label="Relation with User" value={patient.relation || "Self"} />
+                    <InfoItem label="Blood Group" value={patient.bloodGroup || clinical.bloodGroup || "N/A"} />
+                    <InfoItem label="Contact Phone" value={patient.phone || bookedBy.phone || "N/A"} />
+                    <InfoItem label="Admission Reason" value={admission.bookingReason || patient.reasonForVisit || "Hospital Inpatient Stay"} />
+
+                    {clinical.diagnosis && (
+                      <div className="col-span-full bg-slate-50/70 p-3.5 border border-slate-100 rounded-xl space-y-1 mt-1">
+                        <span className="text-[9px] text-slate-400 font-extrabold uppercase">Dynamic Clinical Diagnosis</span>
+                        <p className="text-xs font-black text-[#08B36A]">{clinical.diagnosis}</p>
+                      </div>
+                    )}
+                  </InfoSection>
+
+                  {/* 2. Bed & Ward Details */}
+                  <InfoSection title="🛏️ Bed & Ward Accommodation">
+                     <InfoItem label="Allotted Bed" value={bedNumber ? `Bed ${bedNumber}` : "Unassigned"} />
+                     <InfoItem label="Ventilator Attached" value={bed.isVentilatorAvailable ? "Yes (Attached)" : "Standard Bed"} />
+                     <InfoItem label="Ward Name" value={bed.wardName || admission.wardName || "N/A"} />
+                     <InfoItem label="Ward Category" value={bed.wardType || "Standard"} />
+                     <InfoItem label="Rate Per Day" value={bed.pricePerDay ? `₹${bed.pricePerDay}` : "N/A"} />
+                     <InfoItem label="Reserved Stay" value={`${stayDays} Day${stayDays > 1 ? 's' : ''}`} />
+                     <InfoItem label="Check-In Date" value={displayDate(admission.startDate)} />
+                     <InfoItem label="Check-Out Date" value={displayDate(admission.endDate)} />
+                  </InfoSection>
+
+                  {/* 3. Special Services */}
+                  {specialServices.length > 0 && (
+                    <div className="bg-purple-50/50 border border-purple-200 rounded-2xl p-4 space-y-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase text-purple-900 tracking-wider flex items-center gap-1.5">
+                          <FaConciergeBell className="text-purple-600" /> Special Add-on Amenities ({specialServices.length})
+                        </span>
+                        <span className="text-xs font-black text-purple-900">
+                          Total: ₹{admission.totalSpecialServicesCharges || specialServices.reduce((a, b) => a + (Number(b.price) || 0), 0)}
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {specialServices.map((srv, idx) => (
+                          <div key={srv.serviceId || idx} className="bg-white p-3 rounded-xl border border-purple-100 flex items-center justify-between gap-3 text-xs">
+                            <div>
+                              <p className="font-black text-slate-800">{srv.serviceName}</p>
+                              {srv.description && (
+                                <p className="text-[10px] text-slate-400 font-medium line-clamp-1">{srv.description}</p>
+                              )}
+                            </div>
+                            <span className="font-extrabold text-[#08B36A] shrink-0">₹{srv.price}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4. Financial Ledger & Invoicing */}
+                  <InfoSection title="💰 Financial Ledger & Invoicing">
+                     <InfoItem label="Payment Method" value={paymentMethod} />
+                     <InfoItem label="Payment Status" value={paymentStatus} />
+                     <InfoItem label="Transaction ID" value={billing.transactionId || admission._id} />
+                     <InfoItem label="Created Timestamp" value={displayDate(admission.createdAt)} />
+
+                     {hasInsurance && (
+                       <div className="col-span-full bg-emerald-50/50 p-3.5 border border-emerald-100 rounded-xl space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] text-emerald-700 font-black uppercase tracking-wider block">
+                              🛡️ TPA / Cashless Health Insurance Dossier
+                            </span>
+                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${getStatusColor(insuranceClaimStatus)}`}>
+                              {insuranceClaimStatus}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                             <p><span className="text-slate-400 text-[10px]">Company:</span> <strong className="text-slate-800">{insCompany}</strong></p>
+                             <p><span className="text-slate-400 text-[10px]">Policy Number:</span> <strong className="text-slate-800">{insPolicyNumber}</strong></p>
+                             <p><span className="text-slate-400 text-[10px]">Provider:</span> <strong className="text-slate-800">{insProvider}</strong></p>
+                             <p><span className="text-slate-400 text-[10px]">Claim Type:</span> <strong className="text-[#08B36A] uppercase">{insType}</strong></p>
+                          </div>
+                          {insuranceSummary.approvalLetterPdf && (
+                            <div className="pt-1">
+                              <a 
+                                href={getFullUrl(insuranceSummary.approvalLetterPdf)} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700 hover:underline"
+                              >
+                                <FaFilePdf /> View Uploaded Approval Letter PDF
+                              </a>
+                            </div>
+                          )}
+                       </div>
+                     )}
+                     
+                     <div className="col-span-full bg-[#08B36A]/5 p-3.5 rounded-xl border border-[#08B36A]/20 flex justify-between items-center text-xs mt-1">
+                        <div>
+                           <span className="font-black text-slate-700 uppercase block">Total Net Invoiced</span>
+                           <span className={`text-[9px] font-black uppercase ${paymentStatus === 'Paid' ? 'text-[#08B36A]' : 'text-amber-600'}`}>
+                              Payment Status: {paymentStatus}
+                           </span>
+                        </div>
+                        <span className="text-xl font-black text-[#08B36A]">₹{totalAmount}</span>
+                     </div>
+                  </InfoSection>
+                </div>
+              )}
+
+              {/* SECTION: DOCTORS COMMAND, CURRENT, PREVIOUS & HANDOVER AUDIT */}
+              {dossierSection === 'doctors' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  
+                  {/* CURRENT ATTENDING DOCTOR CARD */}
+                  <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between border-b pb-2.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
+                        <FaUserMd /> Current Attending Physician
+                      </span>
+                      {activeHistoryItem?.durationDisplay && (
+                        <span className="text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          {activeHistoryItem.durationDisplay}
+                        </span>
+                      )}
+                    </div>
+
+                    {doctor ? (
+                      <div className="flex items-center gap-3.5">
+                        {doctor.profileImage ? (
+                          <img 
+                            src={getFullUrl(doctor.profileImage)} 
+                            alt={doctor.name} 
+                            className="w-14 h-14 rounded-2xl object-cover border border-slate-200 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-2xl shrink-0 font-bold">
+                            👨‍⚕️
+                          </div>
+                        )}
+                        <div className="text-xs space-y-0.5">
+                          <h4 className="font-black text-slate-900 text-sm">{formatDoctorName(doctor.name)}</h4>
+                          <p className="text-[#08B36A] font-bold uppercase text-[10px]">
+                            {doctor.speciality || 'General Physician'} {doctor.qualification && `• ${doctor.qualification}`}
+                          </p>
+                          <p className="text-slate-500 font-medium text-[11px]">
+                            Cabin: <strong className="text-slate-700">{doctor.department?.roomNumber || doctor.department || 'Main Inpatient Ward'}</strong>
+                            {doctor.phone && <span className="ml-2.5">&bull; Phone: <strong className="text-slate-700">{doctor.phone}</strong></span>}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-amber-50 rounded-xl text-center text-xs font-bold text-amber-700 border border-amber-200">
+                        No Attending Doctor Assigned Yet. Tap "Assign Primary Physician" on the right panel.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* PREVIOUS ATTENDING DOCTOR(S) CARD */}
+                  {previousDoctors.length > 0 && (
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-3">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5 border-b pb-2">
+                        <FaUserClock className="text-slate-400" /> Previous Shift Physicians ({previousDoctors.length})
+                      </span>
+                      <div className="space-y-2">
+                        {previousDoctors.map((prev, pIdx) => (
+                          <div key={prev._id || pIdx} className="p-3 bg-slate-50 rounded-xl border border-slate-150 text-xs flex justify-between items-center">
+                            <div>
+                              <p className="font-extrabold text-slate-800">
+                                {formatDoctorName(prev.toDoctorName || prev.fromDoctorName)}
+                              </p>
+                              <p className="text-[10px] text-slate-400 font-semibold">{prev.toDoctorSpeciality || 'Consulting Physician'}</p>
+                              {prev.notes && <p className="text-[10px] text-slate-500 italic mt-0.5">"{prev.notes}"</p>}
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-slate-200 text-slate-700 block mb-0.5">
+                                Completed Shift
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-400">
+                                {prev.durationDisplay || displayDate(prev.timestamp)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* DOCTOR HANDOVER AUDIT TIMELINE */}
+                  <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-3">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5 border-b pb-2">
+                      <FaHistory className="text-[#08B36A]" /> Shift Handover &amp; Assignment Audit Trail
+                    </span>
+                    {treatmentHistory.length === 0 ? (
+                      <p className="text-center py-6 text-slate-400 text-xs font-bold">No handover records yet.</p>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {treatmentHistory.map((item, tIdx) => (
+                          <div key={item._id || tIdx} className="bg-slate-50/80 p-3 rounded-xl border border-slate-150 text-xs space-y-1.5">
+                            <div className="flex justify-between items-center">
+                              <span className={`text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border ${
+                                item.isCurrentlyActive ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-600 border-slate-200'
+                              }`}>
+                                {item.action || 'Shift-Logged'}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-400">{displayDate(item.timestamp || item.startTime)}</span>
+                            </div>
+
+                            <div className="flex items-center gap-2 font-bold text-slate-800">
+                              {item.fromDoctorName && (
+                                <span className="text-slate-500 font-medium">{item.fromDoctorName} ➔ </span>
+                              )}
+                              <span className="text-slate-900">{item.toDoctorName || 'Doctor'}</span>
+                              {item.toDoctorSpeciality && (
+                                <span className="text-[10px] text-slate-400 font-normal">({item.toDoctorSpeciality})</span>
+                              )}
+                            </div>
+
+                            {item.notes && <p className="text-[11px] text-slate-600 italic">"{item.notes}"</p>}
+                            {item.durationDisplay && (
+                              <p className="text-[9px] font-black text-[#08B36A] uppercase text-right">
+                                Duration: {item.durationDisplay}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* BEDSIDE CO-DOCTORS / SPECIALISTS */}
+                  {bedsideCareTeam.length > 0 && (
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-3">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-purple-900 flex items-center gap-1.5 border-b pb-2">
+                        <FaHospitalUser className="text-purple-600" /> Bedside Specialist Team ({bedsideCareTeam.length})
+                      </span>
+                      <div className="space-y-2">
+                        {bedsideCareTeam.map((team, bIdx) => {
+                          const specialist = team.doctorId || {};
+                          return (
+                            <div key={team._id || bIdx} className="bg-slate-50 p-3 rounded-xl border border-slate-150 flex items-center justify-between text-xs">
+                              <div>
+                                <p className="font-extrabold text-slate-800">{specialist.name || 'Specialist Doctor'}</p>
+                                <p className="text-[10px] text-emerald-600 font-bold uppercase">{specialist.speciality || 'Consultant'}</p>
+                                {team.requestReason && <p className="text-[9px] text-slate-400 italic mt-0.5">"{team.requestReason}"</p>}
+                              </div>
+                              <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${getStatusColor(team.status)}`}>
+                                {team.status || 'Pending'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              )}
+
+              {/* SECTION: CLINICAL ROUNDS & OBSERVATIONS & MEDICATIONS */}
+              {dossierSection === 'clinical' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  
+                  {/* CLINICAL LOGS & VITALS */}
+                  <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-3">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                        <FaNotesMedical className="text-[#08B36A]" /> Daily Doctor Rounds &amp; Vitals ({clinicalLogs.length})
+                      </span>
+                    </div>
+
+                    {clinicalLogs.length === 0 ? (
+                      <p className="text-center py-6 text-slate-400 text-xs font-bold">No doctor rounds logged yet.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {clinicalLogs.map((log, lIdx) => (
+                          <div key={log._id || lIdx} className="bg-slate-50 p-4 rounded-xl border border-slate-150 text-xs space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="font-extrabold text-slate-800">{log.doctorName || 'Doctor Observation'}</span>
+                              <div className="flex gap-1.5">
+                                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${getStatusColor(log.patientCondition)}`}>
+                                  {log.patientCondition || 'Stable'}
+                                </span>
+                                {log.priorityRating && (
+                                  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-200 text-slate-700">
+                                    {log.priorityRating}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {log.observation && <p className="text-[11px] text-slate-600 italic">"{log.observation}"</p>}
+
+                            {log.vitals && (
+                              <div className="grid grid-cols-4 gap-2 text-center text-xs pt-1">
+                                <div className="bg-white p-2 rounded-xl border border-slate-150">
+                                  <span className="text-[8px] font-bold text-slate-400 uppercase block">BP</span>
+                                  <strong className="text-slate-800">{log.vitals.bp || '—'}</strong>
+                                </div>
+                                <div className="bg-white p-2 rounded-xl border border-slate-150">
+                                  <span className="text-[8px] font-bold text-slate-400 uppercase block">Pulse</span>
+                                  <strong className="text-slate-800">{log.vitals.pulse ? `${log.vitals.pulse} bpm` : '—'}</strong>
+                                </div>
+                                <div className="bg-white p-2 rounded-xl border border-slate-150">
+                                  <span className="text-[8px] font-bold text-slate-400 uppercase block">Temp</span>
+                                  <strong className="text-slate-800">{log.vitals.temp ? `${log.vitals.temp}°F` : '—'}</strong>
+                                </div>
+                                <div className="bg-white p-2 rounded-xl border border-slate-150">
+                                  <span className="text-[8px] font-bold text-slate-400 uppercase block">SpO2</span>
+                                  <strong className="text-emerald-600">{log.vitals.spo2 ? `${log.vitals.spo2}%` : '—'}</strong>
+                                </div>
+                              </div>
+                            )}
+
+                            <p className="text-[9px] text-slate-400 font-bold text-right pt-1">
+                              Logged: {displayDate(log.loggedAt || log.timestamp)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ACTIVE MEDICATIONS */}
+                  {activeMedications.length > 0 && (
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-3">
+                      <span className="text-xs font-black uppercase tracking-wider text-blue-900 flex items-center gap-1.5 border-b pb-2">
+                        <FaPills className="text-blue-600" /> Active Inpatient Medications ({activeMedications.length})
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {activeMedications.map((med, mIdx) => (
+                          <div key={med._id || mIdx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-150">
+                            <div className="flex justify-between items-center">
+                              <strong className="text-slate-900 text-xs">{med.medicineName}</strong>
+                              <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${
+                                med.status === 'Active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                              }`}>
+                                {med.status || 'Active'}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                              {med.dosage} &bull; {med.frequency}
+                            </p>
+                            {med.instructions && <p className="text-[9px] text-slate-400 italic">"{med.instructions}"</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* DIGITAL PRESCRIPTIONS */}
+                  {prescriptions.length > 0 && (
+                    <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-3">
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5 border-b pb-2">
+                        <FaClipboardList className="text-emerald-600" /> Digital Prescriptions ({prescriptions.length})
+                      </span>
+                      <div className="space-y-2">
+                        {prescriptions.map((rx, rIdx) => (
+                          <div key={rx._id || rIdx} className="bg-slate-50 p-3 rounded-xl border border-slate-150 flex justify-between items-center text-xs">
+                            <div>
+                              <strong className="text-slate-800">Prescription #{rIdx + 1}</strong>
+                              <p className="text-[10px] text-slate-500 font-semibold">Issued by {rx.doctorName || 'Lead Doctor'}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              {rx.pdfUrl && (
+                                <a
+                                  href={getFullUrl(rx.pdfUrl)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-2.5 py-1 bg-[#08B36A] hover:bg-[#079E5E] text-white text-[9px] font-black rounded-lg transition-all"
+                                >
+                                  Prescription PDF
+                                </a>
+                              )}
+                              {rx.dietPlanPdf && (
+                                <a
+                                  href={getFullUrl(rx.dietPlanPdf)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-2.5 py-1 bg-slate-800 hover:bg-black text-white text-[9px] font-black rounded-lg transition-all"
+                                >
+                                  Diet PDF
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              )}
+
+              {/* SECTION: LIVE AMBULANCE JOURNEY */}
+              {dossierSection === 'ambulance' && (ambulance || ambulanceJourney) && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-2xs space-y-4">
+                    <div className="flex items-center justify-between border-b pb-2.5">
+                      <span className="text-xs font-black uppercase text-blue-900 flex items-center gap-2">
+                        <FaAmbulance className="text-blue-600" /> Emergency Ambulance Dispatch &amp; Live Transit
+                      </span>
+                      <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full border ${getStatusColor(ambulanceJourney?.status || ambulance?.vehicleType)}`}>
+                        {ambulanceJourney?.status || "Transit Confirmed"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                      <div>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase block">Vehicle Unit</span>
+                        <strong className="text-slate-800">{ambulanceJourney?.ambulanceId?.vehicleNumber || ambulance?.vehicleNumber || "PB-65-AM-1008"}</strong>
+                        <p className="text-[10px] text-slate-500">{ambulanceJourney?.ambulanceId?.vehicleType || ambulance?.name || "Advance Life Support"}</p>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase block">Assigned Driver</span>
+                        <strong className="text-slate-800">{ambulanceJourney?.ambulanceId?.name || ambulance?.name || "Driver On Duty"}</strong>
+                        <p className="text-[10px] text-blue-700 font-bold">{ambulanceJourney?.ambulanceId?.phone || ambulance?.phone || "N/A"}</p>
+                      </div>
+                    </div>
+
+                    {ambulanceJourney?.pickupLocation?.address && (
+                      <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 text-xs">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-blue-800 block">Pickup Location</span>
+                        <p className="text-slate-800 font-bold mt-0.5">{ambulanceJourney.pickupLocation.address}</p>
+                      </div>
+                    )}
+
+                    {ambulanceJourney?.handoffDetails && (
+                      <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100 text-xs space-y-1">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 block">Hospital Ward Handoff Details</span>
+                        <div className="grid grid-cols-2 gap-2 pt-0.5">
+                          <p><span className="text-slate-400">Doctor:</span> <strong className="text-slate-800">{ambulanceJourney.handoffDetails.doctorName}</strong></p>
+                          <p><span className="text-slate-400">Ward:</span> <strong className="text-slate-800">{ambulanceJourney.handoffDetails.wardName}</strong></p>
+                          <p><span className="text-slate-400">Distance:</span> <strong className="text-slate-800">{ambulanceJourney.handoffDetails.totalDistance}</strong></p>
+                          <p><span className="text-slate-400">Travel Time:</span> <strong className="text-slate-800">{ambulanceJourney.handoffDetails.travelTime}</strong></p>
+                        </div>
+                      </div>
+                    )}
+
+                    {ambulanceJourney?.trackingTimeline && ambulanceJourney.trackingTimeline.length > 0 && (
+                      <div className="pt-2 border-t space-y-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Transit Checkpoints</span>
+                        <div className="space-y-1.5">
+                          {ambulanceJourney.trackingTimeline.map((step, sIdx) => (
+                            <div key={sIdx} className="flex justify-between items-center p-2 bg-slate-50 rounded-lg text-xs">
+                              <span className="font-bold text-slate-700">{step.note || step.status}</span>
+                              <span className="text-[10px] text-slate-400 font-semibold">{displayDate(step.timestamp)}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
               )}
-
-              {/* 3. Bed & Ward Details */}
-              <InfoSection title="🛏️ Bed & Ward Accommodation">
-                 <InfoItem label="Allotted Bed" value={bedNumber ? `Bed ${bedNumber}` : "Unassigned"} />
-                 <InfoItem label="Ventilator Attached" value={bed.isVentilatorAvailable ? "Yes (Attached)" : "Standard Bed"} />
-                 <InfoItem label="Ward Name" value={bed.wardName || admission.wardName || "N/A"} />
-                 <InfoItem label="Ward Category" value={bed.wardType || "Standard"} />
-                 <InfoItem label="Rate Per Day" value={bed.pricePerDay ? `₹${bed.pricePerDay}` : "N/A"} />
-                 <InfoItem label="Reserved Stay" value={`${stayDays} Day${stayDays > 1 ? 's' : ''}`} />
-                 <InfoItem label="Check-In Date" value={displayDate(admission.startDate)} />
-                 <InfoItem label="Check-Out Date" value={displayDate(admission.endDate)} />
-              </InfoSection>
-
-              {/* 4. Special Services & Facilities */}
-              {specialServices.length > 0 && (
-                <div className="bg-purple-50/50 border border-purple-200 rounded-2xl p-4 space-y-2.5 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase text-purple-900 tracking-wider flex items-center gap-1.5">
-                      <FaConciergeBell className="text-purple-600" /> Special Add-on Amenities ({specialServices.length})
-                    </span>
-                    <span className="text-xs font-black text-purple-900">
-                      Total: ₹{admission.totalSpecialServicesCharges || specialServices.reduce((a, b) => a + (Number(b.price) || 0), 0)}
-                    </span>
-                  </div>
-
-                  <div className="space-y-2">
-                    {specialServices.map((srv, idx) => (
-                      <div key={srv.serviceId || idx} className="bg-white p-3 rounded-xl border border-purple-100 flex items-center justify-between gap-3 text-xs">
-                        <div>
-                          <p className="font-black text-slate-800">{srv.serviceName}</p>
-                          {srv.description && (
-                            <p className="text-[10px] text-slate-400 font-medium line-clamp-1">{srv.description}</p>
-                          )}
-                        </div>
-                        <span className="font-extrabold text-[#08B36A] shrink-0">₹{srv.price}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 5. Assigned Attending Doctor */}
-              <InfoSection title="🧑‍⚕️ Assigned Attending Doctor">
-                 <InfoItem label="Physician" value={admission.doctorDisplayName || (doctor?.name ? formatDoctorName(doctor.name) : "Unassigned")} />
-                 <InfoItem label="Speciality" value={doctor?.speciality || "General Medicine"} />
-                 <InfoItem label="Department / Room" value={doctor?.department || "Inpatient Ward"} />
-                 <InfoItem label="Qualifications" value={doctor?.qualification || "MBBS, MD"} />
-              </InfoSection>
-
-              {/* 6. Financial Ledger & Billing */}
-              <InfoSection title="💰 Financial Ledger & Invoicing">
-                 <InfoItem label="Payment Method" value={paymentMethod} />
-                 <InfoItem label="Payment Status" value={paymentStatus} />
-                 <InfoItem label="Transaction ID" value={billing.transactionId || admission._id} />
-                 <InfoItem label="Created Timestamp" value={displayDate(admission.createdAt)} />
-
-                 {/* Insurance Block if present */}
-                 {insurance.hasInsurance && (
-                   <div className="col-span-full bg-blue-50/50 p-3.5 border border-blue-100 rounded-xl space-y-1">
-                      <span className="text-[9px] text-blue-700 font-black uppercase tracking-wider block">🛡️ TPA / Mediclaim Insurance Details</span>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                         <p><span className="text-slate-400 text-[10px]">Company:</span> <strong className="text-slate-800">{insurance.companyName || "N/A"}</strong></p>
-                         <p><span className="text-slate-400 text-[10px]">Policy Number:</span> <strong className="text-slate-800">{insurance.insuranceNumber || "N/A"}</strong></p>
-                      </div>
-                   </div>
-                 )}
-                 
-                 <div className="col-span-full bg-[#08B36A]/5 p-3.5 rounded-xl border border-[#08B36A]/20 flex justify-between items-center text-xs mt-1">
-                    <div>
-                       <span className="font-black text-slate-700 uppercase block">Total Net Invoiced</span>
-                       <span className={`text-[9px] font-black uppercase ${paymentStatus === 'Paid' ? 'text-[#08B36A]' : 'text-amber-600'}`}>
-                          Payment Status: {paymentStatus}
-                       </span>
-                    </div>
-                    <span className="text-xl font-black text-[#08B36A]">₹{totalAmount}</span>
-                 </div>
-              </InfoSection>
 
            </div>
 
@@ -379,7 +838,20 @@ const AdmissionDetailsModal = ({
                           </div>
                           <button onClick={() => setActiveAction(null)} className="text-[10px] font-bold text-slate-400 hover:text-slate-600 cursor-pointer">&larr; Back</button>
                        </div>
-                       <div className="grid grid-cols-1 gap-2 mt-3 max-h-[260px] overflow-y-auto pr-1">
+
+                       {/* Assignment Note Input */}
+                       <div className="mt-2.5">
+                          <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Assignment Note / Context</label>
+                          <input 
+                            type="text"
+                            value={assignNotes}
+                            onChange={(e) => setAssignNotes(e.target.value)}
+                            placeholder="e.g. Assigned lead cardiologist on admission"
+                            className="w-full border border-slate-200 rounded-xl p-2 text-xs focus:outline-none focus:border-[#08B36A] font-medium bg-slate-50"
+                          />
+                       </div>
+
+                       <div className="grid grid-cols-1 gap-2 mt-3 max-h-[220px] overflow-y-auto pr-1">
                           {doctorList.length === 0 ? (
                              <p className="text-center py-6 text-slate-400 text-xs font-bold uppercase">No active doctors located</p>
                           ) : (
@@ -395,7 +867,7 @@ const AdmissionDetailsModal = ({
                                       <div>
                                          <h4 className="font-black text-xs uppercase">{formatDoctorName(doc.name)}</h4>
                                          <p className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>
-                                            {doc.speciality || 'General Medicine'} {doc.department ? `• ${doc.department}` : ''}
+                                            {doc.speciality || 'General Medicine'} {doc.department ? `• ${doc.department?.roomNumber || doc.department}` : ''}
                                          </p>
                                          {doc.qualification && (
                                             <p className={`text-[8px] font-semibold mt-0.5 ${isSelected ? 'text-white/70' : 'text-slate-400'}`}>
@@ -415,7 +887,7 @@ const AdmissionDetailsModal = ({
 
                     <div className="pt-3 border-t">
                        <button 
-                          onClick={handleAssignDoctor}
+                          onClick={handleCustomAssignDoctor}
                           disabled={isProcessing || !selectedDoctorId} 
                           className="w-full bg-[#08B36A] hover:bg-[#079e5e] disabled:bg-slate-100 disabled:text-slate-400 text-white font-black py-3 rounded-xl transition-all uppercase text-[10px] tracking-[0.2em] flex justify-center items-center gap-2 shadow-xs cursor-pointer"
                        >

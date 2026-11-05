@@ -254,56 +254,74 @@ export default function AvailabilityPage() {
         </div>
       )}
 
+      {/* Main Page Header */}
       <div className="mb-6 border-b border-gray-100 pb-4">
         <h1 className="text-2xl font-bold text-[#1e3a8a] flex items-center gap-2">
-          <FaCalendarAlt className="text-[#08B36A]"/> My Availability
+          <FaCalendarAlt className="text-[#08B36A]"/> Practice Availability & Weekly Timetable Settings
         </h1>
+        <p className="text-xs text-gray-500 font-medium mt-1">
+          Set up your daily consulting hours, recurring off-days, custom slot duration, and peak pricing.
+        </p>
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-8">
+        
+        {/* Section 1 Header */}
         <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h2 className="text-lg font-bold text-[#1e3a8a]">Availability Configuration</h2>
+          <div>
+            <h2 className="text-lg font-bold text-[#1e3a8a]">1. Working Hours & Slot Timing Setup</h2>
+            <p className="text-xs text-gray-500">Configure your shift hours, duration per patient, and parallel slots</p>
+          </div>
           {loading && <FaSyncAlt className="animate-spin text-[#08B36A]"/>}
         </div>
 
         <form onSubmit={handleSave} className="p-6 sm:p-8 space-y-8">
           
+          {/* Working Hours Fields */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-blue-50/30 p-5 rounded-xl border border-blue-50">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Start Time</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Shift Start Time</label>
               <input type="time" name="startTime" value={availability.startTime} onChange={handleChange} className="input-style" />
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">End Time</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Shift End Time</label>
               <input type="time" name="endTime" value={availability.endTime} onChange={handleChange} className="input-style" />
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Duration (Min)</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Slot Duration (Minutes)</label>
               <input type="number" name="slotDuration" value={availability.slotDuration} onChange={handleChange} className="input-style" />
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Max Clients</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Max Patients Per Slot</label>
               <input type="number" name="maxClientsPerSlot" value={availability.maxClientsPerSlot} onChange={handleChange} className="input-style" />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <label className="flex items-center gap-3 p-4 border rounded-xl cursor-pointer hover:bg-gray-50 transition-all">
-               <input type="checkbox" name="morningSlots" checked={!!availability.morningSlots} onChange={handleChange} className="w-5 h-5 accent-[#08B36A]" />
-               <div className="flex items-center gap-2 font-bold text-gray-700"><FaSun className="text-yellow-500"/> Morning</div>
-            </label>
-            <label className="flex items-center gap-3 p-4 border rounded-xl cursor-pointer hover:bg-gray-50 transition-all">
-               <input type="checkbox" name="afternoonSlots" checked={!!availability.afternoonSlots} onChange={handleChange} className="w-5 h-5 accent-[#08B36A]" />
-               <div className="flex items-center gap-2 font-bold text-gray-700"><FaCloudSun className="text-orange-500"/> Afternoon</div>
-            </label>
-            <label className="flex items-center gap-3 p-4 border rounded-xl cursor-pointer hover:bg-gray-50 transition-all">
-               <input type="checkbox" name="eveningSlots" checked={!!availability.eveningSlots} onChange={handleChange} className="w-5 h-5 accent-[#08B36A]" />
-               <div className="flex items-center gap-2 font-bold text-gray-700"><FaMoon className="text-indigo-500"/> Evening</div>
-            </label>
+          {/* Active Shift Windows */}
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Active Consultation Windows</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <label className="flex items-center gap-3 p-4 border rounded-xl cursor-pointer hover:bg-gray-50 transition-all">
+                 <input type="checkbox" name="morningSlots" checked={!!availability.morningSlots} onChange={handleChange} className="w-5 h-5 accent-[#08B36A]" />
+                 <div className="flex items-center gap-2 font-bold text-gray-700"><FaSun className="text-yellow-500"/> Morning Slots</div>
+              </label>
+              <label className="flex items-center gap-3 p-4 border rounded-xl cursor-pointer hover:bg-gray-50 transition-all">
+                 <input type="checkbox" name="afternoonSlots" checked={!!availability.afternoonSlots} onChange={handleChange} className="w-5 h-5 accent-[#08B36A]" />
+                 <div className="flex items-center gap-2 font-bold text-gray-700"><FaCloudSun className="text-orange-500"/> Afternoon Slots</div>
+              </label>
+              <label className="flex items-center gap-3 p-4 border rounded-xl cursor-pointer hover:bg-gray-50 transition-all">
+                 <input type="checkbox" name="eveningSlots" checked={!!availability.eveningSlots} onChange={handleChange} className="w-5 h-5 accent-[#08B36A]" />
+                 <div className="flex items-center gap-2 font-bold text-gray-700"><FaMoon className="text-indigo-500"/> Evening Slots</div>
+              </label>
+            </div>
           </div>
 
+          {/* Weekly Off Days */}
           <div className="space-y-3">
-            <label className="block text-sm font-bold text-gray-700">Select Weekly Off-Days</label>
+            <div>
+              <label className="block text-sm font-bold text-gray-700">Weekly Recurring Off-Days (Clinic Closed)</label>
+              <p className="text-xs text-gray-400">Select days when your practice is closed every week</p>
+            </div>
             <div className="flex flex-wrap gap-2">
               {daysOfWeek.map(day => (
                 <button key={day} type="button" onClick={() => handleDayToggle(day)} className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${availability.offDays.includes(day) ? 'bg-red-500 text-white border-red-500' : 'bg-white text-gray-500 border-gray-200 hover:border-[#08B36A]'}`}>
@@ -313,17 +331,20 @@ export default function AvailabilityPage() {
             </div>
           </div>
 
+          {/* Blocked Dates Section */}
           <div className="border-t border-gray-100 pt-6">
-            <h3 className="text-lg font-bold text-[#1e3a8a] flex items-center gap-2 mb-4">
-              <FaCalendarTimes className="text-red-500" /> Specific Date Closures (Blocked Dates)
+            <h3 className="text-lg font-bold text-[#1e3a8a] flex items-center gap-2 mb-1">
+              <FaCalendarTimes className="text-red-500" /> 2. Emergency Closures & Planned Leaves (Blocked Dates)
             </h3>
+            <p className="text-xs text-gray-500 mb-4">Temporarily mark whole calendar days as closed without changing regular weekly settings</p>
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 items-end bg-red-50/30 p-5 rounded-xl border border-red-100">
                 <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-gray-500 mb-1">Pick a Date to Close Practice</label>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">Select Date to Close Clinic</label>
                     <input type="date" value={newBlockedDate} onChange={(e) => setNewBlockedDate(e.target.value)} className="input-style" />
                 </div>
                 <button type="button" onClick={addBlockedDate} className="bg-red-600 text-white h-[46px] rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-red-700 transition-all shadow-md">
-                    <FaPlus size={14}/> Block Date
+                    <FaPlus size={14}/> Add Leave Date
                 </button>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -336,60 +357,72 @@ export default function AvailabilityPage() {
             </div>
           </div>
 
+          {/* Premium Slots Section */}
           <div className="border-t border-gray-100 pt-6">
-            <h3 className="text-lg font-bold text-[#1e3a8a] flex items-center gap-2 mb-4">
-              <FaCrown className="text-yellow-500" /> Premium Slots Management
+            <h3 className="text-lg font-bold text-[#1e3a8a] flex items-center gap-2 mb-1">
+              <FaCrown className="text-yellow-500" /> 3. Peak Hours & Premium Slot Pricing (Extra Charges)
             </h3>
+            <p className="text-xs text-gray-500 mb-4">Set extra convenience or emergency fees for high-demand consultation slots</p>
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 items-end bg-yellow-50/30 p-5 rounded-xl border border-yellow-100">
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">Select Time</label>
+                <label className="block text-xs font-bold text-gray-500 mb-1">Select Slot Time</label>
                 <select value={newPremium.time} onChange={(e) => setNewPremium({...newPremium, time: e.target.value})} className="input-style">
-                  <option value="">-- Choose --</option>
+                  <option value="">-- Choose Slot --</option>
                   {availableIntervals.map((slot, idx) => (<option key={idx} value={slot.time}>{slot.time}</option>))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">Extra Fee (₹)</label>
+                <label className="block text-xs font-bold text-gray-500 mb-1">Additional Fee (₹)</label>
                 <input type="number" value={newPremium.extraFee} onChange={(e) => setNewPremium({...newPremium, extraFee: e.target.value})} className="input-style" />
               </div>
-              <button type="button" onClick={addPremiumSlot} className="bg-yellow-600 text-white h-[46px] rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-yellow-700 transition-all shadow-md"><FaPlus size={14}/> Add Premium</button>
+              <button type="button" onClick={addPremiumSlot} className="bg-yellow-600 text-white h-[46px] rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-yellow-700 transition-all shadow-md"><FaPlus size={14}/> Add Extra Fee</button>
             </div>
             <div className="flex flex-wrap gap-3">
                 {availability.premiumSlots.map((ps, idx) => (
                     <div key={idx} className="flex items-center gap-3 bg-white border border-yellow-300 px-3 py-1.5 rounded-lg shadow-sm">
                         <span className="text-sm font-bold text-gray-700 flex items-center gap-1"><FaRegClock className="text-yellow-500"/> {ps.time}</span>
-                        <span className="text-[11px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded font-bold">₹{ps.extraFee} Fee</span>
+                        <span className="text-[11px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded font-bold">+₹{ps.extraFee} Extra</span>
                         <button type="button" onClick={() => removePremiumSlot(ps.time)} className="text-red-400"><FaTrash size={14}/></button>
                     </div>
                 ))}
             </div>
           </div>
 
+          {/* Submit Button */}
           <div className="flex justify-center pt-6 border-t border-gray-100">
             <button type="submit" disabled={loading} className="flex items-center gap-2 px-10 py-4 bg-[#08B36A] hover:bg-green-600 text-white font-black rounded-2xl shadow-xl transition-all active:scale-95">
-              <FaSave /> Save All Configuration
+              <FaSave /> Save Availability Settings
             </button>
           </div>
         </form>
       </div>
 
-      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <div className="flex bg-gray-100 p-1.5 rounded-xl border border-gray-200">
-          <button onClick={() => setActiveTab('all')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'all' ? 'bg-white text-[#1e3a8a] shadow-md' : 'text-gray-500'}`}>All Slots</button>
-          <button onClick={() => setActiveTab('premium')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'premium' ? 'bg-white text-yellow-600 shadow-md' : 'text-gray-500'}`}>Premium</button>
-          <button onClick={() => setActiveTab('blocked')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === 'blocked' ? 'bg-white text-red-600 shadow-md' : 'text-gray-500'}`}>Blocked</button>
+      {/* Slots Live Preview Table Header & Controls */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+        <div>
+          <h2 className="text-lg font-bold text-[#1e3a8a]">Generated Daily Slots Overview</h2>
+          <p className="text-xs text-gray-500">View generated slots or toggle individual slots to block/unblock bookings</p>
         </div>
-        <button type="button" onClick={fetchAvailability} className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#08B36A] text-[#08B36A] hover:bg-green-50 font-bold rounded-lg transition-colors text-sm shadow-sm active:scale-95"><FaSyncAlt /> Refresh Data</button>
+        <div className="flex items-center gap-3">
+          <div className="flex bg-gray-100 p-1.5 rounded-xl border border-gray-200">
+            <button onClick={() => setActiveTab('all')} className={`px-5 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'all' ? 'bg-white text-[#1e3a8a] shadow-md' : 'text-gray-500'}`}>All Slots</button>
+            <button onClick={() => setActiveTab('premium')} className={`px-5 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'premium' ? 'bg-white text-yellow-600 shadow-md' : 'text-gray-500'}`}>Premium Only</button>
+            <button onClick={() => setActiveTab('blocked')} className={`px-5 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'blocked' ? 'bg-white text-red-600 shadow-md' : 'text-gray-500'}`}>Blocked Slots</button>
+          </div>
+          <button type="button" onClick={fetchAvailability} className="flex items-center gap-2 px-4 py-2 bg-white border border-[#08B36A] text-[#08B36A] hover:bg-green-50 font-bold rounded-lg transition-colors text-xs shadow-sm active:scale-95"><FaSyncAlt /> Reload</button>
+        </div>
       </div>
 
+      {/* Slots Table */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 text-sm font-bold">
               <tr>
                 <th className="px-6 py-4">Slot Time</th>
-                <th className="px-6 py-4">Price Detail</th>
-                <th className="px-6 py-4 text-center">Status</th>
-                <th className="px-6 py-4 text-center">Action</th>
+                <th className="px-6 py-4">Slot Type & Fee</th>
+                <th className="px-6 py-4 text-center">Current Status</th>
+                <th className="px-6 py-4 text-center">Slot Access</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
@@ -411,12 +444,12 @@ export default function AvailabilityPage() {
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold border uppercase ${slot.isBlocked || slot.isOffDay ? 'bg-red-100 text-red-600 border-red-200' : 'bg-green-100 text-green-600 border-green-200'}`}>
-                        {slot.isOffDay ? 'Closed (Off-Day)' : slot.isBlocked ? 'Hidden' : 'Live'}
+                        {slot.isOffDay ? 'Closed (Off-Day)' : slot.isBlocked ? 'Blocked' : 'Available for Booking'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button disabled={loading || slot.isOffDay} type="button" onClick={() => toggleBlockSlot(slot.time, slot.isBlocked)} className={`px-4 py-2 rounded-xl border font-bold text-[11px] uppercase flex items-center gap-2 mx-auto ${slot.isBlocked ? 'text-green-600 bg-green-50' : 'text-red-500 bg-red-50'} disabled:opacity-30`}>
-                          {slot.isBlocked ? 'Unblock' : 'Block'}
+                          {slot.isBlocked ? 'Unblock' : 'Block Slot'}
                       </button>
                     </td>
                   </tr>
@@ -424,7 +457,7 @@ export default function AvailabilityPage() {
             </tbody>
         </table>
         {filteredSlots.length === 0 && (
-           <div className="p-10 text-center text-gray-500 italic">No slots available. Refresh to try again.</div>
+           <div className="p-10 text-center text-gray-500 italic">No slots found under this filter.</div>
         )}
       </div>
 

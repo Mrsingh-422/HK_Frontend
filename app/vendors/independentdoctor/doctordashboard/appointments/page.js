@@ -4,7 +4,7 @@ import {
     FaCalendarAlt, FaHome, FaClock,
     FaVideo, FaHospital, FaCheck, FaTimes, FaUndo, FaSpinner, FaInfoCircle, FaUser,
     FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaWallet, FaStethoscope, FaExclamationTriangle,
-    FaExchangeAlt, FaMoneyBillWave, FaComment, FaPaperPlane, FaGem, FaFileAlt
+    FaExchangeAlt, FaMoneyBillWave, FaComment, FaPaperPlane, FaGem, FaSun, FaCloudSun, FaMoon
 } from 'react-icons/fa'
 import { IoCloseOutline } from "react-icons/io5";
 import DoctorAPI from '@/app/services/DoctorAPI';
@@ -17,6 +17,22 @@ import AddPrescriptionModal from '../videocallappointments/components/AddPrescri
 import DigitalPrescriptionTemplate from '../videocallappointments/components/DigitalPrescriptionTemplate';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+
+// Helper: Convert 24-hr time (e.g. "16:40" or "07:00") to 12-hr AM/PM (e.g. "04:40 PM")
+const formatTo12Hour = (timeStr) => {
+    if (!timeStr) return "";
+    const cleanTime = timeStr.trim();
+    if (/am|pm/i.test(cleanTime)) return cleanTime.toUpperCase();
+    const parts = cleanTime.split(':');
+    if (parts.length < 2) return cleanTime;
+    let hours = parseInt(parts[0], 10);
+    const minutes = parts[1].padStart(2, '0');
+    if (isNaN(hours)) return cleanTime;
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    const formattedHours = hours < 10 ? `0${hours}` : `${hours}`;
+    return `${formattedHours}:${minutes} ${ampm}`;
+};
 
 export default function AppointmentsPage() {
     const [appointments, setAppointments] = useState([]);
@@ -39,7 +55,13 @@ export default function AppointmentsPage() {
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
     const [selectedAppointment, setSelectedAppointment] = useState(null);
 
+    // Reschedule & Slot States
     const [rescheduleData, setRescheduleData] = useState({ date: '', time: '', reason: '' });
+    const [doctorSlots, setDoctorSlots] = useState([]);
+    const [slotsConfig, setSlotsConfig] = useState(null);
+    const [slotsLoading, setSlotsLoading] = useState(false);
+    const [isManualTime, setIsManualTime] = useState(false);
+
     const [cancelData, setCancelData] = useState({ reason: 'Doctor has emergency shift', isPermanent: false });
     const [submitting, setSubmitting] = useState(false);
 
@@ -137,6 +159,24 @@ export default function AppointmentsPage() {
         }
     };
 
+    // Load Doctor Slot Availability
+    const fetchDoctorSlots = async () => {
+        try {
+            setSlotsLoading(true);
+            if (typeof DoctorAPI.getMySlots === 'function') {
+                const res = await DoctorAPI.getMySlots();
+                if (res && res.success) {
+                    setDoctorSlots(res.generatedSlots || []);
+                    setSlotsConfig(res.config || null);
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching availability slots:", error);
+        } finally {
+            setSlotsLoading(false);
+        }
+    };
+
     const formatDate = (dateStr) => {
         if (!dateStr) return "";
         const date = new Date(dateStr);
@@ -217,22 +257,46 @@ export default function AppointmentsPage() {
         }
     };
 
+    const openRescheduleModal = (e, appt) => {
+        if (e) e.stopPropagation();
+        setSelectedAppointment(appt);
+        setRescheduleData({
+            date: appt.appointmentDate ? new Date(appt.appointmentDate).toISOString().split('T')[0] : '',
+            time: appt.appointmentTime || '',
+            reason: 'Clinic schedule adjustment'
+        });
+        setIsManualTime(false);
+        setIsRescheduleModalOpen(true);
+        fetchDoctorSlots();
+    };
+
     const handleRescheduleSubmit = async () => {
-        if (!rescheduleData.date || !rescheduleData.time) return toast.error("Please select date and time");
+        if (!rescheduleData.date) return toast.error("Please select an appointment date");
+        if (!rescheduleData.time) return toast.error("Please choose a time slot");
+
+        const formattedTime = formatTo12Hour(rescheduleData.time);
+
+        // Required API Body matching Flutter/Backend contract
+        const payload = {
+            appointmentDate: rescheduleData.date,
+            appointmentTime: formattedTime,
+            reason: rescheduleData.reason?.trim() || "Doctor rescheduled the appointment"
+        };
+
         try {
             setSubmitting(true);
-            const res = await DoctorAPI.rescheduleAppointment(selectedAppointment._id, {
-                newDate: rescheduleData.date,
-                newTime: rescheduleData.time,
-                reason: rescheduleData.reason
-            });
+            const res = await DoctorAPI.rescheduleAppointment(selectedAppointment._id, payload);
             if (res && res.success) {
-                toast.success("Rescheduled successfully");
+                toast.success(res.message || "Appointment rescheduled successfully!");
                 setIsRescheduleModalOpen(false);
+                setIsViewModalOpen(false);
                 fetchData();
+            } else {
+                toast.error(res?.message || "Failed to reschedule appointment");
             }
         } catch (error) {
-            toast.error("Failed to reschedule");
+            console.error("Reschedule Error:", error);
+            toast.error(error.response?.data?.message || "Failed to reschedule appointment");
         } finally {
             setSubmitting(false);
         }
@@ -445,11 +509,10 @@ export default function AppointmentsPage() {
         setIsViewModalOpen(true);
     };
 
-    const openRescheduleModal = (e, appt) => {
-        e.stopPropagation(); 
-        setSelectedAppointment(appt);
-        setRescheduleData({ date: '', time: '', reason: '' });
-        setIsRescheduleModalOpen(true);
+    const getSelectedDayName = (dateStr) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr + 'T00:00:00');
+        return d.toLocaleDateString('en-US', { weekday: 'long' });
     };
 
     const isOnlineConsultation =
@@ -468,6 +531,13 @@ export default function AppointmentsPage() {
         selectedAppointment.cancellationDetails?.cancelledAt ||
         selectedAppointment.cancellationDetails?.refundAmountCalculated
     );
+
+    // Grouping slots by category
+    const morningSlots = doctorSlots.filter(s => s.category?.toLowerCase() === 'morning');
+    const afternoonSlots = doctorSlots.filter(s => s.category?.toLowerCase() === 'afternoon');
+    const eveningSlots = doctorSlots.filter(s => s.category?.toLowerCase() === 'evening');
+
+    const isOffDaySelected = slotsConfig?.offDays?.includes(getSelectedDayName(rescheduleData.date));
 
     return (
         <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans">
@@ -668,7 +738,6 @@ export default function AppointmentsPage() {
                                                             {appt.status}
                                                         </span>
 
-                                                        {/* Prominent COD Label */}
                                                         {appt.paymentMethod === 'COD' && (
                                                             <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
                                                                 COD
@@ -1210,70 +1279,244 @@ export default function AppointmentsPage() {
                 </div>
             )}
 
-            {/* RESCHEDULE MODAL */}
+            {/* UPDATED RESCHEDULE MODAL WITH ACTIVE SLOT API INTEGRATION */}
             {isRescheduleModalOpen && (
                 <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[120] p-4 backdrop-blur-md">
-                    <div className="bg-white rounded-[3rem] w-full max-w-md overflow-hidden relative shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-                        <div className="p-8 border-b border-gray-50 bg-gray-50/50">
-                            <div className="flex justify-between items-center">
-                                <h2 className="text-xl font-black text-gray-900 tracking-tight uppercase">Update Schedule</h2>
-                                <button onClick={() => setIsRescheduleModalOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-400 hover:text-red-500 transition-all">
-                                    <IoCloseOutline size={24} />
-                                </button>
+                    <div className="bg-white rounded-[3rem] w-full max-w-xl max-h-[90vh] overflow-hidden relative shadow-2xl animate-in slide-in-from-bottom-4 duration-300 flex flex-col">
+                        
+                        {/* Header */}
+                        <div className="p-7 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center shrink-0">
+                            <div>
+                                <h2 className="text-lg font-black text-gray-900 tracking-tight uppercase">Update Schedule</h2>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                                    Patient: {selectedAppointment?.patients?.[0]?.patientName || selectedAppointment?.userId?.name || "Patient"}
+                                </p>
                             </div>
+                            <button onClick={() => setIsRescheduleModalOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-400 hover:text-red-500 transition-all border border-gray-100">
+                                <IoCloseOutline size={22} />
+                            </button>
                         </div>
 
-                        <div className="p-8 space-y-6">
+                        {/* Body */}
+                        <div className="p-7 overflow-y-auto space-y-6 no-scrollbar">
+                            
+                            {/* Appointment Date */}
                             <div>
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">New Appointment Date</label>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                                        Appointment Date <span className="text-red-500">*</span>
+                                    </label>
+                                    {rescheduleData.date && (
+                                        <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-md ${
+                                            isOffDaySelected ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700'
+                                        }`}>
+                                            {getSelectedDayName(rescheduleData.date)} {isOffDaySelected && '(Off Day)'}
+                                        </span>
+                                    )}
+                                </div>
                                 <input
                                     type="date"
                                     min={new Date().toISOString().split('T')[0]}
                                     value={rescheduleData.date}
                                     onChange={(e) => setRescheduleData({ ...rescheduleData, date: e.target.value })}
-                                    className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-black text-gray-700 focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] outline-none transition-all"
+                                    className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-black text-gray-800 focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] outline-none transition-all"
                                 />
                             </div>
 
-                            <div>
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Preferred Slot Time</label>
-                                <input
-                                    type="time"
-                                    value={rescheduleData.time}
-                                    onChange={(e) => setRescheduleData({ ...rescheduleData, time: e.target.value })}
-                                    className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-black text-gray-700 focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] outline-none transition-all"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Reason for Rescheduling</label>
-                                <textarea
-                                    rows={3}
-                                    placeholder="e.g. Doctor has emergency surgery conflict"
-                                    value={rescheduleData.reason || ''}
-                                    onChange={(e) => setRescheduleData({ ...rescheduleData, reason: e.target.value })}
-                                    className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-sm text-gray-700 focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] outline-none transition-all resize-none"
-                                />
-                            </div>
-
-                            <div className="bg-orange-50 p-5 rounded-[2rem] border border-orange-100">
-                                <div className="flex gap-3">
-                                    <FaInfoCircle className="text-orange-500 shrink-0 mt-1" />
-                                    <p className="text-xs font-bold text-orange-700 leading-relaxed">
-                                        Rescheduling will update the patient's schedule and send an instant notification.
-                                    </p>
+                            {/* Slot Picker from API */}
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                                        Select Available Slot <span className="text-red-500">*</span>
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsManualTime(!isManualTime)}
+                                        className="text-[10px] font-black uppercase text-[#08B36A] hover:underline"
+                                    >
+                                        {isManualTime ? 'Choose from Slot Grid' : 'Enter Custom Time'}
+                                    </button>
                                 </div>
+
+                                {isManualTime ? (
+                                    <input
+                                        type="time"
+                                        value={rescheduleData.time}
+                                        onChange={(e) => setRescheduleData({ ...rescheduleData, time: e.target.value })}
+                                        className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-black text-gray-800 focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] outline-none transition-all"
+                                    />
+                                ) : slotsLoading ? (
+                                    <div className="flex items-center justify-center py-8 bg-gray-50 rounded-2xl gap-2">
+                                        <FaSpinner className="animate-spin text-[#08B36A]" size={18} />
+                                        <span className="text-xs font-bold text-gray-400">Loading your clinic slots...</span>
+                                    </div>
+                                ) : doctorSlots.length === 0 ? (
+                                    <div className="p-4 bg-gray-50 rounded-2xl text-center">
+                                        <p className="text-xs font-bold text-gray-400">No pre-configured slots found.</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsManualTime(true)}
+                                            className="text-xs font-black text-[#08B36A] mt-1"
+                                        >
+                                            Switch to custom time input
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4 max-h-56 overflow-y-auto p-1 pr-2 no-scrollbar">
+                                        {/* Morning Slots */}
+                                        {morningSlots.length > 0 && (
+                                            <div>
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-2">
+                                                    <FaSun className="text-amber-500" /> Morning ({morningSlots.length})
+                                                </p>
+                                                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                                                    {morningSlots.map((slot, idx) => {
+                                                        const formattedSlot = formatTo12Hour(slot.time);
+                                                        const isSelected = rescheduleData.time === slot.time || rescheduleData.time === formattedSlot;
+                                                        return (
+                                                            <button
+                                                                key={`m-${idx}`}
+                                                                type="button"
+                                                                onClick={() => setRescheduleData({ ...rescheduleData, time: formattedSlot })}
+                                                                className={`py-2 px-1.5 rounded-xl text-[11px] font-extrabold border transition-all flex flex-col items-center justify-center ${
+                                                                    isSelected
+                                                                        ? 'bg-[#08B36A] text-white border-[#08B36A] shadow-md shadow-green-100 scale-95'
+                                                                        : 'bg-white text-gray-700 border-gray-200 hover:border-[#08B36A]'
+                                                                }`}
+                                                            >
+                                                                <span>{formattedSlot}</span>
+                                                                {slot.extraFee > 0 && (
+                                                                    <span className={`text-[8px] mt-0.5 ${isSelected ? 'text-green-100' : 'text-amber-600'}`}>
+                                                                        +₹{slot.extraFee}
+                                                                    </span>
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Afternoon Slots */}
+                                        {afternoonSlots.length > 0 && (
+                                            <div>
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-2">
+                                                    <FaCloudSun className="text-orange-500" /> Afternoon ({afternoonSlots.length})
+                                                </p>
+                                                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                                                    {afternoonSlots.map((slot, idx) => {
+                                                        const formattedSlot = formatTo12Hour(slot.time);
+                                                        const isSelected = rescheduleData.time === slot.time || rescheduleData.time === formattedSlot;
+                                                        return (
+                                                            <button
+                                                                key={`a-${idx}`}
+                                                                type="button"
+                                                                onClick={() => setRescheduleData({ ...rescheduleData, time: formattedSlot })}
+                                                                className={`py-2 px-1.5 rounded-xl text-[11px] font-extrabold border transition-all flex flex-col items-center justify-center ${
+                                                                    isSelected
+                                                                        ? 'bg-[#08B36A] text-white border-[#08B36A] shadow-md shadow-green-100 scale-95'
+                                                                        : 'bg-white text-gray-700 border-gray-200 hover:border-[#08B36A]'
+                                                                }`}
+                                                            >
+                                                                <span>{formattedSlot}</span>
+                                                                {slot.extraFee > 0 && (
+                                                                    <span className={`text-[8px] mt-0.5 ${isSelected ? 'text-green-100' : 'text-amber-600'}`}>
+                                                                        +₹{slot.extraFee}
+                                                                    </span>
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Evening Slots */}
+                                        {eveningSlots.length > 0 && (
+                                            <div>
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 mb-2">
+                                                    <FaMoon className="text-indigo-500" /> Evening ({eveningSlots.length})
+                                                </p>
+                                                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                                                    {eveningSlots.map((slot, idx) => {
+                                                        const formattedSlot = formatTo12Hour(slot.time);
+                                                        const isSelected = rescheduleData.time === slot.time || rescheduleData.time === formattedSlot;
+                                                        return (
+                                                            <button
+                                                                key={`e-${idx}`}
+                                                                type="button"
+                                                                onClick={() => setRescheduleData({ ...rescheduleData, time: formattedSlot })}
+                                                                className={`py-2 px-1.5 rounded-xl text-[11px] font-extrabold border transition-all flex flex-col items-center justify-center ${
+                                                                    isSelected
+                                                                        ? 'bg-[#08B36A] text-white border-[#08B36A] shadow-md shadow-green-100 scale-95'
+                                                                        : 'bg-white text-gray-700 border-gray-200 hover:border-[#08B36A]'
+                                                                }`}
+                                                            >
+                                                                <span>{formattedSlot}</span>
+                                                                {slot.extraFee > 0 && (
+                                                                    <span className={`text-[8px] mt-0.5 ${isSelected ? 'text-green-100' : 'text-amber-600'}`}>
+                                                                        +₹{slot.extraFee}
+                                                                    </span>
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Selected Slot Preview Banner */}
+                                {rescheduleData.time && (
+                                    <div className="p-3 bg-emerald-50 rounded-2xl flex items-center justify-between border border-emerald-100">
+                                        <span className="text-[10px] font-black uppercase text-emerald-700 tracking-wider">
+                                            Selected Slot Time:
+                                        </span>
+                                        <span className="text-xs font-black text-[#08B36A]">
+                                            {formatTo12Hour(rescheduleData.time)}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Reason Field */}
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">
+                                    Reason for Rescheduling
+                                </label>
+                                <textarea
+                                    rows={2}
+                                    placeholder="e.g. Clinic closed or Doctor emergency schedule conflict"
+                                    value={rescheduleData.reason}
+                                    onChange={(e) => setRescheduleData({ ...rescheduleData, reason: e.target.value })}
+                                    className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-xs text-gray-700 focus:ring-4 focus:ring-green-50 focus:border-[#08B36A] outline-none transition-all resize-none"
+                                />
+                            </div>
+
+                            <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100 flex gap-3">
+                                <FaInfoCircle className="text-orange-500 shrink-0 mt-0.5" />
+                                <p className="text-[11px] font-bold text-orange-700 leading-relaxed">
+                                    Updating will adjust the booking timetable and send an instant SMS / App notification to the patient.
+                                </p>
                             </div>
                         </div>
 
-                        <div className="p-8 pt-0 flex flex-col gap-3">
+                        {/* Footer */}
+                        <div className="p-6 border-t border-gray-50 flex gap-3 shrink-0">
                             <button
-                                disabled={submitting}
+                                onClick={() => setIsRescheduleModalOpen(false)}
+                                className="flex-1 py-4 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 font-black rounded-2xl text-[10px] uppercase tracking-widest transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                disabled={submitting || !rescheduleData.date || !rescheduleData.time}
                                 onClick={handleRescheduleSubmit}
-                                className="w-full py-5 rounded-[2rem] bg-[#08B36A] text-white font-black text-xs uppercase tracking-widest hover:bg-green-600 shadow-xl shadow-green-100 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                className="flex-[2] py-4 bg-[#08B36A] hover:bg-green-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest shadow-xl shadow-green-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {submitting ? <FaSpinner className="animate-spin" /> : <FaCheck />}
-                                {submitting ? 'Updating...' : 'Confirm Reschedule'}
+                                {submitting ? 'Updating Slot...' : 'Confirm Reschedule'}
                             </button>
                         </div>
                     </div>

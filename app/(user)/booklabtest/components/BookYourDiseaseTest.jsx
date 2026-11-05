@@ -94,11 +94,27 @@ function BookYourDiseaseTest() {
       item._id || 
       itemData._id ||
       itemData.id ||
+      item.doctorId ||
       item.testId || 
       item.masterTestId ||
       item.masterId ||
       item.labId || 
       item.packageId;
+
+    // Doctor / Hospital Doctor Routing
+    if (item.role === "hospital-doctor" || (item.hospitalId && item.hospitalId !== null) || rawType === "hospital doctor") {
+      if (targetId) {
+        router.push(`/user/hospital/doctors/${targetId}/opd-slots`);
+        return;
+      }
+    }
+
+    if (item.role === "doctor" || rawType === "doctor") {
+      if (targetId) {
+        router.push(`/user/doctors/details/${targetId}`);
+        return;
+      }
+    }
 
     // 1. Diagnostic Center / Lab Profile
     if (rawType.includes("lab") && !rawType.includes("test") && !rawType.includes("package")) {

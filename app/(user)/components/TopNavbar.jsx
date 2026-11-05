@@ -129,13 +129,23 @@ export default function TopNavbar() {
     setShowSuggestions(false);
     setSearchQuery(item.title);
 
-    const id = item.id;
+    const id = item.id || item._id;
     const type = item.type;
+    const role = item.role;
+
+    // Hospital Doctor Routing Rule: item.role === "hospital-doctor" or hospitalId !== null
+    if (role === "hospital-doctor" || (item.hospitalId && item.hospitalId !== null) || type === "Hospital Doctor") {
+      router.push(`/user/hospital/doctors/${id}/opd-slots`);
+      return;
+    }
+
+    // Independent Doctor Routing Rule: item.role === "doctor"
+    if (role === "doctor" || type === "Doctor") {
+      router.push(`/user/doctors/details/${id}`);
+      return;
+    }
 
     switch (type) {
-      case "Doctor":
-        router.push(`/drappointment/doctordetail/${id}`);
-        break;
       case "Lab":
         router.push(`/booklabtest/singlelabdetail/${id}`);
         break;
@@ -175,7 +185,8 @@ export default function TopNavbar() {
 
   const getIconByType = (type) => {
     switch (type) {
-      case 'Doctor': return <FaUserMd className="text-blue-500" />;
+      case 'Doctor':
+      case 'Hospital Doctor': return <FaUserMd className="text-blue-500" />;
       case 'Medicine': return <FaCapsules className="text-green-500" />;
       case 'Lab Test': return <FaMicroscope className="text-purple-500" />;
       case 'Nurse Service': return <FaUserNurse className="text-pink-500" />;

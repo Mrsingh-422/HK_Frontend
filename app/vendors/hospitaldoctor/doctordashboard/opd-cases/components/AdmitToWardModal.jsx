@@ -56,12 +56,20 @@ export default function AdmitToWardModal({
     try {
       setLoadingBeds(true);
       const res = await HospitalDoctorAPI.getAvailableBedsForOpd();
-      if (res?.success && res.data) {
-        const wards = res.data || [];
-        setWardsData(wards);
-        if (wards.length > 0) {
-          setSelectedWardId(wards[0].wardId || wards[0]._id);
-        }
+      
+      // Safely extract wards array matching your API structure (res.data)
+      let wards = [];
+      if (Array.isArray(res?.data)) {
+        wards = res.data;
+      } else if (Array.isArray(res?.data?.wards)) {
+        wards = res.data.wards;
+      } else if (Array.isArray(res?.wards)) {
+        wards = res.wards;
+      }
+
+      setWardsData(wards);
+      if (wards.length > 0) {
+        setSelectedWardId(wards[0]._id || wards[0].wardId);
       }
     } catch (err) {
       console.error("Failed to load beds:", err);
@@ -73,8 +81,27 @@ export default function AdmitToWardModal({
 
   if (!isOpen) return null;
 
-  const currentWard = wardsData.find((w) => (w.wardId || w._id) === selectedWardId);
-  const depositPayable = (selectedBed?.pricePerDay || 0) * Number(initialStayDays || 1);
+  const currentWard = wardsData.find((w) => (w._id || w.wardId) === selectedWardId);
+
+  // Read from availableBedsList (per your API response) with fallbacks
+  const currentWardBeds = Array.isArray(currentWard?.availableBedsList)
+    ? currentWard.availableBedsList
+    : Array.isArray(currentWard?.beds)
+    ? currentWard.beds
+    : Array.isArray(currentWard?.availableBeds)
+    ? currentWard.availableBeds
+    : [];
+
+  const selectedBedPrice = selectedBed?.pricePerDay ?? selectedBed?.price ?? selectedBed?.chargesPerDay ?? 0;
+  const depositPayable = selectedBedPrice * Number(initialStayDays || 1);
+
+  // Total free beds calculation
+  const totalFreeBeds = wardsData.reduce((acc, w) => {
+    const count = typeof w.availableBeds === 'number'
+      ? w.availableBeds
+      : (Array.isArray(w.availableBedsList) ? w.availableBedsList.length : 0);
+    return acc + count;
+  }, 0);
 
   // Initiate Bed Admission Hold (POST /hospital-doctor/panel/opd/initiate-admission)
   const handleSubmitAdmission = async (e) => {
@@ -96,7 +123,7 @@ export default function AdmitToWardModal({
       const payload = {
         opdAppointmentId: targetOpdId,
         appointmentId: targetOpdId,
-        bedId: selectedBed.bedId || selectedBed._id,
+        bedId: selectedBed._id || selectedBed.bedId,
         stayDuration: stayDays,
         initialStayDays: stayDays,
         triageLevel: triageLevel, // 'Emergency' | 'Very Urgent' | 'Urgent' | 'Routine'
@@ -175,7 +202,7 @@ export default function AdmitToWardModal({
                 1. Select Target Ward
               </label>
               <span className="text-[11px] text-emerald-600 font-bold">
-                {wardsData.reduce((acc, w) => acc + (w.availableBedsCount || 0), 0)} Total Beds Available
+                {totalFreeBeds} Total Beds Available
               </span>
             </div>
 
@@ -191,7 +218,11 @@ export default function AdmitToWardModal({
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 {wardsData.map((ward) => {
-                  const wId = ward.wardId || ward._id;
+                  const wId = ward._id || ward.wardId;
+                  const bedsCount = typeof ward.availableBeds === 'number'
+                    ? ward.availableBeds
+                    : (Array.isArray(ward.availableBedsList) ? ward.availableBedsList.length : 0);
+
                   return (
                     <button
                       key={wId}
@@ -206,13 +237,13 @@ export default function AdmitToWardModal({
                           : "bg-slate-50 border-slate-200 hover:bg-white text-slate-800"
                       }`}
                     >
-                      <p className="font-black text-xs leading-tight">{ward.wardName || ward.name}</p>
+                      <p className="font-black text-xs leading-tight">{ward.name || ward.wardName}</p>
                       <div className="flex items-center justify-between mt-1 text-[10px] font-bold">
                         <span className={selectedWardId === wId ? "text-indigo-300" : "text-slate-400"}>
-                          {ward.wardType || ward.type}
+                          {ward.type || ward.wardType}
                         </span>
                         <span className={selectedWardId === wId ? "text-emerald-400" : "text-emerald-600"}>
-                          {ward.availableBedsCount ?? ward.availableBeds ?? 0} Free
+                          {bedsCount} Free
                         </span>
                       </div>
                     </button>
@@ -226,18 +257,20 @@ export default function AdmitToWardModal({
           {currentWard && (
             <div className="space-y-2.5">
               <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 block">
-                2. Select Bed in {currentWard.wardName || currentWard.name}
+                2. Select Bed in {currentWard.name || currentWard.wardName}
               </label>
 
-              {currentWard.beds?.length === 0 ? (
+              {currentWardBeds.length === 0 ? (
                 <p className="text-slate-400 font-semibold italic p-4 bg-slate-50 rounded-xl">
                   No beds available in this ward. Please pick another ward above.
                 </p>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {currentWard.beds.map((bed) => {
-                    const bId = bed.bedId || bed._id;
-                    const isSelected = (selectedBed?.bedId || selectedBed?._id) === bId;
+                  {currentWardBeds.map((bed) => {
+                    const bId = bed._id || bed.bedId;
+                    const isSelected = (selectedBed?._id || selectedBed?.bedId) === bId;
+                    const price = bed.pricePerDay ?? bed.chargesPerDay ?? bed.price ?? 0;
+
                     return (
                       <button
                         key={bId}
@@ -265,7 +298,7 @@ export default function AdmitToWardModal({
                             isSelected ? "text-emerald-100" : "text-emerald-700"
                           }`}
                         >
-                          ₹{bed.pricePerDay} / day
+                          ₹{price} / day
                         </span>
                       </button>
                     );
@@ -339,7 +372,7 @@ export default function AdmitToWardModal({
                   Target Bed Locked for 30 Mins
                 </span>
                 <p className="font-black text-sm text-slate-900 mt-0.5">
-                  {selectedBed.bedNumber} &bull; {currentWard?.wardName || currentWard?.name} ({triageLevel})
+                  {selectedBed.bedNumber} &bull; {currentWard?.name || currentWard?.wardName} ({triageLevel})
                 </p>
               </div>
               <div className="text-right">

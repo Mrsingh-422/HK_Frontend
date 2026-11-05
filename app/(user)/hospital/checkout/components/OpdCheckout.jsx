@@ -279,6 +279,12 @@ export default function OpdCheckout() {
                 ...(cleanApptTime && { appointmentTime: cleanApptTime }),
                 couponCode: codeToApply || undefined,
                 hasInsurance: effectiveInsurance.isAttached,
+                insuranceDetails: {
+                    hasInsurance: effectiveInsurance.isAttached,
+                    companyName: effectiveInsurance.companyName,
+                    insuranceNumber: effectiveInsurance.insuranceNumber,
+                    insuranceType: effectiveInsurance.insuranceType || 'Cashless Mediclaim'
+                },
                 ...(effectiveInsurance.isAttached && {
                     companyName: effectiveInsurance.companyName,
                     insuranceNumber: effectiveInsurance.insuranceNumber,
@@ -474,7 +480,7 @@ export default function OpdCheckout() {
                 amount: amountInPaise,
                 currency: orderRes.currency || 'INR',
                 name: 'Health Kangaroo OPD Clinic',
-                description: `OPD Consultation Token #${orderRes.tokenNumber || '1'} with Dr. ${booking.doctor?.name || ''}`,
+                description: `OPD Consultation Token #${orderRes.tokenNumber || orderRes.data?.tokenNumber || '1'} with Dr. ${booking.doctor?.name || ''}`,
                 order_id: razorpayOrderId || undefined,
                 prefill: {
                     name: patientDetails.fullName || '',
@@ -517,6 +523,8 @@ export default function OpdCheckout() {
                                 ...orderRes,
                                 ...(verificationRes.data || verificationRes),
                                 bookingId: verificationRes.bookingId || verificationRes.data?.bookingId || targetBookingId,
+                                tokenNumber: orderRes.tokenNumber || orderRes.data?.tokenNumber || verificationRes.tokenNumber || verificationRes.data?.tokenNumber || 1,
+                                opdRoomNumber: orderRes.opdRoomNumber || orderRes.data?.opdRoomNumber || cabinRoomLabel,
                                 status: 'Confirmed',
                                 paymentStatus: 'Paid'
                             });
@@ -532,6 +540,8 @@ export default function OpdCheckout() {
                             setBookingSuccessData({
                                 ...orderRes,
                                 bookingId: targetBookingId,
+                                tokenNumber: orderRes.tokenNumber || orderRes.data?.tokenNumber || 1,
+                                opdRoomNumber: orderRes.opdRoomNumber || orderRes.data?.opdRoomNumber || cabinRoomLabel,
                                 status: 'Confirmed',
                                 paymentStatus: 'Paid'
                             });
@@ -560,7 +570,7 @@ export default function OpdCheckout() {
         }
     };
 
-    // 5. Final OPD Booking Submit (Step 4 Flow: POST /user/hospital/opd/book)
+    // 5. Final OPD Booking Submit (Documentation Aligned Flow: POST /user/hospital/opd/book)
     const handleBooking = async () => {
         if (!patientDetails.fullName.trim() || !patientDetails.phoneNumber.trim()) {
             CostoumPopup('Please provide patient name and contact phone number', 'warning', 3000);
@@ -585,33 +595,34 @@ export default function OpdCheckout() {
             const isZeroTotal = totals.totalPayable === 0;
             const finalPaymentMethod = isZeroTotal ? 'COD' : paymentMethod;
             const calculatedPatientAge = calculateAge(patientDetails.dob);
-
             const cleanApptTime = booking.appointmentTime || booking.selectedSlot?.time || '';
 
-            // Clean Payload per Documentation
+            // Exact JSON payload according to Documentation
             const opdPayload = {
                 hospitalId: String(booking.hospital?._id || booking.hospitalId),
                 doctorId: String(booking.doctor?._id || booking.doctorId),
                 appointmentDate: getCleanDate(booking.appointmentDate || booking.selectedDate),
-                ...(cleanApptTime && { appointmentTime: cleanApptTime }),
-                ...(patientDetails.bookingReason && { bookingReason: patientDetails.bookingReason.trim() }),
+                appointmentTime: cleanApptTime,
                 paymentMethod: finalPaymentMethod,
-                couponCode: appliedCouponCode || undefined,
-                
-                // STEP 4 Insurance Handling: Avoid sending string "undefined" or "null"
-                hasInsurance: effectiveInsurance.isAttached,
-                ...(effectiveInsurance.isAttached ? {
-                    companyName: effectiveInsurance.companyName,
-                    insuranceNumber: effectiveInsurance.insuranceNumber,
-                    insuranceType: effectiveInsurance.insuranceType || 'Cashless Mediclaim'
-                } : {}),
-
+                bookingReason: patientDetails.bookingReason?.trim() || 'General OPD Consultation',
+                couponCode: appliedCouponCode || '',
+                specialServices: [],
+                insuranceDetails: {
+                    hasInsurance: effectiveInsurance.isAttached,
+                    ...(effectiveInsurance.isAttached ? {
+                        companyName: effectiveInsurance.companyName,
+                        insuranceNumber: effectiveInsurance.insuranceNumber,
+                        insuranceType: effectiveInsurance.insuranceType || 'Cashless Mediclaim'
+                    } : {})
+                },
                 patients: [
                     {
                         patientName: patientDetails.fullName.trim(),
                         patientAge: calculatedPatientAge > 0 ? calculatedPatientAge : 30,
                         gender: patientDetails.gender,
-                        relation: selectedMemberId === 'self' ? 'Self' : (patientDetails.relation || 'Family Member')
+                        relation: selectedMemberId === 'self' ? 'Self' : (patientDetails.relation || 'Family Member'),
+                        reasonForVisit: patientDetails.bookingReason?.trim() || 'General OPD Consultation',
+                        isMainUser: selectedMemberId === 'self'
                     }
                 ]
             };
@@ -624,18 +635,21 @@ export default function OpdCheckout() {
                 return;
             }
 
-            if (finalPaymentMethod === 'Online' && !isZeroTotal) {
+            // If backend specifies paymentRequired: true OR online checkout with valid razorpay order
+            if (res.paymentRequired === true || (finalPaymentMethod === 'Online' && !isZeroTotal && (res.razorpayOrderId || res.data?.razorpayOrderId))) {
                 await launchRazorpay(res);
                 return;
             }
 
-            // Pay at OPD Reception Desk (COD)
+            // Direct Confirmation (COD or Zero Total paymentRequired: false)
             sessionStorage.removeItem('activeOpdBooking');
             sessionStorage.removeItem('lastActiveCheckoutType');
             setBookingSuccessData({
                 ...res,
-                status: 'Hospital-Pending',
-                paymentStatus: 'Pending at OPD Reception'
+                tokenNumber: res.tokenNumber || res.data?.tokenNumber || 1,
+                opdRoomNumber: res.opdRoomNumber || res.data?.opdRoomNumber || cabinRoomLabel,
+                status: res.data?.status || res.status || (finalPaymentMethod === 'COD' ? 'Pending' : 'Confirmed'),
+                paymentStatus: res.data?.paymentStatus || res.paymentStatus || (finalPaymentMethod === 'COD' ? 'Pending at OPD Reception' : 'Paid')
             });
             setIsSubmitting(false);
 
@@ -799,9 +813,7 @@ export default function OpdCheckout() {
                             </div>
                         </section>
 
-                        {/* ============================================================== */}
-                        {/* 🛡️ SECTION 3: HEALTH INSURANCE VERIFICATION (STEPS 1 - 3)      */}
-                        {/* ============================================================== */}
+                        {/* SECTION 3: HEALTH INSURANCE VERIFICATION */}
                         <section className="bg-white rounded-3xl p-6 md:p-8 shadow-xs border border-slate-200/80">
                             <div className="flex items-center justify-between mb-4">
                                 <h2 className="text-xs font-black text-slate-900 uppercase tracking-[0.2em] flex items-center gap-3">
@@ -1191,7 +1203,7 @@ export default function OpdCheckout() {
                                     <div className="text-right font-black text-slate-800">Dr. {booking.doctor?.name}</div>
                                     <div className="text-slate-500 font-semibold">Cabin / Room:</div>
                                     <div className="text-right font-bold text-emerald-600">
-                                        {bookingSuccessData.data?.opdRoomNumber || cabinRoomLabel}
+                                        {bookingSuccessData.opdRoomNumber || bookingSuccessData.data?.opdRoomNumber || cabinRoomLabel}
                                     </div>
                                     <div className="text-slate-500 font-semibold">Slot Time:</div>
                                     <div className="text-right font-bold text-slate-800">{booking.appointmentTime || booking.selectedSlot?.time || 'Queue Token'}</div>
